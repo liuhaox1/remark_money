@@ -422,34 +422,50 @@ class _BookSelector extends StatelessWidget {
   }
 
   Future<void> _showBookPicker(BuildContext context) async {
-    await showModalBottomSheet(
-      context: context,
-      builder: (ctx) {
-        return ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(
-              title: Text(
-                '选择账本',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-            for (final book in bookProvider.books)
-              RadioListTile<String>(
-                value: book.id,
-                groupValue: bookProvider.activeBookId,
-                onChanged: (value) {
-                  if (value != null) {
-                    bookProvider.selectBook(value);
-                    Navigator.pop(ctx);
-                  }
-                },
-                title: Text(book.name),
-              ),
-          ],
-        );
-      },
+    final button = context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (button == null || overlay == null) return;
+
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(
+          button.size.bottomRight(Offset.zero),
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
     );
+
+    final selectedId = await showMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        for (final book in bookProvider.books)
+          PopupMenuItem<String>(
+            value: book.id,
+            child: Row(
+              children: [
+                if (book.id == bookProvider.activeBookId)
+                  Icon(
+                    Icons.check,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                else
+                  const SizedBox(width: 16),
+                const SizedBox(width: 4),
+                Text(book.name),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (selectedId != null && selectedId != bookProvider.activeBookId) {
+      bookProvider.selectBook(selectedId);
+    }
   }
 }
 
