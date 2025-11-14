@@ -1,9 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:remark_money/models/category.dart';
-import 'package:remark_money/models/record.dart';
-import 'package:remark_money/utils/date_utils.dart';
+
+import '../models/category.dart';
+import '../models/record.dart';
+import '../utils/date_utils.dart';
 
 class TimelineItem extends StatelessWidget {
   const TimelineItem({
@@ -14,114 +15,94 @@ class TimelineItem extends StatelessWidget {
   });
 
   final Record record;
-  final bool leftSide;
+  final bool leftSide; // 保留参数以兼容旧调用，但当前布局不再交错左右
   final Category? category;
 
   @override
   Widget build(BuildContext context) {
-    final title = category?.name ?? "未分类";
-    final baseColor = record.isExpense ? Colors.redAccent : Colors.green.shade600;
-    final color = baseColor;
+    final title = category?.name ?? '未分类';
+    final isExpense = record.isExpense;
+    final Color color =
+        isExpense ? Colors.redAccent : Colors.green.shade600;
     final icon = category?.icon ?? Icons.category_outlined;
     final amountValue = record.absAmount;
-    final sign = record.isExpense ? '-' : '+';
-    final amountStr = "$sign${amountValue.toStringAsFixed(2)}";
+    final sign = isExpense ? '-' : '+';
+    final amountStr = '$sign${amountValue.toStringAsFixed(2)}';
     final dateText = DateUtilsX.ymd(record.date);
 
-    final card = ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 180, maxWidth: 220),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.35)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: leftSide
-              ? [
-                  Flexible(child: _buildAmount(amountStr)),
-                  const SizedBox(width: 8),
-                  Flexible(child: _buildText(context, title, dateText)),
-                ]
-              : [
-                  Flexible(child: _buildText(context, title, dateText)),
-                  const SizedBox(width: 8),
-                  Flexible(child: _buildAmount(amountStr)),
-                ],
-        ),
-      ),
-    );
-
-    final dot = Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          )
-        ],
-      ),
-      child: Icon(icon, color: Colors.white, size: 18),
-    );
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         children: [
-          Expanded(
-            child: leftSide
-                ? Align(alignment: Alignment.centerRight, child: card)
-                : const SizedBox.shrink(),
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.25),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 16),
           ),
           const SizedBox(width: 8),
-          dot,
-          const SizedBox(width: 8),
           Expanded(
-            child: !leftSide
-                ? Align(alignment: Alignment.centerLeft, child: card)
-                : const SizedBox.shrink(),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: color.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          dateText,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color:
+                                Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    amountStr,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildText(BuildContext context, String title, String dateText) {
-    return Column(
-      crossAxisAlignment:
-          leftSide ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          dateText,
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.outline,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAmount(String amountStr) {
-    return Text(
-      amountStr,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        fontFeatures: [FontFeature.tabularFigures()],
       ),
     );
   }
 }
+
