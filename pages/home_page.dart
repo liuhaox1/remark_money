@@ -112,26 +112,34 @@ class _HomePageState extends State<HomePage> {
                   },
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ShortcutButton(
-                        icon: Icons.receipt_long,
-                        label: '账单',
-                        onTap: () => Navigator.pushNamed(context, '/bill'),
+                SizedBox(
+                  height: 40,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _ShortcutButton(
+                            icon: Icons.receipt_long,
+                            label: '账单',
+                            onTap: () => Navigator.pushNamed(context, '/bill'),
+                          ),
+                          const SizedBox(width: 8),
+                          _ShortcutButton(
+                            icon: Icons.account_balance_wallet_outlined,
+                            label: '预算',
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/budget'),
+                          ),
+                          // 以后如果再加入口，就直接在这里继续加按钮即可，
+                          // 都保持横向排列，多了可以左右滑动，不会竖着排。
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _ShortcutButton(
-                        icon: Icons.account_balance_wallet_outlined,
-                        label: '预算',
-                        onTap: () => Navigator.pushNamed(context, '/budget'),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Expanded(
                   child: Column(
                     children: [
@@ -344,26 +352,24 @@ class _ShortcutButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isDark ? cs.surface : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+          color: cs.surfaceVariant.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: cs.primary, size: 18),
-            const SizedBox(width: 6),
+            Icon(icon, color: cs.primary, size: 16),
+            const SizedBox(width: 4),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
