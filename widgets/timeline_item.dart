@@ -28,26 +28,29 @@ class TimelineItem extends StatelessWidget {
     final amountStr = "$sign${amountValue.toStringAsFixed(2)}";
     final dateText = DateUtilsX.ymd(record.date);
 
-    final card = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: leftSide
-            ? [
-                Flexible(child: _buildAmount(amountStr)),
-                const SizedBox(width: 8),
-                Flexible(child: _buildText(context, title, dateText)),
-              ]
-            : [
-                Flexible(child: _buildText(context, title, dateText)),
-                const SizedBox(width: 8),
-                Flexible(child: _buildAmount(amountStr)),
-              ],
+    final card = ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 220),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: leftSide
+              ? [
+                  Flexible(child: _buildAmount(amountStr)),
+                  const SizedBox(width: 8),
+                  Flexible(child: _buildText(context, title, dateText)),
+                ]
+              : [
+                  Flexible(child: _buildText(context, title, dateText)),
+                  const SizedBox(width: 8),
+                  Flexible(child: _buildAmount(amountStr)),
+                ],
+        ),
       ),
     );
 

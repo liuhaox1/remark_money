@@ -189,11 +189,11 @@ class _HomePageState extends State<HomePage> {
           Icon(Icons.hourglass_empty_rounded, size: 72, color: cs.outline),
           const SizedBox(height: 12),
           const Text(
-            '22222',
+            '今天还没有记账',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
-          const Text('11111'),
+          const Text('点底部“记一笔”开始记录吧'),
         ],
       ),
     );
@@ -963,8 +963,8 @@ class _BudgetBanner extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: theme.brightness == Brightness.dark
             ? Colors.amber.withOpacity(0.18)
