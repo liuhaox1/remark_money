@@ -66,6 +66,12 @@ class DateUtilsX {
     return List.generate(past + future + 1, (i) => now - past + i);
   }
 
+  /// 返回简短星期文案：一/二/三...
+  static String weekdayShort(DateTime d) {
+    const values = ['日', '一', '二', '三', '四', '五', '六'];
+    return values[d.weekday % 7];
+  }
+
   /// 是否是今天
   static bool isToday(DateTime d) {
     final now = DateTime.now();

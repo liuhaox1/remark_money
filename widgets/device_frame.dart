@@ -16,7 +16,7 @@ class DeviceFrame extends StatelessWidget {
     final height = (size.height * 0.92).clamp(640.0, 900.0);
 
     final framedChild = ClipRRect(
-      borderRadius: BorderRadius.circular(36),
+      borderRadius: BorderRadius.circular(24),
       child: MediaQuery(
         data: media.copyWith(
           size: Size(width, height),
@@ -32,19 +32,19 @@ class DeviceFrame extends StatelessWidget {
     debugPrint('DeviceFrame build: ${duration}ms');
 
     return ColoredBox(
-      color: const Color(0xFFE6E2D7),
+      color: const Color(0xFFEDE9E0),
       child: Center(
         child: Container(
           width: width,
           height: height,
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.background,
-            borderRadius: BorderRadius.circular(36),
+            borderRadius: BorderRadius.circular(24),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 30,
-                offset: Offset(0, 20),
+                color: Color(0x22000000),
+                blurRadius: 18,
+                offset: Offset(0, 12),
               ),
             ],
           ),

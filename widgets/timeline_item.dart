@@ -17,16 +17,11 @@ class TimelineItem extends StatelessWidget {
   final bool leftSide;
   final Category? category;
 
-  Color _pastelColor(String seed) {
-    final hash = seed.codeUnits.fold(0, (a, b) => (a * 131 + b) & 0x7fffffff);
-    final hue = (hash % 360).toDouble();
-    return HSLColor.fromAHSL(0.22, hue, 0.45, 0.70).toColor();
-  }
-
   @override
   Widget build(BuildContext context) {
     final title = category?.name ?? "未分类";
-    final color = _pastelColor(title);
+    final baseColor = record.isExpense ? Colors.redAccent : Colors.green.shade600;
+    final color = baseColor;
     final icon = category?.icon ?? Icons.category_outlined;
     final amountValue = record.absAmount;
     final sign = record.isExpense ? '-' : '+';
@@ -36,7 +31,7 @@ class TimelineItem extends StatelessWidget {
     final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.35)),
       ),

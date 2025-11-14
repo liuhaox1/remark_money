@@ -43,12 +43,15 @@ class _RootShellState extends State<RootShell> {
   @override
   Widget build(BuildContext context) {
     final buildStart = DateTime.now();
+    final cs = Theme.of(context).colorScheme;
     final scaffold = Scaffold(
       body: IndexedStack(
         index: _index,
         children: _pages,
       ),
       bottomNavigationBar: NavigationBar(
+        backgroundColor: cs.surface,
+        indicatorColor: cs.primary.withOpacity(0.12),
         selectedIndex: _index >= 2 ? _index + 1 : _index,
         destinations: const [
           NavigationDestination(

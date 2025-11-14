@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/book_provider.dart';
+import '../providers/theme_provider.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -9,6 +10,7 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bookProvider = context.watch<BookProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: Center(
@@ -19,6 +21,8 @@ class ProfilePage extends StatelessWidget {
             children: [
               _buildBookSection(context, bookProvider),
               const SizedBox(height: 24),
+              _buildThemeSection(context, themeProvider),
+              const SizedBox(height: 24),
               Card(
                 child: ListTile(
                   title: const Text('指尖记账 1.0.0'),
@@ -28,6 +32,46 @@ class ProfilePage extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeSection(BuildContext context, ThemeProvider provider) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '主题',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            DropdownButton<ThemeMode>(
+              value: provider.mode,
+              onChanged: (mode) {
+                if (mode != null) {
+                  provider.setMode(mode);
+                }
+              },
+              items: const [
+                DropdownMenuItem(
+                  value: ThemeMode.light,
+                  child: Text('浅色'),
+                ),
+                DropdownMenuItem(
+                  value: ThemeMode.dark,
+                  child: Text('深色'),
+                ),
+                DropdownMenuItem(
+                  value: ThemeMode.system,
+                  child: Text('跟随系统'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

@@ -6,6 +6,7 @@ import 'providers/book_provider.dart';
 import 'providers/record_provider.dart';
 import 'providers/category_provider.dart';
 import 'providers/budget_provider.dart';
+import 'providers/theme_provider.dart';
 
 import 'pages/root_shell.dart';
 import 'pages/add_record_page.dart';
@@ -30,12 +31,14 @@ Future<void> main() async {
   final recordProvider = RecordProvider();
   final categoryProvider = CategoryProvider();
   final budgetProvider = BudgetProvider();
+  final themeProvider = ThemeProvider();
 
   await Future.wait([
     bookProvider.load(),
     recordProvider.load(),
     categoryProvider.load(),
     budgetProvider.load(),
+    themeProvider.load(),
   ]);
   debugPrint('providers loaded: ${DateTime.now().toIso8601String()}');
 
@@ -45,6 +48,7 @@ Future<void> main() async {
       recordProvider: recordProvider,
       categoryProvider: categoryProvider,
       budgetProvider: budgetProvider,
+      themeProvider: themeProvider,
     ),
   );
 }
@@ -82,12 +86,14 @@ class RemarkMoneyApp extends StatelessWidget {
     required this.recordProvider,
     required this.categoryProvider,
     required this.budgetProvider,
+    required this.themeProvider,
   });
 
   final BookProvider bookProvider;
   final RecordProvider recordProvider;
   final CategoryProvider categoryProvider;
   final BudgetProvider budgetProvider;
+  final ThemeProvider themeProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -97,25 +103,36 @@ class RemarkMoneyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: recordProvider),
         ChangeNotifierProvider.value(value: categoryProvider),
         ChangeNotifierProvider.value(value: budgetProvider),
+        ChangeNotifierProvider.value(value: themeProvider),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: '记一笔',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorSchemeSeed: Colors.teal,
-          brightness: Brightness.light,
-        ),
-        builder: (context, child) =>
-            DeviceFrame(child: child ?? const SizedBox.shrink()),
-        home: const RootShell(),
-        routes: {
-          '/add': (_) => const AddRecordPage(),
-          '/stats': (_) => const StatsPage(),
-          '/bill': (_) => const BillPage(),
-          '/budget': (_) => const BudgetPage(),
-          '/category-manager': (_) => const CategoryManagerPage(),
-          '/finger-accounting': (_) => const FingerAccountingPage(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, theme, _) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: '指尖记账',
+            themeMode: theme.mode,
+            theme: ThemeData(
+              useMaterial3: true,
+              colorSchemeSeed: theme.seedColor,
+              brightness: Brightness.light,
+            ),
+            darkTheme: ThemeData(
+              useMaterial3: true,
+              colorSchemeSeed: theme.seedColor,
+              brightness: Brightness.dark,
+            ),
+            builder: (context, child) =>
+                DeviceFrame(child: child ?? const SizedBox.shrink()),
+            home: const RootShell(),
+            routes: {
+              '/add': (_) => const AddRecordPage(),
+              '/stats': (_) => const StatsPage(),
+              '/bill': (_) => const BillPage(),
+              '/budget': (_) => const BudgetPage(),
+              '/category-manager': (_) => const CategoryManagerPage(),
+              '/finger-accounting': (_) => const FingerAccountingPage(),
+            },
+          );
         },
       ),
     );

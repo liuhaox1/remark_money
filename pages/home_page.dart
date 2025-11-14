@@ -8,6 +8,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../utils/date_utils.dart';
 import '../widgets/timeline_item.dart';
+import '../widgets/week_strip.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,14 +40,17 @@ class _HomePageState extends State<HomePage> {
     debugPrint(
         'HomePage build duration: ${DateTime.now().difference(start).inMilliseconds}ms');
 
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final isToday = DateUtilsX.isToday(_selectedDay);
     final dateLabel = isToday
         ? '今天 ${DateUtilsX.ymd(_selectedDay)}'
         : DateUtilsX.ymd(_selectedDay);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F3),
+      backgroundColor:
+          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -59,7 +63,7 @@ class _HomePageState extends State<HomePage> {
                 onTap: _showDatePanel,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: cs.primary.withOpacity(0.06),
                     borderRadius: BorderRadius.circular(16),
@@ -100,7 +104,14 @@ class _HomePageState extends State<HomePage> {
                   expense: monthExpense,
                   balance: monthBalance,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
+                WeekStrip(
+                  selectedDay: _selectedDay,
+                  onSelected: (day) {
+                    setState(() => _selectedDay = day);
+                  },
+                ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
@@ -120,7 +131,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Expanded(
                   child: Column(
                     children: [
@@ -209,51 +220,71 @@ class _BalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final netColor = balance >= 0 ? Colors.teal : Colors.red;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final netColor = balance >= 0 ? Colors.green.shade700 : Colors.redAccent;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? cs.surface : Colors.white,
           borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '本月结余',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              balance.toStringAsFixed(2),
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: netColor,
-              ),
-            ),
-            const SizedBox(height: 12),
             Row(
               children: [
-                _BalanceMiniItem(
-                  label: '收入',
-                  value: income,
-                  color: Colors.teal,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '本月结余',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        balance.toStringAsFixed(2),
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: netColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 16),
-                _BalanceMiniItem(
-                  label: '支出',
-                  value: expense,
-                  color: Colors.orange,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _BalanceMiniItem(
+                      label: '收入',
+                      value: income,
+                      color: cs.primary,
+                    ),
+                    const SizedBox(height: 4),
+                    _BalanceMiniItem(
+                      label: '支出',
+                      value: expense,
+                      color: Colors.orange,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -288,7 +319,7 @@ class _BalanceMiniItem extends StatelessWidget {
         Text(
           value.toStringAsFixed(2),
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
             color: color,
           ),
@@ -311,14 +342,16 @@ class _ShortcutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? cs.surface : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
         ),
@@ -348,34 +381,34 @@ class _BookSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeName = bookProvider.activeBook?.name ?? '榛樿璐︽湰';
-    return GestureDetector(
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final activeName = bookProvider.activeBook?.name ?? '默认账本';
+    return InkWell(
       onTap: () => _showBookPicker(context),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(20),
+          color: isDark ? cs.surface : Colors.white,
+          border: Border.all(color: cs.primary.withOpacity(0.25)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.menu_book_outlined, size: 18),
-            const SizedBox(width: 8),
+            Icon(Icons.menu_book_outlined, size: 18, color: cs.primary),
+            const SizedBox(width: 6),
             Text(
               activeName,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.keyboard_arrow_down_rounded),
+            const SizedBox(width: 4),
+            const Icon(Icons.expand_more, size: 16),
           ],
         ),
       ),
@@ -390,8 +423,10 @@ class _BookSelector extends StatelessWidget {
           shrinkWrap: true,
           children: [
             const ListTile(
-              title:
-                  Text('閫夋嫨璐︽湰', style: TextStyle(fontWeight: FontWeight.w700)),
+              title: Text(
+                '选择账本',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
             for (final book in bookProvider.books)
               RadioListTile<String>(
@@ -699,12 +734,16 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final color = net > 0
-        ? Colors.red
+        ? Colors.redAccent
         : net < 0
-            ? Colors.green
-            : Colors.grey.shade500;
-    final effectiveColor = disabled ? Colors.grey.shade400 : color;
+            ? Colors.lightGreen
+            : (isDark ? cs.onSurface.withOpacity(0.6) : Colors.grey.shade500);
+    final effectiveColor =
+        disabled ? cs.onSurface.withOpacity(0.35) : color;
     return InkWell(
       onTap: disabled ? null : onTap,
       borderRadius: BorderRadius.circular(12),
@@ -713,13 +752,19 @@ class _DayCell extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         decoration: BoxDecoration(
           color: disabled
-              ? Colors.grey.shade200
+              ? (isDark
+                  ? cs.surfaceVariant.withOpacity(0.4)
+                  : Colors.grey.shade200)
               : selected
-                  ? effectiveColor.withOpacity(0.18)
-                  : Colors.white,
+                  ? effectiveColor.withOpacity(0.22)
+                  : (isDark ? cs.surface : Colors.white),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? effectiveColor : Colors.grey.shade300,
+            color: selected
+                ? effectiveColor
+                : (isDark
+                    ? cs.outline.withOpacity(0.4)
+                    : Colors.grey.shade300),
           ),
         ),
         child: Column(
@@ -766,6 +811,9 @@ class _MonthNetGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final months = List.generate(12, (i) => i + 1);
 
     return GridView.count(
@@ -788,10 +836,10 @@ class _MonthNetGrid extends StatelessWidget {
         final hasData = monthRecords.isNotEmpty;
         final disabled = DateTime(year, month, 1).isAfter(DateTime.now());
         final color = net > 0
-            ? Colors.red
+            ? Colors.redAccent
             : net < 0
-                ? Colors.green
-                : Theme.of(context).colorScheme.outline;
+                ? Colors.lightGreen
+                : cs.outline;
         final showNet = hasData || net != 0;
 
         return InkWell(
@@ -800,14 +848,20 @@ class _MonthNetGrid extends StatelessWidget {
             margin: const EdgeInsets.all(6),
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             decoration: BoxDecoration(
-              color: disabled ? Colors.grey.shade200 : Colors.white,
+              color: disabled
+                  ? (isDark
+                      ? cs.surfaceVariant.withOpacity(0.4)
+                      : Colors.grey.shade200)
+                  : (isDark ? cs.surface : Colors.white),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: disabled
-                    ? Colors.grey.shade300
+                    ? (isDark
+                        ? cs.outline.withOpacity(0.3)
+                        : Colors.grey.shade300)
                     : net >= 0
-                        ? Colors.red.withOpacity(0.4)
-                        : Colors.green.withOpacity(0.4),
+                        ? Colors.redAccent.withOpacity(0.4)
+                        : Colors.lightGreen.withOpacity(0.4),
               ),
             ),
             child: Column(
@@ -896,7 +950,8 @@ class _BudgetBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final budget = context.watch<BudgetProvider>().budget;
     if (budget.total > 0) {
       return const SizedBox.shrink();
@@ -905,7 +960,9 @@ class _BudgetBanner extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.amber.withOpacity(0.12),
+        color: theme.brightness == Brightness.dark
+            ? Colors.amber.withOpacity(0.18)
+            : Colors.amber.withOpacity(0.12),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.amber.withOpacity(0.4)),
       ),
