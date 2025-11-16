@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../models/category.dart';
 import '../models/record.dart';
-import '../utils/date_utils.dart';
 
 class TimelineItem extends StatelessWidget {
   const TimelineItem({
@@ -15,7 +14,7 @@ class TimelineItem extends StatelessWidget {
   });
 
   final Record record;
-  final bool leftSide; // 保留参数以兼容旧调用，但当前布局不再交错左右
+  final bool leftSide; // 兼容旧参数，当前布局不再左右交错
   final Category? category;
 
   @override
@@ -28,69 +27,56 @@ class TimelineItem extends StatelessWidget {
     final amountValue = record.absAmount;
     final sign = isExpense ? '-' : '+';
     final amountStr = '$sign${amountValue.toStringAsFixed(2)}';
-    final dateText = DateUtilsX.ymd(record.date);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Row(
         children: [
           Container(
-            width: 30,
-            height: 30,
+            width: 24,
+            height: 24,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.25),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+                  color: color.withOpacity(0.18),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 16),
+            child: Icon(icon, color: Colors.white, size: 13),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Expanded(
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 4,
+              ),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: color.withOpacity(0.3)),
+                color: color.withOpacity(0.02),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: color.withOpacity(0.18)),
               ),
               child: Row(
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          dateText,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color:
-                                Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     amountStr,
                     style: const TextStyle(
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       fontFeatures: [FontFeature.tabularFigures()],
                     ),
