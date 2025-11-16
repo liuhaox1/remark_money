@@ -54,6 +54,15 @@ class RecordProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateRecord(Record updated) async {
+    final list = await _repository.update(updated);
+    _records
+      ..clear()
+      ..addAll(list);
+    _rebuildBookCache();
+    notifyListeners();
+  }
+
   Future<void> deleteRecord(String id) async {
     final list = await _repository.remove(id);
     _records

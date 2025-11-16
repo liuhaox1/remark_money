@@ -31,4 +31,14 @@ class RecordRepository {
     await saveRecords(list);
     return list;
   }
+
+  Future<List<Record>> update(Record updated) async {
+    final list = await loadRecords();
+    final index = list.indexWhere((r) => r.id == updated.id);
+    if (index != -1) {
+      list[index] = updated;
+      await saveRecords(list);
+    }
+    return list;
+  }
 }
