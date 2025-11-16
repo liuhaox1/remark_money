@@ -517,6 +517,10 @@ class _BookSelector extends StatelessWidget {
     return InkWell(
       onTap: () => _showBookPicker(context),
       borderRadius: BorderRadius.circular(20),
+      // 关闭水波纹和高亮，不要那颗突兀的白圈
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
@@ -529,11 +533,14 @@ class _BookSelector extends StatelessWidget {
           children: [
             Icon(Icons.menu_book_outlined, size: 18, color: cs.primary),
             const SizedBox(width: 6),
-            Text(
-              activeName,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+            Flexible(
+              child: Text(
+                activeName,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             const SizedBox(width: 4),
