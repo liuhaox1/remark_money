@@ -95,6 +95,7 @@ class ProfilePage extends StatelessWidget {
                 ),
               ],
               selected: {currentMode},
+              showSelectedIcon: false,
               onSelectionChanged: (value) {
                 provider.setMode(value.first);
               },
@@ -308,4 +309,3 @@ class ProfilePage extends StatelessWidget {
     );
   }
 }
-

@@ -1,12 +1,12 @@
-// Helper widgets for the HomePage date bottom sheet.
-// Split into its own file to keep home_page.dart readable.
+// Date picker bottom sheet for HomePage, with
+// 日 / 月 / 年 tabs and surplus (盈余) coloring.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../utils/date_utils.dart';
-import '../providers/record_provider.dart';
 import '../providers/book_provider.dart';
+import '../providers/record_provider.dart';
+import '../utils/date_utils.dart';
 
 class DatePanel extends StatefulWidget {
   const DatePanel({
@@ -105,6 +105,8 @@ class _DatePanelState extends State<DatePanel>
   Widget _buildMonthTab(BuildContext context) {
     final recordProvider = context.watch<RecordProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
+    final nowYear = DateTime.now().year;
+
     return Column(
       children: [
         Row(
@@ -126,7 +128,9 @@ class _DatePanelState extends State<DatePanel>
             IconButton(
               icon: const Icon(Icons.chevron_right),
               onPressed: () {
-                setState(() => _monthYear++);
+                if (_monthYear < nowYear) {
+                  setState(() => _monthYear++);
+                }
               },
             ),
           ],
@@ -192,14 +196,16 @@ class _DayNetGrid extends StatelessWidget {
       final net = income - expense;
       final hasData = recordProvider.recordsForDay(bookId, day).isNotEmpty;
       final disabled = day.isAfter(DateTime.now());
-      items.add(_DayCell(
-        day: day,
-        net: net,
-        hasData: hasData,
-        disabled: disabled,
-        selected: DateUtilsX.isSameDay(day, baseDate),
-        onTap: () => onSelectDay(day),
-      ));
+      items.add(
+        _DayCell(
+          day: day,
+          net: net,
+          hasData: hasData,
+          disabled: disabled,
+          selected: DateUtilsX.isSameDay(day, baseDate),
+          onTap: () => onSelectDay(day),
+        ),
+      );
     }
 
     return Column(
@@ -262,7 +268,7 @@ class _DayCell extends StatelessWidget {
           color: disabled
               ? Colors.grey.shade200
               : selected
-                  ? effectiveColor.withOpacity(0.18)
+                  ? effectiveColor.withOpacity(0.15)
                   : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -276,20 +282,26 @@ class _DayCell extends StatelessWidget {
               '${day.day}',
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             if (hasData)
-              Text(
-                net > 0
-                    ? '+${net.toStringAsFixed(2)}'
-                    : net < 0
-                        ? net.toStringAsFixed(2)
-                        : '0.00',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: effectiveColor,
-                  fontWeight: FontWeight.w600,
+              SizedBox(
+                height: 14,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    net > 0
+                        ? '+${net.toStringAsFixed(2)}'
+                        : net < 0
+                            ? net.toStringAsFixed(2)
+                            : '0.00',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: effectiveColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                textAlign: TextAlign.center,
               ),
           ],
         ),
@@ -371,16 +383,22 @@ class _MonthNetGrid extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 if (showNet)
-                  Text(
-                    net > 0
-                        ? '+${net.toStringAsFixed(2)}'
-                        : net < 0
-                            ? net.toStringAsFixed(2)
-                            : '0.00',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: color,
-                      fontWeight: FontWeight.w600,
+                  SizedBox(
+                    height: 16,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        net > 0
+                            ? '+${net.toStringAsFixed(2)}'
+                            : net < 0
+                                ? net.toStringAsFixed(2)
+                                : '0.00',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -399,3 +417,4 @@ Color _lossColor(double amount) {
   if (amount < 500) return Colors.red.shade400;
   return Colors.red.shade800;
 }
+
