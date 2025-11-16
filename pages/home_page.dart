@@ -54,22 +54,24 @@ class _HomePageState extends State<HomePage> {
           isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
         elevation: 0,
+        toolbarHeight: 52,
         backgroundColor: Colors.transparent,
         centerTitle: false,
-        titleSpacing: 16,
+        titleSpacing: 12,
         title: Row(
           children: [
-            Expanded(
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 230),
               child: GestureDetector(
                 onTap: _showDatePanel,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                   decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(16),
+                    color: cs.primary.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: cs.primary.withOpacity(0.25),
+                      color: cs.primary.withOpacity(0.18),
                     ),
                   ),
                   child: Row(
@@ -77,12 +79,17 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       const Icon(Icons.schedule, size: 14),
                       const SizedBox(width: 6),
-                      Text(
-                        dateLabel,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w500),
+                      Flexible(
+                        child: Text(
+                          dateLabel,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
                       const Icon(Icons.expand_more, size: 14),
                     ],
                   ),
