@@ -200,11 +200,15 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Future<void> _pickDate() async {
+    final today = DateTime.now();
+    final last = DateTime(today.year, today.month, today.day);
+    final initial =
+        _selectedDate.isAfter(last) ? last : _selectedDate;
     final result = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(DateTime.now().year - 5),
-      lastDate: DateTime(DateTime.now().year + 5),
+      initialDate: initial,
+      firstDate: DateTime(today.year - 5),
+      lastDate: last,
       helpText: "选择日期",
     );
     if (result != null) {

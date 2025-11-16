@@ -10,6 +10,7 @@ import '../utils/date_utils.dart';
 import '../widgets/timeline_item.dart';
 import '../widgets/week_strip.dart';
 import '../widgets/quick_add_sheet.dart';
+import 'home_page_date_panel.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -176,18 +177,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _pickDate() async {
-    final initial = _selectedDay;
-    final first = DateTime(initial.year - 2, 1, 1);
-    final last = DateTime(initial.year + 2, 12, 31);
-    final picked = await showDatePicker(
+    await showModalBottomSheet(
       context: context,
-      initialDate: initial,
-      firstDate: first,
-      lastDate: last,
+      isScrollControlled: true,
+      builder: (_) => DatePanel(
+        selectedDay: _selectedDay,
+        onDayChanged: (day) {
+          setState(() => _selectedDay = day);
+        },
+      ),
     );
-    if (picked != null) {
-      setState(() => _selectedDay = picked);
-    }
   }
 }
 
@@ -552,50 +551,56 @@ class _BookSelector extends StatelessWidget {
   }
 
   Future<void> _showBookPicker(BuildContext context) async {
-    final button = context.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (button == null || overlay == null) return;
-
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        button.localToGlobal(Offset.zero, ancestor: overlay),
-        button.localToGlobal(
-          button.size.bottomRight(Offset.zero),
-          ancestor: overlay,
-        ),
-      ),
-      Offset.zero & overlay.size,
-    );
-
-    final selectedId = await showMenu<String>(
+    final books = bookProvider.books;
+    await showModalBottomSheet(
       context: context,
-      position: position,
-      items: [
-        for (final book in bookProvider.books)
-          PopupMenuItem<String>(
-            value: book.id,
-            child: Row(
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (book.id == bookProvider.activeBookId)
-                  Icon(
-                    Icons.check,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  )
-                else
-                  const SizedBox(width: 16),
-                const SizedBox(width: 4),
-                Text(book.name),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '选择账本',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...books.map(
+                  (book) => RadioListTile<String>(
+                    value: book.id,
+                    groupValue: bookProvider.activeBookId,
+                    onChanged: (value) {
+                      if (value != null) {
+                        bookProvider.selectBook(value);
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    title: Text(book.name),
+                  ),
+                ),
               ],
             ),
           ),
-      ],
+        );
+      },
     );
-
-    if (selectedId != null && selectedId != bookProvider.activeBookId) {
-      bookProvider.selectBook(selectedId);
-    }
   }
 }
 
