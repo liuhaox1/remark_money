@@ -11,8 +11,21 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final bookProvider = context.watch<BookProvider>();
     final themeProvider = context.watch<ThemeProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('我的')),
+      backgroundColor:
+          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        centerTitle: false,
+        titleSpacing: 16,
+        title: const Text(
+          '我的',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
@@ -25,9 +38,20 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 24),
               Card(
                 child: ListTile(
+                  leading: const Icon(Icons.category_outlined),
+                  title: const Text('分类管理'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      Navigator.pushNamed(context, '/category-manager'),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Card(
+                child: ListTile(
                   title: const Text('指尖记账 1.0.0'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.pushNamed(context, '/finger-accounting'),
+                  onTap: () =>
+                      Navigator.pushNamed(context, '/finger-accounting'),
                 ),
               ),
             ],
@@ -38,6 +62,16 @@ class ProfilePage extends StatelessWidget {
   }
 
   Widget _buildThemeSection(BuildContext context, ThemeProvider provider) {
+    const seedOptions = <Color>[
+      Colors.teal,
+      Colors.orange,
+      Colors.indigo,
+      Colors.pink,
+    ];
+
+    final currentMode =
+        provider.mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -49,27 +83,48 @@ class ProfilePage extends StatelessWidget {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
-            DropdownButton<ThemeMode>(
-              value: provider.mode,
-              onChanged: (mode) {
-                if (mode != null) {
-                  provider.setMode(mode);
-                }
-              },
-              items: const [
-                DropdownMenuItem(
+            SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(
                   value: ThemeMode.light,
-                  child: Text('浅色'),
+                  label: Text('浅色'),
                 ),
-                DropdownMenuItem(
+                ButtonSegment(
                   value: ThemeMode.dark,
-                  child: Text('深色'),
-                ),
-                DropdownMenuItem(
-                  value: ThemeMode.system,
-                  child: Text('跟随系统'),
+                  label: Text('深色'),
                 ),
               ],
+              selected: {currentMode},
+              onSelectionChanged: (value) {
+                provider.setMode(value.first);
+              },
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '主题色',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: seedOptions.map((color) {
+                final selected = provider.seedColor.value == color.value;
+                return GestureDetector(
+                  onTap: () => provider.setSeedColor(color),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color,
+                      border: Border.all(
+                        color: selected ? Colors.black : Colors.white,
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ],
         ),
@@ -117,12 +172,24 @@ class ProfilePage extends StatelessWidget {
                   }
                 },
                 title: Text(book.name),
-                secondary: provider.books.length > 1
-                    ? IconButton(
+                secondary: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _showRenameBookDialog(
+                        context,
+                        book.id,
+                        book.name,
+                      ),
+                    ),
+                    if (provider.books.length > 1)
+                      IconButton(
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () => _confirmDelete(context, book.id),
-                      )
-                    : null,
+                      ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -172,6 +239,51 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
+  Future<void> _showRenameBookDialog(
+    BuildContext context,
+    String id,
+    String initialName,
+  ) async {
+    final controller = TextEditingController(text: initialName);
+    final formKey = GlobalKey<FormState>();
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('重命名账本'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: '账本名称'),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '请输入名称';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              if (formKey.currentState?.validate() != true) return;
+              await context
+                  .read<BookProvider>()
+                  .renameBook(id, controller.text.trim());
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('保存'),
+          )
+        ],
+      ),
+    );
+  }
+
   Future<void> _confirmDelete(BuildContext context, String id) async {
     final provider = context.read<BookProvider>();
     await showDialog(
@@ -196,3 +308,4 @@ class ProfilePage extends StatelessWidget {
     );
   }
 }
+

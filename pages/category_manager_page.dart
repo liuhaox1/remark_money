@@ -95,12 +95,20 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
           ),
           title: Text(category.name),
           subtitle: Text(category.key),
-          trailing: deletable
-              ? IconButton(
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => _showEditCategoryDialog(category),
+              ),
+              if (deletable)
+                IconButton(
                   icon: const Icon(Icons.delete_outline),
                   onPressed: () => _confirmDelete(category),
-                )
-              : const SizedBox(width: 24),
+                ),
+            ],
+          ),
         );
       },
       separatorBuilder: (_, __) => const Divider(height: 1),
@@ -220,8 +228,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                       return;
                     }
                     final category = Category(
-                      key:
-                          "custom_${DateTime.now().millisecondsSinceEpoch}",
+                      key: "custom_${DateTime.now().millisecondsSinceEpoch}",
                       name: name,
                       icon: selectedIcon,
                       isExpense: isExpense,
@@ -239,6 +246,106 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
 
     if (result != null && mounted) {
       await context.read<CategoryProvider>().addCategory(result);
+    }
+  }
+
+  Future<void> _showEditCategoryDialog(Category category) async {
+    final result = await showDialog<Category>(
+      context: context,
+      builder: (context) {
+        final nameCtrl = TextEditingController(text: category.name);
+        IconData selectedIcon = category.icon;
+        bool isExpense = category.isExpense;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("编辑分类"),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: "名称",
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "类型",
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 6),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: true, label: Text("支出")),
+                        ButtonSegment(value: false, label: Text("收入")),
+                      ],
+                      selected: {isExpense},
+                      onSelectionChanged: (value) {
+                        setState(() => isExpense = value.first);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "图标",
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _iconOptions.map((icon) {
+                        final selected = icon == selectedIcon;
+                        return ChoiceChip(
+                          label: Icon(icon),
+                          selected: selected,
+                          onSelected: (_) {
+                            setState(() => selectedIcon = icon);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("取消"),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final name = nameCtrl.text.trim();
+                    if (name.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("请填写分类名称")),
+                      );
+                      return;
+                    }
+                    final updated = Category(
+                      key: category.key,
+                      name: name,
+                      icon: selectedIcon,
+                      isExpense: isExpense,
+                    );
+                    Navigator.pop(context, updated);
+                  },
+                  child: const Text("保存"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != null && mounted) {
+      await context.read<CategoryProvider>().updateCategory(result);
     }
   }
 }

@@ -40,4 +40,13 @@ class CategoryProvider extends ChangeNotifier {
       ..addAll(list);
     notifyListeners();
   }
+
+  /// 更新分类（名称 / 图标 / 类型）
+  Future<void> updateCategory(Category category) async {
+    final list = await _repo.update(category);
+    _categories
+      ..clear()
+      ..addAll(list);
+    notifyListeners();
+  }
 }

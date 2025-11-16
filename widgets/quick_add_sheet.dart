@@ -119,18 +119,46 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
 
   Widget _buildCategoryPicker(List<Category> categories) {
     if (categories.isEmpty) {
-      return const Text(
-        '暂无分类，请先在「我的」中添加分类',
-        style: TextStyle(fontSize: 12),
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Expanded(
+            child: Text(
+              '暂无分类，请先前往「我的」页面添加分类',
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/category-manager').then((_) {
+                setState(() {});
+              });
+            },
+            child: const Text('去管理'),
+          ),
+        ],
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '分类',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              '分类',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/category-manager').then((_) {
+                  setState(() {});
+                });
+              },
+              child: const Text('管理分类'),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Wrap(

@@ -124,4 +124,14 @@ class CategoryRepository {
     await saveCategories(list);
     return list;
   }
+
+  Future<List<Category>> update(Category category) async {
+    final list = await loadCategories();
+    final index = list.indexWhere((c) => c.key == category.key);
+    if (index != -1) {
+      list[index] = category;
+      await saveCategories(list);
+    }
+    return list;
+  }
 }
