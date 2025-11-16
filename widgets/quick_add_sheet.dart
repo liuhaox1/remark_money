@@ -118,29 +118,41 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   }
 
   Widget _buildCategoryPicker(List<Category> categories) {
-    return DropdownButtonFormField<String>(
-      value: _selectedCategoryKey,
-      items: categories
-          .map(
-            (cat) => DropdownMenuItem(
-              value: cat.key,
-              child: Row(
-                children: [
-                  Icon(cat.icon, size: 18),
-                  const SizedBox(width: 8),
-                  Text(cat.name),
-                ],
+    if (categories.isEmpty) {
+      return const Text(
+        '暂无分类，请先在「我的」中添加分类',
+        style: TextStyle(fontSize: 12),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '分类',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: categories.map((cat) {
+            final selected = cat.key == _selectedCategoryKey;
+            return ChoiceChip(
+              selected: selected,
+              avatar: Icon(cat.icon, size: 18),
+              label: Text(cat.name),
+              labelStyle: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               ),
-            ),
-          )
-          .toList(),
-      onChanged: categories.isEmpty
-          ? null
-          : (value) => setState(() => _selectedCategoryKey = value),
-      decoration: const InputDecoration(
-        labelText: '分类',
-        border: OutlineInputBorder(),
-      ),
+              onSelected: (_) {
+                setState(() => _selectedCategoryKey = cat.key);
+              },
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -190,11 +202,15 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   }
 
   Future<void> _pickDate() async {
+    final today = DateTime.now();
+    final last = DateTime(today.year, today.month, today.day);
+    final initial =
+        _selectedDate.isAfter(last) ? last : _selectedDate;
     final result = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(DateTime.now().year - 5),
-      lastDate: DateTime(DateTime.now().year + 5),
+      initialDate: initial,
+      firstDate: DateTime(today.year - 5),
+      lastDate: last,
       helpText: '选择日期',
     );
     if (result != null) {
