@@ -53,28 +53,28 @@ class _RootShellState extends State<RootShell> {
         backgroundColor: cs.surface,
         indicatorColor: cs.primary.withOpacity(0.12),
         selectedIndex: _index >= 2 ? _index + 1 : _index,
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: '首页',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart),
             label: '统计',
           ),
           NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
+            icon: _RecordNavIcon(color: cs.primary),
+            selectedIcon: _RecordNavIcon(color: cs.primary),
             label: '记一笔',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: '发现',
+          const NavigationDestination(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: Icon(Icons.account_balance_wallet),
+            label: '资产',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
             label: '我的',
@@ -88,3 +88,35 @@ class _RootShellState extends State<RootShell> {
     return scaffold;
   }
 }
+
+class _RecordNavIcon extends StatelessWidget {
+  const _RecordNavIcon({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Icon(
+        Icons.add,
+        size: 26,
+        color: cs.onPrimary,
+      ),
+    );
+  }
+}
+
