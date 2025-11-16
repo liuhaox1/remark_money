@@ -9,6 +9,7 @@ import '../providers/record_provider.dart';
 import '../utils/date_utils.dart';
 import '../widgets/timeline_item.dart';
 import '../widgets/week_strip.dart';
+import '../widgets/quick_add_sheet.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -148,7 +149,7 @@ class _HomePageState extends State<HomePage> {
                       Expanded(
                         child: hasRecords
                             ? _buildTimeline(dayRecords, categoryMap)
-                            : _buildEmptyState(context),
+                            : _buildEmptyStateV2(context),
                       ),
                     ],
                   ),
@@ -180,6 +181,31 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildEmptyStateV2(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.hourglass_empty_rounded, size: 72, color: cs.outline),
+          const SizedBox(height: 12),
+          const Text(
+            '今天还没有记账',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          const Text('可以点击下方按钮快速记一笔'),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _openQuickAddSheet,
+            icon: const Icon(Icons.add),
+            label: const Text('快捷记一笔'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Center(
@@ -196,6 +222,14 @@ class _HomePageState extends State<HomePage> {
           const Text('点底部“记一笔”开始记录吧'),
         ],
       ),
+    );
+  }
+
+  Future<void> _openQuickAddSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const QuickAddSheet(),
     );
   }
 
@@ -233,11 +267,24 @@ class _BalanceCard extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final netColor = balance >= 0 ? Colors.green.shade700 : Colors.redAccent;
     return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      // 外层整体留白压低一些高度
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        // 内部上下 padding 也做收紧
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isDark ? cs.surface : Colors.white,
+          // 顶部用一点主色调，卡片主体仍然是浅色，形成类似“黄色头部 + 白色内容”的层次感
+          gradient: isDark
+              ? null
+              : LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    cs.primary.withOpacity(0.18),
+                    Colors.white,
+                  ],
+                ),
+          color: isDark ? cs.surface : null,
           borderRadius: BorderRadius.circular(24),
           boxShadow: isDark
               ? null
@@ -253,23 +300,25 @@ class _BalanceCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
+                  flex: 4,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         '本月结余',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         balance.toStringAsFixed(2),
                         style: TextStyle(
-                          fontSize: 26,
+                          fontSize: 22,
                           fontWeight: FontWeight.w800,
                           color: netColor,
                         ),
@@ -277,22 +326,29 @@ class _BalanceCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _BalanceMiniItem(
-                      label: '收入',
-                      value: income,
-                      color: cs.primary,
-                    ),
-                    const SizedBox(height: 4),
-                    _BalanceMiniItem(
-                      label: '支出',
-                      value: expense,
-                      color: Colors.orange,
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: _BalanceMiniItem(
+                          label: '收入',
+                          value: income,
+                          color: cs.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _BalanceMiniItem(
+                          label: '支出',
+                          value: expense,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -321,13 +377,13 @@ class _BalanceMiniItem extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 2),
         Text(
           value.toStringAsFixed(2),
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             color: color,
           ),
@@ -422,34 +478,50 @@ class _BookSelector extends StatelessWidget {
   }
 
   Future<void> _showBookPicker(BuildContext context) async {
-    await showModalBottomSheet(
-      context: context,
-      builder: (ctx) {
-        return ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(
-              title: Text(
-                '选择账本',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-            for (final book in bookProvider.books)
-              RadioListTile<String>(
-                value: book.id,
-                groupValue: bookProvider.activeBookId,
-                onChanged: (value) {
-                  if (value != null) {
-                    bookProvider.selectBook(value);
-                    Navigator.pop(ctx);
-                  }
-                },
-                title: Text(book.name),
-              ),
-          ],
-        );
-      },
+    final button = context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (button == null || overlay == null) return;
+
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(
+          button.size.bottomRight(Offset.zero),
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
     );
+
+    final selectedId = await showMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        for (final book in bookProvider.books)
+          PopupMenuItem<String>(
+            value: book.id,
+            child: Row(
+              children: [
+                if (book.id == bookProvider.activeBookId)
+                  Icon(
+                    Icons.check,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                else
+                  const SizedBox(width: 16),
+                const SizedBox(width: 4),
+                Text(book.name),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (selectedId != null && selectedId != bookProvider.activeBookId) {
+      bookProvider.selectBook(selectedId);
+    }
   }
 }
 
