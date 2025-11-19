@@ -60,11 +60,10 @@ class _WeekStripState extends State<WeekStrip> {
     final index = targetDay.day - 1;
     if (index < 0) return;
 
-    final double itemExtent = _itemWidth + _itemSpacing;
+    const double itemExtent = _itemWidth + _itemSpacing;
     final double rawOffset = (index * itemExtent) - (_itemWidth * 1.5);
     final position = _controller.position;
-    final double offset =
-        rawOffset.clamp(0.0, position.maxScrollExtent);
+    final double offset = rawOffset.clamp(0.0, position.maxScrollExtent);
 
     if (jump) {
       _controller.jumpTo(offset);
@@ -210,8 +209,7 @@ class _WeekStripState extends State<WeekStrip> {
                                   const SizedBox(height: 2),
                                   AnimatedOpacity(
                                     opacity: isSelected ? 1.0 : 0.0,
-                                    duration:
-                                        const Duration(milliseconds: 160),
+                                    duration: const Duration(milliseconds: 160),
                                     child: Container(
                                       height: 2,
                                       width: 18,
@@ -255,9 +253,8 @@ class _WeekStripState extends State<WeekStrip> {
 
   void _scrollByItems(int count) {
     if (!_controller.hasClients) return;
-    final double itemExtent = _itemWidth + _itemSpacing;
-    final double target =
-        (_controller.offset + count * itemExtent).clamp(
+    const double itemExtent = _itemWidth + _itemSpacing;
+    final double target = (_controller.offset + count * itemExtent).clamp(
       0.0,
       _controller.position.maxScrollExtent,
     );
@@ -272,8 +269,7 @@ class _WeekStripState extends State<WeekStrip> {
     if (!_controller.hasClients) return;
     final delta = event.scrollDelta.dy;
     if (delta == 0) return;
-    final double target =
-        (_controller.offset + delta).clamp(
+    final double target = (_controller.offset + delta).clamp(
       0.0,
       _controller.position.maxScrollExtent,
     );
@@ -316,4 +312,3 @@ class _TodayPill extends StatelessWidget {
     );
   }
 }
-

@@ -8,6 +8,7 @@ import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../utils/date_utils.dart';
+import '../widgets/book_selector_button.dart';
 import '../widgets/timeline_item.dart';
 import '../widgets/week_strip.dart';
 import '../widgets/quick_add_sheet.dart';
@@ -37,7 +38,7 @@ class _HomePageState extends State<HomePage> {
   DateTime _selectedDay = DateTime.now();
   final ScrollController _monthScrollController = ScrollController();
   final Map<DateTime, GlobalKey> _dayHeaderKeys = {};
-  String _searchKeyword = '';
+  final String _searchKeyword = '';
   String? _filterCategoryKey;
   double? _minAmount;
   double? _maxAmount;
@@ -45,10 +46,10 @@ class _HomePageState extends State<HomePage> {
   bool? _filterIncomeExpense; // null: 全部, true: 只看收入, false: 只看支出
   DateTime? _startDate; // 日期范围开始
   DateTime? _endDate; // 日期范围结束
-  
+
   // 添加缓存来存储每天的统计信息
   final Map<DateTime, _DayStats> _dayStatsCache = {};
-  
+
   // 添加缓存来存储分组结果
   Map<DateTime, List<Record>>? _cachedGroups;
   List<DateTime>? _cachedDays;
@@ -67,7 +68,6 @@ class _HomePageState extends State<HomePage> {
     final monthExpense = recordProvider.monthExpense(selectedMonth, bookId);
     final monthBalance = monthIncome - monthExpense;
 
-    final dayRecords = recordProvider.recordsForDay(bookId, _selectedDay);
     final monthRecords = recordProvider.recordsForMonth(
       bookId,
       _selectedDay.year,
@@ -84,11 +84,11 @@ class _HomePageState extends State<HomePage> {
     );
 
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final isToday = DateUtilsX.isToday(_selectedDay);
-    final dateLabel =
-        isToday ? '今天 ${DateUtilsX.ymd(_selectedDay)}' : DateUtilsX.ymd(_selectedDay);
+    final dateLabel = isToday
+        ? '今天 ${DateUtilsX.ymd(_selectedDay)}'
+        : DateUtilsX.ymd(_selectedDay);
 
     return Scaffold(
       backgroundColor:
@@ -111,7 +111,6 @@ class _HomePageState extends State<HomePage> {
                   dateLabel: dateLabel,
                   onTapDate: _pickDate,
                   onTapSearch: _openFilterSheet,
-                  bookProvider: bookProvider,
                 ),
                 const SizedBox(height: 8),
                 WeekStrip(
@@ -171,10 +170,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  bool get _hasActiveFilter =>
-      _filterCategoryKey != null || _minAmount != null || _maxAmount != null || 
-      _filterIncomeExpense != null || _startDate != null || _endDate != null;
-
   List<Record> _applyFilters(
     List<Record> records,
     Map<String, Category> categoryMap,
@@ -196,19 +191,16 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (_filterCategoryKey != null) {
-      filtered = filtered
-          .where((r) => r.categoryKey == _filterCategoryKey)
-          .toList();
+      filtered =
+          filtered.where((r) => r.categoryKey == _filterCategoryKey).toList();
     }
 
     if (_minAmount != null) {
-      filtered =
-          filtered.where((r) => r.absAmount >= _minAmount!).toList();
+      filtered = filtered.where((r) => r.absAmount >= _minAmount!).toList();
     }
 
     if (_maxAmount != null) {
-      filtered =
-          filtered.where((r) => r.absAmount <= _maxAmount!).toList();
+      filtered = filtered.where((r) => r.absAmount <= _maxAmount!).toList();
     }
 
     // 添加收入/支出筛选
@@ -226,17 +218,17 @@ class _HomePageState extends State<HomePage> {
     if (_startDate != null) {
       filtered = filtered.where((r) => !r.date.isBefore(_startDate!)).toList();
     }
-    
+
     if (_endDate != null) {
       filtered = filtered.where((r) => !r.date.isAfter(_endDate!)).toList();
     }
-    
+
     // 清除缓存，因为筛选条件已更改
     _clearCache();
 
     return filtered;
   }
-  
+
   // 添加清除缓存的方法
   void _clearCache() {
     _cachedGroups = null;
@@ -263,9 +255,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       isScrollControlled: true,
       builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final bottomPadding =
-            MediaQuery.of(ctx).viewInsets.bottom + 16;
+        final bottomPadding = MediaQuery.of(ctx).viewInsets.bottom + 16;
 
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
@@ -322,11 +312,12 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             ...categories.where((c) => c.isExpense).map((c) {
                               final selected = tempCategoryKey == c.key;
-                              return _FilterChip(
+                              return _buildFilterChip(
                                 label: c.name,
                                 selected: selected,
                                 onSelected: () {
-                                  setModalState(() => tempCategoryKey = selected ? null : c.key);
+                                  setModalState(() => tempCategoryKey =
+                                      selected ? null : c.key);
                                 },
                               );
                             }).toList(),
@@ -347,17 +338,18 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             ...categories.where((c) => !c.isExpense).map((c) {
                               final selected = tempCategoryKey == c.key;
-                              return _FilterChip(
+                              return _buildFilterChip(
                                 label: c.name,
                                 selected: selected,
                                 onSelected: () {
-                                  setModalState(() => tempCategoryKey = selected ? null : c.key);
+                                  setModalState(() => tempCategoryKey =
+                                      selected ? null : c.key);
                                 },
                               );
                             }).toList(),
                           ],
                         ),
-                      ] 
+                      ]
                       // 当用户选择了特定的收支类型时，只显示对应的分类
                       else if (tempIncomeExpense == false) ...[
                         const Text(
@@ -374,11 +366,12 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             ...categories.where((c) => !c.isExpense).map((c) {
                               final selected = tempCategoryKey == c.key;
-                              return _FilterChip(
+                              return _buildFilterChip(
                                 label: c.name,
                                 selected: selected,
                                 onSelected: () {
-                                  setModalState(() => tempCategoryKey = selected ? null : c.key);
+                                  setModalState(() => tempCategoryKey =
+                                      selected ? null : c.key);
                                 },
                               );
                             }).toList(),
@@ -399,11 +392,12 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             ...categories.where((c) => c.isExpense).map((c) {
                               final selected = tempCategoryKey == c.key;
-                              return _FilterChip(
+                              return _buildFilterChip(
                                 label: c.name,
                                 selected: selected,
                                 onSelected: () {
-                                  setModalState(() => tempCategoryKey = selected ? null : c.key);
+                                  setModalState(() => tempCategoryKey =
+                                      selected ? null : c.key);
                                 },
                               );
                             }).toList(),
@@ -426,9 +420,8 @@ class _HomePageState extends State<HomePage> {
                       Expanded(
                         child: TextField(
                           controller: minCtrl,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(
-                                  decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           decoration: InputDecoration(
                             isDense: true,
                             prefixText: '¥ ',
@@ -443,9 +436,8 @@ class _HomePageState extends State<HomePage> {
                       Expanded(
                         child: TextField(
                           controller: maxCtrl,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(
-                                  decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           decoration: InputDecoration(
                             isDense: true,
                             prefixText: '¥ ',
@@ -473,25 +465,27 @@ class _HomePageState extends State<HomePage> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _FilterChip(
+                      _buildFilterChip(
                         label: '全部',
                         selected: tempIncomeExpense == null,
                         onSelected: () {
                           setModalState(() => tempIncomeExpense = null);
                         },
                       ),
-                      _FilterChip(
+                      _buildFilterChip(
                         label: '收入',
                         selected: tempIncomeExpense == true,
                         onSelected: () {
-                          setModalState(() => tempIncomeExpense = tempIncomeExpense == true ? null : true);
+                          setModalState(() => tempIncomeExpense =
+                              tempIncomeExpense == true ? null : true);
                         },
                       ),
-                      _FilterChip(
+                      _buildFilterChip(
                         label: '支出',
                         selected: tempIncomeExpense == false,
                         onSelected: () {
-                          setModalState(() => tempIncomeExpense = tempIncomeExpense == false ? null : false);
+                          setModalState(() => tempIncomeExpense =
+                              tempIncomeExpense == false ? null : false);
                         },
                       ),
                     ],
@@ -525,7 +519,8 @@ class _HomePageState extends State<HomePage> {
                             decoration: const InputDecoration(
                               isDense: true,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.all(Radius.circular(10)),
+                                borderRadius:
+                                    BorderRadius.all(Radius.circular(10)),
                               ),
                               labelText: '开始日期',
                             ),
@@ -557,7 +552,8 @@ class _HomePageState extends State<HomePage> {
                             decoration: const InputDecoration(
                               isDense: true,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.all(Radius.circular(10)),
+                                borderRadius:
+                                    BorderRadius.all(Radius.circular(10)),
                               ),
                               labelText: '结束日期',
                             ),
@@ -622,11 +618,9 @@ class _HomePageState extends State<HomePage> {
         final minText = result['min'] as String;
         final maxText = result['max'] as String;
 
-        _minAmount =
-            minText.isEmpty ? null : double.tryParse(minText);
-        _maxAmount =
-            maxText.isEmpty ? null : double.tryParse(maxText);
-            
+        _minAmount = minText.isEmpty ? null : double.tryParse(minText);
+        _maxAmount = maxText.isEmpty ? null : double.tryParse(maxText);
+
         // 更新日期范围状态
         _startDate = result['startDate'] as DateTime?;
         _endDate = result['endDate'] as DateTime?;
@@ -635,27 +629,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   // 自定义 FilterChip 组件，避免 ChoiceChip 的布局抖动问题
-  Widget _FilterChip({
+  Widget _buildFilterChip({
     required String label,
     required bool selected,
     required VoidCallback onSelected,
   }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    
+
     return GestureDetector(
       onTap: onSelected,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: selected 
-              ? cs.primary.withOpacity(0.2) 
-              : cs.surface,
+          color: selected ? cs.primary.withOpacity(0.2) : cs.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected 
-                ? cs.primary 
-                : cs.outline.withOpacity(0.5),
+            color: selected ? cs.primary : cs.outline.withOpacity(0.5),
             width: 1,
           ),
         ),
@@ -667,89 +657,6 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildTimeline(
-    List<Record> records,
-    Map<String, Category> categoryMap,
-  ) {
-    if (records.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final day = records.first.date;
-    final dateLabel = '${day.month}月${day.day}日';
-    final weekdayLabel = DateUtilsX.weekdayShort(day); // 日 / 一 / 二 ...
-    final totalExpense = records
-        .where((r) => r.isExpense)
-        .fold<double>(0, (sum, r) => sum + r.absAmount);
-    final totalIncome = records
-        .where((r) => !r.isExpense)
-        .fold<double>(0, (sum, r) => sum + r.absAmount);
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return _DayHeader(
-            dateLabel: '$dateLabel  周$weekdayLabel',
-            income: totalIncome,
-            expense: totalExpense,
-          );
-        }
-        final record = records[index - 1];
-        return TimelineItem(
-          record: record,
-          category: categoryMap[record.categoryKey],
-          leftSide: index.isEven,
-        );
-      },
-      separatorBuilder: (_, __) => const SizedBox(height: 4),
-      itemCount: records.length + 1,
-    );
-  }
-
-  Widget _buildTimelineWithSummary(
-    List<Record> records,
-    Map<String, Category> categoryMap,
-  ) {
-    if (records.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final day = records.first.date;
-    final dateLabel = '${day.month}月${day.day}日';
-    final weekdayLabel = DateUtilsX.weekdayShort(day);
-    final totalExpense = records
-        .where((r) => r.isExpense)
-        .fold<double>(0, (sum, r) => sum + r.absAmount);
-    final totalIncome = records
-        .where((r) => !r.isExpense)
-        .fold<double>(0, (sum, r) => sum + r.absAmount);
-    final totalBalance = totalIncome - totalExpense;
-    final count = records.length;
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return _DayHeader(
-            dateLabel: '$dateLabel  $weekdayLabel · 共$count笔',
-            income: totalIncome,
-            expense: totalExpense,
-            balance: totalBalance,
-          );
-        }
-        final record = records[index - 1];
-        return TimelineItem(
-          record: record,
-          category: categoryMap[record.categoryKey],
-          leftSide: index.isEven,
-        );
-      },
-      separatorBuilder: (_, __) => const SizedBox(height: 4),
-      itemCount: records.length + 1,
     );
   }
 
@@ -765,8 +672,10 @@ class _HomePageState extends State<HomePage> {
     // 检查是否可以使用缓存的结果
     Map<DateTime, List<Record>> groups;
     List<DateTime> days;
-    
-    if (_cachedRecords == records && _cachedGroups != null && _cachedDays != null) {
+
+    if (_cachedRecords == records &&
+        _cachedGroups != null &&
+        _cachedDays != null) {
       // 使用缓存的结果
       groups = _cachedGroups!;
       days = _cachedDays!;
@@ -780,7 +689,7 @@ class _HomePageState extends State<HomePage> {
 
       // 按日期倒序（最近的天在上面）
       days = groups.keys.toList()..sort((a, b) => b.compareTo(a));
-      
+
       // 更新缓存
       _cachedRecords = records;
       _cachedGroups = groups;
@@ -813,13 +722,13 @@ class _HomePageState extends State<HomePage> {
               .where((r) => !r.isExpense)
               .fold<double>(0, (sum, r) => sum + r.absAmount);
           final totalBalance = totalIncome - totalExpense;
-          
+
           dayStats = _DayStats(
             totalIncome: totalIncome,
             totalExpense: totalExpense,
             totalBalance: totalBalance,
           );
-          
+
           // 缓存统计信息
           _dayStatsCache[day] = dayStats;
         }
@@ -1014,7 +923,6 @@ class _BalanceCard extends StatelessWidget {
     required this.dateLabel,
     required this.onTapDate,
     required this.onTapSearch,
-    required this.bookProvider,
   });
 
   final double income;
@@ -1023,7 +931,6 @@ class _BalanceCard extends StatelessWidget {
   final String dateLabel;
   final VoidCallback onTapDate;
   final VoidCallback onTapSearch;
-  final BookProvider bookProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -1098,7 +1005,7 @@ class _BalanceCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                _BookSelector(bookProvider: bookProvider),
+                const BookSelectorButton(),
                 // 修复按钮抖动问题：使用 InkWell 替代 IconButton
                 InkWell(
                   onTap: onTapSearch,
@@ -1267,311 +1174,6 @@ class _ShortcutButton extends StatelessWidget {
   }
 }
 
-class _BookSelector extends StatelessWidget {
-  const _BookSelector({required this.bookProvider});
-
-  final BookProvider bookProvider;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final activeName = bookProvider.activeBook?.name ?? '默认账本';
-    return InkWell(
-      onTap: () => _showBookPicker(context),
-      borderRadius: BorderRadius.circular(20),
-      // 关闭水波纹和高亮，不要那颗突兀的白圈
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      hoverColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: isDark ? cs.surface : Colors.white,
-          border: Border.all(color: cs.primary.withOpacity(0.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.menu_book_outlined, size: 18, color: cs.primary),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                activeName,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.expand_more, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showBookPicker(BuildContext context) async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final theme = Theme.of(ctx);
-        final cs = theme.colorScheme;
-        final recordProvider = ctx.read<RecordProvider>();
-        final bp = ctx.watch<BookProvider>();
-        final books = bp.books;
-        final activeId = bp.activeBookId;
-        final activeName = bp.activeBook?.name ?? '默认账本';
-        final now = DateTime.now();
-        final month = DateTime(now.year, now.month, 1);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '选择账本',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '当前：$activeName',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.outline,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      tooltip: '新建账本',
-                      onPressed: () => _showAddBookDialog(ctx),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      tooltip: '关闭',
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ...books.map(
-                  (book) {
-                    final selected = book.id == activeId;
-                    final recordCount =
-                        recordProvider.recordsForBook(book.id).length;
-                    final monthExpense =
-                        recordProvider.monthExpense(month, book.id);
-                    final subtitle = recordCount > 0
-                        ? '本月支出 ${monthExpense.toStringAsFixed(2)} · 共 $recordCount 笔'
-                        : '本月暂无记账';
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Material(
-                        color: selected
-                            ? cs.primary.withOpacity(0.06)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        child: RadioListTile<String>(
-                          value: book.id,
-                          groupValue: activeId,
-                          onChanged: (value) async {
-                            if (value != null) {
-                              await bp.selectBook(value);
-                              Navigator.pop(ctx);
-                            }
-                          },
-                          title: Text(book.name),
-                          subtitle: Text(
-                            subtitle,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.outline,
-                            ),
-                          ),
-                          secondary: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined, size: 18),
-                                tooltip: '重命名账本',
-                                onPressed: () => _showRenameBookDialog(
-                                  ctx,
-                                  book.id,
-                                  book.name,
-                                ),
-                              ),
-                              if (books.length > 1)
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline,
-                                      size: 18),
-                                  tooltip: '删除账本',
-                                  onPressed: () =>
-                                      _confirmDeleteBook(ctx, book.id),
-                                ),
-                            ],
-                          ),
-                          activeColor: cs.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showAddBookDialog(BuildContext context) async {
-    final controller = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    await showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('新建账本'),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: '账本名称'),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return '请输入名称';
-              }
-              return null;
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              if (formKey.currentState?.validate() != true) return;
-              await bookProvider.addBook(controller.text.trim());
-              if (Navigator.of(dialogCtx).canPop()) {
-                Navigator.pop(dialogCtx);
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showRenameBookDialog(
-    BuildContext context,
-    String id,
-    String initialName,
-  ) async {
-    final controller = TextEditingController(text: initialName);
-    final formKey = GlobalKey<FormState>();
-    await showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('重命名账本'),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: '账本名称'),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return '请输入名称';
-              }
-              return null;
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              if (formKey.currentState?.validate() != true) return;
-              await bookProvider.renameBook(id, controller.text.trim());
-              if (Navigator.of(dialogCtx).canPop()) {
-                Navigator.pop(dialogCtx);
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmDeleteBook(
-    BuildContext context,
-    String id,
-  ) async {
-    await showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('删除账本'),
-        content: const Text('删除后不可恢复，确认删除该账本吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              await bookProvider.deleteBook(id);
-              if (Navigator.of(dialogCtx).canPop()) {
-                Navigator.pop(dialogCtx);
-              }
-            },
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _BudgetBanner extends StatelessWidget {
   const _BudgetBanner();
 
@@ -1579,7 +1181,9 @@ class _BudgetBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final budget = context.watch<BudgetProvider>().budget;
+    final bookId = context.watch<BookProvider>().activeBookId;
+    final budgetProvider = context.watch<BudgetProvider>();
+    final budget = budgetProvider.budgetForBook(bookId);
     if (budget.total > 0) {
       return const SizedBox.shrink();
     }

@@ -18,8 +18,9 @@ class HomeBudgetBar extends StatelessWidget {
     final bookProvider = context.watch<BookProvider>();
     final now = DateTime.now();
 
-    final total = budgetProvider.budget.total;
-    final expense = recordProvider.monthExpense(now, bookProvider.activeBookId);
+    final bookId = bookProvider.activeBookId;
+    final total = budgetProvider.budgetForBook(bookId).total;
+    final expense = recordProvider.monthExpense(now, bookId);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -44,7 +45,7 @@ class HomeBudgetBar extends StatelessWidget {
                     Icon(Icons.lightbulb_outline, color: cs.primary),
                     const SizedBox(width: 8),
                     Text(
-                      "预算未设�?,
+                      '预算未设置',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -55,8 +56,9 @@ class HomeBudgetBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  "去预算页设置一个月度预算，方便掌握支出节奏�?,
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  '去预算页设置一个月度预算，方便掌握支出节奏',
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.textSecondary),
                 ),
               ],
             )
@@ -64,5 +66,3 @@ class HomeBudgetBar extends StatelessWidget {
     );
   }
 }
-
-

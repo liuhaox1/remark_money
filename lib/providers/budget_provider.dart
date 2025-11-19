@@ -8,52 +8,67 @@ class BudgetProvider extends ChangeNotifier {
 
   final BudgetRepository _repository = BudgetRepository();
 
-  Budget _budget = Budget(total: 0, categoryBudgets: {});
-  Budget get budget => _budget;
+  Budget _budgetStore = Budget.empty();
+  Budget get store => _budgetStore;
 
   bool _loaded = false;
   bool get loaded => _loaded;
 
   Future<void> load() async {
     if (_loaded) return;
-    _budget = await _repository.loadBudget();
+    _budgetStore = await _repository.loadBudget();
     _loaded = true;
     notifyListeners();
   }
 
-  Future<void> updateBudget({
+  BudgetEntry budgetForBook(String bookId) {
+    return _budgetStore.entryFor(bookId);
+  }
+
+  Future<void> updateBudgetForBook({
+    required String bookId,
     required double totalBudget,
     required Map<String, double> categoryBudgets,
   }) async {
-    final next = _budget.copyWith(
+    final entry = BudgetEntry(
       total: totalBudget,
       categoryBudgets: Map<String, double>.from(categoryBudgets),
     );
-    await _repository.saveBudget(next);
-    _budget = next;
+    _budgetStore = _budgetStore.replaceEntry(bookId, entry);
+    await _repository.saveBudget(_budgetStore);
     notifyListeners();
   }
 
-  Future<void> setTotal(double value) async {
-    final next = _budget.copyWith(total: value);
-    await _repository.saveBudget(next);
-    _budget = next;
-    notifyListeners();
+  Future<void> setTotal(String bookId, double value) async {
+    final current = budgetForBook(bookId);
+    await updateBudgetForBook(
+      bookId: bookId,
+      totalBudget: value,
+      categoryBudgets: current.categoryBudgets,
+    );
   }
 
-  Future<void> setCategoryBudget(String key, double value) async {
-    final updated = {..._budget.categoryBudgets, key: value};
-    final next = _budget.copyWith(categoryBudgets: updated);
-    await _repository.saveBudget(next);
-    _budget = next;
-    notifyListeners();
+  Future<void> setCategoryBudget(
+    String bookId,
+    String key,
+    double value,
+  ) async {
+    final current = budgetForBook(bookId);
+    final updated = {...current.categoryBudgets, key: value};
+    await updateBudgetForBook(
+      bookId: bookId,
+      totalBudget: current.total,
+      categoryBudgets: updated,
+    );
   }
 
-  Future<void> deleteCategoryBudget(String key) async {
-    final updated = {..._budget.categoryBudgets}..remove(key);
-    final next = _budget.copyWith(categoryBudgets: updated);
-    await _repository.saveBudget(next);
-    _budget = next;
-    notifyListeners();
+  Future<void> deleteCategoryBudget(String bookId, String key) async {
+    final current = budgetForBook(bookId);
+    final updated = {...current.categoryBudgets}..remove(key);
+    await updateBudgetForBook(
+      bookId: bookId,
+      totalBudget: current.total,
+      categoryBudgets: updated,
+    );
   }
 }

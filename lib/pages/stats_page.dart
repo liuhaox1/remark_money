@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
-import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../widgets/chart_bar.dart';
 import '../widgets/chart_pie.dart';
@@ -211,9 +210,7 @@ class _StatsPageState extends State<StatsPage> {
                           child: chartEntries.isEmpty
                               ? Center(
                                   child: Text(
-                                    _viewYear
-                                        ? '该年无支出记录'
-                                        : '本月无支出记录',
+                                    _viewYear ? '该年无支出记录' : '本月无支出记录',
                                     style: TextStyle(color: cs.outline),
                                   ),
                                 )
@@ -287,9 +284,7 @@ class _StatsPageState extends State<StatsPage> {
           (expenseMap[record.categoryKey] ?? 0) + record.expenseValue;
     }
 
-    final categoryMap = {
-      for (final c in categoryProvider.categories) c.key: c
-    };
+    final categoryMap = {for (final c in categoryProvider.categories) c.key: c};
 
     final sortedEntries = expenseMap.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -441,4 +436,3 @@ class _BookSelector extends StatelessWidget {
     );
   }
 }
-

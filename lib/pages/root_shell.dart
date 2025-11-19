@@ -652,7 +652,7 @@ Future<void> _showEditAccountSheet(
                         if (isEditing)
                           TextButton.icon(
                             onPressed: () async {
-                              await accountProvider.deleteAccount(account!.id);
+                              await accountProvider.deleteAccount(account.id);
                               if (context.mounted) Navigator.pop(context);
                             },
                             icon: const Icon(Icons.delete_outline),
@@ -697,4 +697,3 @@ Future<void> _showEditAccountSheet(
     },
   );
 }
-

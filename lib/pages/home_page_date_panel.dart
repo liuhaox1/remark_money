@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../utils/date_utils.dart';
@@ -143,7 +142,8 @@ class _DatePanelState extends State<DatePanel>
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -233,7 +233,8 @@ class _DatePanelState extends State<DatePanel>
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -339,6 +340,7 @@ class _DatePanelState extends State<DatePanel>
       });
     }
   }
+
   Widget _buildDayTab(BuildContext context) {
     final recordProvider = context.watch<RecordProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
@@ -409,7 +411,7 @@ class _DatePanelState extends State<DatePanel>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '${_currentYear}-${_currentMonth.toString().padLeft(2, '0')}',
+                    '$_currentYear-${_currentMonth.toString().padLeft(2, '0')}',
                   ),
                   const Icon(Icons.arrow_drop_down),
                 ],
@@ -448,7 +450,7 @@ class _DatePanelState extends State<DatePanel>
     );
   }
 
-      Widget _buildWeekTab(BuildContext context) {
+  Widget _buildWeekTab(BuildContext context) {
     final recordProvider = context.watch<RecordProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
 
@@ -505,7 +507,7 @@ class _DatePanelState extends State<DatePanel>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '${_currentYear}-${_currentMonth.toString().padLeft(2, '0')}',
+                    '$_currentYear-${_currentMonth.toString().padLeft(2, '0')}',
                   ),
                   const Icon(Icons.arrow_drop_down),
                 ],
@@ -516,9 +518,9 @@ class _DatePanelState extends State<DatePanel>
         const SizedBox(height: 12),
         // 没有数据的情况
         if (weeks.isEmpty)
-          Expanded(
+          const Expanded(
             child: Center(
-              child: const Text(AppStrings.noDataThisMonth),
+              child: Text(AppStrings.noDataThisMonth),
             ),
           )
         else
@@ -547,8 +549,7 @@ class _DatePanelState extends State<DatePanel>
                   (d) => DateUtilsX.isSameDay(d, _selectedDay),
                 );
 
-                final title =
-                    '第${index + 1}周（${firstDay.day}-${lastDay.day}日）';
+                final title = '第${index + 1}周（${firstDay.day}-${lastDay.day}日）';
 
                 final netColor = _amountTextColor(net);
 
@@ -578,10 +579,9 @@ class _DatePanelState extends State<DatePanel>
     );
   }
 
-    Widget _buildMonthTab(BuildContext context) {
+  Widget _buildMonthTab(BuildContext context) {
     final recordProvider = context.watch<RecordProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
-    final cs = Theme.of(context).colorScheme;
 
     double totalNet = 0;
     for (int m = 1; m <= 12; m++) {
@@ -728,38 +728,6 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SegmentTag extends StatelessWidget {
-  const _SegmentTag({
-    required this.label,
-    required this.active,
-  });
-
-  final String label;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: active ? Colors.black : Colors.transparent,
-        border: Border.all(
-          color: active ? Colors.black : Colors.grey.shade400,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: active ? Colors.white : Colors.grey.shade600,
         ),
       ),
     );
