@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/book.dart';
 
 class BookRepository {
@@ -40,7 +41,7 @@ class BookRepository {
 
   List<Book> _defaultBooks() {
     return const [
-      Book(id: 'default-book', name: '默认账本'),
+      Book(id: 'default-book', name: AppStrings.defaultBook),
     ];
   }
 }

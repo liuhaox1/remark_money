@@ -104,6 +104,14 @@ class AppStrings {
   static const budgetTodaySuggestionPrefix = '今日建议花费 ¥';
   static const receivableThisMonthPrefix = '本月回款 ';
   static const expenseThisMonthPrefix = '本月支出 ';
+  static const homeBudgetTitle = '预算概览';
+  static const homeBudgetDetail = '预算详情';
+  static const homeBudgetNotSetTitle = '尚未设置本月预算';
+  static const homeBudgetNotSetDesc = '设置后可自动计算剩余额度与日均可花金额。';
+  static const homeBudgetSetNow = '立即设置';
+  static const homeBudgetRemaining = '剩余预算';
+  static const homeBudgetTodayAvailable = '今日可用';
+  static const homeBudgetDaysLeft = '剩余天数';
 
   // Bill page
   static const billTitle = '账单';
@@ -137,6 +145,7 @@ class AppStrings {
   static const recordSaved = '记账成功';
   static const goManage = '去管理';
   static const manageCategory = '管理分类';
+  static const loadingSubtitle = '指尖记账·全新金融体验';
 
   // Profile
   static const profile = '我的';
@@ -180,6 +189,20 @@ class AppStrings {
   static const totalAssets = '总资产';
   static const totalDebts = '总负债';
   static const netWorth = '净资产';
+  static const catFood = '餐饮';
+  static const catShopping = '购物';
+  static const catTransport = '交通出行';
+  static const catUtility = '水电煤';
+  static const catMedical = '医疗';
+  static const catEducation = '教育';
+  static const catHouse = '住房';
+  static const catEntertainment = '娱乐';
+  static const catDaily = '日用品';
+  static const catPet = '宠物';
+  static const catSalary = '工资';
+  static const catBonus = '奖金';
+  static const catParttime = '兼职';
+  static const catInvest = '投资收益';
 
   // Home page date panel
   static const summaryMonth = '月总结余';
@@ -224,4 +247,6 @@ class AppStrings {
   static String monthDayWithWeek(int month, int day, String week) =>
       '$month月$day日 $week';
   static String billTitleWithMonth(int month) => '$month 月';
+  static const unitYi = '亿';
+  static const unitWan = '万';
 }

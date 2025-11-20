@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../models/record.dart';
 import '../theme/app_tokens.dart';
@@ -15,19 +16,17 @@ class TimelineItem extends StatelessWidget {
   });
 
   final Record record;
-  final bool leftSide; // 兼容旧参数，当前布局不再左右交错
+  final bool leftSide; // legacy param, layout no longer alternates
   final Category? category;
 
   @override
   Widget build(BuildContext context) {
-    final title = category?.name ?? '未分类';
+    final title = category?.name ?? AppStrings.unknown;
     final isExpense = record.isExpense;
-    final Color color =
-        isExpense ? AppColors.danger : AppColors.success;
+    final Color color = isExpense ? AppColors.danger : AppColors.success;
     final icon = category?.icon ?? Icons.category_outlined;
     final amountValue = record.absAmount;
     final sign = isExpense ? '-' : '+';
-    // 使用 NumberFormatter 来格式化数字显示
     final amountStr = '$sign${_NumberFormatter.format(amountValue)}';
 
     return Padding(
@@ -95,18 +94,14 @@ class TimelineItem extends StatelessWidget {
   }
 }
 
-// 添加 NumberFormatter 类以保持一致性
 class _NumberFormatter {
   static String format(double value) {
     final absValue = value.abs();
     if (absValue >= 100000000) {
-      // 1亿以上显示为 1.2亿
-      return '${(value / 100000000).toStringAsFixed(1)}亿';
+      return '${(value / 100000000).toStringAsFixed(1)}${AppStrings.unitYi}';
     } else if (absValue >= 10000) {
-      // 1万以上显示为 1.2万
-      return '${(value / 10000).toStringAsFixed(1)}万';
+      return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
     } else {
-      // 普通数字显示，最多保留两位小数
       return value.toStringAsFixed(2);
     }
   }

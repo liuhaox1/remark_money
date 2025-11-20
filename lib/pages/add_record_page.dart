@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
@@ -46,7 +47,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('新增记账'),
+        title: const Text(AppStrings.addRecord),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
@@ -68,7 +69,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
               child: FilledButton(
                 onPressed: _handleSubmit,
                 child: const Text(
-                  '保存',
+                  AppStrings.save,
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -90,7 +91,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       ),
       decoration: const InputDecoration(
         prefixText: '¥ ',
-        hintText: '输入金额',
+        hintText: AppStrings.inputAmount,
         border: InputBorder.none,
       ),
     );
@@ -99,8 +100,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Widget _buildTypeSwitcher() {
     return SegmentedButton<bool>(
       segments: const [
-        ButtonSegment(value: true, label: Text('支出')),
-        ButtonSegment(value: false, label: Text('收入')),
+        ButtonSegment(value: true, label: Text(AppStrings.expense)),
+        ButtonSegment(value: false, label: Text(AppStrings.income)),
       ],
       selected: {_isExpense},
       onSelectionChanged: (set) {
@@ -116,7 +117,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '分类',
+          AppStrings.category,
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
@@ -140,7 +141,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
               ? null
               : (value) => setState(() => _selectedCategoryKey = value),
           decoration: const InputDecoration(
-            hintText: '请选择分类',
+            hintText: AppStrings.selectCategory,
             border: OutlineInputBorder(),
           ),
         ),
@@ -148,7 +149,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
           const Padding(
             padding: EdgeInsets.only(top: 8),
             child: Text(
-              '暂无分类，请先在分类管理中添加',
+              AppStrings.emptyCategoryForRecord,
               style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -164,7 +165,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '日期',
+          AppStrings.selectDate,
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
@@ -199,7 +200,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       controller: _remarkCtrl,
       maxLines: 2,
       decoration: const InputDecoration(
-        hintText: '备注（可选）',
+        hintText: AppStrings.remarkOptional,
         border: OutlineInputBorder(),
       ),
     );
@@ -226,7 +227,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       initialDate: initial,
       firstDate: DateTime(today.year - 5),
       lastDate: last,
-      helpText: '选择日期',
+      helpText: AppStrings.selectDate,
     );
 
     if (result != null) {
@@ -237,11 +238,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Future<void> _handleSubmit() async {
     final amount = double.tryParse(_amountCtrl.text.trim());
     if (amount == null || amount <= 0) {
-      _showMessage('请填写正确的金额');
+      _showMessage(AppStrings.amountError);
       return;
     }
     if (_selectedCategoryKey == null) {
-      _showMessage('请先添加并选择分类');
+      _showMessage(AppStrings.selectCategoryError);
       return;
     }
 

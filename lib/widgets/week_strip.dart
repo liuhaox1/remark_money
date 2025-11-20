@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n/app_strings.dart';
 import '../utils/date_utils.dart';
 
 /// 顶部日期“时间轴”
@@ -301,7 +302,7 @@ class _TodayPill extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
-          '今天',
+          AppStrings.today,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_strings.dart';
 
 class LoadingPage extends StatelessWidget {
   const LoadingPage({super.key});
@@ -29,7 +30,7 @@ class LoadingPage extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               const Text(
-                '指尖记账',
+                AppStrings.appTitle,
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
@@ -46,7 +47,7 @@ class LoadingPage extends StatelessWidget {
               ),
               const SizedBox(height: 30),
               Text(
-                '指尖记账·全新金融体验',
+                AppStrings.loadingSubtitle,
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: 14,

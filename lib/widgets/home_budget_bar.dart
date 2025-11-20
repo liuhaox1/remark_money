@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/budget_provider.dart';
+import '../l10n/app_strings.dart';
 import '../providers/book_provider.dart';
+import '../providers/budget_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
@@ -51,7 +52,7 @@ class HomeBudgetBar extends StatelessWidget {
             Row(
               children: [
                 const Text(
-                  '预算概览',
+                  AppStrings.homeBudgetTitle,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -60,7 +61,7 @@ class HomeBudgetBar extends StatelessWidget {
                 const Spacer(),
                 TextButton(
                   onPressed: () => Navigator.pushNamed(context, '/budget'),
-                  child: const Text('预算详情'),
+                  child: const Text(AppStrings.homeBudgetDetail),
                 ),
               ],
             ),
@@ -74,7 +75,7 @@ class HomeBudgetBar extends StatelessWidget {
                       Icon(Icons.lightbulb_outline, color: cs.primary),
                       const SizedBox(width: 8),
                       const Text(
-                        '尚未设置本月预算',
+                        AppStrings.homeBudgetNotSetTitle,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -84,7 +85,7 @@ class HomeBudgetBar extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    '设置后可自动计算剩余额度与日均可花金额。',
+                    AppStrings.homeBudgetNotSetDesc,
                     style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
@@ -93,7 +94,7 @@ class HomeBudgetBar extends StatelessWidget {
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () => Navigator.pushNamed(context, '/budget'),
-                    child: const Text('立即设置'),
+                    child: const Text(AppStrings.homeBudgetSetNow),
                   ),
                 ],
               )
@@ -103,21 +104,21 @@ class HomeBudgetBar extends StatelessWidget {
               Row(
                 children: [
                   _HomeBudgetStat(
-                    label: '剩余预算',
+                    label: AppStrings.homeBudgetRemaining,
                     value: '¥${remaining.toStringAsFixed(0)}',
                     color:
                         remaining >= 0 ? AppColors.success : AppColors.danger,
                   ),
                   const SizedBox(width: 12),
                   _HomeBudgetStat(
-                    label: '今日可用',
+                    label: AppStrings.homeBudgetTodayAvailable,
                     value: '¥${dailyAllowance.toStringAsFixed(0)}',
                     color: cs.primary,
                   ),
                   const SizedBox(width: 12),
                   _HomeBudgetStat(
-                    label: '剩余天数',
-                    value: '$daysLeft 天',
+                    label: AppStrings.homeBudgetDaysLeft,
+                    value: AppStrings.hoursInDays(daysLeft),
                     color: cs.onSurface.withOpacity(0.7),
                   ),
                 ],

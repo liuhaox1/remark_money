@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -37,8 +37,8 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: '支出'),
-            Tab(text: '收入'),
+            Tab(text: AppStrings.expenseCategory),
+            Tab(text: AppStrings.incomeCategory),
           ],
         ),
       ),
@@ -106,16 +106,16 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('删除分类'),
-          content: Text('确定要删除${category.name}吗'),
+          title: const Text(AppStrings.deleteCategory),
+          content: Text(AppStrings.deleteCategoryConfirm(category.name)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
+              child: const Text(AppStrings.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('删除'),
+              child: const Text(AppStrings.delete),
             ),
           ],
         );
@@ -152,7 +152,11 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: Text(original == null ? '新增分类' : '编辑分类'),
+              title: Text(
+                original == null
+                    ? AppStrings.addCategory
+                    : AppStrings.editCategory,
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,13 +165,13 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                     TextField(
                       controller: nameCtrl,
                       decoration: const InputDecoration(
-                        labelText: '名称',
-                        hintText: '例如：奶茶',
+                        labelText: AppStrings.categoryName,
+                        hintText: AppStrings.categoryNameHint,
                       ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      '类型',
+                      AppStrings.categoryType,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -176,8 +180,14 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                     const SizedBox(height: 6),
                     SegmentedButton<bool>(
                       segments: const [
-                        ButtonSegment(value: true, label: Text('支出')),
-                        ButtonSegment(value: false, label: Text('收入')),
+                        ButtonSegment(
+                          value: true,
+                          label: Text(AppStrings.expenseCategory),
+                        ),
+                        ButtonSegment(
+                          value: false,
+                          label: Text(AppStrings.incomeCategory),
+                        ),
                       ],
                       selected: {isExpense},
                       onSelectionChanged: (value) {
@@ -186,7 +196,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      '图标',
+                      AppStrings.categoryIcon,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -213,14 +223,16 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
+                  child: const Text(AppStrings.cancel),
                 ),
                 FilledButton(
                   onPressed: () {
                     final name = nameCtrl.text.trim();
                     if (name.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('请填写分类名称')),
+                        const SnackBar(
+                          content: Text(AppStrings.categoryNameRequired),
+                        ),
                       );
                       return;
                     }
@@ -233,7 +245,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                     );
                     Navigator.pop(context, category);
                   },
-                  child: const Text('保存'),
+                  child: const Text(AppStrings.save),
                 ),
               ],
             );

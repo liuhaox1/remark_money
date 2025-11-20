@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../providers/book_provider.dart';
 import '../providers/theme_provider.dart';
 
@@ -22,7 +23,7 @@ class ProfilePage extends StatelessWidget {
         centerTitle: false,
         titleSpacing: 16,
         title: const Text(
-          '我的',
+          AppStrings.profile,
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -39,7 +40,7 @@ class ProfilePage extends StatelessWidget {
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.category_outlined),
-                  title: const Text('分类管理'),
+                  title: const Text(AppStrings.categoryManager),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () =>
                       Navigator.pushNamed(context, '/category-manager'),
@@ -48,7 +49,7 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 24),
               Card(
                 child: ListTile(
-                  title: const Text('指尖记账 1.0.0'),
+                  title: const Text(AppStrings.version),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () =>
                       Navigator.pushNamed(context, '/finger-accounting'),
@@ -79,7 +80,7 @@ class ProfilePage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '主题',
+              AppStrings.theme,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
@@ -87,11 +88,11 @@ class ProfilePage extends StatelessWidget {
               segments: const [
                 ButtonSegment(
                   value: ThemeMode.light,
-                  label: Text('浅色'),
+                  label: Text(AppStrings.themeLight),
                 ),
                 ButtonSegment(
                   value: ThemeMode.dark,
-                  label: Text('深色'),
+                  label: Text(AppStrings.themeDark),
                 ),
               ],
               selected: {currentMode},
@@ -102,7 +103,7 @@ class ProfilePage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              '主题色',
+              AppStrings.themeSeed,
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -151,12 +152,12 @@ class ProfilePage extends StatelessWidget {
             Row(
               children: [
                 const Text(
-                  '账本',
+                  AppStrings.book,
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
                 IconButton(
-                  tooltip: '新增账本',
+                  tooltip: AppStrings.addBook,
                   onPressed: () => _showAddBookDialog(context),
                   icon: const Icon(Icons.add),
                 )
@@ -205,16 +206,16 @@ class ProfilePage extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('新建账本'),
+        title: const Text(AppStrings.newBook),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: '账本名称'),
+            decoration: const InputDecoration(hintText: AppStrings.bookNameHint),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return '请输入名称';
+                return AppStrings.bookNameRequired;
               }
               return null;
             },
@@ -223,7 +224,7 @@ class ProfilePage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: const Text(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -233,7 +234,7 @@ class ProfilePage extends StatelessWidget {
                   .addBook(controller.text.trim());
               if (context.mounted) Navigator.pop(context);
             },
-            child: const Text('保存'),
+            child: const Text(AppStrings.save),
           )
         ],
       ),
@@ -250,16 +251,16 @@ class ProfilePage extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('重命名账本'),
+        title: const Text(AppStrings.renameBook),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: '账本名称'),
+            decoration: const InputDecoration(hintText: AppStrings.bookNameHint),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return '请输入名称';
+                return AppStrings.bookNameRequired;
               }
               return null;
             },
@@ -268,7 +269,7 @@ class ProfilePage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: const Text(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -278,7 +279,7 @@ class ProfilePage extends StatelessWidget {
                   .renameBook(id, controller.text.trim());
               if (context.mounted) Navigator.pop(context);
             },
-            child: const Text('保存'),
+            child: const Text(AppStrings.save),
           )
         ],
       ),
@@ -290,19 +291,19 @@ class ProfilePage extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('删除账本'),
-        content: const Text('删除后不可恢复，确认删除该账本吗？'),
+        title: const Text(AppStrings.deleteBook),
+        content: const Text(AppStrings.confirmDeleteBook),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: const Text(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () async {
               await provider.deleteBook(id);
               if (context.mounted) Navigator.pop(context);
             },
-            child: const Text('删除'),
+            child: const Text(AppStrings.delete),
           ),
         ],
       ),

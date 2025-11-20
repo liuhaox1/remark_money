@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
@@ -54,7 +55,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 Row(
                   children: [
                     const Text(
-                      '快速记一笔',
+                      AppStrings.quickAddPrimary,
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                     ),
@@ -80,7 +81,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _handleSubmit,
-                    child: const Text('保存'),
+                    child: const Text(AppStrings.save),
                   ),
                 ),
               ],
@@ -98,7 +99,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700),
       decoration: const InputDecoration(
         prefixText: '¥ ',
-        hintText: '输入金额',
+        hintText: AppStrings.inputAmount,
         border: InputBorder.none,
       ),
     );
@@ -107,8 +108,8 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   Widget _buildTypeSwitcher() {
     return SegmentedButton<bool>(
       segments: const [
-        ButtonSegment(value: true, label: Text('支出')),
-        ButtonSegment(value: false, label: Text('收入')),
+        ButtonSegment(value: true, label: Text(AppStrings.expense)),
+        ButtonSegment(value: false, label: Text(AppStrings.income)),
       ],
       selected: {_isExpense},
       onSelectionChanged: (value) {
@@ -124,7 +125,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         children: [
           const Expanded(
             child: Text(
-              '暂无分类，请先前往「我的」页面添加分类',
+              AppStrings.emptyCategoryForRecord,
               style: TextStyle(fontSize: 12),
             ),
           ),
@@ -134,7 +135,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 setState(() {});
               });
             },
-            child: const Text('去管理'),
+            child: const Text(AppStrings.goManage),
           ),
         ],
       );
@@ -147,7 +148,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              '分类',
+              AppStrings.category,
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             TextButton(
@@ -156,7 +157,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                   setState(() {});
                 });
               },
-              child: const Text('管理分类'),
+              child: const Text(AppStrings.manageCategory),
             ),
           ],
         ),
@@ -211,7 +212,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       controller: _remarkCtrl,
       maxLines: 2,
       decoration: const InputDecoration(
-        hintText: '备注（可选）',
+        hintText: AppStrings.remarkOptional,
         border: OutlineInputBorder(),
       ),
     );
@@ -232,14 +233,13 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   Future<void> _pickDate() async {
     final today = DateTime.now();
     final last = DateTime(today.year, today.month, today.day);
-    final initial =
-        _selectedDate.isAfter(last) ? last : _selectedDate;
+    final initial = _selectedDate.isAfter(last) ? last : _selectedDate;
     final result = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime(today.year - 5),
       lastDate: last,
-      helpText: '选择日期',
+      helpText: AppStrings.selectDate,
     );
     if (result != null) {
       setState(() => _selectedDate = result);
@@ -249,11 +249,11 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   Future<void> _handleSubmit() async {
     final amount = double.tryParse(_amountCtrl.text.trim());
     if (amount == null || amount <= 0) {
-      _showMessage('请填写正确的金额');
+      _showMessage(AppStrings.amountError);
       return;
     }
     if (_selectedCategoryKey == null) {
-      _showMessage('请先添加并选择分类');
+      _showMessage(AppStrings.selectCategoryError);
       return;
     }
 
@@ -270,7 +270,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('记账成功')),
+      const SnackBar(content: Text(AppStrings.recordSaved)),
     );
   }
 

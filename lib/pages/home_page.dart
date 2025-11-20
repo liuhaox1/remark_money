@@ -909,13 +909,10 @@ class _NumberFormatter {
   static String format(double value) {
     final absValue = value.abs();
     if (absValue >= 100000000) {
-      // 1亿以上显示为 1.2亿
-      return '${(value / 100000000).toStringAsFixed(1)}亿';
+      return '${(value / 100000000).toStringAsFixed(1)}${AppStrings.unitYi}';
     } else if (absValue >= 10000) {
-      // 1万以上显示为 1.2万
-      return '${(value / 10000).toStringAsFixed(1)}万';
+      return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
     } else {
-      // 普通数字显示，最多保留两位小数
       return value.toStringAsFixed(2);
     }
   }

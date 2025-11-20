@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_strings.dart';
 import '../theme/app_tokens.dart';
 
 class BudgetProgress extends StatelessWidget {
@@ -24,9 +25,9 @@ class BudgetProgress extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _line("本月预算", total, AppColors.primary(context)),
-            _line("已用", used, AppColors.danger),
-            _line("剩余", remaining, AppColors.success),
+            _line(AppStrings.monthBudget, total, AppColors.primary(context)),
+            _line(AppStrings.spent, used, AppColors.danger),
+            _line(AppStrings.remain, remaining, AppColors.success),
           ],
         ),
         const SizedBox(height: 12),
@@ -58,7 +59,7 @@ class BudgetProgress extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          "¥ ${value.toStringAsFixed(0)}",
+          '¥ ${value.toStringAsFixed(0)}',
           style: TextStyle(
             color: color,
             fontWeight: FontWeight.w700,

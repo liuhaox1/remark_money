@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
+
+import '../l10n/app_strings.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 
-/// 周日历组�?
-/// 作用�?
-/// - 显示一周（周日 �?周六�?
-/// - 点击某一天时高亮
-/// - 回调 onDaySelected
 class WeeklyCalendar extends StatelessWidget {
   final DateTime selectedDay;
   final ValueChanged<DateTime> onDaySelected;
@@ -49,9 +46,8 @@ class WeeklyCalendar extends StatelessWidget {
     );
   }
 
-  /// 周标题（"�?一 �?�?�?�?�?�?
   Widget _buildWeekLabels() {
-    const labels = ['�?, '一', '�?, '�?, '�?, '�?, '�?];
+    const labels = AppStrings.weekdayShort;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: labels
@@ -74,7 +70,6 @@ class WeeklyCalendar extends StatelessWidget {
     );
   }
 
-  /// 每个日期格子
   Widget _buildDayItem(
     BuildContext context, {
     required DateTime date,
@@ -83,9 +78,8 @@ class WeeklyCalendar extends StatelessWidget {
     required VoidCallback onTap,
     required ColorScheme colorScheme,
   }) {
-    final bgColor = selected
-        ? colorScheme.primary.withOpacity(0.15)
-        : Colors.transparent;
+    final bgColor =
+        selected ? colorScheme.primary.withOpacity(0.15) : Colors.transparent;
 
     final textColor = selected
         ? colorScheme.primary
@@ -106,7 +100,7 @@ class WeeklyCalendar extends StatelessWidget {
           ),
           child: Center(
             child: Text(
-              "${date.day}",
+              '${date.day}',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -119,5 +113,3 @@ class WeeklyCalendar extends StatelessWidget {
     );
   }
 }
-
-
