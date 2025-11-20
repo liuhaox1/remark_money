@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../theme/app_tokens.dart';
@@ -60,27 +61,27 @@ class _RootShellState extends State<RootShell> {
           const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
-            label: '首页',
+            label: AppStrings.navHome,
           ),
           const NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart),
-            label: '统计',
+            label: AppStrings.navStats,
           ),
           NavigationDestination(
             icon: _RecordNavIcon(color: cs.primary),
             selectedIcon: _RecordNavIcon(color: cs.primary),
-            label: '记一笔',
+            label: AppStrings.navRecord,
           ),
           const NavigationDestination(
             icon: Icon(Icons.account_balance_wallet_outlined),
             selectedIcon: Icon(Icons.account_balance_wallet),
-            label: '资产',
+            label: AppStrings.navAssets,
           ),
           const NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: '我的',
+            label: AppStrings.navProfile,
           ),
         ],
         onDestinationSelected: _handleDestination,
@@ -174,7 +175,7 @@ class AssetsPage extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showEditAccountSheet(context),
         icon: const Icon(Icons.add),
-        label: const Text('添加账户'),
+        label: const Text(AppStrings.addAccount),
       ),
     );
   }
@@ -229,7 +230,7 @@ class _AssetSummaryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '资产',
+              AppStrings.assets,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -243,7 +244,7 @@ class _AssetSummaryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        '总资产',
+                        AppStrings.totalAssets,
                         style: TextStyle(fontSize: 12),
                       ),
                       const SizedBox(height: 2),
@@ -263,7 +264,7 @@ class _AssetSummaryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        '总负债',
+                        AppStrings.totalDebts,
                         style: TextStyle(fontSize: 12),
                       ),
                       const SizedBox(height: 2),
@@ -283,7 +284,7 @@ class _AssetSummaryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        '净资产',
+                        AppStrings.netWorth,
                         style: TextStyle(fontSize: 12),
                       ),
                       const SizedBox(height: 2),
@@ -360,18 +361,18 @@ class _AccountList extends StatelessWidget {
   }
 
   String _groupName(AccountType type, bool isDebt) {
-    if (isDebt) return '负债';
+    if (isDebt) return AppStrings.debt;
     switch (type) {
       case AccountType.cash:
       case AccountType.eWallet:
-        return '现金与支付';
+        return AppStrings.cashAndPay;
       case AccountType.bankCard:
-        return '银行卡';
+        return AppStrings.bankCard;
       case AccountType.investment:
-        return '理财资产';
+        return AppStrings.investment;
       case AccountType.other:
       default:
-        return '其他';
+        return AppStrings.other;
     }
   }
 }
@@ -475,21 +476,21 @@ class _AccountTile extends StatelessWidget {
   }
 
   String _subtitleForAccount(Account account) {
-    if (account.isDebt) return '负债账户';
+    if (account.isDebt) return AppStrings.debtAccount;
     switch (account.type) {
       case AccountType.cash:
-        return '现金';
+        return AppStrings.cash;
       case AccountType.bankCard:
-        return '银行卡';
+        return AppStrings.bankCard;
       case AccountType.eWallet:
-        return '支付账户';
+        return AppStrings.payAccount;
       case AccountType.investment:
-        return '理财';
+        return AppStrings.investment;
       case AccountType.loan:
-        return '借贷';
+        return AppStrings.borrow;
       case AccountType.other:
       default:
-        return '其他';
+        return AppStrings.other;
     }
   }
 }
@@ -504,23 +505,26 @@ class _EmptyAccounts extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.account_balance_wallet_outlined,
-              size: 80, color: cs.outline),
+          Icon(
+            Icons.account_balance_wallet_outlined,
+            size: 80,
+            color: cs.outline,
+          ),
           const SizedBox(height: 12),
           const Text(
-            '还没有添加任何资产账户',
+            AppStrings.emptyAccountsTitle,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 8),
-          const Text('可以先添加“现金”“银行卡”等账户'),
+          const Text(AppStrings.emptyAccountsSubtitle),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () => _showEditAccountSheet(context),
             icon: const Icon(Icons.add),
-            label: const Text('添加账户'),
+            label: const Text(AppStrings.addAccount),
           ),
         ],
       ),
@@ -561,7 +565,9 @@ Future<void> _showEditAccountSheet(
                     Row(
                       children: [
                         Text(
-                          isEditing ? '编辑账户' : '新增账户',
+                          isEditing
+                              ? AppStrings.editAccount
+                              : AppStrings.newAccount,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -579,38 +585,39 @@ Future<void> _showEditAccountSheet(
                     TextField(
                       controller: nameController,
                       decoration: const InputDecoration(
-                        labelText: '账户名称',
-                        hintText: '如 现金、招商银行卡',
+                        labelText: AppStrings.accountName,
+                        hintText: AppStrings.accountNameHint,
                       ),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<AccountType>(
                       value: type,
-                      decoration: const InputDecoration(labelText: '账户类型'),
+                      decoration:
+                          const InputDecoration(labelText: AppStrings.accountType),
                       items: const [
                         DropdownMenuItem(
                           value: AccountType.cash,
-                          child: Text('现金'),
+                          child: Text(AppStrings.cash),
                         ),
                         DropdownMenuItem(
                           value: AccountType.bankCard,
-                          child: Text('银行卡'),
+                          child: Text(AppStrings.bankCard),
                         ),
                         DropdownMenuItem(
                           value: AccountType.eWallet,
-                          child: Text('支付账户'),
+                          child: Text(AppStrings.payAccount),
                         ),
                         DropdownMenuItem(
                           value: AccountType.investment,
-                          child: Text('理财资产'),
+                          child: Text(AppStrings.investment),
                         ),
                         DropdownMenuItem(
                           value: AccountType.loan,
-                          child: Text('负债账户'),
+                          child: Text(AppStrings.debtAccount),
                         ),
                         DropdownMenuItem(
                           value: AccountType.other,
-                          child: Text('其他'),
+                          child: Text(AppStrings.other),
                         ),
                       ],
                       onChanged: (value) {
@@ -624,15 +631,15 @@ Future<void> _showEditAccountSheet(
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
-                        labelText: '当前余额',
-                        hintText: '如 1000.00',
+                        labelText: AppStrings.currentBalance,
+                        hintText: AppStrings.balanceHint,
                       ),
                     ),
                     const SizedBox(height: 8),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('这是负债账户'),
-                      subtitle: const Text('如信用卡欠款、花呗等'),
+                      title: const Text(AppStrings.debtAccountTitle),
+                      subtitle: const Text(AppStrings.debtAccountSubtitle),
                       value: isDebt,
                       onChanged: (value) {
                         setState(() => isDebt = value);
@@ -640,7 +647,7 @@ Future<void> _showEditAccountSheet(
                     ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('计入总资产 / 净资产'),
+                      title: const Text(AppStrings.includeInTotal),
                       value: includeInTotal,
                       onChanged: (value) {
                         setState(() => includeInTotal = value);
@@ -656,7 +663,7 @@ Future<void> _showEditAccountSheet(
                               if (context.mounted) Navigator.pop(context);
                             },
                             icon: const Icon(Icons.delete_outline),
-                            label: const Text('删除账户'),
+                            label: const Text(AppStrings.deleteAccount),
                           ),
                         const Spacer(),
                         FilledButton(
@@ -683,7 +690,9 @@ Future<void> _showEditAccountSheet(
                             }
                             if (context.mounted) Navigator.pop(context);
                           },
-                          child: Text(isEditing ? '保存' : '添加'),
+                          child: Text(
+                            isEditing ? AppStrings.save : AppStrings.add,
+                          ),
                         ),
                       ],
                     ),

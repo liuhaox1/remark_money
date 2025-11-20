@@ -1,13 +1,232 @@
-﻿class AppStrings {
+/// Centralized app strings for localization.
+class AppStrings {
+  // App / common
+  static const appTitle = '指尖记账';
+  static const unknown = '未分类';
+  static const ok = '确定';
+  static const cancel = '取消';
+  static const buttonOk = ok;
+  static const buttonCancel = cancel;
+  static const save = '保存';
+  static const delete = '删除';
+  static const add = '添加';
+  static const close = '关闭';
+  static const manage = '管理';
+  static const edit = '编辑';
+  static const today = '今天';
+  static const selectBook = '选择账本';
+  static const defaultBook = '默认账本';
+  static const monthBudget = '本月预算';
+  static const spent = '已用';
+  static const remain = '剩余';
+  static const income = '收入';
+  static const expense = '支出';
+  static const balance = '结余';
+  static const remarkOptional = '备注（可选）';
+  static const selectDate = '选择日期';
+  static const inputAmount = '输入金额';
+  static const pleaseSelect = '请选择';
+  static const confirmDeleteBook =
+      '删除后不可恢复，确认删除该账本吗？';
+  static const confirmDeleteCategory =
+      '确定要删除该分类吗';
+  static const confirmDeleteAccount =
+      '确认删除该账户吗？';
+  static const bookNameRequired = '请输入名称';
+  static const categoryNameRequired = '请填写分类名称';
+  static const successBookSaved = '账本已保存';
+  static const yearBudget = '年度结余';
+  static const monthBudgetSummary = '月总结余';
+  static const noDataThisMonth = '本月暂无记账';
+  static const datePickerTitle = '日期选择';
+
+  // Navigation
+  static const navHome = '首页';
+  static const navStats = '统计';
+  static const navRecord = '记一笔';
+  static const navAssets = '资产';
+  static const navProfile = '我的';
+
+  // Home / filters
+  static const filter = '筛选';
+  static const filterByCategory = '按分类';
+  static const filterByAmount = '按金额区间（绝对值）';
+  static const filterByType = '按收支类型';
+  static const filterByDateRange = '按日期范围';
+  static const minAmount = '最小金额';
+  static const maxAmount = '最大金额';
+  static const all = '全部';
+  static const reset = '重置';
+  static const confirm = '确定';
+  static const startDate = '开始日期';
+  static const endDate = '结束日期';
+  static const dayIncome = '当日收入';
+  static const dayExpense = '当日支出';
+  static const dayBalance = '当日结余';
+  static const monthBalance = '本月结余';
+  static const bill = '账单';
+  static const budget = '预算';
+  static const emptyToday = '今天还没有记账';
+  static const quickAddHint = '可以点击下方按钮快速记一笔';
+  static const quickAdd = '快捷记一笔';
+  static const quickAddPrimary = '快速记一笔';
+  static const pickDate = '选择日期';
+
+  // Charts / stats
+  static const stats = '统计';
+  static const chartBar = '柱状图';
+  static const chartPie = '饼图';
+  static const viewByMonth = '按月';
+  static const viewByYear = '按年';
+  static const noYearData = '该年无支出记录';
+  static const noMonthData = '本月无支出记录';
+
+  // Week labels
   static const tabMonth = '月';
   static const tabWeek = '周';
   static const tabYear = '年';
+  static const weekdayShort = ['日', '一', '二', '三', '四', '五', '六'];
 
-  static const annualSummary = '年度结余';
-  static const monthSummary = '月总结余';
-  static const noDataThisMonth = '本月暂无记账';
+  // Budget page
+  static const budgetSaved = '预算已保存';
+  static const spendCategoryBudget = '支出分类预算';
+  static const spendCategorySubtitle = '实时进度 · 点击查看明细';
+  static const emptySpendCategory = '暂无支出分类，可以在分类管理中新增';
+  static const incomeCategoryBudget = '收入分类预算';
+  static const incomeCategorySubtitle = '可设置回款目标';
+  static const emptyIncomeCategory = '暂无收入分类，可以在分类管理中新增';
+  static const saveBookBudget = '保存当前账本预算';
+  static const monthTotalBudget = '月度总预算';
+  static const monthBudgetHint = '为当前账本设置一个月度预算';
+  static const budgetDescription =
+      '系统会实时对比本月支出与预算，并在首页与统计页展示进度。';
+  static const budgetNotSet = '尚未设置预算';
+  static const viewDetails = '查看明细';
+  static const budgetExceeded = '已超支';
+  static const budgetRemaining = '剩余';
+  static const budgetInputHint = '¥ 预算';
+  static const budgetTip = '设置预算后可获得提醒与推送';
+  static const budgetTodaySuggestionPrefix = '今日建议花费 ¥';
+  static const budgetUsedPrefix = '已用';
+  static const receivableThisMonthPrefix = '本月回款';
+  static const expenseThisMonthPrefix = '本月支出';
 
-  static const datePickerTitle = '日期选择';
-  static const buttonOk = '确定';
-  static const buttonCancel = '取消';
+  // Bill page
+  static const billTitle = '账单';
+  static const yearlyBill = '年度账单';
+  static const monthlyBill = '月度账单';
+  static const pickYear = '选择年份';
+  static const pickMonth = '选择月份';
+
+  // Category manager
+  static const categoryManager = '分类管理';
+  static const expenseCategory = '支出';
+  static const incomeCategory = '收入';
+  static const emptyCategoryHint = '暂无分类，点击右下角新增';
+  static const deleteCategory = '删除分类';
+  static const addCategory = '新增分类';
+  static const editCategory = '编辑分类';
+  static const categoryName = '名称';
+  static const categoryNameHint = '例如：奶茶';
+  static const categoryType = '类型';
+  static const categoryIcon = '图标';
+
+  // Add record / quick add
+  static const addRecord = '新增记账';
+  static const amountError = '请填写正确的金额';
+  static const selectCategoryError = '请先添加并选择分类';
+  static const category = '分类';
+  static const selectCategory = '请选择分类';
+  static const emptyCategoryForRecord = '暂无分类，请先在分类管理中添加';
+  static const recordSaved = '记账成功';
+  static const goManage = '去管理';
+  static const manageCategory = '管理分类';
+
+  // Profile
+  static const profile = '我的';
+  static const version = '指尖记账 1.0.0';
+  static const theme = '主题';
+  static const themeLight = '浅色';
+  static const themeDark = '深色';
+  static const themeSeed = '主题色';
+  static const book = '账本';
+  static const addBook = '新增账本';
+  static const renameBook = '重命名账本';
+  static const deleteBook = '删除账本';
+  static const newBook = '新建账本';
+  static const bookNameHint = '账本名称';
+
+  // Assets
+  static const assets = '资产';
+  static const addAccount = '添加账户';
+  static const editAccount = '编辑账户';
+  static const newAccount = '新增账户';
+  static const accountName = '账户名称';
+  static const accountNameHint = '如 现金、招商银行卡';
+  static const accountType = '账户类型';
+  static const cashAndPay = '现金与支付';
+  static const bankCard = '银行卡';
+  static const investment = '理财资产';
+  static const other = '其他';
+  static const debt = '负债';
+  static const cash = '现金';
+  static const payAccount = '支付账户';
+  static const borrow = '借贷';
+  static const debtAccount = '负债账户';
+  static const currentBalance = '当前余额';
+  static const balanceHint = '如 1000.00';
+  static const debtAccountTitle = '这是负债账户';
+  static const debtAccountSubtitle = '如信用卡欠款、花呗等';
+  static const includeInTotal = '计入总资产 / 净资产';
+  static const deleteAccount = '删除账户';
+  static const emptyAccountsTitle = '还没有添加任何资产账户';
+  static const emptyAccountsSubtitle = '可以先添加“现金”“银行卡”等账户';
+  static const totalAssets = '总资产';
+  static const totalDebts = '总负债';
+  static const netWorth = '净资产';
+
+  // Home page date panel
+  static const summaryMonth = '月总结余';
+  static const summaryYear = '年度结余';
+  static const monthSummary = summaryMonth;
+  static const annualSummary = summaryYear;
+
+  // Misc formatting helpers
+  static String currentBookLabel(String name) => '当前：$name';
+  static String monthExpenseWithCount(double amount, int count) =>
+      '本月支出 ${amount.toStringAsFixed(2)} · 共 $count 笔';
+  static String noRecordThisMonthLabel() => '本月暂无记账';
+  static String yearLabel(int year) => '$year 年';
+  static String monthLabel(int month) => '$month 月';
+  static String monthDayLabel(int month, int day) => '$month月${day}日';
+  static String yearMonthLabel(int year, int month) =>
+      '$year年${month}月';
+  static String yearExpenseTotal(int year, double total) =>
+      '$year 年支出合计：${total.toStringAsFixed(2)}';
+  static String monthExpenseTotal(int year, int month, double total) =>
+      '$year年${month}月支出合计：${total.toStringAsFixed(2)}';
+  static String bookMonthBudgetTitle(DateTime month) =>
+      '${month.year}年${month.month}月预算';
+  static String budgetRemainingLabel(double value, bool exceeded) =>
+      exceeded ? '已超支 ¥${value.abs().toStringAsFixed(0)}' : '剩余 ¥${value.toStringAsFixed(0)}';
+  static String budgetUsedLabel(double spent, double? budget) =>
+      '已用 ¥${spent.toStringAsFixed(0)} / 预算 ¥${(budget ?? 0).toStringAsFixed(0)}';
+  static String categoryMonthlyDetail(String name) => '$name · 本月明细';
+  static const emptyRemark = '未填写备注';
+  static String monthDayWithCount(
+    int month,
+    int day,
+    String weekday,
+    int count,
+  ) =>
+      '$month月${day}日  $weekday · 共$count笔';
+  static String hoursInDays(int days) => '$days 天';
+  static String selectMonthLabel(DateTime date) =>
+      '${date.year} 年 ${date.month} 月';
+
+  static String monthRangeTitle(int index, int startDay, int endDay) =>
+      '第${index + 1}周（$startDay-$endDay日）';
+  static String debtOrAsset(bool isDebt) => isDebt ? '负债' : '资产';
+  static String accountTypeLabel(String type) => type;
+  static String billTitleWithMonth(int month) => '$month 月';
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 
@@ -18,7 +19,8 @@ class BookSelectorButton extends StatelessWidget {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final bookProvider = context.watch<BookProvider>();
-    final activeName = bookProvider.activeBook?.name ?? '默认账本';
+    final activeName =
+        bookProvider.activeBook?.name ?? AppStrings.defaultBook;
 
     return InkWell(
       onTap: () => _showBookPicker(context),
@@ -38,8 +40,11 @@ class BookSelectorButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.menu_book_outlined,
-                size: compact ? 16 : 18, color: cs.primary),
+            Icon(
+              Icons.menu_book_outlined,
+              size: compact ? 16 : 18,
+              color: cs.primary,
+            ),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
@@ -70,7 +75,8 @@ class BookSelectorButton extends StatelessWidget {
         final bp = ctx.watch<BookProvider>();
         final books = bp.books;
         final activeId = bp.activeBookId;
-        final activeName = bp.activeBook?.name ?? '默认账本';
+        final activeName =
+            bp.activeBook?.name ?? AppStrings.defaultBook;
         final now = DateTime.now();
         final month = DateTime(now.year, now.month, 1);
         return SafeArea(
@@ -98,7 +104,7 @@ class BookSelectorButton extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            '选择账本',
+                            AppStrings.selectBook,
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -106,7 +112,7 @@ class BookSelectorButton extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '当前：$activeName',
+                            AppStrings.currentBookLabel(activeName),
                             style: TextStyle(
                               fontSize: 12,
                               color: cs.outline,
@@ -117,12 +123,12 @@ class BookSelectorButton extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.add),
-                      tooltip: '新建账本',
+                      tooltip: AppStrings.addBook,
                       onPressed: () => _showAddBookDialog(ctx),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
-                      tooltip: '关闭',
+                      tooltip: AppStrings.close,
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
@@ -136,8 +142,11 @@ class BookSelectorButton extends StatelessWidget {
                     final monthExpense =
                         recordProvider.monthExpense(month, book.id);
                     final subtitle = recordCount > 0
-                        ? '本月支出 ${monthExpense.toStringAsFixed(2)} · 共 $recordCount 笔'
-                        : '本月暂无记账';
+                        ? AppStrings.monthExpenseWithCount(
+                            monthExpense,
+                            recordCount,
+                          )
+                        : AppStrings.noDataThisMonth;
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
                       child: Material(
@@ -166,16 +175,24 @@ class BookSelectorButton extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.edit_outlined, size: 18),
-                                tooltip: '重命名账本',
+                                icon: const Icon(
+                                  Icons.edit_outlined,
+                                  size: 18,
+                                ),
+                                tooltip: AppStrings.renameBook,
                                 onPressed: () => _showRenameBookDialog(
-                                    ctx, book.id, book.name),
+                                  ctx,
+                                  book.id,
+                                  book.name,
+                                ),
                               ),
                               if (books.length > 1)
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline,
-                                      size: 18),
-                                  tooltip: '删除账本',
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                  ),
+                                  tooltip: AppStrings.deleteBook,
                                   onPressed: () =>
                                       _confirmDeleteBook(ctx, book.id),
                                 ),
@@ -204,16 +221,17 @@ class BookSelectorButton extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('新建账本'),
+        title: const Text(AppStrings.newBook),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: '账本名称'),
+            decoration:
+                const InputDecoration(hintText: AppStrings.bookNameHint),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return '请输入名称';
+                return AppStrings.bookNameRequired;
               }
               return null;
             },
@@ -222,7 +240,7 @@ class BookSelectorButton extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('取消'),
+            child: const Text(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -232,7 +250,7 @@ class BookSelectorButton extends StatelessWidget {
                   .addBook(controller.text.trim());
               if (dialogCtx.mounted) Navigator.pop(dialogCtx);
             },
-            child: const Text('保存'),
+            child: const Text(AppStrings.save),
           ),
         ],
       ),
@@ -249,16 +267,17 @@ class BookSelectorButton extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('重命名账本'),
+        title: const Text(AppStrings.renameBook),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: '账本名称'),
+            decoration:
+                const InputDecoration(hintText: AppStrings.bookNameHint),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return '请输入名称';
+                return AppStrings.bookNameRequired;
               }
               return null;
             },
@@ -267,7 +286,7 @@ class BookSelectorButton extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('取消'),
+            child: const Text(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -277,7 +296,7 @@ class BookSelectorButton extends StatelessWidget {
                   .renameBook(id, controller.text.trim());
               if (dialogCtx.mounted) Navigator.pop(dialogCtx);
             },
-            child: const Text('保存'),
+            child: const Text(AppStrings.save),
           ),
         ],
       ),
@@ -291,19 +310,19 @@ class BookSelectorButton extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('删除账本'),
-        content: const Text('删除后不可恢复，确认删除该账本吗？'),
+        title: const Text(AppStrings.deleteBook),
+        content: const Text(AppStrings.confirmDeleteBook),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('取消'),
+            child: const Text(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () async {
               await context.read<BookProvider>().deleteBook(id);
               if (dialogCtx.mounted) Navigator.pop(dialogCtx);
             },
-            child: const Text('删除'),
+            child: const Text(AppStrings.delete),
           ),
         ],
       ),

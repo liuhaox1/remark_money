@@ -7,6 +7,7 @@ import 'providers/category_provider.dart';
 import 'providers/budget_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
+import 'l10n/app_strings.dart';
 
 import 'pages/root_shell.dart';
 import 'pages/add_record_page.dart';
@@ -104,7 +105,7 @@ class RemarkMoneyApp extends StatelessWidget {
         builder: (context, theme, _) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            title: '指尖记账',
+            title: AppStrings.appTitle,
             themeMode: theme.mode,
             theme: ThemeData(
               useMaterial3: true,
