@@ -6,6 +6,7 @@ import 'package:remark_money/providers/record_provider.dart';
 import 'package:remark_money/providers/book_provider.dart';
 import 'package:remark_money/utils/date_utils.dart';
 
+import '../l10n/app_strings.dart';
 import '../theme/app_tokens.dart';
 
 class BillPage extends StatefulWidget {
@@ -29,7 +30,7 @@ class _BillPageState extends State<BillPage> {
       initialDate: DateTime(_selectedYear, 1, 1),
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 3),
-      helpText: "选择年份",
+      helpText: AppStrings.pickYear,
     );
     if (picked != null) {
       setState(() => _selectedYear = picked.year);
@@ -43,7 +44,7 @@ class _BillPageState extends State<BillPage> {
       initialDate: _selectedMonth,
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 3),
-      helpText: "选择月份",
+      helpText: AppStrings.pickMonth,
     );
     if (picked != null) {
       setState(() =>
@@ -59,7 +60,7 @@ class _BillPageState extends State<BillPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("账单"),
+        title: const Text(AppStrings.billTitle),
         actions: [
           if (bookProvider.books.isNotEmpty)
             DropdownButtonHideUnderline(
@@ -93,9 +94,9 @@ class _BillPageState extends State<BillPage> {
             child: SegmentedButton<bool>(
               segments: const [
                 ButtonSegment(
-                    value: true, label: Text("年度账单")),
+                    value: true, label: Text(AppStrings.yearlyBill)),
                 ButtonSegment(
-                    value: false, label: Text("月度账单")),
+                    value: false, label: Text(AppStrings.monthlyBill)),
               ],
               selected: {showYearMode},
               onSelectionChanged: (s) =>
@@ -111,12 +112,12 @@ class _BillPageState extends State<BillPage> {
           if (showYearMode)
             FilledButton.tonal(
               onPressed: _pickYear,
-              child: Text("$_selectedYear 年"),
+              child: Text(AppStrings.yearLabel(_selectedYear)),
             )
           else
             FilledButton.tonal(
               onPressed: _pickMonth,
-              child: Text("${_selectedMonth.year} 年 ${_selectedMonth.month} 月"),
+              child: Text(AppStrings.selectMonthLabel(_selectedMonth)),
             ),
 
           const SizedBox(height: 12),
@@ -151,7 +152,7 @@ class _BillPageState extends State<BillPage> {
         final balance = income - expense;
 
         return _billCard(
-          title: "${m.month} 月",
+          title: AppStrings.monthLabel(m.month),
           income: income,
           expense: expense,
           balance: balance,
@@ -180,7 +181,7 @@ class _BillPageState extends State<BillPage> {
         final balance = income - expense;
 
         return _billCard(
-          title: "${d.month}月${d.day}日",
+          title: AppStrings.monthDayLabel(d.month, d.day),
           income: income,
           expense: expense,
           balance: balance,
@@ -235,10 +236,10 @@ class _BillPageState extends State<BillPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _line("收入", income, AppColors.success),
-              _line("支出", expense, AppColors.danger),
+              _line(AppStrings.income, income, AppColors.success),
+              _line(AppStrings.expense, expense, AppColors.danger),
               _line(
-                "结余",
+                AppStrings.balance,
                 balance,
                 AppColors.amount(balance),
               ),

@@ -1,4 +1,4 @@
-/// Centralized app strings for localization.
+/// Centralized app strings for localization and reuse.
 class AppStrings {
   // App / common
   static const appTitle = '指尖记账';
@@ -26,12 +26,9 @@ class AppStrings {
   static const selectDate = '选择日期';
   static const inputAmount = '输入金额';
   static const pleaseSelect = '请选择';
-  static const confirmDeleteBook =
-      '删除后不可恢复，确认删除该账本吗？';
-  static const confirmDeleteCategory =
-      '确定要删除该分类吗';
-  static const confirmDeleteAccount =
-      '确认删除该账户吗？';
+  static const emptyRemark = '未填写备注';
+  static const confirmDeleteBook = '删除后不可恢复，确认删除该账本吗？';
+  static const confirmDeleteAccount = '确认删除该账户吗？';
   static const bookNameRequired = '请输入名称';
   static const categoryNameRequired = '请填写分类名称';
   static const successBookSaved = '账本已保存';
@@ -102,14 +99,11 @@ class AppStrings {
       '系统会实时对比本月支出与预算，并在首页与统计页展示进度。';
   static const budgetNotSet = '尚未设置预算';
   static const viewDetails = '查看明细';
-  static const budgetExceeded = '已超支';
-  static const budgetRemaining = '剩余';
   static const budgetInputHint = '¥ 预算';
   static const budgetTip = '设置预算后可获得提醒与推送';
   static const budgetTodaySuggestionPrefix = '今日建议花费 ¥';
-  static const budgetUsedPrefix = '已用';
-  static const receivableThisMonthPrefix = '本月回款';
-  static const expenseThisMonthPrefix = '本月支出';
+  static const receivableThisMonthPrefix = '本月回款 ';
+  static const expenseThisMonthPrefix = '本月支出 ';
 
   // Bill page
   static const billTitle = '账单';
@@ -130,6 +124,8 @@ class AppStrings {
   static const categoryNameHint = '例如：奶茶';
   static const categoryType = '类型';
   static const categoryIcon = '图标';
+  static String deleteCategoryConfirm(String name) =>
+      '确定要删除$name吗';
 
   // Add record / quick add
   static const addRecord = '新增记账';
@@ -195,38 +191,37 @@ class AppStrings {
   static String currentBookLabel(String name) => '当前：$name';
   static String monthExpenseWithCount(double amount, int count) =>
       '本月支出 ${amount.toStringAsFixed(2)} · 共 $count 笔';
-  static String noRecordThisMonthLabel() => '本月暂无记账';
   static String yearLabel(int year) => '$year 年';
   static String monthLabel(int month) => '$month 月';
-  static String monthDayLabel(int month, int day) => '$month月${day}日';
+  static String monthDayLabel(int month, int day) => '$month月$day日';
   static String yearMonthLabel(int year, int month) =>
-      '$year年${month}月';
+      '$year年$month月';
   static String yearExpenseTotal(int year, double total) =>
       '$year 年支出合计：${total.toStringAsFixed(2)}';
   static String monthExpenseTotal(int year, int month, double total) =>
-      '$year年${month}月支出合计：${total.toStringAsFixed(2)}';
+      '$year年$month月支出合计：${total.toStringAsFixed(2)}';
   static String bookMonthBudgetTitle(DateTime month) =>
       '${month.year}年${month.month}月预算';
   static String budgetRemainingLabel(double value, bool exceeded) =>
-      exceeded ? '已超支 ¥${value.abs().toStringAsFixed(0)}' : '剩余 ¥${value.toStringAsFixed(0)}';
+      exceeded
+          ? '已超支 ¥${value.abs().toStringAsFixed(0)}'
+          : '剩余 ¥${value.toStringAsFixed(0)}';
   static String budgetUsedLabel(double spent, double? budget) =>
       '已用 ¥${spent.toStringAsFixed(0)} / 预算 ¥${(budget ?? 0).toStringAsFixed(0)}';
   static String categoryMonthlyDetail(String name) => '$name · 本月明细';
-  static const emptyRemark = '未填写备注';
   static String monthDayWithCount(
     int month,
     int day,
     String weekday,
     int count,
   ) =>
-      '$month月${day}日  $weekday · 共$count笔';
+      '$month月$day日  $weekday · 共$count笔';
   static String hoursInDays(int days) => '$days 天';
   static String selectMonthLabel(DateTime date) =>
       '${date.year} 年 ${date.month} 月';
-
   static String monthRangeTitle(int index, int startDay, int endDay) =>
       '第${index + 1}周（$startDay-$endDay日）';
-  static String debtOrAsset(bool isDebt) => isDebt ? '负债' : '资产';
-  static String accountTypeLabel(String type) => type;
+  static String monthDayWithWeek(int month, int day, String week) =>
+      '$month月$day日 $week';
   static String billTitleWithMonth(int month) => '$month 月';
 }

@@ -7,6 +7,7 @@ import '../providers/record_provider.dart';
 import '../utils/date_utils.dart';
 import '../widgets/chart_bar.dart';
 import '../widgets/chart_pie.dart';
+import '../l10n/app_strings.dart';
 
 class StatsPage extends StatefulWidget {
   const StatsPage({super.key});
@@ -91,7 +92,7 @@ class _StatsPageState extends State<StatsPage> {
                     child: Row(
                       children: [
                         const Text(
-                          '统计',
+                          AppStrings.stats,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -130,7 +131,10 @@ class _StatsPageState extends State<StatsPage> {
                                       FilledButton.tonal(
                                         onPressed: _pickMonth,
                                         child: Text(
-                                          '${_selectedMonth.year}年${_selectedMonth.month}月',
+                                          AppStrings.yearMonthLabel(
+                                            _selectedMonth.year,
+                                            _selectedMonth.month,
+                                          ),
                                         ),
                                       )
                                     else
@@ -143,7 +147,8 @@ class _StatsPageState extends State<StatsPage> {
                                             .map(
                                               (year) => DropdownMenuItem(
                                                 value: year,
-                                                child: Text('$year 年'),
+                                                child:
+                                                    Text(AppStrings.yearLabel(year)),
                                               ),
                                             )
                                             .toList(),
@@ -173,12 +178,12 @@ class _StatsPageState extends State<StatsPage> {
                                         ButtonSegment(
                                           value: true,
                                           icon: Icon(Icons.bar_chart),
-                                          label: Text('柱状图'),
+                                          label: Text(AppStrings.chartBar),
                                         ),
                                         ButtonSegment(
                                           value: false,
                                           icon: Icon(Icons.pie_chart),
-                                          label: Text('饼图'),
+                                          label: Text(AppStrings.chartPie),
                                         ),
                                       ],
                                       selected: {_showBarChart},
@@ -197,8 +202,15 @@ class _StatsPageState extends State<StatsPage> {
                           alignment: Alignment.centerLeft,
                           child: Text(
                             _viewYear
-                                ? '$_selectedYear 年支出合计：${totalExpense.toStringAsFixed(2)}'
-                                : '${_selectedMonth.year}年${_selectedMonth.month}月支出合计：${totalExpense.toStringAsFixed(2)}',
+                                ? AppStrings.yearExpenseTotal(
+                                    _selectedYear,
+                                    totalExpense,
+                                  )
+                                : AppStrings.monthExpenseTotal(
+                                    _selectedMonth.year,
+                                    _selectedMonth.month,
+                                    totalExpense,
+                                  ),
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -209,8 +221,10 @@ class _StatsPageState extends State<StatsPage> {
                         Expanded(
                           child: chartEntries.isEmpty
                               ? Center(
-                                  child: Text(
-                                    _viewYear ? '该年无支出记录' : '本月无支出记录',
+                              child: Text(
+                                    _viewYear
+                                        ? AppStrings.noYearData
+                                        : AppStrings.noMonthData,
                                     style: TextStyle(color: cs.outline),
                                   ),
                                 )
@@ -242,8 +256,8 @@ class _StatsPageState extends State<StatsPage> {
         ),
       ),
       segments: const [
-        ButtonSegment(value: false, label: Text('按月')),
-        ButtonSegment(value: true, label: Text('按年')),
+        ButtonSegment(value: false, label: Text(AppStrings.viewByMonth)),
+        ButtonSegment(value: true, label: Text(AppStrings.viewByYear)),
       ],
       selected: {_viewYear},
       onSelectionChanged: (value) {
@@ -259,7 +273,7 @@ class _StatsPageState extends State<StatsPage> {
       initialDate: _selectedMonth,
       firstDate: DateTime(now.year - 3),
       lastDate: DateTime(now.year + 3),
-      helpText: '选择月份',
+      helpText: AppStrings.pickMonth,
     );
     if (picked != null) {
       setState(() => _selectedMonth = DateTime(picked.year, picked.month));
@@ -295,7 +309,7 @@ class _StatsPageState extends State<StatsPage> {
       final category = categoryMap[entry.key];
       chartEntries.add(
         ChartEntry(
-          label: category?.name ?? '未分类',
+          label: category?.name ?? AppStrings.unknown,
           value: entry.value,
           color: _colorForIndex(entry.key.hashCode + i),
         ),
@@ -323,7 +337,7 @@ class _StatsPageState extends State<StatsPage> {
     return [
       for (var entry in entries)
         ChartEntry(
-          label: '${entry.key}月',
+          label: AppStrings.monthLabel(entry.key),
           value: entry.value,
           color: _colorForIndex(entry.key),
         ),
@@ -346,7 +360,8 @@ class _BookSelector extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final activeName = bookProvider.activeBook?.name ?? '默认账本';
+    final activeName =
+        bookProvider.activeBook?.name ?? AppStrings.defaultBook;
     return InkWell(
       onTap: () => _showBookPicker(context),
       borderRadius: BorderRadius.circular(20),
@@ -408,7 +423,7 @@ class _BookSelector extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  '选择账本',
+                  AppStrings.selectBook,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,

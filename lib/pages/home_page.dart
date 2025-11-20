@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../models/record.dart';
 import '../providers/book_provider.dart';
@@ -87,7 +88,7 @@ class _HomePageState extends State<HomePage> {
     final isDark = theme.brightness == Brightness.dark;
     final isToday = DateUtilsX.isToday(_selectedDay);
     final dateLabel = isToday
-        ? '今天 ${DateUtilsX.ymd(_selectedDay)}'
+        ? '${AppStrings.today} ${DateUtilsX.ymd(_selectedDay)}'
         : DateUtilsX.ymd(_selectedDay);
 
     return Scaffold(
@@ -277,7 +278,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    '筛选',
+                    AppStrings.filter,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -285,7 +286,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    '按分类',
+                    AppStrings.filterByCategory,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -299,7 +300,7 @@ class _HomePageState extends State<HomePage> {
                       // 只有当用户没有选择特定的收支类型时，才显示所有分类
                       if (tempIncomeExpense == null) ...[
                         const Text(
-                          '支出分类',
+                          AppStrings.expenseCategory,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -325,7 +326,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          '收入分类',
+                          AppStrings.incomeCategory,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -353,7 +354,7 @@ class _HomePageState extends State<HomePage> {
                       // 当用户选择了特定的收支类型时，只显示对应的分类
                       else if (tempIncomeExpense == false) ...[
                         const Text(
-                          '收入分类',
+                          AppStrings.incomeCategory,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -379,7 +380,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ] else ...[
                         const Text(
-                          '支出分类',
+                          AppStrings.expenseCategory,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -408,7 +409,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    '按金额区间（绝对值）',
+                    AppStrings.filterByAmount,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -425,7 +426,7 @@ class _HomePageState extends State<HomePage> {
                           decoration: InputDecoration(
                             isDense: true,
                             prefixText: '¥ ',
-                            hintText: '最小金额',
+                            hintText: AppStrings.minAmount,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -441,7 +442,7 @@ class _HomePageState extends State<HomePage> {
                           decoration: InputDecoration(
                             isDense: true,
                             prefixText: '¥ ',
-                            hintText: '最大金额',
+                            hintText: AppStrings.maxAmount,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -453,7 +454,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 16),
                   // 添加收入/支出筛选
                   const Text(
-                    '按收支类型',
+                    AppStrings.filterByType,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -466,14 +467,14 @@ class _HomePageState extends State<HomePage> {
                     runSpacing: 8,
                     children: [
                       _buildFilterChip(
-                        label: '全部',
+                        label: AppStrings.all,
                         selected: tempIncomeExpense == null,
                         onSelected: () {
                           setModalState(() => tempIncomeExpense = null);
                         },
                       ),
                       _buildFilterChip(
-                        label: '收入',
+                        label: AppStrings.income,
                         selected: tempIncomeExpense == true,
                         onSelected: () {
                           setModalState(() => tempIncomeExpense =
@@ -481,7 +482,7 @@ class _HomePageState extends State<HomePage> {
                         },
                       ),
                       _buildFilterChip(
-                        label: '支出',
+                        label: AppStrings.expense,
                         selected: tempIncomeExpense == false,
                         onSelected: () {
                           setModalState(() => tempIncomeExpense =
@@ -493,7 +494,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 16),
                   // 添加日期范围筛选
                   const Text(
-                    '按日期范围',
+                    AppStrings.filterByDateRange,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -522,11 +523,11 @@ class _HomePageState extends State<HomePage> {
                                 borderRadius:
                                     BorderRadius.all(Radius.circular(10)),
                               ),
-                              labelText: '开始日期',
+                              labelText: AppStrings.startDate,
                             ),
                             child: Text(
                               tempStartDate == null
-                                  ? '请选择'
+                                  ? AppStrings.pleaseSelect
                                   : '${tempStartDate!.year}-${tempStartDate!.month.toString().padLeft(2, '0')}-${tempStartDate!.day.toString().padLeft(2, '0')}',
                             ),
                           ),
@@ -555,11 +556,11 @@ class _HomePageState extends State<HomePage> {
                                 borderRadius:
                                     BorderRadius.all(Radius.circular(10)),
                               ),
-                              labelText: '结束日期',
+                              labelText: AppStrings.endDate,
                             ),
                             child: Text(
                               tempEndDate == null
-                                  ? '请选择'
+                                  ? AppStrings.pleaseSelect
                                   : '${tempEndDate!.year}-${tempEndDate!.month.toString().padLeft(2, '0')}-${tempEndDate!.day.toString().padLeft(2, '0')}',
                             ),
                           ),
@@ -582,7 +583,7 @@ class _HomePageState extends State<HomePage> {
                             tempEndDate = null;
                           });
                         },
-                        child: const Text('重置'),
+                        child: const Text(AppStrings.reset),
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
@@ -596,7 +597,7 @@ class _HomePageState extends State<HomePage> {
                             'endDate': tempEndDate,
                           });
                         },
-                        child: const Text('确定'),
+                        child: const Text(AppStrings.confirm),
                       ),
                     ],
                   ),
@@ -738,7 +739,12 @@ class _HomePageState extends State<HomePage> {
             _dayHeaderKeys.putIfAbsent(normalized, () => GlobalKey());
 
         final dateLabel =
-            '${day.month}月${day.day}日  ${DateUtilsX.weekdayShort(day)} · 共${dayRecords.length}笔';
+            AppStrings.monthDayWithCount(
+              day.month,
+              day.day,
+              DateUtilsX.weekdayShort(day),
+              dayRecords.length,
+            );
 
         // 使用 ListView.builder 来优化大量记录的显示
         return Column(
@@ -786,16 +792,16 @@ class _HomePageState extends State<HomePage> {
           Icon(Icons.hourglass_empty_rounded, size: 72, color: cs.outline),
           const SizedBox(height: 12),
           const Text(
-            '今天还没有记账',
+            AppStrings.emptyToday,
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
-          const Text('可以点击下方按钮快速记一笔'),
+          const Text(AppStrings.quickAddHint),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _openQuickAddSheet,
             icon: const Icon(Icons.add),
-            label: const Text('快捷记一笔'),
+            label: const Text(AppStrings.quickAdd),
           ),
         ],
       ),
@@ -881,15 +887,15 @@ class _DayHeader extends StatelessWidget {
             children: [
               if (income > 0)
                 Expanded(
-                  child: buildAmountText('当日收入', income),
+                  child: buildAmountText(AppStrings.dayIncome, income),
                 ),
               if (income > 0) const SizedBox(width: 8),
               Expanded(
-                child: buildAmountText('当日支出', expense),
+                child: buildAmountText(AppStrings.dayExpense, expense),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: buildAmountText('当日结余', net),
+                child: buildAmountText(AppStrings.dayBalance, net),
               ),
             ],
           ),
@@ -1027,7 +1033,7 @@ class _BalanceCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        '本月结余',
+                        AppStrings.monthBalance,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -1053,14 +1059,14 @@ class _BalanceCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _BalanceMiniItem(
-                          label: '收入',
+                          label: AppStrings.income,
                           value: income,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _BalanceMiniItem(
-                          label: '支出',
+                          label: AppStrings.expense,
                           value: expense,
                         ),
                       ),
@@ -1078,13 +1084,13 @@ class _BalanceCard extends StatelessWidget {
                   children: [
                     _ShortcutButton(
                       icon: Icons.receipt_long,
-                      label: '账单',
+                      label: AppStrings.bill,
                       onTap: () => Navigator.pushNamed(context, '/bill'),
                     ),
                     const SizedBox(width: 8),
                     _ShortcutButton(
                       icon: Icons.account_balance_wallet_outlined,
-                      label: '预算',
+                      label: AppStrings.budget,
                       onTap: () => Navigator.pushNamed(context, '/budget'),
                     ),
                   ],

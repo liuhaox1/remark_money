@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/budget.dart';
 import '../models/category.dart';
 import '../models/record.dart';
@@ -91,7 +92,7 @@ class _BudgetPageState extends State<BudgetPage> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('预算已保存')),
+      const SnackBar(content: Text(AppStrings.budgetSaved)),
     );
   }
 
@@ -169,13 +170,13 @@ class _BudgetPageState extends State<BudgetPage> {
                         _buildTotalBudgetEditor(cs),
                         const SizedBox(height: 24),
                         const _SectionHeader(
-                          title: '支出分类预算',
-                          subtitle: '实时进度 · 点击查看明细',
+                          title: AppStrings.spendCategoryBudget,
+                          subtitle: AppStrings.spendCategorySubtitle,
                         ),
                         const SizedBox(height: 8),
                         if (expenseCats.isEmpty)
                           const _EmptyHint(
-                            text: '暂无支出分类，可以在分类管理中新增',
+                            text: AppStrings.emptySpendCategory,
                           )
                         else
                           ...expenseCats.map(
@@ -194,13 +195,13 @@ class _BudgetPageState extends State<BudgetPage> {
                           ),
                         const SizedBox(height: 28),
                         const _SectionHeader(
-                          title: '收入分类预算',
-                          subtitle: '可设置回款目标',
+                          title: AppStrings.incomeCategoryBudget,
+                          subtitle: AppStrings.incomeCategorySubtitle,
                         ),
                         const SizedBox(height: 8),
                         if (incomeCats.isEmpty)
                           const _EmptyHint(
-                            text: '暂无收入分类，可以在分类管理中新增',
+                            text: AppStrings.emptyIncomeCategory,
                           )
                         else
                           ...incomeCats.map(
@@ -225,7 +226,7 @@ class _BudgetPageState extends State<BudgetPage> {
                             onPressed: () => _saveBudget(bookId),
                             icon: const Icon(Icons.save_outlined),
                             label: const Text(
-                              '保存当前账本预算',
+                              AppStrings.saveBookBudget,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -268,7 +269,7 @@ class _BudgetPageState extends State<BudgetPage> {
               Icon(Icons.account_balance_wallet_outlined, color: cs.primary),
               const SizedBox(width: 8),
               Text(
-                '月度总预算',
+                AppStrings.monthTotalBudget,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -283,7 +284,7 @@ class _BudgetPageState extends State<BudgetPage> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               prefixText: '¥ ',
-              hintText: '为当前账本设置一个月度预算',
+              hintText: AppStrings.monthBudgetHint,
               filled: true,
               fillColor: cs.surfaceVariant.withOpacity(0.25),
               border: OutlineInputBorder(
@@ -293,7 +294,7 @@ class _BudgetPageState extends State<BudgetPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '系统会实时对比本月支出与预算，并在首页与统计页展示进度。',
+            AppStrings.budgetDescription,
             style: TextStyle(
               fontSize: 12,
               color: cs.outline,
@@ -329,7 +330,7 @@ class _BudgetPageState extends State<BudgetPage> {
                         color: Theme.of(ctx).colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(
-                      '${category.name} · 本月明细',
+                      AppStrings.categoryMonthlyDetail(category.name),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -354,7 +355,9 @@ class _BudgetPageState extends State<BudgetPage> {
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(
-                          record.remark.isEmpty ? '未填写备注' : record.remark,
+                          record.remark.isEmpty
+                              ? AppStrings.emptyRemark
+                              : record.remark,
                         ),
                         subtitle: Text(DateUtilsX.ymd(record.date)),
                         trailing: Text(
@@ -402,10 +405,8 @@ class _BudgetSummaryCard extends StatelessWidget {
     final safeDays = remainingDays.clamp(1, 31);
     final daily = remaining > 0 ? remaining / safeDays : 0;
     final statusText = totalBudget <= 0
-        ? '尚未设置预算'
-        : remaining >= 0
-            ? '剩余 ¥${remaining.toStringAsFixed(0)}'
-            : '已超支 ¥${remaining.abs().toStringAsFixed(0)}';
+        ? AppStrings.budgetNotSet
+        : AppStrings.budgetRemainingLabel(remaining, remaining < 0);
     final statusColor = totalBudget <= 0
         ? cs.outline
         : remaining >= 0
@@ -449,7 +450,7 @@ class _BudgetSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${month.year}年${month.month}月预算',
+                      AppStrings.bookMonthBudgetTitle(month),
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -477,8 +478,8 @@ class _BudgetSummaryCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     totalBudget <= 0
-                        ? '设置预算后可获得提醒与推送'
-                        : '今日建议花费 ¥${daily.toStringAsFixed(0)}',
+                        ? AppStrings.budgetTip
+                        : '${AppStrings.budgetTodaySuggestionPrefix}${daily.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 12,
                       color: cs.onSurface.withOpacity(0.6),
@@ -594,7 +595,7 @@ class _CategoryBudgetTile extends StatelessWidget {
                     decimal: false,
                   ),
                   decoration: InputDecoration(
-                    hintText: '¥ 预算',
+                    hintText: AppStrings.budgetInputHint,
                     isDense: true,
                     filled: true,
                     fillColor: cs.surfaceVariant.withOpacity(0.25),
@@ -614,21 +615,21 @@ class _CategoryBudgetTile extends StatelessWidget {
                 children: [
                   Text(
                     hasBudget
-                        ? '已用 ¥${spent.toStringAsFixed(0)} / 预算 ¥${budget!.toStringAsFixed(0)}'
+                        ? AppStrings.budgetUsedLabel(spent, budget)
                         : (isIncome
-                            ? '本月回款 ¥${spent.toStringAsFixed(0)}'
-                            : '本月支出 ¥${spent.toStringAsFixed(0)}'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurface.withOpacity(0.7),
-                    ),
+                            ? '${AppStrings.receivableThisMonthPrefix}¥${spent.toStringAsFixed(0)}'
+                            : '${AppStrings.expenseThisMonthPrefix}¥${spent.toStringAsFixed(0)}'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.7),
                   ),
+                ),
                   const Spacer(),
                   if (records.isNotEmpty)
                     TextButton.icon(
                       onPressed: onViewDetail,
                       icon: const Icon(Icons.list_alt, size: 14),
-                      label: const Text('查看明细'),
+                      label: const Text(AppStrings.viewDetails),
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
                         minimumSize: const Size(0, 32),
@@ -656,9 +657,10 @@ class _CategoryBudgetTile extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    isOverspend
-                        ? '已超支 ¥${remaining.abs().toStringAsFixed(0)}'
-                        : '剩余 ¥${remaining.toStringAsFixed(0)}',
+                    AppStrings.budgetRemainingLabel(
+                      remaining,
+                      isOverspend,
+                    ),
                     style: TextStyle(
                       fontSize: 12,
                       color: isOverspend ? AppColors.danger : AppColors.success,

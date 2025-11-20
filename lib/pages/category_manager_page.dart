@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../providers/category_provider.dart';
 import '../repository/category_repository.dart';
@@ -32,7 +33,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('分类管理'),
+        title: const Text(AppStrings.categoryManager),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -59,7 +60,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
     if (categories.isEmpty) {
       return const Center(
         child: Text(
-          '暂无分类，点击右下角新增',
+          AppStrings.emptyCategoryHint,
           style: TextStyle(color: AppColors.textSecondary),
         ),
       );
