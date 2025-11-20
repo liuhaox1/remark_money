@@ -249,7 +249,7 @@ class _AssetSummaryCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        totalAssets.toStringAsFixed(2),
+                        _formatAmount(totalAssets),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -269,7 +269,7 @@ class _AssetSummaryCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        totalDebts.toStringAsFixed(2),
+                        _formatAmount(totalDebts),
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -289,7 +289,7 @@ class _AssetSummaryCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        netWorth.toStringAsFixed(2),
+                        _formatAmount(netWorth),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
@@ -305,6 +305,17 @@ class _AssetSummaryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatAmount(double value) {
+    final absValue = value.abs();
+    if (absValue >= 100000000) {
+      return '${(value / 100000000).toStringAsFixed(1)}${AppStrings.unitYi}';
+    } else if (absValue >= 10000) {
+      return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
+    } else {
+      return value.toStringAsFixed(2);
+    }
   }
 }
 
