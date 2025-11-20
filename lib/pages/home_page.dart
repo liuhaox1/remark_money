@@ -4,11 +4,11 @@ import 'package:provider/provider.dart';
 import '../models/category.dart';
 import '../models/record.dart';
 import '../providers/book_provider.dart';
-import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../utils/date_utils.dart';
 import '../widgets/book_selector_button.dart';
+import '../widgets/home_budget_bar.dart';
 import '../widgets/timeline_item.dart';
 import '../widgets/week_strip.dart';
 import '../widgets/quick_add_sheet.dart';
@@ -121,7 +121,7 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: Column(
                     children: [
-                      const _BudgetBanner(),
+                      const HomeBudgetBar(),
                       const SizedBox(height: 4),
                       Expanded(
                         child: hasMonthRecords
@@ -1169,45 +1169,6 @@ class _ShortcutButton extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _BudgetBanner extends StatelessWidget {
-  const _BudgetBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final bookId = context.watch<BookProvider>().activeBookId;
-    final budgetProvider = context.watch<BudgetProvider>();
-    final budget = budgetProvider.budgetForBook(bookId);
-    if (budget.total > 0) {
-      return const SizedBox.shrink();
-    }
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark
-            ? Colors.amber.withOpacity(0.18)
-            : Colors.amber.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.lightbulb_outline, color: cs.primary, size: 18),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              '预算尚未设置，可前往「预算」添加上限，及时掌握支出节奏。',
-              style: TextStyle(fontSize: 12),
-            ),
-          ),
-        ],
       ),
     );
   }
