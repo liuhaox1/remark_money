@@ -525,72 +525,70 @@ class _BudgetPageState extends State<BudgetPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildTotalBudgetEditor(cs, bookId, isYear: !showPeriodPicker),
-                if (showPeriodPicker) ...[
-                  const SizedBox(height: 24),
-                  const _SectionHeader(
-                    title: AppStrings.spendCategoryBudget,
-                    subtitle: AppStrings.spendCategorySubtitlePeriod,
+                const SizedBox(height: 24),
+                const _SectionHeader(
+                  title: AppStrings.spendCategoryBudget,
+                  subtitle: AppStrings.spendCategorySubtitlePeriod,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  AppStrings.budgetCategoryRelationHint,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.65),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    AppStrings.budgetCategoryRelationHint,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurface.withOpacity(0.65),
-                    ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${AppStrings.budgetCategorySummaryPrefix} ¥${categoryBudgetSum.toStringAsFixed(0)}'
+                  '${budgetEntry.total > 0 ? ' · 占预算 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%' : ''}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: categoryBudgetSum > budgetEntry.total &&
+                            budgetEntry.total > 0
+                        ? AppColors.danger
+                        : cs.onSurface.withOpacity(0.75),
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '${AppStrings.budgetCategorySummaryPrefix} \uffe5${categoryBudgetSum.toStringAsFixed(0)}'
-                    '${budgetEntry.total > 0 ? ' \xb7 \u5360\u9884\u7b97 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%' : ''}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: categoryBudgetSum > budgetEntry.total &&
-                              budgetEntry.total > 0
-                          ? AppColors.danger
-                          : cs.onSurface.withOpacity(0.75),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (displayExpenseCats.isEmpty)
-                    const _EmptyHint(
-                      text: AppStrings.budgetCategoryEmptyHint,
-                    )
-                  else
-                    ...displayExpenseCats.map(
-                      (cat) => _CategoryBudgetTile(
-                        category: cat,
-                        spent: data.expenseSpent[cat.key] ?? 0,
-                        budget: budgetEntry.categoryBudgets[cat.key],
-                        onEdit: () => _editCategoryBudget(
-                          bookId: bookId,
-                          category: cat,
-                          currentBudget: budgetEntry.categoryBudgets[cat.key],
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => _addCategoryBudget(
+                ),
+                const SizedBox(height: 8),
+                if (displayExpenseCats.isEmpty)
+                  const _EmptyHint(
+                    text: AppStrings.budgetCategoryEmptyHint,
+                  )
+                else
+                  ...displayExpenseCats.map(
+                    (cat) => _CategoryBudgetTile(
+                      category: cat,
+                      spent: data.expenseSpent[cat.key] ?? 0,
+                      budget: budgetEntry.categoryBudgets[cat.key],
+                      onEdit: () => _editCategoryBudget(
                         bookId: bookId,
-                        expenseCategories: expenseCats,
-                        budgetEntry: budgetEntry,
-                        expenseSpent: data.expenseSpent,
-                      ),
-                      icon: const Icon(Icons.add),
-                      label: const Text(
-                        AppStrings.addCategoryBudget,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        category: cat,
+                        currentBudget: budgetEntry.categoryBudgets[cat.key],
                       ),
                     ),
                   ),
-                ],
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _addCategoryBudget(
+                      bookId: bookId,
+                      expenseCategories: expenseCats,
+                      budgetEntry: budgetEntry,
+                      expenseSpent: data.expenseSpent,
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text(
+                      AppStrings.addCategoryBudget,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
