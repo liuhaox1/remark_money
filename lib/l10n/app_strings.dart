@@ -48,7 +48,7 @@ class AppStrings {
   // Home / filters
   static const filter = '筛选';
   static const filterByCategory = '按分类筛选';
-  static const filterByAmount = '按金额范围（最小/最大）';
+  static const filterByAmount = '按金额范围（最小-最大）';
   static const filterByType = '按收支类型';
   static const filterByDateRange = '按日期范围';
   static const minAmount = '最小金额';
@@ -65,7 +65,7 @@ class AppStrings {
   static const bill = '账单';
   static const budget = '预算';
   static const emptyToday = '今天还没有记账';
-  static const quickAddHint = '可以点底部加号，快速记一笔';
+  static const quickAddHint = '可以点底部加号，快速记一笔。';
   static const quickAdd = '快速记一笔';
   static const quickAddPrimary = '记一笔';
   static const pickDate = '选择日期';
@@ -95,17 +95,19 @@ class AppStrings {
   static const emptyIncomeCategory = '暂无收入分类，请在分类管理中新增';
   static const saveBookBudget = '保存当前账本预算';
   static const monthTotalBudget = '月度总预算';
-  static const monthBudgetHint = '为当前账本设置一个月度支出预算';
+  static const monthBudgetHint = '为当前账本设置一个月度支出预算。';
   static const budgetDescription = '系统会实时对比本期支出与预算，并在首页与统计页展示进度。';
   static const budgetNotSet = '尚未设置预算';
   static const viewDetails = '查看明细';
-  static const budgetInputHint = '￥ 预算';
+  static const budgetInputHint = '输入预算';
   static const budgetTip = '合理的预算能帮助你更直观地控制支出。';
   static const budgetTodaySuggestionPrefix = '根据当前预算与剩余天数，建议今天控制在约 ';
   static const receivableThisMonthPrefix = '本月应收 ';
   static const expenseThisMonthPrefix = '本月支出 ';
   static const expenseThisPeriodPrefix = '本期支出 ';
   static const budgetOverspendTodayTip = '今日支出已超过建议金额，请注意控制消费。';
+
+  // Home budget card
   static const homeBudgetTitle = '预算助手';
   static const homeBudgetDetail = '预算详情';
   static const homeBudgetNotSetTitle = '尚未设置账本预算';
@@ -114,6 +116,17 @@ class AppStrings {
   static const homeBudgetRemaining = '剩余预算';
   static const homeBudgetTodayAvailable = '今日可用';
   static const homeBudgetDaysLeft = '剩余天数';
+  static const homeBudgetViewMonth = '月度';
+  static const homeBudgetViewYear = '年度';
+  static const homeBudgetMonthTitle = '本期预算（按月）';
+  static const homeBudgetYearTitle = '年度预算';
+  static const homeBudgetMonthlyEmptyTitle = '尚未设置月度预算';
+  static const homeBudgetMonthlyEmptyDesc = '设置每月可支出的额度，帮助你控制当月花销。';
+  static const homeBudgetMonthlyEmptyAction = '去设置月度预算';
+  static const homeBudgetYearlyEmptyTitle = '尚未设置年度预算';
+  static const homeBudgetYearlyEmptyDesc = '为全年规划一笔总预算，方便看今年是否超支。';
+  static const homeBudgetYearlyEmptyAction = '去设置年度预算';
+
   static const avgDailySpend = '日均消费';
   static const avgWeeklySpend = '周均消费';
   static const avgMonthlySpend = '月均消费';
@@ -156,7 +169,7 @@ class AppStrings {
   static const categoryNameHint = '例如：餐饮';
   static const categoryType = '类型';
   static const categoryIcon = '图标';
-  static String deleteCategoryConfirm(String name) => '确定要删除$name 吗？';
+  static String deleteCategoryConfirm(String name) => '确定要删除 $name 吗？';
 
   // Add record / quick add
   static const addRecord = '新增记账';
@@ -164,7 +177,7 @@ class AppStrings {
   static const selectCategoryError = '请先选择分类';
   static const category = '分类';
   static const selectCategory = '选择分类';
-  static const emptyCategoryForRecord = '暂无分类，请先去分类管理中添加';
+  static const emptyCategoryForRecord = '暂无分类，请先去分类管理中添加。';
   static const recordSaved = '记账成功';
   static const goManage = '去管理';
   static const manageCategory = '管理分类';
@@ -217,7 +230,7 @@ class AppStrings {
   static const catFood = '餐饮';
   static const catShopping = '购物';
   static const catTransport = '交通出行';
-  static const catUtility = '水电网';
+  static const catUtility = '水电费';
   static const catMedical = '医疗';
   static const catEducation = '教育';
   static const catHouse = '住房';
@@ -239,7 +252,7 @@ class AppStrings {
   static String currentBookLabel(String name) => '当前账本：$name';
 
   static String monthExpenseWithCount(double amount, int count) =>
-      '本月支出 ¥${amount.toStringAsFixed(0)} · 共$count笔';
+      '本月支出 ¥${amount.toStringAsFixed(0)} · $count 笔';
 
   static String yearLabel(int year) => '$year年';
 
@@ -259,7 +272,7 @@ class AppStrings {
   static String bookMonthBudgetTitle(DateTime month) =>
       '${month.year}年${month.month}月预算';
 
-  static String bookYearBudgetTitle(int year) => '年度预算';
+  static String bookYearBudgetTitle(int year) => '$year 年度预算';
 
   static String budgetRemainingLabel(double value, bool exceeded) => exceeded
       ? '已超支 ¥${value.abs().toStringAsFixed(0)}'
@@ -267,7 +280,19 @@ class AppStrings {
 
   static String budgetUsedLabel(double spent, double? budget) =>
       '已用 ¥${spent.toStringAsFixed(0)} / 预算 '
-      '${budget != null ? '¥${budget.toStringAsFixed(0)}' : '—'}';
+      '${budget != null ? '¥${budget.toStringAsFixed(0)}' : '未设置'}';
+
+  static String homeBudgetUsedAndTotal(double spent, double total) =>
+      '已用 ¥${spent.toStringAsFixed(0)} · 预算 ¥${total.toStringAsFixed(0)}';
+
+  static String homeBudgetTodaySuggestion(int daysLeft, double dailyLimit) =>
+      '剩余 $daysLeft 天 · 今日建议 ≤ ¥${dailyLimit.toStringAsFixed(0)}';
+
+  static String homeBudgetUsageVsTime(
+    double usedPercent,
+    double timePercent,
+  ) =>
+      '已用 ${usedPercent.toStringAsFixed(0)}% · 时间进度 ${timePercent.toStringAsFixed(0)}%';
 
   static String categoryMonthlyDetail(String name) => '$name 月度明细';
 
@@ -277,20 +302,20 @@ class AppStrings {
     String weekday,
     int count,
   ) =>
-      '$month月$day日 · $weekday · $count笔';
+      '$month月$day日 · $weekday · $count 笔';
 
-  static String hoursInDays(int days) => '$days天';
+  static String hoursInDays(int days) => '$days 天';
 
   static String selectMonthLabel(DateTime date) =>
       '${date.year}年${date.month}月';
 
   static String monthRangeTitle(int index, int startDay, int endDay) =>
-      '第${index + 1}个周期：$startDay-$endDay';
+      '第${index + 1}个周期：$startDay-$endDay 日';
 
   static String monthDayWithWeek(int month, int day, String week) =>
       '$month月$day日 $week';
 
-  static String billTitleWithMonth(int month) => '$month月';
+  static String billTitleWithMonth(int month) => '$month 月账单';
 
   static const unitYi = '亿';
   static const unitWan = '万';

@@ -22,12 +22,27 @@ class BudgetPage extends StatefulWidget {
 }
 
 class _BudgetPageState extends State<BudgetPage> {
+  int _initialTabIndex = 0;
+  bool _tabIndexInitialized = false;
+
   final TextEditingController _totalCtrl = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   // 统一的金额输入过滤器：仅允许数字和小数点
   static final TextInputFormatter _digitsAndDotFormatter =
       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_tabIndexInitialized) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is String) {
+      _initialTabIndex = args == 'year' ? 1 : 0;
+    }
+    _tabIndexInitialized = true;
+  }
 
   @override
   void dispose() {
@@ -437,6 +452,7 @@ class _BudgetPageState extends State<BudgetPage> {
 
     return DefaultTabController(
       length: 2,
+      initialIndex: _initialTabIndex,
       child: Scaffold(
         backgroundColor:
             isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
