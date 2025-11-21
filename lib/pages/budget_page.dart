@@ -13,8 +13,6 @@ import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/budget_progress.dart';
-import '../widgets/chart_bar.dart';
-import '../widgets/chart_pie.dart';
 
 class BudgetPage extends StatefulWidget {
   const BudgetPage({super.key});
@@ -26,8 +24,6 @@ class BudgetPage extends StatefulWidget {
 class _BudgetPageState extends State<BudgetPage> {
   final TextEditingController _totalCtrl = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final Map<String, TextEditingController> _categoryCtrls = {};
-  String? _syncedBookId;
 
   // 统一的金额输入过滤器：仅允许数字和小数点
   static final TextInputFormatter _digitsAndDotFormatter =
@@ -59,67 +55,6 @@ class _BudgetPageState extends State<BudgetPage> {
     return double.parse(clamped.toStringAsFixed(2));
   }
 
-  void _syncControllers({
-    required String bookId,
-    required List<Category> categories,
-    required BudgetEntry budget,
-  }) {
-    final bookChanged = _syncedBookId != bookId;
-    if (bookChanged) {
-      _totalCtrl.text =
-          budget.total == 0 ? '' : budget.total.toStringAsFixed(0);
-      for (final ctrl in _categoryCtrls.values) {
-        ctrl.dispose();
-      }
-      _categoryCtrls.clear();
-    }
-
-    final categoryKeys = categories.map((c) => c.key).toSet();
-    final removedKeys = _categoryCtrls.keys
-        .where((key) => !categoryKeys.contains(key))
-        .toList();
-    for (final key in removedKeys) {
-      _categoryCtrls.remove(key)?.dispose();
-    }
-
-    for (final cat in categories) {
-      if (!_categoryCtrls.containsKey(cat.key) || bookChanged) {
-        _categoryCtrls[cat.key]?.dispose();
-        _categoryCtrls[cat.key] = TextEditingController(
-          text: budget.categoryBudgets[cat.key]?.toStringAsFixed(0) ?? '',
-        );
-      }
-    }
-
-    _syncedBookId = bookId;
-  }
-
-  Future<void> _saveBudget(String bookId) async {
-    final provider = context.read<BudgetProvider>();
-    final total = double.tryParse(_totalCtrl.text.trim()) ?? 0;
-    final categoryBudgets = <String, double>{};
-
-    _categoryCtrls.forEach((key, controller) {
-      final raw = controller.text.trim();
-      if (raw.isEmpty) return;
-      final value = double.tryParse(raw);
-      if (value != null && value > 0) {
-        categoryBudgets[key] = value;
-      }
-    });
-
-    await provider.updateBudgetForBook(
-      bookId: bookId,
-      totalBudget: total,
-      categoryBudgets: categoryBudgets,
-    );
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.budgetSaved)),
-    );
-  }
-
   Future<void> _saveTotalBudget(String bookId) async {
     final provider = context.read<BudgetProvider>();
     final parsed = _parseAmount(_totalCtrl.text);
@@ -131,6 +66,109 @@ class _BudgetPageState extends State<BudgetPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text(AppStrings.budgetSaved)),
     );
+  }
+
+  Future<void> _openPeriodSheet(String bookId, int currentDay) async {
+    int selectedDay = currentDay.clamp(1, 28);
+
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                AppStrings.budgetPeriodSettingTitle,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                AppStrings.budgetPeriodSettingDesc,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 220,
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1.4,
+                  ),
+                  itemCount: 28,
+                  itemBuilder: (context, index) {
+                    final day = index + 1;
+                    final selected = day == selectedDay;
+                    return GestureDetector(
+                      onTap: () {
+                        selectedDay = day;
+                        (ctx as Element).markNeedsBuild();
+                      },
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .surfaceVariant
+                                  .withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          day.toString(),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w500,
+                            color: selected
+                                ? Colors.white
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text(AppStrings.cancel),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(selectedDay),
+                    child: const Text(AppStrings.ok),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == null) return;
+
+    final provider = context.read<BudgetProvider>();
+    await provider.setPeriodStartDay(bookId, result);
   }
 
   Future<void> _onResetBudget(String bookId) async {
@@ -164,6 +202,177 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
+  Future<void> _editCategoryBudget({
+    required String bookId,
+    required Category category,
+    required double? currentBudget,
+  }) async {
+    final controller = TextEditingController(
+      text: currentBudget != null && currentBudget > 0
+          ? _formatAmount(currentBudget)
+          : '',
+    );
+
+    final result = await showDialog<_EditBudgetResult>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('为「${category.name}」设置预算'),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [_digitsAndDotFormatter],
+          decoration: const InputDecoration(
+            prefixText: '¥ ',
+            hintText: AppStrings.budgetInputHint,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(AppStrings.cancel),
+          ),
+          if (currentBudget != null && currentBudget > 0)
+            TextButton(
+              onPressed: () => Navigator.of(ctx)
+                  .pop(const _EditBudgetResult(deleted: true)),
+              child: const Text(AppStrings.deleteBudget),
+            ),
+          FilledButton(
+            onPressed: () {
+              final parsed = _parseAmount(controller.text);
+              if (parsed == null) {
+                Navigator.of(ctx)
+                    .pop(const _EditBudgetResult(deleted: true));
+              } else {
+                Navigator.of(ctx).pop(
+                  _EditBudgetResult(deleted: false, value: parsed),
+                );
+              }
+            },
+            child: const Text(AppStrings.save),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    final provider = context.read<BudgetProvider>();
+
+    if (result.deleted || (result.value ?? 0) <= 0) {
+      await provider.deleteCategoryBudget(bookId, category.key);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(AppStrings.categoryBudgetDeleted)),
+      );
+      return;
+    }
+
+    await provider.setCategoryBudget(bookId, category.key, result.value!);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(AppStrings.categoryBudgetSaved)),
+    );
+  }
+
+  Future<void> _addCategoryBudget({
+    required String bookId,
+    required List<Category> expenseCategories,
+    required BudgetEntry budgetEntry,
+    required Map<String, double> expenseSpent,
+  }) async {
+    final existingKeys = budgetEntry.categoryBudgets.keys.toSet();
+    final candidates = expenseCategories
+        .where((c) => !existingKeys.contains(c.key))
+        .toList(growable: false);
+    if (candidates.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('所有支出分类都已设置预算，可直接点击分类右侧进行调整。'),
+        ),
+      );
+      return;
+    }
+
+    candidates.sort((a, b) {
+      final sa = expenseSpent[a.key] ?? 0;
+      final sb = expenseSpent[b.key] ?? 0;
+      return sb.compareTo(sa);
+    });
+
+    final selectedKey = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                AppStrings.addCategoryBudget,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '优先为本期花得多的分类设置预算，有助于更好地控制支出。',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: candidates.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final cat = candidates[index];
+                    final spent = expenseSpent[cat.key] ?? 0;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.1),
+                        child: Icon(
+                          cat.icon,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      title: Text(cat.name),
+                      subtitle: Text(
+                        '${AppStrings.expenseThisMonthPrefix}¥${spent.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onTap: () => Navigator.of(ctx).pop(cat.key),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedKey == null) return;
+
+    final category =
+        expenseCategories.firstWhere((element) => element.key == selectedKey);
+
+    await _editCategoryBudget(
+      bookId: bookId,
+      category: category,
+      currentBudget: null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -181,14 +390,6 @@ class _BudgetPageState extends State<BudgetPage> {
     final budgetEntry = budgetProvider.budgetForBook(bookId);
     final period = budgetProvider.currentPeriodRange(bookId, now);
     final bookBudget = budgetEntry;
-    final monthAnchor = period.start;
-
-    _syncControllers(
-      bookId: bookId,
-      categories: categories,
-      budget: budgetEntry,
-    );
-
     // 实际支出统计（只作为进度展示，不做明细）
     final totalExpense = recordProvider.periodExpense(
       bookId: bookId,
@@ -238,8 +439,8 @@ class _BudgetPageState extends State<BudgetPage> {
             child: Column(
               children: [
                 _BudgetSummaryCard(
-                  month: monthAnchor,
-                  totalBudget: bookBudget.total,
+                  month: period.start,
+                  totalBudget: budgetEntry.total,
                   used: totalExpense,
                   remaining: remaining,
                 ),
@@ -265,18 +466,26 @@ class _BudgetPageState extends State<BudgetPage> {
                           ...displayExpenseCats.map(
                             (cat) => _CategoryBudgetTile(
                               category: cat,
-                              controller: _categoryCtrls[cat.key]!,
                               spent: expenseSpent[cat.key] ?? 0,
                               budget: bookBudget.categoryBudgets[cat.key],
+                              onEdit: () => _editCategoryBudget(
+                                bookId: bookId,
+                                category: cat,
+                                currentBudget:
+                                    bookBudget.categoryBudgets[cat.key],
+                              ),
                             ),
                           ),
                         const SizedBox(height: 32),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton.icon(
-                            onPressed: () {
-                              // 预留：后续使用增加分类预算入口
-                            },
+                            onPressed: () => _addCategoryBudget(
+                              bookId: bookId,
+                              expenseCategories: expenseCats,
+                              budgetEntry: bookBudget,
+                              expenseSpent: expenseSpent,
+                            ),
                             icon: const Icon(Icons.add),
                             label: const Text(
                               AppStrings.addCategoryBudget,
@@ -519,15 +728,15 @@ class _SectionHeader extends StatelessWidget {
 class _CategoryBudgetTile extends StatelessWidget {
   const _CategoryBudgetTile({
     required this.category,
-    required this.controller,
     required this.spent,
+    required this.onEdit,
     this.budget,
   });
 
   final Category category;
-  final TextEditingController controller;
   final double spent;
   final double? budget;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -570,24 +779,16 @@ class _CategoryBudgetTile extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(
-                width: 110,
-                child: TextField(
-                  controller: controller,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: false,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: AppStrings.budgetInputHint,
-                    isDense: true,
-                    filled: true,
-                    fillColor: cs.surfaceVariant.withOpacity(0.25),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
+              TextButton.icon(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: Text(
+                  budget != null && budget! > 0
+                      ? AppStrings.edit
+                      : AppStrings.setBudget,
+                  style: const TextStyle(fontSize: 12),
                 ),
-              ),
+              )
             ],
           ),
           const SizedBox(height: 12),
@@ -677,4 +878,11 @@ class _EmptyHint extends StatelessWidget {
 
 enum _BudgetMenuAction {
   reset,
+}
+
+class _EditBudgetResult {
+  const _EditBudgetResult({required this.deleted, this.value});
+
+  final bool deleted;
+  final double? value;
 }
