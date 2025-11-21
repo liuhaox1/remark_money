@@ -10,7 +10,12 @@ class Budget {
   factory Budget.empty() => const Budget(entries: {});
 
   BudgetEntry entryFor(String bookId) {
-    return entries[bookId] ?? const BudgetEntry(total: 0, categoryBudgets: {});
+    return entries[bookId] ??
+        const BudgetEntry(
+          total: 0,
+          categoryBudgets: {},
+          periodStartDay: 1,
+        );
   }
 
   Budget copyWith({
@@ -42,6 +47,7 @@ class Budget {
           categoryBudgets: Map<String, double>.from(
             (map['categoryBudgets'] ?? {}),
           ),
+          periodStartDay: 1,
         ),
       });
     }
@@ -66,19 +72,24 @@ class Budget {
 class BudgetEntry {
   final double total;
   final Map<String, double> categoryBudgets;
+  /// 预算起始日（1-28），默认按 1 号计
+  final int periodStartDay;
 
   const BudgetEntry({
     required this.total,
     required this.categoryBudgets,
+    this.periodStartDay = 1,
   });
 
   BudgetEntry copyWith({
     double? total,
     Map<String, double>? categoryBudgets,
+    int? periodStartDay,
   }) {
     return BudgetEntry(
       total: total ?? this.total,
       categoryBudgets: categoryBudgets ?? this.categoryBudgets,
+      periodStartDay: periodStartDay ?? this.periodStartDay,
     );
   }
 
@@ -86,6 +97,7 @@ class BudgetEntry {
     return {
       'total': total,
       'categoryBudgets': categoryBudgets,
+      'periodStartDay': periodStartDay,
     };
   }
 
@@ -95,6 +107,8 @@ class BudgetEntry {
       categoryBudgets: Map<String, double>.from(
         (map['categoryBudgets'] ?? {}),
       ),
+      periodStartDay: (map['periodStartDay'] as int?) ?? 1,
     );
   }
 }
+

@@ -113,6 +113,18 @@ class AppStrings {
   static const homeBudgetRemaining = '剩余预算';
   static const homeBudgetTodayAvailable = '今日可用';
   static const homeBudgetDaysLeft = '剩余天数';
+  static const addCategoryBudget = '增加分类预算';
+  static const setBudget = '设置预算';
+  static const deleteBudget = '删除预算';
+  static const resetBookBudget = '重置本账本预算';
+  static const resetBookBudgetConfirm =
+      '将清空本账本的总预算和所有分类预算，但不会删除任何记账记录，确认重置吗？';
+  static const budgetPeriodSettingTitle = '预算周期设置';
+  static const budgetPeriodSettingDesc =
+      '选择每个月从哪一天开始统计预算，只影响统计范围，不会删除历史记账记录。';
+  static const invalidAmount = '请输入有效的金额';
+  static const categoryBudgetDeleted = '已删除该分类预算';
+  static const categoryBudgetSaved = '分类预算已保存';
 
   // Bill page
   static const billTitle = '账单';

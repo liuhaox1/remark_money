@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -12,6 +13,8 @@ import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/budget_progress.dart';
+import '../widgets/chart_bar.dart';
+import '../widgets/chart_pie.dart';
 
 class BudgetPage extends StatefulWidget {
   const BudgetPage({super.key});
@@ -22,16 +25,38 @@ class BudgetPage extends StatefulWidget {
 
 class _BudgetPageState extends State<BudgetPage> {
   final TextEditingController _totalCtrl = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final Map<String, TextEditingController> _categoryCtrls = {};
   String? _syncedBookId;
+
+  // 统一的金额输入过滤器：仅允许数字和小数点
+  static final TextInputFormatter _digitsAndDotFormatter =
+      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'));
 
   @override
   void dispose() {
     _totalCtrl.dispose();
-    for (final ctrl in _categoryCtrls.values) {
-      ctrl.dispose();
-    }
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  String _formatAmount(double value) {
+    final truncated = value.truncateToDouble();
+    if (value == truncated) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(2);
+  }
+
+  double? _parseAmount(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final normalized = text.startsWith('.') ? '0$text' : text;
+    final value = double.tryParse(normalized);
+    if (value == null) return null;
+    if (value <= 0) return null;
+    final clamped = value.clamp(0, 999999999.99);
+    return double.parse(clamped.toStringAsFixed(2));
   }
 
   void _syncControllers({
@@ -95,6 +120,50 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
+  Future<void> _saveTotalBudget(String bookId) async {
+    final provider = context.read<BudgetProvider>();
+    final parsed = _parseAmount(_totalCtrl.text);
+    final total = parsed ?? 0;
+
+    await provider.setTotal(bookId, total);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(AppStrings.budgetSaved)),
+    );
+  }
+
+  Future<void> _onResetBudget(String bookId) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text(AppStrings.resetBookBudget),
+            content: const Text(AppStrings.resetBookBudgetConfirm),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text(AppStrings.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text(AppStrings.ok),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    final provider = context.read<BudgetProvider>();
+    await provider.resetBudgetForBook(bookId);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(AppStrings.budgetSaved)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -109,29 +178,30 @@ class _BudgetPageState extends State<BudgetPage> {
     final categories = categoryProvider.categories;
     final expenseCats = categories.where((c) => c.isExpense).toList();
     final now = DateTime.now();
-    final monthAnchor = DateTime(now.year, now.month, 1);
-    final bookBudget = budgetProvider.budgetForBook(bookId);
+    final budgetEntry = budgetProvider.budgetForBook(bookId);
+    final period = budgetProvider.currentPeriodRange(bookId, now);
+    final bookBudget = budgetEntry;
+    final monthAnchor = period.start;
 
     _syncControllers(
       bookId: bookId,
       categories: categories,
-      budget: bookBudget,
+      budget: budgetEntry,
     );
 
     // 实际支出统计（只作为进度展示，不做明细）
-    final monthRecords =
-        recordProvider.recordsForMonth(bookId, now.year, now.month);
-    final expenseSpent = <String, double>{};
-    double totalExpense = 0;
+    final totalExpense = recordProvider.periodExpense(
+      bookId: bookId,
+      start: period.start,
+      end: period.end,
+    );
+    final expenseSpent = recordProvider.periodCategoryExpense(
+      bookId: bookId,
+      start: period.start,
+      end: period.end,
+    );
 
-    for (final record in monthRecords) {
-      if (!record.isExpense) continue;
-      expenseSpent[record.categoryKey] =
-          (expenseSpent[record.categoryKey] ?? 0) + record.absAmount;
-      totalExpense += record.absAmount;
-    }
-
-    final remaining = (bookBudget.total - totalExpense);
+    final remaining = (budgetEntry.total - totalExpense);
 
     // 仅展示「有预算」或「本月有支出」的分类，避免页面太乱
     final displayExpenseCats = expenseCats.where((cat) {
@@ -145,6 +215,21 @@ class _BudgetPageState extends State<BudgetPage> {
           isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
         title: const Text(AppStrings.budget),
+        actions: [
+          PopupMenuButton<_BudgetMenuAction>(
+            onSelected: (value) async {
+              if (value == _BudgetMenuAction.reset) {
+                await _onResetBudget(bookId);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: _BudgetMenuAction.reset,
+                child: Text(AppStrings.resetBookBudget),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SafeArea(
         child: Center(
@@ -164,8 +249,9 @@ class _BudgetPageState extends State<BudgetPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildTotalBudgetEditor(cs),
+                        _buildTotalBudgetEditor(cs, bookId),
                         const SizedBox(height: 24),
+                        // TODO: 饼图区域在后续步骤补全
                         const _SectionHeader(
                           title: AppStrings.spendCategoryBudget,
                           subtitle: AppStrings.spendCategorySubtitle,
@@ -188,10 +274,12 @@ class _BudgetPageState extends State<BudgetPage> {
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton.icon(
-                            onPressed: () => _saveBudget(bookId),
-                            icon: const Icon(Icons.save_outlined),
+                            onPressed: () {
+                              // 预留：后续使用增加分类预算入口
+                            },
+                            icon: const Icon(Icons.add),
                             label: const Text(
-                              AppStrings.saveBookBudget,
+                              AppStrings.addCategoryBudget,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -211,7 +299,7 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  Widget _buildTotalBudgetEditor(ColorScheme cs) {
+  Widget _buildTotalBudgetEditor(ColorScheme cs, String bookId) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       decoration: BoxDecoration(
@@ -247,6 +335,7 @@ class _BudgetPageState extends State<BudgetPage> {
           TextField(
             controller: _totalCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [_digitsAndDotFormatter],
             decoration: InputDecoration(
               prefixText: '¥ ',
               hintText: AppStrings.monthBudgetHint,
@@ -263,6 +352,15 @@ class _BudgetPageState extends State<BudgetPage> {
             style: TextStyle(
               fontSize: 12,
               color: cs.outline,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: () => _saveTotalBudget(bookId),
+              icon: const Icon(Icons.save_outlined),
+              label: const Text(AppStrings.save),
             ),
           ),
         ],
@@ -575,4 +673,8 @@ class _EmptyHint extends StatelessWidget {
       ),
     );
   }
+}
+
+enum _BudgetMenuAction {
+  reset,
 }

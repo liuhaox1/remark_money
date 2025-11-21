@@ -29,10 +29,13 @@ class BudgetProvider extends ChangeNotifier {
     required String bookId,
     required double totalBudget,
     required Map<String, double> categoryBudgets,
+    int? periodStartDay,
   }) async {
+    final current = _budgetStore.entries[bookId];
     final entry = BudgetEntry(
       total: totalBudget,
       categoryBudgets: Map<String, double>.from(categoryBudgets),
+      periodStartDay: periodStartDay ?? current?.periodStartDay ?? 1,
     );
     _budgetStore = _budgetStore.replaceEntry(bookId, entry);
     await _repository.saveBudget(_budgetStore);
@@ -70,5 +73,50 @@ class BudgetProvider extends ChangeNotifier {
       totalBudget: current.total,
       categoryBudgets: updated,
     );
+  }
+
+  Future<void> setPeriodStartDay(String bookId, int day) async {
+    final safeDay = day.clamp(1, 28);
+    final current = budgetForBook(bookId);
+    await updateBudgetForBook(
+      bookId: bookId,
+      totalBudget: current.total,
+      categoryBudgets: current.categoryBudgets,
+      periodStartDay: safeDay,
+    );
+  }
+
+  Future<void> resetBudgetForBook(String bookId) async {
+    final current = budgetForBook(bookId);
+    final entry = BudgetEntry(
+      total: 0,
+      categoryBudgets: const {},
+      periodStartDay: current.periodStartDay,
+    );
+    _budgetStore = _budgetStore.replaceEntry(bookId, entry);
+    await _repository.saveBudget(_budgetStore);
+    notifyListeners();
+  }
+
+  /// 当前账本在指定日期下的预算周期（起止日）
+  DateTimeRange currentPeriodRange(String bookId, DateTime anchor) {
+    final entry = budgetForBook(bookId);
+    final startDay = entry.periodStartDay.clamp(1, 28);
+    final today = DateTime(anchor.year, anchor.month, anchor.day);
+
+    late DateTime start;
+    late DateTime end;
+
+    if (today.day >= startDay) {
+      start = DateTime(today.year, today.month, startDay);
+      end = DateTime(today.year, today.month + 1, startDay)
+          .subtract(const Duration(days: 1));
+    } else {
+      start = DateTime(today.year, today.month - 1, startDay);
+      end = DateTime(today.year, today.month, startDay)
+          .subtract(const Duration(days: 1));
+    }
+
+    return DateTimeRange(start: start, end: end);
   }
 }

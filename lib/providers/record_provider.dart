@@ -98,6 +98,44 @@ class RecordProvider extends ChangeNotifier {
         .toList();
   }
 
+  /// 指定时间区间内（闭区间）的记录
+  List<Record> recordsForPeriod(
+    String bookId, {
+    required DateTime start,
+    required DateTime end,
+  }) {
+    return recordsForBook(bookId).where((r) {
+      return !r.date.isBefore(start) && !r.date.isAfter(end);
+    }).toList();
+  }
+
+  double periodExpense({
+    required String bookId,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    double expense = 0;
+    for (final record in recordsForPeriod(bookId, start: start, end: end)) {
+      if (record.isIncome) continue;
+      expense += record.expenseValue;
+    }
+    return expense;
+  }
+
+  Map<String, double> periodCategoryExpense({
+    required String bookId,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    final result = <String, double>{};
+    for (final record in recordsForPeriod(bookId, start: start, end: end)) {
+      if (record.isIncome) continue;
+      result[record.categoryKey] =
+          (result[record.categoryKey] ?? 0) + record.expenseValue;
+    }
+    return result;
+  }
+
   double monthIncome(DateTime month, String bookId) {
     // 检查缓存
     final stats = _getMonthStats(month, bookId);
