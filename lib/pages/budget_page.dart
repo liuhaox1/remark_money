@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -10,7 +10,6 @@ import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
-import '../utils/date_utils.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/budget_progress.dart';
 
@@ -201,7 +200,6 @@ class _BudgetPageState extends State<BudgetPage> {
       const SnackBar(content: Text(AppStrings.budgetSaved)),
     );
   }
-
   Future<void> _editCategoryBudget({
     required String bookId,
     required Category category,
@@ -372,7 +370,6 @@ class _BudgetPageState extends State<BudgetPage> {
       currentBudget: null,
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -387,6 +384,7 @@ class _BudgetPageState extends State<BudgetPage> {
     final categories = categoryProvider.categories;
     final expenseCats = categories.where((c) => c.isExpense).toList();
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final budgetEntry = budgetProvider.budgetForBook(bookId);
     final period = budgetProvider.currentPeriodRange(bookId, now);
     final bookBudget = budgetEntry;
@@ -396,7 +394,6 @@ class _BudgetPageState extends State<BudgetPage> {
     final endDay = period.end.day.toString().padLeft(2, '0');
     final periodLabel = '周期: $startMonth.$startDay - $endMonth.$endDay';
     final periodPillText = '每月 ${budgetEntry.periodStartDay} 日';
-    // 实际支出统计（只作为进度展示，不做明细）
     final totalExpense = recordProvider.periodExpense(
       bookId: bookId,
       start: period.start,
@@ -409,8 +406,18 @@ class _BudgetPageState extends State<BudgetPage> {
     );
 
     final remaining = (budgetEntry.total - totalExpense);
+    final periodDaysLeft = period.end.difference(today).inDays + 1;
+    final safeDaysLeft = periodDaysLeft < 0 ? 0 : periodDaysLeft;
+    final dailyAllowance =
+        safeDaysLeft > 0 ? (remaining / safeDaysLeft) : 0.0;
+    final weekEndCandidate = today.add(Duration(days: 7 - today.weekday));
+    final weekEnd =
+        weekEndCandidate.isAfter(period.end) ? period.end : weekEndCandidate;
+    final weekDaysLeft = weekEnd.difference(today).inDays + 1;
+    final safeWeekDays = weekDaysLeft < 0 ? 0 : weekDaysLeft;
+    final weeklyAllowance =
+        safeWeekDays > 0 ? dailyAllowance * safeWeekDays : 0.0;
 
-    // 仅展示「有预算」或「本月有支出」的分类，避免页面太乱
     final displayExpenseCats = expenseCats.where((cat) {
       final spentValue = expenseSpent[cat.key] ?? 0;
       final catBudget = bookBudget.categoryBudgets[cat.key] ?? 0;
@@ -456,6 +463,8 @@ class _BudgetPageState extends State<BudgetPage> {
                   periodPillText: periodPillText,
                   onTapCycle: () =>
                       _openPeriodSheet(bookId, budgetEntry.periodStartDay),
+                  dailyAllowance: dailyAllowance,
+                  weeklyAllowance: weeklyAllowance,
                 ),
                 Expanded(
                   child: SingleChildScrollView(
@@ -465,7 +474,6 @@ class _BudgetPageState extends State<BudgetPage> {
                       children: [
                         _buildTotalBudgetEditor(cs, bookId),
                         const SizedBox(height: 24),
-                        // TODO: 饼图区域在后续步骤补全
                         const _SectionHeader(
                           title: AppStrings.spendCategoryBudget,
                           subtitle: AppStrings.spendCategorySubtitlePeriod,
@@ -481,7 +489,7 @@ class _BudgetPageState extends State<BudgetPage> {
                         const SizedBox(height: 10),
                         Text(
                           '${AppStrings.budgetCategorySummaryPrefix} ¥${categoryBudgetSum.toStringAsFixed(0)}'
-                          '${budgetEntry.total > 0 ? " · 占总预算 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%" : ''}',
+                          '${budgetEntry.total > 0 ? ' · 占总预算 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%' : ''}',
                           style: TextStyle(
                             fontSize: 12,
                             color: categoryBudgetSum > budgetEntry.total &&
@@ -611,7 +619,6 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 }
-
 class _BudgetSummaryCard extends StatelessWidget {
   const _BudgetSummaryCard({
     required this.month,
@@ -621,6 +628,8 @@ class _BudgetSummaryCard extends StatelessWidget {
     required this.periodLabel,
     required this.periodPillText,
     required this.onTapCycle,
+    required this.dailyAllowance,
+    required this.weeklyAllowance,
   });
 
   final DateTime month;
@@ -630,16 +639,14 @@ class _BudgetSummaryCard extends StatelessWidget {
   final String periodLabel;
   final String periodPillText;
   final VoidCallback onTapCycle;
+  final double dailyAllowance;
+  final double weeklyAllowance;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final remainingDays =
-        DateUtilsX.lastDayOfMonth(month).day - DateTime.now().day + 1;
-    final safeDays = remainingDays.clamp(1, 31);
-    final daily = remaining > 0 ? remaining / safeDays : 0;
     final statusText = totalBudget <= 0
         ? AppStrings.budgetNotSet
         : AppStrings.budgetRemainingLabel(remaining, remaining < 0);
@@ -747,20 +754,25 @@ class _BudgetSummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             BudgetProgress(total: totalBudget, used: used),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    totalBudget <= 0
-                        ? AppStrings.budgetTip
-                        : remaining <= 0
-                            ? AppStrings.budgetOverspendTodayTip
-                            : '按当前预算与剩余天数，日均可花 ¥${daily.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurface.withOpacity(0.6),
-                    ),
+                  child: _AllowanceStat(
+                    label: '日均可用',
+                    value: '¥${dailyAllowance.toStringAsFixed(0)}',
+                    background: cs.surfaceVariant.withOpacity(0.25),
+                    icon: Icons.calendar_today_outlined,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _AllowanceStat(
+                    label: '本周可用',
+                    value: '¥${weeklyAllowance.toStringAsFixed(0)}',
+                    background: cs.primary.withOpacity(0.12),
+                    icon: Icons.view_week_outlined,
+                    iconColor: cs.primary,
                   ),
                 ),
               ],
@@ -772,6 +784,63 @@ class _BudgetSummaryCard extends StatelessWidget {
   }
 }
 
+class _AllowanceStat extends StatelessWidget {
+  const _AllowanceStat({
+    required this.label,
+    required this.value,
+    required this.background,
+    required this.icon,
+    this.iconColor,
+  });
+
+  final String label;
+  final String value;
+  final Color background;
+  final IconData icon;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: iconColor ?? cs.onSurface),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
