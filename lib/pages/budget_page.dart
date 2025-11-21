@@ -948,8 +948,8 @@ class _BudgetSummaryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _AllowanceStat(
-                    label: '????',
-                    value: '?${dailyAllowance.toStringAsFixed(0)}',
+                    label: '每日可用',
+                    value: '¥${dailyAllowance.toStringAsFixed(0)}',
                     background: cs.surfaceVariant.withOpacity(0.25),
                     icon: Icons.calendar_today_outlined,
                   ),
@@ -957,8 +957,8 @@ class _BudgetSummaryCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _AllowanceStat(
-                    label: '????',
-                    value: '?${weeklyAllowance.toStringAsFixed(0)}',
+                    label: '本周可用',
+                    value: '¥${weeklyAllowance.toStringAsFixed(0)}',
                     background: cs.primary.withOpacity(0.12),
                     icon: Icons.view_week_outlined,
                     iconColor: cs.primary,
@@ -972,27 +972,27 @@ class _BudgetSummaryCard extends StatelessWidget {
                 Expanded(
                   child: _AvgStatTile(
                     title: AppStrings.avgDailySpend,
-                    value: '?${dailyAverage.toStringAsFixed(0)}',
+                    value: '¥${dailyAverage.toStringAsFixed(0)}',
                     sub:
-                        '${AppStrings.remainingToday}: ?${dailyRemaining.toStringAsFixed(0)}',
+                        '${AppStrings.remainingToday}: ¥${dailyRemaining.toStringAsFixed(0)}',
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _AvgStatTile(
                     title: AppStrings.avgWeeklySpend,
-                    value: '?${weeklyAverage.toStringAsFixed(0)}',
+                    value: '¥${weeklyAverage.toStringAsFixed(0)}',
                     sub:
-                        '${AppStrings.remainingWeek}: ?${weeklyRemaining.toStringAsFixed(0)}',
+                        '${AppStrings.remainingWeek}: ¥${weeklyRemaining.toStringAsFixed(0)}',
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _AvgStatTile(
                     title: AppStrings.avgMonthlySpend,
-                    value: '?${monthlyAverage.toStringAsFixed(0)}',
+                    value: '¥${monthlyAverage.toStringAsFixed(0)}',
                     sub:
-                        '${AppStrings.remainingMonth}: ?${monthlyRemaining.toStringAsFixed(0)}',
+                        '${AppStrings.remainingMonth}: ¥${monthlyRemaining.toStringAsFixed(0)}',
                   ),
                 ),
               ],
