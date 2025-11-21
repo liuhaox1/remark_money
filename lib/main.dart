@@ -11,7 +11,7 @@ import 'l10n/app_strings.dart';
 
 import 'pages/root_shell.dart';
 import 'pages/add_record_page.dart';
-import 'pages/stats_page.dart';
+import 'pages/analysis_page.dart';
 import 'pages/bill_page.dart';
 import 'pages/budget_page.dart';
 import 'pages/category_manager_page.dart';
@@ -121,7 +121,7 @@ class RemarkMoneyApp extends StatelessWidget {
                 DeviceFrame(child: child ?? const SizedBox.shrink()),
             home: const RootShell(),
             routes: {
-              '/stats': (_) => const StatsPage(),
+              '/stats': (_) => const AnalysisPage(),
               '/bill': (_) => const BillPage(),
               '/budget': (_) => const BudgetPage(),
               '/category-manager': (_) => const CategoryManagerPage(),

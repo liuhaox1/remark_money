@@ -1073,27 +1073,7 @@ class _BalanceCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            SizedBox(
-              height: 40,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _ShortcutButton(
-                      icon: Icons.receipt_long,
-                      label: AppStrings.bill,
-                      onTap: () => Navigator.pushNamed(context, '/bill'),
-                    ),
-                    const SizedBox(width: 8),
-                    _ShortcutButton(
-                      icon: Icons.account_balance_wallet_outlined,
-                      label: AppStrings.budget,
-                      onTap: () => Navigator.pushNamed(context, '/budget'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const SizedBox(height: 4),
           ],
         ),
       ),
@@ -1135,44 +1115,4 @@ class _BalanceMiniItem extends StatelessWidget {
   }
 }
 
-class _ShortcutButton extends StatelessWidget {
-  const _ShortcutButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: cs.surfaceVariant.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: cs.primary, size: 16),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// _ShortcutButton 已移除：顶部仅保留日期/账本/筛选，不再放账单/预算入口

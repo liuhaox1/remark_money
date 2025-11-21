@@ -104,6 +104,7 @@ class AppStrings {
   static const budgetTodaySuggestionPrefix = '今日建议花费 ¥';
   static const receivableThisMonthPrefix = '本月回款 ';
   static const expenseThisMonthPrefix = '本月支出 ';
+  static const budgetOverspendTodayTip = '本月已超支，建议控制花费';
   static const homeBudgetTitle = '预算概览';
   static const homeBudgetDetail = '预算详情';
   static const homeBudgetNotSetTitle = '尚未设置本月预算';

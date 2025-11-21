@@ -39,6 +39,15 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 24),
               Card(
                 child: ListTile(
+                  leading: const Icon(Icons.account_balance_wallet_outlined),
+                  title: const Text(AppStrings.budget),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.pushNamed(context, '/budget'),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Card(
+                child: ListTile(
                   leading: const Icon(Icons.category_outlined),
                   title: const Text(AppStrings.categoryManager),
                   trailing: const Icon(Icons.chevron_right),

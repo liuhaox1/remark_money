@@ -8,7 +8,7 @@ import '../theme/app_tokens.dart';
 import '../widgets/quick_add_sheet.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
-import 'stats_page.dart';
+import 'analysis_page.dart';
 
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
@@ -22,7 +22,7 @@ class _RootShellState extends State<RootShell> {
 
   late final List<Widget> _pages = [
     const HomePage(),
-    const StatsPage(),
+    const AnalysisPage(),
     const AssetsPage(),
     const ProfilePage(),
   ];

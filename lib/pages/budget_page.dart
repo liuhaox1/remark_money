@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/budget.dart';
 import '../models/category.dart';
-import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
@@ -109,7 +108,6 @@ class _BudgetPageState extends State<BudgetPage> {
     final bookId = bookProvider.activeBookId;
     final categories = categoryProvider.categories;
     final expenseCats = categories.where((c) => c.isExpense).toList();
-    final incomeCats = categories.where((c) => !c.isExpense).toList();
     final now = DateTime.now();
     final monthAnchor = DateTime(now.year, now.month, 1);
     final bookBudget = budgetProvider.budgetForBook(bookId);
@@ -120,34 +118,33 @@ class _BudgetPageState extends State<BudgetPage> {
       budget: bookBudget,
     );
 
+    // 实际支出统计（只作为进度展示，不做明细）
     final monthRecords =
         recordProvider.recordsForMonth(bookId, now.year, now.month);
     final expenseSpent = <String, double>{};
-    final incomeSpent = <String, double>{};
-    final expenseRecords = <String, List<Record>>{};
-    final incomeRecords = <String, List<Record>>{};
     double totalExpense = 0;
 
     for (final record in monthRecords) {
-      final map = record.isExpense ? expenseSpent : incomeSpent;
-      final recordsMap = record.isExpense ? expenseRecords : incomeRecords;
-      map[record.categoryKey] =
-          (map[record.categoryKey] ?? 0) + record.absAmount;
-      recordsMap.putIfAbsent(record.categoryKey, () => []).add(record);
-      if (record.isExpense) {
-        totalExpense += record.absAmount;
-      }
+      if (!record.isExpense) continue;
+      expenseSpent[record.categoryKey] =
+          (expenseSpent[record.categoryKey] ?? 0) + record.absAmount;
+      totalExpense += record.absAmount;
     }
 
     final remaining = (bookBudget.total - totalExpense);
+
+    // 仅展示「有预算」或「本月有支出」的分类，避免页面太乱
+    final displayExpenseCats = expenseCats.where((cat) {
+      final spentValue = expenseSpent[cat.key] ?? 0;
+      final catBudget = bookBudget.categoryBudgets[cat.key] ?? 0;
+      return spentValue > 0 || catBudget > 0;
+    }).toList();
 
     return Scaffold(
       backgroundColor:
           isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
-        elevation: 0,
-        toolbarHeight: 0,
-        backgroundColor: Colors.transparent,
+        title: const Text(AppStrings.budget),
       ),
       body: SafeArea(
         child: Center(
@@ -174,49 +171,17 @@ class _BudgetPageState extends State<BudgetPage> {
                           subtitle: AppStrings.spendCategorySubtitle,
                         ),
                         const SizedBox(height: 8),
-                        if (expenseCats.isEmpty)
+                        if (displayExpenseCats.isEmpty)
                           const _EmptyHint(
                             text: AppStrings.emptySpendCategory,
                           )
                         else
-                          ...expenseCats.map(
+                          ...displayExpenseCats.map(
                             (cat) => _CategoryBudgetTile(
                               category: cat,
                               controller: _categoryCtrls[cat.key]!,
                               spent: expenseSpent[cat.key] ?? 0,
                               budget: bookBudget.categoryBudgets[cat.key],
-                              records:
-                                  expenseRecords[cat.key] ?? const <Record>[],
-                              onViewDetail: () => _showCategoryDetails(
-                                cat,
-                                expenseRecords[cat.key] ?? const <Record>[],
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 28),
-                        const _SectionHeader(
-                          title: AppStrings.incomeCategoryBudget,
-                          subtitle: AppStrings.incomeCategorySubtitle,
-                        ),
-                        const SizedBox(height: 8),
-                        if (incomeCats.isEmpty)
-                          const _EmptyHint(
-                            text: AppStrings.emptyIncomeCategory,
-                          )
-                        else
-                          ...incomeCats.map(
-                            (cat) => _CategoryBudgetTile(
-                              category: cat,
-                              controller: _categoryCtrls[cat.key]!,
-                              spent: incomeSpent[cat.key] ?? 0,
-                              budget: bookBudget.categoryBudgets[cat.key],
-                              isIncome: true,
-                              records:
-                                  incomeRecords[cat.key] ?? const <Record>[],
-                              onViewDetail: () => _showCategoryDetails(
-                                cat,
-                                incomeRecords[cat.key] ?? const <Record>[],
-                              ),
                             ),
                           ),
                         const SizedBox(height: 32),
@@ -302,82 +267,6 @@ class _BudgetPageState extends State<BudgetPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Future<void> _showCategoryDetails(
-    Category category,
-    List<Record> records,
-  ) async {
-    if (records.isEmpty) return;
-    final sorted = [...records]..sort(
-        (a, b) => b.date.compareTo(a.date),
-      );
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(category.icon,
-                        color: Theme.of(ctx).colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      AppStrings.categoryMonthlyDetail(category.name),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 340,
-                  child: ListView.separated(
-                    itemCount: sorted.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, index) {
-                      final record = sorted[index];
-                      final amount = record.absAmount.toStringAsFixed(2);
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          record.remark.isEmpty
-                              ? AppStrings.emptyRemark
-                              : record.remark,
-                        ),
-                        subtitle: Text(DateUtilsX.ymd(record.date)),
-                        trailing: Text(
-                          record.isExpense ? '-¥$amount' : '+¥$amount',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: record.isExpense
-                                ? AppColors.danger
-                                : AppColors.success,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -479,7 +368,9 @@ class _BudgetSummaryCard extends StatelessWidget {
                   child: Text(
                     totalBudget <= 0
                         ? AppStrings.budgetTip
-                        : '${AppStrings.budgetTodaySuggestionPrefix}${daily.toStringAsFixed(0)}',
+                        : remaining <= 0
+                            ? AppStrings.budgetOverspendTodayTip
+                            : '${AppStrings.budgetTodaySuggestionPrefix}${daily.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 12,
                       color: cs.onSurface.withOpacity(0.6),
@@ -532,19 +423,13 @@ class _CategoryBudgetTile extends StatelessWidget {
     required this.category,
     required this.controller,
     required this.spent,
-    required this.records,
     this.budget,
-    this.isIncome = false,
-    required this.onViewDetail,
   });
 
   final Category category;
   final TextEditingController controller;
   final double spent;
   final double? budget;
-  final bool isIncome;
-  final List<Record> records;
-  final VoidCallback onViewDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -616,25 +501,13 @@ class _CategoryBudgetTile extends StatelessWidget {
                   Text(
                     hasBudget
                         ? AppStrings.budgetUsedLabel(spent, budget)
-                        : (isIncome
-                            ? '${AppStrings.receivableThisMonthPrefix}¥${spent.toStringAsFixed(0)}'
-                            : '${AppStrings.expenseThisMonthPrefix}¥${spent.toStringAsFixed(0)}'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
-                ),
-                  const Spacer(),
-                  if (records.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: onViewDetail,
-                      icon: const Icon(Icons.list_alt, size: 14),
-                      label: const Text(AppStrings.viewDetails),
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 32),
-                      ),
+                        : '${AppStrings.expenseThisMonthPrefix}¥${spent.toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface.withOpacity(0.7),
                     ),
+                  ),
+                  const Spacer(),
                 ],
               ),
               const SizedBox(height: 6),
@@ -682,14 +555,15 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+          color: cs.outlineVariant.withOpacity(0.4),
         ),
       ),
       child: Text(

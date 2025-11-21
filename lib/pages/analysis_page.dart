@@ -1,27 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
+import '../models/category.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../utils/date_utils.dart';
 import '../widgets/chart_bar.dart';
 import '../widgets/chart_pie.dart';
-import '../l10n/app_strings.dart';
+import 'bill_page.dart';
 
-class StatsPage extends StatefulWidget {
-  const StatsPage({super.key});
+class AnalysisPage extends StatefulWidget {
+  const AnalysisPage({super.key});
 
   @override
-  State<StatsPage> createState() => _StatsPageState();
+  State<AnalysisPage> createState() => _AnalysisPageState();
 }
 
-class _StatsPageState extends State<StatsPage> {
+class _AnalysisPageState extends State<AnalysisPage> {
   DateTime _selectedMonth =
       DateTime(DateTime.now().year, DateTime.now().month, 1);
   int _selectedYear = DateTime.now().year;
   bool _viewYear = false;
   bool _showBarChart = true;
+  bool _showChartView = true; // true: 图表, false: 账单
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +126,7 @@ class _StatsPageState extends State<StatsPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildRangeControls(context),
+                                _buildRangeControls(),
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
@@ -198,40 +201,74 @@ class _StatsPageState extends State<StatsPage> {
                           ),
                         ),
                         const SizedBox(height: 12),
+                        // 图表 / 账单 视图切换
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: Text(
-                            _viewYear
-                                ? AppStrings.yearExpenseTotal(
-                                    _selectedYear,
-                                    totalExpense,
-                                  )
-                                : AppStrings.monthExpenseTotal(
-                                    _selectedMonth.year,
-                                    _selectedMonth.month,
-                                    totalExpense,
-                                  ),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          child: SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment(
+                                value: true,
+                                label: Text('图表'),
+                                icon: Icon(Icons.insights_outlined),
+                              ),
+                              ButtonSegment(
+                                value: false,
+                                label: Text('账单'),
+                                icon: Icon(Icons.receipt_long),
+                              ),
+                            ],
+                            selected: {_showChartView},
+                            onSelectionChanged: (value) {
+                              setState(() => _showChartView = value.first);
+                            },
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Expanded(
-                          child: chartEntries.isEmpty
-                              ? Center(
-                              child: Text(
-                                    _viewYear
-                                        ? AppStrings.noYearData
-                                        : AppStrings.noMonthData,
-                                    style: TextStyle(color: cs.outline),
-                                  ),
-                                )
-                              : _showBarChart
-                                  ? ChartBar(entries: chartEntries)
-                                  : ChartPie(entries: chartEntries),
-                        ),
+                        const SizedBox(height: 12),
+                        if (_showChartView) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _viewYear
+                                  ? AppStrings.yearExpenseTotal(
+                                      _selectedYear,
+                                      totalExpense,
+                                    )
+                                  : AppStrings.monthExpenseTotal(
+                                      _selectedMonth.year,
+                                      _selectedMonth.month,
+                                      totalExpense,
+                                    ),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: chartEntries.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      _viewYear
+                                          ? AppStrings.noYearData
+                                          : AppStrings.noMonthData,
+                                      style: TextStyle(color: cs.outline),
+                                    ),
+                                  )
+                                : _showBarChart
+                                    ? ChartBar(entries: chartEntries)
+                                    : ChartPie(entries: chartEntries),
+                          ),
+                        ] else ...[
+                          // 账单视图：复用 BillPage 的构建逻辑
+                          Expanded(
+                            child: BillPage(
+                              key: ValueKey(
+                                'bill-${_viewYear ? 'year' : 'month'}-$_selectedYear-${_selectedMonth.month}',
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -244,7 +281,7 @@ class _StatsPageState extends State<StatsPage> {
     );
   }
 
-  Widget _buildRangeControls(BuildContext context) {
+  Widget _buildRangeControls() {
     return SegmentedButton<bool>(
       style: const ButtonStyle(
         visualDensity: VisualDensity.standard,
@@ -298,156 +335,83 @@ class _StatsPageState extends State<StatsPage> {
           (expenseMap[record.categoryKey] ?? 0) + record.expenseValue;
     }
 
-    final categoryMap = {for (final c in categoryProvider.categories) c.key: c};
-
-    final sortedEntries = expenseMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    final chartEntries = <ChartEntry>[];
-    for (var i = 0; i < sortedEntries.length; i++) {
-      final entry = sortedEntries[i];
-      final category = categoryMap[entry.key];
-      chartEntries.add(
+    final categories = categoryProvider.categories;
+    final cs = Theme.of(context).colorScheme;
+    final entries = <ChartEntry>[];
+    for (final entry in expenseMap.entries) {
+      final category = categories.firstWhere(
+        (c) => c.key == entry.key,
+        orElse: () => Category(
+          key: entry.key,
+          name: entry.key,
+          icon: Icons.category_outlined,
+          isExpense: true,
+        ),
+      );
+      entries.add(
         ChartEntry(
-          label: category?.name ?? AppStrings.unknown,
+          label: category.name,
           value: entry.value,
-          color: _colorForIndex(entry.key.hashCode + i),
+          color: cs.primary,
         ),
       );
     }
-    return chartEntries;
+
+    entries.sort((a, b) => b.value.compareTo(a.value));
+    return entries;
   }
 
   List<ChartEntry> _buildYearEntries(
     RecordProvider recordProvider,
     String bookId,
   ) {
-    final records = recordProvider.recordsForBook(bookId).where(
-          (record) => record.date.year == _selectedYear && record.isExpense,
-        );
-    final Map<int, double> monthExpense = {};
-    for (final record in records) {
-      monthExpense[record.date.month] =
-          (monthExpense[record.date.month] ?? 0) + record.expenseValue;
-    }
-
-    final entries = monthExpense.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-
-    return [
-      for (var entry in entries)
+    final entries = <ChartEntry>[];
+    for (int month = 1; month <= 12; month++) {
+      final date = DateTime(_selectedYear, month, 1);
+      final expense = recordProvider.monthExpense(date, bookId);
+      if (expense <= 0) continue;
+      entries.add(
         ChartEntry(
-          label: AppStrings.monthLabel(entry.key),
-          value: entry.value,
-          color: _colorForIndex(entry.key),
+          label: AppStrings.monthLabel(month),
+          value: expense,
+          color: Colors.blueAccent,
         ),
-    ];
-  }
-
-  Color _colorForIndex(int seed) {
-    const palette = Colors.primaries;
-    return palette[seed.abs() % palette.length];
+      );
+    }
+    return entries;
   }
 }
 
 class _BookSelector extends StatelessWidget {
-  const _BookSelector({required this.bookProvider});
+  const _BookSelector({
+    required this.bookProvider,
+  });
 
   final BookProvider bookProvider;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
     final activeName =
         bookProvider.activeBook?.name ?? AppStrings.defaultBook;
-    return InkWell(
-      onTap: () => _showBookPicker(context),
-      borderRadius: BorderRadius.circular(20),
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      hoverColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: isDark ? cs.surface : Colors.white,
-          border: Border.all(color: cs.primary.withOpacity(0.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.menu_book_outlined, size: 18, color: cs.primary),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                activeName,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.expand_more, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Future<void> _showBookPicker(BuildContext context) async {
-    final books = bookProvider.books;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  AppStrings.selectBook,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...books.map(
-                  (book) => RadioListTile<String>(
-                    value: book.id,
-                    groupValue: bookProvider.activeBookId,
-                    onChanged: (value) {
-                      if (value != null) {
-                        bookProvider.selectBook(value);
-                        Navigator.pop(ctx);
-                      }
-                    },
-                    title: Text(book.name),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: bookProvider.activeBookId,
+        items: bookProvider.books
+            .map(
+              (b) => DropdownMenuItem(
+                value: b.id,
+                child: Text(b.name),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          if (value != null) {
+            bookProvider.selectBook(value);
+          }
+        },
+        hint: Text(AppStrings.currentBookLabel(activeName)),
+      ),
     );
   }
 }
