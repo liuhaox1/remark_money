@@ -525,70 +525,72 @@ class _BudgetPageState extends State<BudgetPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildTotalBudgetEditor(cs, bookId, isYear: !showPeriodPicker),
-                const SizedBox(height: 24),
-                const _SectionHeader(
-                  title: AppStrings.spendCategoryBudget,
-                  subtitle: AppStrings.spendCategorySubtitlePeriod,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  AppStrings.budgetCategoryRelationHint,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: cs.onSurface.withOpacity(0.65),
+                if (showPeriodPicker) ...[
+                  const SizedBox(height: 24),
+                  const _SectionHeader(
+                    title: AppStrings.spendCategoryBudget,
+                    subtitle: AppStrings.spendCategorySubtitlePeriod,
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '${AppStrings.budgetCategorySummaryPrefix} ￥${categoryBudgetSum.toStringAsFixed(0)}'
-                  '${budgetEntry.total > 0 ? ' · 占预算 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%' : ''}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: categoryBudgetSum > budgetEntry.total &&
-                            budgetEntry.total > 0
-                        ? AppColors.danger
-                        : cs.onSurface.withOpacity(0.75),
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 6),
+                  Text(
+                    AppStrings.budgetCategoryRelationHint,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface.withOpacity(0.65),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                if (displayExpenseCats.isEmpty)
-                  const _EmptyHint(
-                    text: AppStrings.budgetCategoryEmptyHint,
-                  )
-                else
-                  ...displayExpenseCats.map(
-                    (cat) => _CategoryBudgetTile(
-                      category: cat,
-                      spent: data.expenseSpent[cat.key] ?? 0,
-                      budget: budgetEntry.categoryBudgets[cat.key],
-                      onEdit: () => _editCategoryBudget(
-                        bookId: bookId,
+                  const SizedBox(height: 10),
+                  Text(
+                    '${AppStrings.budgetCategorySummaryPrefix} \uffe5${categoryBudgetSum.toStringAsFixed(0)}'
+                    '${budgetEntry.total > 0 ? ' \xb7 \u5360\u9884\u7b97 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%' : ''}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: categoryBudgetSum > budgetEntry.total &&
+                              budgetEntry.total > 0
+                          ? AppColors.danger
+                          : cs.onSurface.withOpacity(0.75),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (displayExpenseCats.isEmpty)
+                    const _EmptyHint(
+                      text: AppStrings.budgetCategoryEmptyHint,
+                    )
+                  else
+                    ...displayExpenseCats.map(
+                      (cat) => _CategoryBudgetTile(
                         category: cat,
-                        currentBudget: budgetEntry.categoryBudgets[cat.key],
+                        spent: data.expenseSpent[cat.key] ?? 0,
+                        budget: budgetEntry.categoryBudgets[cat.key],
+                        onEdit: () => _editCategoryBudget(
+                          bookId: bookId,
+                          category: cat,
+                          currentBudget: budgetEntry.categoryBudgets[cat.key],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _addCategoryBudget(
+                        bookId: bookId,
+                        expenseCategories: expenseCats,
+                        budgetEntry: budgetEntry,
+                        expenseSpent: data.expenseSpent,
+                      ),
+                      icon: const Icon(Icons.add),
+                      label: const Text(
+                        AppStrings.addCategoryBudget,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => _addCategoryBudget(
-                      bookId: bookId,
-                      expenseCategories: expenseCats,
-                      budgetEntry: budgetEntry,
-                      expenseSpent: data.expenseSpent,
-                    ),
-                    icon: const Icon(Icons.add),
-                    label: const Text(
-                      AppStrings.addCategoryBudget,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
+                ],
               ],
             ),
           ),
@@ -946,7 +948,7 @@ class _BudgetSummaryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _AllowanceStat(
-                    label: 'æ¯æ¥å¯ç¨',
+                    label: '????',
                     value: '?${dailyAllowance.toStringAsFixed(0)}',
                     background: cs.surfaceVariant.withOpacity(0.25),
                     icon: Icons.calendar_today_outlined,
@@ -955,7 +957,7 @@ class _BudgetSummaryCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _AllowanceStat(
-                    label: 'æ¬å¨å¯ç¨',
+                    label: '????',
                     value: '?${weeklyAllowance.toStringAsFixed(0)}',
                     background: cs.primary.withOpacity(0.12),
                     icon: Icons.view_week_outlined,
