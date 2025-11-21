@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -214,10 +214,12 @@ class _BudgetPageState extends State<BudgetPage> {
       const SnackBar(content: Text(AppStrings.budgetSaved)),
     );
   }
+
   Future<void> _editCategoryBudget({
     required String bookId,
     required Category category,
     required double? currentBudget,
+    required bool isYear,
   }) async {
     final controller = TextEditingController(
       text: currentBudget != null && currentBudget > 0
@@ -245,16 +247,15 @@ class _BudgetPageState extends State<BudgetPage> {
           ),
           if (currentBudget != null && currentBudget > 0)
             TextButton(
-              onPressed: () => Navigator.of(ctx)
-                  .pop(const _EditBudgetResult(deleted: true)),
+              onPressed: () =>
+                  Navigator.of(ctx).pop(const _EditBudgetResult(deleted: true)),
               child: const Text(AppStrings.deleteBudget),
             ),
           FilledButton(
             onPressed: () {
               final parsed = _parseAmount(controller.text);
               if (parsed == null) {
-                Navigator.of(ctx)
-                    .pop(const _EditBudgetResult(deleted: true));
+                Navigator.of(ctx).pop(const _EditBudgetResult(deleted: true));
               } else {
                 Navigator.of(ctx).pop(
                   _EditBudgetResult(deleted: false, value: parsed),
@@ -272,14 +273,23 @@ class _BudgetPageState extends State<BudgetPage> {
     final provider = context.read<BudgetProvider>();
 
     if (result.deleted || (result.value ?? 0) <= 0) {
-      await provider.deleteCategoryBudget(bookId, category.key);
+      if (isYear) {
+        await provider.deleteAnnualCategoryBudget(bookId, category.key);
+      } else {
+        await provider.deleteCategoryBudget(bookId, category.key);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(AppStrings.categoryBudgetDeleted)),
       );
       return;
     }
 
-    await provider.setCategoryBudget(bookId, category.key, result.value!);
+    if (isYear) {
+      await provider.setAnnualCategoryBudget(
+          bookId, category.key, result.value!);
+    } else {
+      await provider.setCategoryBudget(bookId, category.key, result.value!);
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text(AppStrings.categoryBudgetSaved)),
     );
@@ -290,8 +300,13 @@ class _BudgetPageState extends State<BudgetPage> {
     required List<Category> expenseCategories,
     required BudgetEntry budgetEntry,
     required Map<String, double> expenseSpent,
+    required bool isYear,
   }) async {
-    final existingKeys = budgetEntry.categoryBudgets.keys.toSet();
+    final existingKeys = (isYear
+            ? budgetEntry.annualCategoryBudgets
+            : budgetEntry.categoryBudgets)
+        .keys
+        .toSet();
     final candidates = expenseCategories
         .where((c) => !existingKeys.contains(c.key))
         .toList(growable: false);
@@ -382,9 +397,10 @@ class _BudgetPageState extends State<BudgetPage> {
       bookId: bookId,
       category: category,
       currentBudget: null,
+      isYear: isYear,
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -487,21 +503,27 @@ class _BudgetPageState extends State<BudgetPage> {
     required _BudgetViewData data,
     required bool showPeriodPicker,
   }) {
+    final isYearView = data.view == _BudgetView.year;
+    final categoryBudgets = isYearView
+        ? budgetEntry.annualCategoryBudgets
+        : budgetEntry.categoryBudgets;
+
     final displayExpenseCats = expenseCats.where((cat) {
       final spentValue = data.expenseSpent[cat.key] ?? 0;
-      final catBudget = budgetEntry.categoryBudgets[cat.key] ?? 0;
+      final catBudget = categoryBudgets[cat.key] ?? 0;
       return spentValue > 0 || catBudget > 0;
     }).toList();
 
-    final categoryBudgetSum = budgetEntry.categoryBudgets.values
-        .where((v) => v > 0)
-        .fold(0.0, (a, b) => a + b);
+    final categoryBudgetSum =
+        categoryBudgets.values.where((v) => v > 0).fold(0.0, (a, b) => a + b);
 
     return Column(
       children: [
         _BudgetSummaryCard(
           title: data.title,
           totalBudget: data.totalBudget,
+          hasBudget: data.hasBudget,
+          isYearView: isYearView,
           used: data.used,
           remaining: data.remaining,
           periodLabel: data.periodLabel,
@@ -528,11 +550,11 @@ class _BudgetPageState extends State<BudgetPage> {
                 const SizedBox(height: 24),
                 const _SectionHeader(
                   title: AppStrings.spendCategoryBudget,
-                  subtitle: AppStrings.spendCategorySubtitlePeriod,
+                  subtitle: '仅展示本期支出进度',
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  AppStrings.budgetCategoryRelationHint,
+                  '将总预算拆到分类，便于控制重点支出',
                   style: TextStyle(
                     fontSize: 12,
                     color: cs.onSurface.withOpacity(0.65),
@@ -554,18 +576,19 @@ class _BudgetPageState extends State<BudgetPage> {
                 const SizedBox(height: 8),
                 if (displayExpenseCats.isEmpty)
                   const _EmptyHint(
-                    text: AppStrings.budgetCategoryEmptyHint,
+                    text: '尚未设置分类预算。建议先为常用支出（如餐饮、购物）设置预算，可点击下方“增加分类预算”',
                   )
                 else
                   ...displayExpenseCats.map(
                     (cat) => _CategoryBudgetTile(
                       category: cat,
                       spent: data.expenseSpent[cat.key] ?? 0,
-                      budget: budgetEntry.categoryBudgets[cat.key],
+                      budget: categoryBudgets[cat.key],
                       onEdit: () => _editCategoryBudget(
                         bookId: bookId,
                         category: cat,
-                        currentBudget: budgetEntry.categoryBudgets[cat.key],
+                        currentBudget: categoryBudgets[cat.key],
+                        isYear: isYearView,
                       ),
                     ),
                   ),
@@ -578,6 +601,7 @@ class _BudgetPageState extends State<BudgetPage> {
                       expenseCategories: expenseCats,
                       budgetEntry: budgetEntry,
                       expenseSpent: data.expenseSpent,
+                      isYear: isYearView,
                     ),
                     icon: const Icon(Icons.add),
                     label: const Text(
@@ -614,6 +638,7 @@ class _BudgetPageState extends State<BudgetPage> {
         : budgetProvider.currentPeriodRange(bookId, today);
 
     final totalBudget = isYear ? budgetEntry.annualTotal : budgetEntry.total;
+    final hasBudget = totalBudget > 0;
     final used = recordProvider.periodExpense(
       bookId: bookId,
       start: period.start,
@@ -624,7 +649,7 @@ class _BudgetPageState extends State<BudgetPage> {
       start: period.start,
       end: period.end,
     );
-    final remaining = totalBudget - used;
+    final remaining = hasBudget ? (totalBudget - used) : 0.0;
 
     final clampedToday = today.isBefore(period.start)
         ? period.start
@@ -637,22 +662,24 @@ class _BudgetPageState extends State<BudgetPage> {
     final monthsElapsed = isYear ? max(1, min(12, clampedToday.month)) : 1;
     final monthsLeft = isYear ? max(1, 12 - monthsElapsed) : 1;
 
-    final dailyAllowance = daysLeft > 0 ? remaining / daysLeft : 0.0;
+    final dailyAllowance =
+        hasBudget && daysLeft > 0 ? remaining / daysLeft : 0.0;
     final weekEndCandidate =
         clampedToday.add(Duration(days: 7 - clampedToday.weekday));
     final weekEnd =
         weekEndCandidate.isAfter(period.end) ? period.end : weekEndCandidate;
     final weekDaysLeft = max(0, weekEnd.difference(clampedToday).inDays + 1);
     final weeklyAllowance =
-        weekDaysLeft > 0 ? dailyAllowance * weekDaysLeft : 0.0;
+        hasBudget && weekDaysLeft > 0 ? dailyAllowance * weekDaysLeft : 0.0;
 
-    final dailyAverage = used / max(1, daysElapsed);
-    final weeklyAverage = used / max(1, weeksElapsed);
-    final monthlyAverage = used / max(1, monthsElapsed);
+    final dailyAverage = hasBudget ? used / max(1, daysElapsed) : 0.0;
+    final weeklyAverage = hasBudget ? used / max(1, weeksElapsed) : 0.0;
+    final monthlyAverage = hasBudget ? used / max(1, monthsElapsed) : 0.0;
     final monthlyRemaining =
-        monthsLeft > 0 ? remaining / monthsLeft : remaining;
+        hasBudget && monthsLeft > 0 ? remaining / monthsLeft : remaining;
 
-    final periodLabel = '周期: ${_formatDate(period.start)} - ${_formatDate(period.end)}';
+    final periodLabel =
+        '周期: ${_formatDate(period.start)} - ${_formatDate(period.end)}';
     final periodPillText =
         isYear ? AppStrings.fullYear : '每月 ${budgetEntry.periodStartDay} 日';
     final title = isYear
@@ -666,6 +693,7 @@ class _BudgetPageState extends State<BudgetPage> {
       periodLabel: periodLabel,
       periodPillText: periodPillText,
       totalBudget: totalBudget,
+      hasBudget: hasBudget,
       used: used,
       remaining: remaining,
       dailyAllowance: dailyAllowance,
@@ -682,7 +710,8 @@ class _BudgetPageState extends State<BudgetPage> {
 
   String _formatDate(DateTime d) =>
       '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
-  Widget _buildTotalBudgetEditor(ColorScheme cs, String bookId, {bool isYear = false}) {
+  Widget _buildTotalBudgetEditor(ColorScheme cs, String bookId,
+      {bool isYear = false}) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       decoration: BoxDecoration(
@@ -721,7 +750,8 @@ class _BudgetPageState extends State<BudgetPage> {
             inputFormatters: [_digitsAndDotFormatter],
             decoration: InputDecoration(
               prefixText: '¥ ',
-              hintText: isYear ? AppStrings.yearBudget : AppStrings.monthBudgetHint,
+              hintText:
+                  isYear ? AppStrings.yearBudget : AppStrings.monthBudgetHint,
               filled: true,
               fillColor: cs.surfaceVariant.withOpacity(0.25),
               border: OutlineInputBorder(
@@ -741,7 +771,8 @@ class _BudgetPageState extends State<BudgetPage> {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              onPressed: () => isYear ? _saveAnnualBudget(bookId) : _saveTotalBudget(bookId),
+              onPressed: () =>
+                  isYear ? _saveAnnualBudget(bookId) : _saveTotalBudget(bookId),
               icon: const Icon(Icons.save_outlined),
               label: const Text(AppStrings.save),
             ),
@@ -760,6 +791,7 @@ class _BudgetViewData {
     required this.periodLabel,
     required this.periodPillText,
     required this.totalBudget,
+    required this.hasBudget,
     required this.used,
     required this.remaining,
     required this.dailyAllowance,
@@ -779,6 +811,7 @@ class _BudgetViewData {
   final String periodLabel;
   final String periodPillText;
   final double totalBudget;
+  final bool hasBudget;
   final double used;
   final double remaining;
   final double dailyAllowance;
@@ -798,10 +831,12 @@ class _BudgetSummaryCard extends StatelessWidget {
   const _BudgetSummaryCard({
     required this.title,
     required this.totalBudget,
+    required this.isYearView,
     required this.used,
     required this.remaining,
     required this.periodLabel,
     required this.periodPillText,
+    required this.hasBudget,
     this.onTapCycle,
     required this.dailyAllowance,
     required this.weeklyAllowance,
@@ -815,10 +850,12 @@ class _BudgetSummaryCard extends StatelessWidget {
 
   final String title;
   final double totalBudget;
+  final bool isYearView;
   final double used;
   final double remaining;
   final String periodLabel;
   final String periodPillText;
+  final bool hasBudget;
   final VoidCallback? onTapCycle;
   final double dailyAllowance;
   final double weeklyAllowance;
@@ -940,61 +977,69 @@ class _BudgetSummaryCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            BudgetProgress(total: totalBudget, used: used),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _AllowanceStat(
-                    label: '每日可用',
-                    value: '¥${dailyAllowance.toStringAsFixed(0)}',
-                    background: cs.surfaceVariant.withOpacity(0.25),
-                    icon: Icons.calendar_today_outlined,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _AllowanceStat(
-                    label: '本周可用',
-                    value: '¥${weeklyAllowance.toStringAsFixed(0)}',
-                    background: cs.primary.withOpacity(0.12),
-                    icon: Icons.view_week_outlined,
-                    iconColor: cs.primary,
-                  ),
-                ),
-              ],
+            BudgetProgress(
+              total: totalBudget,
+              used: used,
+              totalLabel: isYearView
+                  ? AppStrings.yearBudgetBalance
+                  : AppStrings.monthBudget,
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _AvgStatTile(
-                    title: AppStrings.avgDailySpend,
-                    value: '¥${dailyAverage.toStringAsFixed(0)}',
-                    sub:
-                        '${AppStrings.remainingToday}: ¥${dailyRemaining.toStringAsFixed(0)}',
+            if (hasBudget) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _AllowanceStat(
+                      label: '每日可用',
+                      value: '¥${dailyAllowance.toStringAsFixed(0)}',
+                      background: cs.surfaceVariant.withOpacity(0.25),
+                      icon: Icons.calendar_today_outlined,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _AvgStatTile(
-                    title: AppStrings.avgWeeklySpend,
-                    value: '¥${weeklyAverage.toStringAsFixed(0)}',
-                    sub:
-                        '${AppStrings.remainingWeek}: ¥${weeklyRemaining.toStringAsFixed(0)}',
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _AllowanceStat(
+                      label: '本周可用',
+                      value: '¥${weeklyAllowance.toStringAsFixed(0)}',
+                      background: cs.primary.withOpacity(0.12),
+                      icon: Icons.view_week_outlined,
+                      iconColor: cs.primary,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _AvgStatTile(
-                    title: AppStrings.avgMonthlySpend,
-                    value: '¥${monthlyAverage.toStringAsFixed(0)}',
-                    sub:
-                        '${AppStrings.remainingMonth}: ¥${monthlyRemaining.toStringAsFixed(0)}',
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _AvgStatTile(
+                      title: AppStrings.avgDailySpend,
+                      value: '¥${dailyAverage.toStringAsFixed(0)}',
+                      sub:
+                          '${AppStrings.remainingToday}: ¥${dailyRemaining.toStringAsFixed(0)}',
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _AvgStatTile(
+                      title: AppStrings.avgWeeklySpend,
+                      value: '¥${weeklyAverage.toStringAsFixed(0)}',
+                      sub:
+                          '${AppStrings.remainingWeek}: ¥${weeklyRemaining.toStringAsFixed(0)}',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _AvgStatTile(
+                      title: AppStrings.avgMonthlySpend,
+                      value: '¥${monthlyAverage.toStringAsFixed(0)}',
+                      sub:
+                          '${AppStrings.remainingMonth}: ¥${monthlyRemaining.toStringAsFixed(0)}',
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

@@ -17,6 +17,7 @@ class AppStrings {
   static const selectBook = '选择账本';
   static const defaultBook = '默认账本';
   static const monthBudget = '月度结余';
+  static const yearBudgetBalance = '年度结余';
   static const spent = '支出';
   static const remain = '剩余';
   static const income = '收入';
@@ -95,8 +96,7 @@ class AppStrings {
   static const saveBookBudget = '保存当前账本预算';
   static const monthTotalBudget = '月度总预算';
   static const monthBudgetHint = '为当前账本设置一个月度支出预算';
-  static const budgetDescription =
-      '系统会实时对比本期支出与预算，并在首页与统计页展示进度。';
+  static const budgetDescription = '系统会实时对比本期支出与预算，并在首页与统计页展示进度。';
   static const budgetNotSet = '尚未设置预算';
   static const viewDetails = '查看明细';
   static const budgetInputHint = '￥ 预算';
@@ -125,18 +125,14 @@ class AppStrings {
   static const setBudget = '设置预算';
   static const deleteBudget = '删除预算';
   static const resetBookBudget = '重置本账本预算';
-  static const resetBookBudgetConfirm =
-      '将清空本账本的总预算和所有分类预算，不会删除任何记账记录，确认继续吗？';
+  static const resetBookBudgetConfirm = '将清空本账本的总预算和所有分类预算，不会删除任何记账记录，确认继续吗？';
   static const budgetPeriodSettingTitle = '预算周期设置';
-  static const budgetPeriodSettingDesc =
-      '选择每个月从哪一天开始统计预算，只影响统计范围，不会删除历史记录。';
+  static const budgetPeriodSettingDesc = '选择每个月从哪一天开始统计预算，只影响统计范围，不会删除历史记录。';
   static const invalidAmount = '请输入有效的金额';
   static const categoryBudgetDeleted = '已删除该分类预算';
   static const categoryBudgetSaved = '分类预算已保存';
-  static const spendCategorySubtitlePeriod =
-      '实时进度，仅展示本期支出情况';
-  static const budgetCategoryRelationHint =
-      '分类预算是总预算的拆分，用于控制重点支出分类。';
+  static const spendCategorySubtitlePeriod = '实时进度，仅展示本期支出情况';
+  static const budgetCategoryRelationHint = '分类预算是总预算的拆分，用于控制重点支出分类。';
   static const budgetCategoryEmptyHint =
       '当前尚未设置分类预算。建议先为高频支出（如餐饮、购物）设置预算，可点击下方“增加分类预算”。';
   static const budgetCategorySummaryPrefix = '分类预算合计';
@@ -265,10 +261,9 @@ class AppStrings {
 
   static String bookYearBudgetTitle(int year) => '年度预算';
 
-  static String budgetRemainingLabel(double value, bool exceeded) =>
-      exceeded
-          ? '已超支 ¥${value.abs().toStringAsFixed(0)}'
-          : '剩余 ¥${value.toStringAsFixed(0)}';
+  static String budgetRemainingLabel(double value, bool exceeded) => exceeded
+      ? '已超支 ¥${value.abs().toStringAsFixed(0)}'
+      : '剩余 ¥${value.toStringAsFixed(0)}';
 
   static String budgetUsedLabel(double spent, double? budget) =>
       '已用 ¥${spent.toStringAsFixed(0)} / 预算 '
@@ -300,4 +295,3 @@ class AppStrings {
   static const unitYi = '亿';
   static const unitWan = '万';
 }
-

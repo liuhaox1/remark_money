@@ -8,10 +8,12 @@ class BudgetProgress extends StatelessWidget {
     super.key,
     required this.total,
     required this.used,
+    this.totalLabel,
   });
 
   final double total;
   final double used;
+  final String? totalLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +27,11 @@ class BudgetProgress extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _line(AppStrings.monthBudget, total, AppColors.primary(context)),
+            _line(
+              totalLabel ?? AppStrings.monthBudget,
+              total,
+              AppColors.primary(context),
+            ),
             _line(AppStrings.spent, used, AppColors.danger),
             _line(AppStrings.remain, remaining, AppColors.success),
           ],

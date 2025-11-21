@@ -30,6 +30,7 @@ class BudgetProvider extends ChangeNotifier {
     required double totalBudget,
     required Map<String, double> categoryBudgets,
     double? annualBudget,
+    Map<String, double>? annualCategoryBudgets,
     int? periodStartDay,
   }) async {
     final current = _budgetStore.entries[bookId];
@@ -38,6 +39,9 @@ class BudgetProvider extends ChangeNotifier {
       categoryBudgets: Map<String, double>.from(categoryBudgets),
       periodStartDay: periodStartDay ?? current?.periodStartDay ?? 1,
       annualTotal: annualBudget ?? current?.annualTotal ?? 0,
+      annualCategoryBudgets: Map<String, double>.from(
+        annualCategoryBudgets ?? current?.annualCategoryBudgets ?? const {},
+      ),
     );
     _budgetStore = _budgetStore.replaceEntry(bookId, entry);
     await _repository.saveBudget(_budgetStore);
@@ -75,6 +79,8 @@ class BudgetProvider extends ChangeNotifier {
       bookId: bookId,
       totalBudget: current.total,
       categoryBudgets: updated,
+      annualBudget: current.annualTotal,
+      annualCategoryBudgets: current.annualCategoryBudgets,
     );
   }
 
@@ -85,6 +91,36 @@ class BudgetProvider extends ChangeNotifier {
       bookId: bookId,
       totalBudget: current.total,
       categoryBudgets: updated,
+      annualBudget: current.annualTotal,
+      annualCategoryBudgets: current.annualCategoryBudgets,
+    );
+  }
+
+  Future<void> setAnnualCategoryBudget(
+    String bookId,
+    String key,
+    double value,
+  ) async {
+    final current = budgetForBook(bookId);
+    final updated = {...current.annualCategoryBudgets, key: value};
+    await updateBudgetForBook(
+      bookId: bookId,
+      totalBudget: current.total,
+      categoryBudgets: current.categoryBudgets,
+      annualBudget: current.annualTotal,
+      annualCategoryBudgets: updated,
+    );
+  }
+
+  Future<void> deleteAnnualCategoryBudget(String bookId, String key) async {
+    final current = budgetForBook(bookId);
+    final updated = {...current.annualCategoryBudgets}..remove(key);
+    await updateBudgetForBook(
+      bookId: bookId,
+      totalBudget: current.total,
+      categoryBudgets: current.categoryBudgets,
+      annualBudget: current.annualTotal,
+      annualCategoryBudgets: updated,
     );
   }
 
@@ -105,6 +141,8 @@ class BudgetProvider extends ChangeNotifier {
       total: 0,
       categoryBudgets: const {},
       periodStartDay: current.periodStartDay,
+      annualTotal: 0,
+      annualCategoryBudgets: const {},
     );
     _budgetStore = _budgetStore.replaceEntry(bookId, entry);
     await _repository.saveBudget(_budgetStore);

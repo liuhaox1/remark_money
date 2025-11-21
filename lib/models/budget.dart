@@ -72,16 +72,22 @@ class Budget {
 class BudgetEntry {
   final double total;
   final Map<String, double> categoryBudgets;
+
   /// ??????1-28????? 1 ???
   final int periodStartDay;
+
   /// ????????????
   final double annualTotal;
+
+  /// 年度分类预算（与月度分类预算分开存储）
+  final Map<String, double> annualCategoryBudgets;
 
   const BudgetEntry({
     required this.total,
     required this.categoryBudgets,
     this.periodStartDay = 1,
     this.annualTotal = 0,
+    this.annualCategoryBudgets = const {},
   });
 
   BudgetEntry copyWith({
@@ -89,12 +95,15 @@ class BudgetEntry {
     Map<String, double>? categoryBudgets,
     int? periodStartDay,
     double? annualTotal,
+    Map<String, double>? annualCategoryBudgets,
   }) {
     return BudgetEntry(
       total: total ?? this.total,
       categoryBudgets: categoryBudgets ?? this.categoryBudgets,
       periodStartDay: periodStartDay ?? this.periodStartDay,
       annualTotal: annualTotal ?? this.annualTotal,
+      annualCategoryBudgets:
+          annualCategoryBudgets ?? this.annualCategoryBudgets,
     );
   }
 
@@ -104,6 +113,7 @@ class BudgetEntry {
       'categoryBudgets': categoryBudgets,
       'periodStartDay': periodStartDay,
       'annualTotal': annualTotal,
+      'annualCategoryBudgets': annualCategoryBudgets,
     };
   }
 
@@ -115,6 +125,9 @@ class BudgetEntry {
       ),
       periodStartDay: (map['periodStartDay'] as int?) ?? 1,
       annualTotal: (map['annualTotal'] ?? 0).toDouble(),
+      annualCategoryBudgets: Map<String, double>.from(
+        (map['annualCategoryBudgets'] ?? {}),
+      ),
     );
   }
 }
