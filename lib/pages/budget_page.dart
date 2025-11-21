@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:math';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -60,6 +61,19 @@ class _BudgetPageState extends State<BudgetPage> {
     final total = parsed ?? 0;
 
     await provider.setTotal(bookId, total);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(AppStrings.budgetSaved)),
+    );
+  }
+
+  Future<void> _saveAnnualBudget(String bookId) async {
+    final provider = context.read<BudgetProvider>();
+    final parsed = _parseAmount(_totalCtrl.text);
+    final total = parsed ?? 0;
+
+    await provider.setAnnualTotal(bookId, total);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -370,6 +384,7 @@ class _BudgetPageState extends State<BudgetPage> {
       currentBudget: null,
     );
   }
+  
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -386,15 +401,220 @@ class _BudgetPageState extends State<BudgetPage> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final budgetEntry = budgetProvider.budgetForBook(bookId);
-    final period = budgetProvider.currentPeriodRange(bookId, now);
-    final bookBudget = budgetEntry;
-    final startMonth = period.start.month.toString().padLeft(2, '0');
-    final startDay = period.start.day.toString().padLeft(2, '0');
-    final endMonth = period.end.month.toString().padLeft(2, '0');
-    final endDay = period.end.day.toString().padLeft(2, '0');
-    final periodLabel = '周期: $startMonth.$startDay - $endMonth.$endDay';
-    final periodPillText = '每月 ${budgetEntry.periodStartDay} 日';
-    final totalExpense = recordProvider.periodExpense(
+
+    final monthData = _buildViewData(
+      view: _BudgetView.month,
+      bookId: bookId,
+      budgetEntry: budgetEntry,
+      recordProvider: recordProvider,
+      budgetProvider: budgetProvider,
+      today: today,
+    );
+    final yearData = _buildViewData(
+      view: _BudgetView.year,
+      bookId: bookId,
+      budgetEntry: budgetEntry,
+      recordProvider: recordProvider,
+      budgetProvider: budgetProvider,
+      today: today,
+    );
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor:
+            isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+        appBar: AppBar(
+          title: const Text(AppStrings.budget),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: AppStrings.tabMonth),
+              Tab(text: AppStrings.tabYear),
+            ],
+          ),
+          actions: [
+            PopupMenuButton<_BudgetMenuAction>(
+              onSelected: (value) async {
+                if (value == _BudgetMenuAction.reset) {
+                  await _onResetBudget(bookId);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: _BudgetMenuAction.reset,
+                  child: Text(AppStrings.resetBookBudget),
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: TabBarView(
+                children: [
+                  _buildTabContent(
+                    cs: cs,
+                    bookId: bookId,
+                    budgetEntry: budgetEntry,
+                    expenseCats: expenseCats,
+                    data: monthData,
+                    showPeriodPicker: true,
+                  ),
+                  _buildTabContent(
+                    cs: cs,
+                    bookId: bookId,
+                    budgetEntry: budgetEntry,
+                    expenseCats: expenseCats,
+                    data: yearData,
+                    showPeriodPicker: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabContent({
+    required ColorScheme cs,
+    required String bookId,
+    required BudgetEntry budgetEntry,
+    required List<Category> expenseCats,
+    required _BudgetViewData data,
+    required bool showPeriodPicker,
+  }) {
+    final displayExpenseCats = expenseCats.where((cat) {
+      final spentValue = data.expenseSpent[cat.key] ?? 0;
+      final catBudget = budgetEntry.categoryBudgets[cat.key] ?? 0;
+      return spentValue > 0 || catBudget > 0;
+    }).toList();
+
+    final categoryBudgetSum = budgetEntry.categoryBudgets.values
+        .where((v) => v > 0)
+        .fold(0.0, (a, b) => a + b);
+
+    return Column(
+      children: [
+        _BudgetSummaryCard(
+          title: data.title,
+          totalBudget: data.totalBudget,
+          used: data.used,
+          remaining: data.remaining,
+          periodLabel: data.periodLabel,
+          periodPillText: data.periodPillText,
+          onTapCycle: showPeriodPicker
+              ? () => _openPeriodSheet(bookId, budgetEntry.periodStartDay)
+              : null,
+          dailyAllowance: data.dailyAllowance,
+          weeklyAllowance: data.weeklyAllowance,
+          dailyAverage: data.dailyAverage,
+          weeklyAverage: data.weeklyAverage,
+          monthlyAverage: data.monthlyAverage,
+          dailyRemaining: data.dailyRemaining,
+          weeklyRemaining: data.weeklyRemaining,
+          monthlyRemaining: data.monthlyRemaining,
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTotalBudgetEditor(cs, bookId, isYear: !showPeriodPicker),
+                const SizedBox(height: 24),
+                const _SectionHeader(
+                  title: AppStrings.spendCategoryBudget,
+                  subtitle: AppStrings.spendCategorySubtitlePeriod,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  AppStrings.budgetCategoryRelationHint,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.65),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${AppStrings.budgetCategorySummaryPrefix} ￥${categoryBudgetSum.toStringAsFixed(0)}'
+                  '${budgetEntry.total > 0 ? ' · 占预算 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%' : ''}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: categoryBudgetSum > budgetEntry.total &&
+                            budgetEntry.total > 0
+                        ? AppColors.danger
+                        : cs.onSurface.withOpacity(0.75),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (displayExpenseCats.isEmpty)
+                  const _EmptyHint(
+                    text: AppStrings.budgetCategoryEmptyHint,
+                  )
+                else
+                  ...displayExpenseCats.map(
+                    (cat) => _CategoryBudgetTile(
+                      category: cat,
+                      spent: data.expenseSpent[cat.key] ?? 0,
+                      budget: budgetEntry.categoryBudgets[cat.key],
+                      onEdit: () => _editCategoryBudget(
+                        bookId: bookId,
+                        category: cat,
+                        currentBudget: budgetEntry.categoryBudgets[cat.key],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _addCategoryBudget(
+                      bookId: bookId,
+                      expenseCategories: expenseCats,
+                      budgetEntry: budgetEntry,
+                      expenseSpent: data.expenseSpent,
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text(
+                      AppStrings.addCategoryBudget,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  _BudgetViewData _buildViewData({
+    required _BudgetView view,
+    required String bookId,
+    required BudgetEntry budgetEntry,
+    required RecordProvider recordProvider,
+    required BudgetProvider budgetProvider,
+    required DateTime today,
+  }) {
+    final isYear = view == _BudgetView.year;
+    final period = isYear
+        ? DateTimeRange(
+            start: DateTime(today.year, 1, 1),
+            end: DateTime(today.year, 12, 31),
+          )
+        : budgetProvider.currentPeriodRange(bookId, today);
+
+    final totalBudget = isYear ? budgetEntry.annualTotal : budgetEntry.total;
+    final used = recordProvider.periodExpense(
       bookId: bookId,
       start: period.start,
       end: period.end,
@@ -404,153 +624,65 @@ class _BudgetPageState extends State<BudgetPage> {
       start: period.start,
       end: period.end,
     );
+    final remaining = totalBudget - used;
 
-    final remaining = (budgetEntry.total - totalExpense);
-    final periodDaysLeft = period.end.difference(today).inDays + 1;
-    final safeDaysLeft = periodDaysLeft < 0 ? 0 : periodDaysLeft;
-    final dailyAllowance =
-        safeDaysLeft > 0 ? (remaining / safeDaysLeft) : 0.0;
-    final weekEndCandidate = today.add(Duration(days: 7 - today.weekday));
+    final clampedToday = today.isBefore(period.start)
+        ? period.start
+        : (today.isAfter(period.end) ? period.end : today);
+
+    final daysElapsed =
+        max(1, clampedToday.difference(period.start).inDays + 1);
+    final daysLeft = max(0, period.end.difference(clampedToday).inDays + 1);
+    final weeksElapsed = max(1, ((daysElapsed - 1) ~/ 7) + 1);
+    final monthsElapsed = isYear ? max(1, min(12, clampedToday.month)) : 1;
+    final monthsLeft = isYear ? max(1, 12 - monthsElapsed) : 1;
+
+    final dailyAllowance = daysLeft > 0 ? remaining / daysLeft : 0.0;
+    final weekEndCandidate =
+        clampedToday.add(Duration(days: 7 - clampedToday.weekday));
     final weekEnd =
         weekEndCandidate.isAfter(period.end) ? period.end : weekEndCandidate;
-    final weekDaysLeft = weekEnd.difference(today).inDays + 1;
-    final safeWeekDays = weekDaysLeft < 0 ? 0 : weekDaysLeft;
+    final weekDaysLeft = max(0, weekEnd.difference(clampedToday).inDays + 1);
     final weeklyAllowance =
-        safeWeekDays > 0 ? dailyAllowance * safeWeekDays : 0.0;
+        weekDaysLeft > 0 ? dailyAllowance * weekDaysLeft : 0.0;
 
-    final displayExpenseCats = expenseCats.where((cat) {
-      final spentValue = expenseSpent[cat.key] ?? 0;
-      final catBudget = bookBudget.categoryBudgets[cat.key] ?? 0;
-      return spentValue > 0 || catBudget > 0;
-    }).toList();
-    final categoryBudgetSum = bookBudget.categoryBudgets.values
-        .where((v) => v > 0)
-        .fold(0.0, (a, b) => a + b);
+    final dailyAverage = used / max(1, daysElapsed);
+    final weeklyAverage = used / max(1, weeksElapsed);
+    final monthlyAverage = used / max(1, monthsElapsed);
+    final monthlyRemaining =
+        monthsLeft > 0 ? remaining / monthsLeft : remaining;
 
-    return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
-      appBar: AppBar(
-        title: const Text(AppStrings.budget),
-        actions: [
-          PopupMenuButton<_BudgetMenuAction>(
-            onSelected: (value) async {
-              if (value == _BudgetMenuAction.reset) {
-                await _onResetBudget(bookId);
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: _BudgetMenuAction.reset,
-                child: Text(AppStrings.resetBookBudget),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
-            child: Column(
-              children: [
-                _BudgetSummaryCard(
-                  month: period.start,
-                  totalBudget: budgetEntry.total,
-                  used: totalExpense,
-                  remaining: remaining,
-                  periodLabel: periodLabel,
-                  periodPillText: periodPillText,
-                  onTapCycle: () =>
-                      _openPeriodSheet(bookId, budgetEntry.periodStartDay),
-                  dailyAllowance: dailyAllowance,
-                  weeklyAllowance: weeklyAllowance,
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildTotalBudgetEditor(cs, bookId),
-                        const SizedBox(height: 24),
-                        const _SectionHeader(
-                          title: AppStrings.spendCategoryBudget,
-                          subtitle: AppStrings.spendCategorySubtitlePeriod,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          AppStrings.budgetCategoryRelationHint,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: cs.onSurface.withOpacity(0.65),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          '${AppStrings.budgetCategorySummaryPrefix} ¥${categoryBudgetSum.toStringAsFixed(0)}'
-                          '${budgetEntry.total > 0 ? ' · 占总预算 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%' : ''}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: categoryBudgetSum > budgetEntry.total &&
-                                    budgetEntry.total > 0
-                                ? AppColors.danger
-                                : cs.onSurface.withOpacity(0.75),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (displayExpenseCats.isEmpty)
-                          const _EmptyHint(
-                            text: AppStrings.budgetCategoryEmptyHint,
-                          )
-                        else
-                          ...displayExpenseCats.map(
-                            (cat) => _CategoryBudgetTile(
-                              category: cat,
-                              spent: expenseSpent[cat.key] ?? 0,
-                              budget: bookBudget.categoryBudgets[cat.key],
-                              onEdit: () => _editCategoryBudget(
-                                bookId: bookId,
-                                category: cat,
-                                currentBudget:
-                                    bookBudget.categoryBudgets[cat.key],
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 32),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: () => _addCategoryBudget(
-                              bookId: bookId,
-                              expenseCategories: expenseCats,
-                              budgetEntry: bookBudget,
-                              expenseSpent: expenseSpent,
-                            ),
-                            icon: const Icon(Icons.add),
-                            label: const Text(
-                              AppStrings.addCategoryBudget,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    final periodLabel = '周期: ${_formatDate(period.start)} - ${_formatDate(period.end)}';
+    final periodPillText =
+        isYear ? AppStrings.fullYear : '每月 ${budgetEntry.periodStartDay} 日';
+    final title = isYear
+        ? AppStrings.bookYearBudgetTitle(period.start.year)
+        : AppStrings.bookMonthBudgetTitle(period.start);
+
+    return _BudgetViewData(
+      view: view,
+      period: period,
+      title: title,
+      periodLabel: periodLabel,
+      periodPillText: periodPillText,
+      totalBudget: totalBudget,
+      used: used,
+      remaining: remaining,
+      dailyAllowance: dailyAllowance,
+      weeklyAllowance: weeklyAllowance,
+      dailyAverage: dailyAverage,
+      weeklyAverage: weeklyAverage,
+      monthlyAverage: monthlyAverage,
+      dailyRemaining: dailyAllowance,
+      weeklyRemaining: weeklyAllowance,
+      monthlyRemaining: monthlyRemaining,
+      expenseSpent: expenseSpent,
     );
   }
 
-  Widget _buildTotalBudgetEditor(ColorScheme cs, String bookId) {
+  String _formatDate(DateTime d) =>
+      '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+  Widget _buildTotalBudgetEditor(ColorScheme cs, String bookId, {bool isYear = false}) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       decoration: BoxDecoration(
@@ -573,7 +705,7 @@ class _BudgetPageState extends State<BudgetPage> {
               Icon(Icons.account_balance_wallet_outlined, color: cs.primary),
               const SizedBox(width: 8),
               Text(
-                AppStrings.monthTotalBudget,
+                isYear ? AppStrings.yearBudget : AppStrings.monthTotalBudget,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -589,7 +721,7 @@ class _BudgetPageState extends State<BudgetPage> {
             inputFormatters: [_digitsAndDotFormatter],
             decoration: InputDecoration(
               prefixText: '¥ ',
-              hintText: AppStrings.monthBudgetHint,
+              hintText: isYear ? AppStrings.yearBudget : AppStrings.monthBudgetHint,
               filled: true,
               fillColor: cs.surfaceVariant.withOpacity(0.25),
               border: OutlineInputBorder(
@@ -609,7 +741,7 @@ class _BudgetPageState extends State<BudgetPage> {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              onPressed: () => _saveTotalBudget(bookId),
+              onPressed: () => isYear ? _saveAnnualBudget(bookId) : _saveTotalBudget(bookId),
               icon: const Icon(Icons.save_outlined),
               label: const Text(AppStrings.save),
             ),
@@ -619,28 +751,83 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 }
+
+class _BudgetViewData {
+  const _BudgetViewData({
+    required this.view,
+    required this.period,
+    required this.title,
+    required this.periodLabel,
+    required this.periodPillText,
+    required this.totalBudget,
+    required this.used,
+    required this.remaining,
+    required this.dailyAllowance,
+    required this.weeklyAllowance,
+    required this.dailyAverage,
+    required this.weeklyAverage,
+    required this.monthlyAverage,
+    required this.dailyRemaining,
+    required this.weeklyRemaining,
+    required this.monthlyRemaining,
+    required this.expenseSpent,
+  });
+
+  final _BudgetView view;
+  final DateTimeRange period;
+  final String title;
+  final String periodLabel;
+  final String periodPillText;
+  final double totalBudget;
+  final double used;
+  final double remaining;
+  final double dailyAllowance;
+  final double weeklyAllowance;
+  final double dailyAverage;
+  final double weeklyAverage;
+  final double monthlyAverage;
+  final double dailyRemaining;
+  final double weeklyRemaining;
+  final double monthlyRemaining;
+  final Map<String, double> expenseSpent;
+}
+
+enum _BudgetView { month, year }
+
 class _BudgetSummaryCard extends StatelessWidget {
   const _BudgetSummaryCard({
-    required this.month,
+    required this.title,
     required this.totalBudget,
     required this.used,
     required this.remaining,
     required this.periodLabel,
     required this.periodPillText,
-    required this.onTapCycle,
+    this.onTapCycle,
     required this.dailyAllowance,
     required this.weeklyAllowance,
+    required this.dailyAverage,
+    required this.weeklyAverage,
+    required this.monthlyAverage,
+    required this.dailyRemaining,
+    required this.weeklyRemaining,
+    required this.monthlyRemaining,
   });
 
-  final DateTime month;
+  final String title;
   final double totalBudget;
   final double used;
   final double remaining;
   final String periodLabel;
   final String periodPillText;
-  final VoidCallback onTapCycle;
+  final VoidCallback? onTapCycle;
   final double dailyAllowance;
   final double weeklyAllowance;
+  final double dailyAverage;
+  final double weeklyAverage;
+  final double monthlyAverage;
+  final double dailyRemaining;
+  final double weeklyRemaining;
+  final double monthlyRemaining;
 
   @override
   Widget build(BuildContext context) {
@@ -693,7 +880,7 @@ class _BudgetSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      AppStrings.bookMonthBudgetTitle(month),
+                      title,
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -759,8 +946,8 @@ class _BudgetSummaryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _AllowanceStat(
-                    label: '日均可用',
-                    value: '¥${dailyAllowance.toStringAsFixed(0)}',
+                    label: 'æ¯æ¥å¯ç¨',
+                    value: '?${dailyAllowance.toStringAsFixed(0)}',
                     background: cs.surfaceVariant.withOpacity(0.25),
                     icon: Icons.calendar_today_outlined,
                   ),
@@ -768,11 +955,42 @@ class _BudgetSummaryCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _AllowanceStat(
-                    label: '本周可用',
-                    value: '¥${weeklyAllowance.toStringAsFixed(0)}',
+                    label: 'æ¬å¨å¯ç¨',
+                    value: '?${weeklyAllowance.toStringAsFixed(0)}',
                     background: cs.primary.withOpacity(0.12),
                     icon: Icons.view_week_outlined,
                     iconColor: cs.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _AvgStatTile(
+                    title: AppStrings.avgDailySpend,
+                    value: '?${dailyAverage.toStringAsFixed(0)}',
+                    sub:
+                        '${AppStrings.remainingToday}: ?${dailyRemaining.toStringAsFixed(0)}',
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _AvgStatTile(
+                    title: AppStrings.avgWeeklySpend,
+                    value: '?${weeklyAverage.toStringAsFixed(0)}',
+                    sub:
+                        '${AppStrings.remainingWeek}: ?${weeklyRemaining.toStringAsFixed(0)}',
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _AvgStatTile(
+                    title: AppStrings.avgMonthlySpend,
+                    value: '?${monthlyAverage.toStringAsFixed(0)}',
+                    sub:
+                        '${AppStrings.remainingMonth}: ?${monthlyRemaining.toStringAsFixed(0)}',
                   ),
                 ),
               ],
@@ -841,6 +1059,61 @@ class _AllowanceStat extends StatelessWidget {
     );
   }
 }
+
+class _AvgStatTile extends StatelessWidget {
+  const _AvgStatTile({
+    required this.title,
+    required this.value,
+    required this.sub,
+  });
+
+  final String title;
+  final String value;
+  final String sub;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 11,
+              color: cs.onSurface.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            sub,
+            style: TextStyle(
+              fontSize: 11,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,

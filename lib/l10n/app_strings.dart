@@ -114,6 +114,13 @@ class AppStrings {
   static const homeBudgetRemaining = '剩余预算';
   static const homeBudgetTodayAvailable = '今日可用';
   static const homeBudgetDaysLeft = '剩余天数';
+  static const avgDailySpend = '日均消费';
+  static const avgWeeklySpend = '周均消费';
+  static const avgMonthlySpend = '月均消费';
+  static const remainingToday = '当日剩余';
+  static const remainingWeek = '本周剩余';
+  static const remainingMonth = '本月剩余';
+  static const fullYear = '全年';
   static const addCategoryBudget = '增加分类预算';
   static const setBudget = '设置预算';
   static const deleteBudget = '删除预算';
@@ -231,43 +238,44 @@ class AppStrings {
   static const monthSummary = summaryMonth;
   static const annualSummary = summaryYear;
 
-  // Misc formatting helpers
-  static String currentBookLabel(String name) => '当前：';
+      // Misc formatting helpers
+  static String currentBookLabel(String name) => '当前账本：$name';
   static String monthExpenseWithCount(double amount, int count) =>
-      '本月支出  ·  笔';
-  static String yearLabel(int year) => ' 年';
-  static String monthLabel(int month) => ' 月';
-  static String monthDayLabel(int month, int day) => ' 月 日';
+      '本月支出 ￥${amount.toStringAsFixed(0)} · 共$count笔';
+  static String yearLabel(int year) => '$year年';
+  static String monthLabel(int month) => '$month月';
+  static String monthDayLabel(int month, int day) => '$month月$day日';
   static String yearMonthLabel(int year, int month) =>
-      ' 年  月';
+      '$year年${month.toString().padLeft(2, '0')}月';
   static String yearExpenseTotal(int year, double total) =>
-      ' 年支出合计：';
+      '$year年支出合计：￥${total.toStringAsFixed(0)}';
   static String monthExpenseTotal(int year, int month, double total) =>
-      ' 年  月支出合计：';
+      '$year年${month.toString().padLeft(2, '0')}月支出合计：￥${total.toStringAsFixed(0)}';
   static String bookMonthBudgetTitle(DateTime month) =>
-      ' 年  月预算';
+      '${month.year}年${month.month}月预算';
+  static String bookYearBudgetTitle(int year) => '$year年预算';
   static String budgetRemainingLabel(double value, bool exceeded) =>
       exceeded
-          ? '已超出 ¥'
-          : '剩余 ¥';
+          ? '已超支 ￥${value.abs().toStringAsFixed(0)}'
+          : '剩余 ￥${value.toStringAsFixed(0)}';
   static String budgetUsedLabel(double spent, double? budget) =>
-      '已用 ¥ / 预算 ¥';
-  static String categoryMonthlyDetail(String name) => ' · 本月明细';
+      '已用 ￥${spent.toStringAsFixed(0)} / 预算 ${budget != null ? '\uffe5${budget.toStringAsFixed(0)}' : '\u2014'}';
+  static String categoryMonthlyDetail(String name) => '$name 月度明细';
   static String monthDayWithCount(
     int month,
     int day,
     String weekday,
     int count,
   ) =>
-      ' 月 日  ·  笔';
-  static String hoursInDays(int days) => ' 天';
+      '$month月$day日 · $weekday · $count笔';
+  static String hoursInDays(int days) => '$days天';
   static String selectMonthLabel(DateTime date) =>
-      ' 年  月';
+      '${date.year}年${date.month}月';
   static String monthRangeTitle(int index, int startDay, int endDay) =>
-      '第  周（-）';
+      '第${index + 1}周期：$startDay-$endDay';
   static String monthDayWithWeek(int month, int day, String week) =>
-      ' 月 日 ';
-  static String billTitleWithMonth(int month) => ' 月';
-  static const unitYi = '亿';
+      '$month月$day日 $week';
+  static String billTitleWithMonth(int month) => '$month月';
+static const unitYi = '亿';
   static const unitWan = '万';
 }

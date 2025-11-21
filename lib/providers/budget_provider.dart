@@ -29,6 +29,7 @@ class BudgetProvider extends ChangeNotifier {
     required String bookId,
     required double totalBudget,
     required Map<String, double> categoryBudgets,
+    double? annualBudget,
     int? periodStartDay,
   }) async {
     final current = _budgetStore.entries[bookId];
@@ -36,6 +37,7 @@ class BudgetProvider extends ChangeNotifier {
       total: totalBudget,
       categoryBudgets: Map<String, double>.from(categoryBudgets),
       periodStartDay: periodStartDay ?? current?.periodStartDay ?? 1,
+      annualTotal: annualBudget ?? current?.annualTotal ?? 0,
     );
     _budgetStore = _budgetStore.replaceEntry(bookId, entry);
     await _repository.saveBudget(_budgetStore);
@@ -48,6 +50,17 @@ class BudgetProvider extends ChangeNotifier {
       bookId: bookId,
       totalBudget: value,
       categoryBudgets: current.categoryBudgets,
+      annualBudget: current.annualTotal,
+    );
+  }
+
+  Future<void> setAnnualTotal(String bookId, double value) async {
+    final current = budgetForBook(bookId);
+    await updateBudgetForBook(
+      bookId: bookId,
+      totalBudget: current.total,
+      categoryBudgets: current.categoryBudgets,
+      annualBudget: value,
     );
   }
 
