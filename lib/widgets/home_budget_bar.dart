@@ -22,12 +22,19 @@ class HomeBudgetBar extends StatelessWidget {
     final now = DateTime.now();
 
     final bookId = bookProvider.activeBookId;
-    final total = budgetProvider.budgetForBook(bookId).total;
-    final expense = recordProvider.monthExpense(now, bookId);
+    final budgetEntry = budgetProvider.budgetForBook(bookId);
+    final period = budgetProvider.currentPeriodRange(bookId, now);
+    final total = budgetEntry.total;
+    final expense = recordProvider.periodExpense(
+      bookId: bookId,
+      start: period.start,
+      end: period.end,
+    );
     final remaining = total - expense;
     final today = DateTime(now.year, now.month, now.day);
-    final daysLeft =
-        DateUtilsX.lastDayOfMonth(now).difference(today).inDays + 1;
+    final remainingDaysRaw =
+        period.end.difference(today).inDays + 1; // 含今天
+    final daysLeft = remainingDaysRaw.clamp(0, 31);
     final dailyAllowance = daysLeft > 0 ? (remaining / daysLeft) : 0;
 
     return Padding(

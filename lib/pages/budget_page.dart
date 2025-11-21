@@ -344,7 +344,7 @@ class _BudgetPageState extends State<BudgetPage> {
                       ),
                       title: Text(cat.name),
                       subtitle: Text(
-                        '${AppStrings.expenseThisMonthPrefix}¥${spent.toStringAsFixed(0)}',
+                        '${AppStrings.expenseThisPeriodPrefix}¥${spent.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -390,6 +390,12 @@ class _BudgetPageState extends State<BudgetPage> {
     final budgetEntry = budgetProvider.budgetForBook(bookId);
     final period = budgetProvider.currentPeriodRange(bookId, now);
     final bookBudget = budgetEntry;
+    final startMonth = period.start.month.toString().padLeft(2, '0');
+    final startDay = period.start.day.toString().padLeft(2, '0');
+    final endMonth = period.end.month.toString().padLeft(2, '0');
+    final endDay = period.end.day.toString().padLeft(2, '0');
+    final periodLabel = '周期: $startMonth.$startDay - $endMonth.$endDay';
+    final periodPillText = '每月 ${budgetEntry.periodStartDay} 日';
     // 实际支出统计（只作为进度展示，不做明细）
     final totalExpense = recordProvider.periodExpense(
       bookId: bookId,
@@ -410,6 +416,9 @@ class _BudgetPageState extends State<BudgetPage> {
       final catBudget = bookBudget.categoryBudgets[cat.key] ?? 0;
       return spentValue > 0 || catBudget > 0;
     }).toList();
+    final categoryBudgetSum = bookBudget.categoryBudgets.values
+        .where((v) => v > 0)
+        .fold(0.0, (a, b) => a + b);
 
     return Scaffold(
       backgroundColor:
@@ -443,6 +452,10 @@ class _BudgetPageState extends State<BudgetPage> {
                   totalBudget: budgetEntry.total,
                   used: totalExpense,
                   remaining: remaining,
+                  periodLabel: periodLabel,
+                  periodPillText: periodPillText,
+                  onTapCycle: () =>
+                      _openPeriodSheet(bookId, budgetEntry.periodStartDay),
                 ),
                 Expanded(
                   child: SingleChildScrollView(
@@ -455,12 +468,33 @@ class _BudgetPageState extends State<BudgetPage> {
                         // TODO: 饼图区域在后续步骤补全
                         const _SectionHeader(
                           title: AppStrings.spendCategoryBudget,
-                          subtitle: AppStrings.spendCategorySubtitle,
+                          subtitle: AppStrings.spendCategorySubtitlePeriod,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          AppStrings.budgetCategoryRelationHint,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurface.withOpacity(0.65),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '${AppStrings.budgetCategorySummaryPrefix} ¥${categoryBudgetSum.toStringAsFixed(0)}'
+                          '${budgetEntry.total > 0 ? " · 占总预算 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%" : ''}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: categoryBudgetSum > budgetEntry.total &&
+                                    budgetEntry.total > 0
+                                ? AppColors.danger
+                                : cs.onSurface.withOpacity(0.75),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         if (displayExpenseCats.isEmpty)
                           const _EmptyHint(
-                            text: AppStrings.emptySpendCategory,
+                            text: AppStrings.budgetCategoryEmptyHint,
                           )
                         else
                           ...displayExpenseCats.map(
@@ -584,12 +618,18 @@ class _BudgetSummaryCard extends StatelessWidget {
     required this.totalBudget,
     required this.used,
     required this.remaining,
+    required this.periodLabel,
+    required this.periodPillText,
+    required this.onTapCycle,
   });
 
   final DateTime month;
   final double totalBudget;
   final double used;
   final double remaining;
+  final String periodLabel;
+  final String periodPillText;
+  final VoidCallback onTapCycle;
 
   @override
   Widget build(BuildContext context) {
@@ -666,6 +706,45 @@ class _BudgetSummaryCard extends StatelessWidget {
                 const BookSelectorButton(),
               ],
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    periodLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface.withOpacity(0.75),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: onTapCycle,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: cs.primary.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Text(
+                      periodPillText,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: cs.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             BudgetProgress(total: totalBudget, used: used),
             const SizedBox(height: 8),
@@ -677,7 +756,7 @@ class _BudgetSummaryCard extends StatelessWidget {
                         ? AppStrings.budgetTip
                         : remaining <= 0
                             ? AppStrings.budgetOverspendTodayTip
-                            : '${AppStrings.budgetTodaySuggestionPrefix}${daily.toStringAsFixed(0)}',
+                            : '按当前预算与剩余天数，日均可花 ¥${daily.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 12,
                       color: cs.onSurface.withOpacity(0.6),
@@ -800,7 +879,7 @@ class _CategoryBudgetTile extends StatelessWidget {
                   Text(
                     hasBudget
                         ? AppStrings.budgetUsedLabel(spent, budget)
-                        : '${AppStrings.expenseThisMonthPrefix}¥${spent.toStringAsFixed(0)}',
+                        : '${AppStrings.expenseThisPeriodPrefix}¥${spent.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 12,
                       color: cs.onSurface.withOpacity(0.7),
