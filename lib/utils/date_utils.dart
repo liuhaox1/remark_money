@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class DateUtilsX {
   /// 判断是否同一天
   static bool isSameDay(DateTime a, DateTime b) {
@@ -38,10 +40,10 @@ class DateUtilsX {
     return List.generate(last.day, (i) => DateTime(d.year, d.month, i + 1));
   }
 
-  /// 获取当前周的第一天（以周日为第一天）
+  /// 获取当前周的第一天（以周一为一周的开始）
   static DateTime startOfWeek(DateTime d) {
-    final weekday = d.weekday % 7; // 周日=0
-    return d.subtract(Duration(days: weekday));
+    final weekday = d.weekday; // 周一=1
+    return d.subtract(Duration(days: weekday - 1));
   }
 
   /// 获取一整周 7 天
@@ -49,6 +51,15 @@ class DateUtilsX {
     final start = startOfWeek(d);
     return List.generate(7, (i) => start.add(Duration(days: i)));
   }
+
+  /// 返回同一周的起止日期（周一-周日）
+  static DateTimeRange weekRange(DateTime day) {
+    final start = startOfWeek(day);
+    final end = start.add(const Duration(days: 6));
+    return DateTimeRange(start: start, end: end);
+  }
+
+  static String weekLabel(int weekIndex) => '第$weekIndex周';
 
   /// 格式化月名称（03 → 3 月）
   static String monthLabel(DateTime d) {

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Centralized app strings for localization and reuse.
 class AppStrings {
   // App / common
@@ -334,6 +336,22 @@ class AppStrings {
       '$month月$day日 $week';
 
   static String billTitleWithMonth(int month) => '$month 月账单';
+
+  // Added for weekly / empty states
+  static const weeklyBill = '周账单';
+  static const weekReport = '周账单';
+  static const pickWeek = '选择周次';
+  static const previousPeriodNoData = '暂无对比数据';
+  static const emptyYearRecords = '本年还没有记账记录，先去首页记一笔吧';
+  static const emptyPeriodRecords = '这个周期还没有记账记录';
+  static const goRecord = '去记一笔';
+  static const currentMonthEmpty = '本月尚未记账';
+  static const weekLabelShort = '周';
+  static String weekRangeLabel(DateTimeRange range) =>
+      '${_ymd(range.start)} - ${_ymd(range.end)}';
+
+  static String _ymd(DateTime date) =>
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
   static const unitYi = '亿';
   static const unitWan = '万';

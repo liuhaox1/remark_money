@@ -8,8 +8,10 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../utils/date_utils.dart';
+import '../models/period_type.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/home_budget_bar.dart';
+import '../widgets/period_selector.dart';
 import '../widgets/timeline_item.dart';
 import '../widgets/week_strip.dart';
 import '../widgets/quick_add_sheet.dart';
@@ -975,38 +977,11 @@ class _BalanceCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                GestureDetector(
+                PeriodSelector(
+                  label: dateLabel,
+                  periodType: PeriodType.month,
                   onTap: onTapDate,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(isDark ? 0.04 : 0.7),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: cs.primary.withOpacity(0.18),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.schedule, size: 14),
-                        const SizedBox(width: 6),
-                        Text(
-                          dateLabel,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.expand_more, size: 14),
-                      ],
-                    ),
-                  ),
+                  compact: true,
                 ),
                 const BookSelectorButton(),
                 // 修复按钮抖动问题：使用 InkWell 替代 IconButton

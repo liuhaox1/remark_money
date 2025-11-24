@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/book.dart';
 import '../models/category.dart';
+import '../models/period_type.dart';
+import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
@@ -14,6 +16,7 @@ import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../widgets/chart_bar.dart';
 import '../widgets/chart_pie.dart';
+import '../widgets/book_selector_button.dart';
 import 'bill_page.dart';
 
 class ReportDetailPage extends StatefulWidget {
@@ -22,13 +25,15 @@ class ReportDetailPage extends StatefulWidget {
     required this.bookId,
     required this.year,
     this.month,
-    required this.isYearMode,
+    this.weekRange,
+    required this.periodType,
   });
 
   final String bookId;
   final int year;
   final int? month;
-  final bool isYearMode;
+  final DateTimeRange? weekRange;
+  final PeriodType periodType;
 
   @override
   State<ReportDetailPage> createState() => _ReportDetailPageState();
@@ -37,7 +42,9 @@ class ReportDetailPage extends StatefulWidget {
 class _ReportDetailPageState extends State<ReportDetailPage> {
   bool _showBarChart = true;
 
-  bool get _isMonthMode => !widget.isYearMode;
+  bool get _isYearMode => widget.periodType == PeriodType.year;
+  bool get _isMonthMode => widget.periodType == PeriodType.month;
+  bool get _isWeekMode => widget.periodType == PeriodType.week;
 
   @override
   Widget build(BuildContext context) {
@@ -47,9 +54,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final recordProvider = context.watch<RecordProvider>();
     final categoryProvider = context.watch<CategoryProvider>();
     final bookProvider = context.watch<BookProvider>();
+    final bookId = bookProvider.activeBookId;
     Book? targetBook;
     for (final book in bookProvider.books) {
-      if (book.id == widget.bookId) {
+      if (book.id == bookId) {
         targetBook = book;
         break;
       }
@@ -57,35 +65,46 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     targetBook ??= bookProvider.activeBook;
     final bookName = targetBook?.name ?? AppStrings.defaultBook;
 
-    final income = _periodIncome(recordProvider);
-    final expense = _periodExpense(recordProvider);
+    final records = _periodRecords(recordProvider, bookId);
+    final hasData = records.isNotEmpty;
+    final income = _periodIncome(recordProvider, bookId, records);
+    final expense = _periodExpense(recordProvider, bookId, records);
     final balance = income - expense;
-    final prevBalance = _previousBalance(recordProvider);
-    final balanceDiff = balance - prevBalance;
+    final comparison = _previousBalance(recordProvider, bookId);
+    final balanceDiff =
+        comparison.hasData ? balance - comparison.balance : null;
+    final range = _periodRange();
 
     final expenseEntries = _buildExpenseEntries(
-      recordProvider,
+      records,
       categoryProvider,
       cs,
     );
     final ranking = List<ChartEntry>.from(expenseEntries)
       ..sort((a, b) => b.value.compareTo(a.value));
     final dailyEntries =
-        _isMonthMode ? _buildDailyEntries(recordProvider, cs) : <ChartEntry>[];
-    final monthCompareEntries = _buildRecentMonthEntries(recordProvider, cs);
+        (_isMonthMode || _isWeekMode)
+            ? _buildDailyEntries(recordProvider, bookId, cs)
+            : <ChartEntry>[];
+    final compareEntries =
+        _buildRecentPeriodEntries(recordProvider, bookId, cs);
 
-    final activity = _periodActivity(recordProvider);
+    final activity = _periodActivity(recordProvider, bookId);
+    final totalExpenseValue =
+        expenseEntries.fold<double>(0, (sum, e) => sum + e.value);
+    final compareTitle =
+        _isWeekMode ? '\u8fd1 6 \u5468\u5bf9\u6bd4' : AppStrings.recentMonthCompare;
+    const emptyText = AppStrings.emptyPeriodRecords;
 
     return Scaffold(
       backgroundColor:
           isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
-        title: Text(
-          AppStrings.periodBillTitle(
-            widget.year,
-            month: widget.month,
-          ),
-        ),
+        title: Text(_periodLabel(range)),
+        actions: const [
+          BookSelectorButton(compact: true),
+          SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: Center(
@@ -98,13 +117,18 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   _PeriodHeaderCard(
                     cs: cs,
                     isDark: isDark,
+                    title: _periodLabel(range),
                     bookName: bookName,
-                    year: widget.year,
-                    month: widget.month,
+                    range: range,
+                    periodType: widget.periodType,
                     income: income,
                     expense: expense,
                     balance: balance,
                     balanceDiff: balanceDiff,
+                    hasComparison: comparison.hasData,
+                    hasData: hasData,
+                    onViewDetail: () =>
+                        _openBillDetail(context, range, bookName),
                   ),
                   const SizedBox(height: 12),
                   _SectionCard(
@@ -132,9 +156,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             child: Center(
                               child: Text(
-                                _isMonthMode
-                                    ? AppStrings.noMonthData
-                                    : AppStrings.noYearData,
+                                emptyText,
                                 style: TextStyle(color: cs.outline),
                               ),
                             ),
@@ -175,7 +197,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                         ),
                                       ),
                                       Text(
-                                        entry.value.toStringAsFixed(2),
+                                        '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
                                         style: const TextStyle(
                                           fontFeatures: [
                                             FontFeature.tabularFigures()
@@ -196,9 +218,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             child: Center(
                               child: Text(
-                                _isMonthMode
-                                    ? AppStrings.noMonthData
-                                    : AppStrings.noYearData,
+                                emptyText,
                                 style: TextStyle(color: cs.outline),
                               ),
                             ),
@@ -210,7 +230,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                   contentPadding: EdgeInsets.zero,
                                   title: Text(entry.label),
                                   trailing: Text(
-                                    entry.value.toStringAsFixed(2),
+                                    '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontFeatures: [
@@ -238,13 +258,13 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                       ),
                     ),
                   ],
-                  if (monthCompareEntries.isNotEmpty) ...[
+                  if (compareEntries.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _SectionCard(
-                      title: AppStrings.recentMonthCompare,
+                      title: compareTitle,
                       child: SizedBox(
                         height: 260,
-                        child: ChartBar(entries: monthCompareEntries),
+                        child: ChartBar(entries: compareEntries),
                       ),
                     ),
                   ],
@@ -274,19 +294,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => BillPage(
-                              initialYear: widget.year,
-                              initialMonth: widget.month != null
-                                  ? DateTime(widget.year, widget.month!, 1)
-                                  : null,
-                              initialShowYearMode: widget.isYearMode,
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: () => _openBillDetail(context, range, bookName),
                       icon: const Icon(Icons.receipt_long),
                       label: const Text(AppStrings.viewPeriodDetail),
                     ),
@@ -300,82 +308,159 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
-  double _periodIncome(RecordProvider recordProvider) {
-    if (widget.isYearMode) {
+  String _periodLabel(DateTimeRange range) {
+    if (_isWeekMode) {
+      return '${DateUtilsX.weekLabel(_weekIndex(range.start))} · ${AppStrings.weekRangeLabel(range)}';
+    }
+    return AppStrings.periodBillTitle(
+      widget.year,
+      month: widget.month,
+    );
+  }
+
+  int _weekIndex(DateTime start) {
+    final first = DateUtilsX.startOfWeek(DateTime(widget.year, 1, 1));
+    final diff = start.difference(first).inDays;
+    return (diff ~/ 7) + 1;
+  }
+
+  void _openBillDetail(
+    BuildContext context,
+    DateTimeRange range,
+    String bookName,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BillPage(
+          initialYear: widget.year,
+          initialMonth: _isMonthMode
+              ? DateTime(range.start.year, range.start.month, 1)
+              : null,
+          initialShowYearMode: _isYearMode,
+          initialRange: _isWeekMode ? range : null,
+          initialPeriodType: widget.periodType,
+        ),
+      ),
+    );
+  }
+
+  List<Record> _periodRecords(
+    RecordProvider recordProvider,
+    String bookId,
+  ) {
+    final range = _periodRange();
+    return recordProvider.recordsForPeriod(
+      bookId,
+      start: range.start,
+      end: range.end,
+    );
+  }
+
+  double _periodIncome(
+    RecordProvider recordProvider,
+    String bookId,
+    List<Record> records,
+  ) {
+    if (_isYearMode) {
       double total = 0;
       for (var m = 1; m <= 12; m++) {
         total += recordProvider.monthIncome(
           DateTime(widget.year, m, 1),
-          widget.bookId,
+          bookId,
         );
       }
       return total;
     }
-    final date = DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
-    return recordProvider.monthIncome(date, widget.bookId);
+    return records
+        .where((r) => r.isIncome)
+        .fold<double>(0, (sum, r) => sum + r.incomeValue);
   }
 
-  double _periodExpense(RecordProvider recordProvider) {
-    if (widget.isYearMode) {
+  double _periodExpense(
+    RecordProvider recordProvider,
+    String bookId,
+    List<Record> records,
+  ) {
+    if (_isYearMode) {
       double total = 0;
       for (var m = 1; m <= 12; m++) {
         total += recordProvider.monthExpense(
           DateTime(widget.year, m, 1),
-          widget.bookId,
+          bookId,
         );
       }
       return total;
     }
-    final date = DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
-    return recordProvider.monthExpense(date, widget.bookId);
+    return records
+        .where((r) => r.isExpense)
+        .fold<double>(0, (sum, r) => sum + r.expenseValue);
   }
 
-  double _previousBalance(RecordProvider recordProvider) {
-    if (widget.isYearMode) {
-      final prevYearIncome = _sumYear(
-        recordProvider,
-        widget.year - 1,
-        recordProvider.monthIncome,
+  _PeriodComparison _previousBalance(
+    RecordProvider recordProvider,
+    String bookId,
+  ) {
+    if (_isYearMode) {
+      final prevRange = DateTimeRange(
+        start: DateTime(widget.year - 1, 1, 1),
+        end: DateTime(widget.year - 1, 12, 31),
       );
-      final prevYearExpense = _sumYear(
-        recordProvider,
-        widget.year - 1,
-        recordProvider.monthExpense,
+      final records = recordProvider.recordsForPeriod(
+        bookId,
+        start: prevRange.start,
+        end: prevRange.end,
       );
-      return prevYearIncome - prevYearExpense;
+      final income = records
+          .where((r) => r.isIncome)
+          .fold<double>(0, (sum, r) => sum + r.incomeValue);
+      final expense = records
+          .where((r) => r.isExpense)
+          .fold<double>(0, (sum, r) => sum + r.expenseValue);
+      return _PeriodComparison(
+        balance: income - expense,
+        hasData: records.isNotEmpty,
+      );
     }
+    if (_isWeekMode) {
+      final start = DateUtilsX.startOfWeek(_periodRange().start)
+          .subtract(const Duration(days: 7));
+      final prevRange = DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
+      final records = recordProvider.recordsForPeriod(
+        bookId,
+        start: prevRange.start,
+        end: prevRange.end,
+      );
+      final income = records
+          .where((r) => r.isIncome)
+          .fold<double>(0, (sum, r) => sum + r.incomeValue);
+      final expense = records
+          .where((r) => r.isExpense)
+          .fold<double>(0, (sum, r) => sum + r.expenseValue);
+      return _PeriodComparison(
+        balance: income - expense,
+        hasData: records.isNotEmpty,
+      );
+    }
+
     final currentMonth =
         DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
     final prevMonth = DateTime(currentMonth.year, currentMonth.month - 1, 1);
-    final income = recordProvider.monthIncome(prevMonth, widget.bookId);
-    final expense = recordProvider.monthExpense(prevMonth, widget.bookId);
-    return income - expense;
-  }
-
-  double _sumYear(
-    RecordProvider recordProvider,
-    int year,
-    double Function(DateTime, String) getter,
-  ) {
-    double total = 0;
-    for (var m = 1; m <= 12; m++) {
-      total += getter(DateTime(year, m, 1), widget.bookId);
-    }
-    return total;
+    final income = recordProvider.monthIncome(prevMonth, bookId);
+    final expense = recordProvider.monthExpense(prevMonth, bookId);
+    final hasData = recordProvider
+        .recordsForMonth(bookId, prevMonth.year, prevMonth.month)
+        .isNotEmpty;
+    return _PeriodComparison(
+      balance: income - expense,
+      hasData: hasData,
+    );
   }
 
   List<ChartEntry> _buildExpenseEntries(
-    RecordProvider recordProvider,
+    List<Record> records,
     CategoryProvider categoryProvider,
     ColorScheme cs,
   ) {
-    final range = _periodRange();
-    final records = recordProvider.recordsForPeriod(
-      widget.bookId,
-      start: range.start,
-      end: range.end,
-    );
-
     final Map<String, double> expenseMap = {};
     for (final record in records) {
       if (record.isIncome) continue;
@@ -410,49 +495,77 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   List<ChartEntry> _buildDailyEntries(
     RecordProvider recordProvider,
+    String bookId,
     ColorScheme cs,
   ) {
-    final targetMonth =
-        DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
-    final days = DateUtilsX.daysInMonth(targetMonth);
+    final range = _periodRange();
+    final dayCount = range.end.difference(range.start).inDays + 1;
+    final days = List.generate(
+      dayCount,
+      (i) => range.start.add(Duration(days: i)),
+    );
 
     return days
         .map(
           (d) => ChartEntry(
-            label: d.day.toString(),
-            value: recordProvider.dayExpense(widget.bookId, d),
+            label: _isWeekMode ? '${d.month}/${d.day}' : d.day.toString(),
+            value: recordProvider.dayExpense(bookId, d),
             color: cs.primary,
           ),
         )
         .toList();
   }
 
-  List<ChartEntry> _buildRecentMonthEntries(
+  List<ChartEntry> _buildRecentPeriodEntries(
     RecordProvider recordProvider,
+    String bookId,
     ColorScheme cs,
   ) {
-    final baseMonth = DateTime(widget.year, widget.month ?? 12, 1);
     final entries = <ChartEntry>[];
 
-    for (var i = 5; i >= 0; i--) {
-      final month = DateTime(baseMonth.year, baseMonth.month - i, 1);
-      final expense = recordProvider.monthExpense(month, widget.bookId);
-      entries.add(
-        ChartEntry(
-          label:
-              '${month.year % 100}/${month.month.toString().padLeft(2, '0')}',
-          value: expense,
-          color: cs.primary,
-        ),
-      );
+    if (_isWeekMode) {
+      final base = DateUtilsX.startOfWeek(_periodRange().start);
+      for (var i = 5; i >= 0; i--) {
+        final start = base.subtract(Duration(days: 7 * i));
+        final end = start.add(const Duration(days: 6));
+        final expense = recordProvider.periodExpense(
+          bookId: bookId,
+          start: start,
+          end: end,
+        );
+        entries.add(
+          ChartEntry(
+            label: 'W${_weekIndex(start)}',
+            value: expense,
+            color: cs.primary,
+          ),
+        );
+      }
+    } else if (_isMonthMode) {
+      final baseMonth = DateTime(widget.year, widget.month ?? 12, 1);
+      for (var i = 5; i >= 0; i--) {
+        final month = DateTime(baseMonth.year, baseMonth.month - i, 1);
+        final expense = recordProvider.monthExpense(month, bookId);
+        entries.add(
+          ChartEntry(
+            label:
+                '${month.year % 100}/${month.month.toString().padLeft(2, '0')}',
+            value: expense,
+            color: cs.primary,
+          ),
+        );
+      }
     }
     return entries;
   }
 
-  _PeriodActivity _periodActivity(RecordProvider recordProvider) {
+  _PeriodActivity _periodActivity(
+    RecordProvider recordProvider,
+    String bookId,
+  ) {
     final range = _periodRange();
     final records = recordProvider.recordsForPeriod(
-      widget.bookId,
+      bookId,
       start: range.start,
       end: range.end,
     );
@@ -469,8 +582,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   DateTimeRange _periodRange() {
+    if (_isWeekMode) {
+      if (widget.weekRange != null) return widget.weekRange!;
+      final today = DateTime.now();
+      final base = DateTime(widget.year, today.month, today.day);
+      final range = DateUtilsX.weekRange(base);
+      return DateTimeRange(start: range.start, end: range.end);
+    }
     final start = DateTime(widget.year, widget.month ?? 1, 1);
-    final end = widget.isYearMode
+    final end = _isYearMode
         ? DateTime(widget.year, 12, 31)
         : DateUtilsX.lastDayOfMonth(start);
     return DateTimeRange(start: start, end: end);
@@ -481,27 +601,36 @@ class _PeriodHeaderCard extends StatelessWidget {
   const _PeriodHeaderCard({
     required this.cs,
     required this.isDark,
+    required this.title,
     required this.bookName,
-    required this.year,
-    this.month,
+    required this.range,
+    required this.periodType,
     required this.income,
     required this.expense,
     required this.balance,
     required this.balanceDiff,
+    required this.hasComparison,
+    required this.hasData,
+    required this.onViewDetail,
   });
 
   final ColorScheme cs;
   final bool isDark;
+  final String title;
   final String bookName;
-  final int year;
-  final int? month;
+  final DateTimeRange range;
+  final PeriodType periodType;
   final double income;
   final double expense;
   final double balance;
-  final double balanceDiff;
+  final double? balanceDiff;
+  final bool hasComparison;
+  final bool hasData;
+  final VoidCallback onViewDetail;
 
   @override
   Widget build(BuildContext context) {
+    final conclusion = _buildConclusion();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -531,62 +660,104 @@ class _PeriodHeaderCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            AppStrings.periodBillTitle(year, month: month),
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppStrings.currentBookLabel(bookName),
-            style: TextStyle(
-              fontSize: 12,
-              color: cs.outline,
-            ),
-          ),
-          const SizedBox(height: 10),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: _SummaryMetric(
-                  label: AppStrings.balance,
-                  value: balance,
-                  color: AppColors.amount(balance),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      AppStrings.currentBookLabel(bookName),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.outline,
+                      ),
+                    ),
+                    if (periodType == PeriodType.week) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        AppStrings.weekRangeLabel(range),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.outline,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              Expanded(
-                child: _SummaryMetric(
-                  label: AppStrings.income,
-                  value: income,
-                  color: AppColors.success,
-                ),
-              ),
-              Expanded(
-                child: _SummaryMetric(
-                  label: AppStrings.expense,
-                  value: expense,
-                  color: AppColors.danger,
-                ),
+              TextButton.icon(
+                onPressed: onViewDetail,
+                icon: const Icon(Icons.receipt_long, size: 16),
+                label: const Text('??'),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Icon(
-                balanceDiff >= 0 ? Icons.trending_up : Icons.trending_down,
-                color: balanceDiff >= 0 ? AppColors.success : AppColors.danger,
-                size: 16,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      AppStrings.balance,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      balance.toStringAsFixed(2),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.amount(balance),
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      conclusion,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.outline,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 6),
-              Text(
-                '${AppStrings.previousPeriod} ${balanceDiff >= 0 ? '+' : ''}${balanceDiff.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color:
-                      balanceDiff >= 0 ? AppColors.success : AppColors.danger,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: _SummaryMetric(
+                        label: AppStrings.income,
+                        value: income,
+                        color: AppColors.success,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _SummaryMetric(
+                        label: AppStrings.expense,
+                        value: expense,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -594,6 +765,22 @@ class _PeriodHeaderCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _buildConclusion() {
+    final periodName = periodType == PeriodType.year
+        ? '\u672c\u5e74'
+        : periodType == PeriodType.week
+            ? '\u672c\u5468'
+            : '\u672c\u6708';
+    if (!hasData) {
+      return AppStrings.emptyPeriodRecords;
+    }
+    if (!hasComparison || balanceDiff == null) {
+      return AppStrings.previousPeriodNoData;
+    }
+    final verb = balanceDiff! >= 0 ? '\u7ed3\u4f59\u589e\u52a0' : '\u7ed3\u4f59\u51cf\u5c11';
+    return '$periodName\u7ed3\u4f59 ${balance.toStringAsFixed(2)}\uff0c\u8f83\u4e0a\u4e00\u671f$verb ${balanceDiff!.abs().toStringAsFixed(2)}';
   }
 }
 
@@ -631,6 +818,7 @@ class _SectionCard extends StatelessWidget {
                 if (trailing != null) trailing!,
               ],
             ),
+
             const SizedBox(height: 12),
             DefaultTextStyle(
               style: TextStyle(
@@ -726,4 +914,14 @@ class _PeriodActivity {
   final int recordCount;
   final int activeDays;
   final int streak;
+}
+
+class _PeriodComparison {
+  _PeriodComparison({
+    required this.balance,
+    required this.hasData,
+  });
+
+  final double balance;
+  final bool hasData;
 }

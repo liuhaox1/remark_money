@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_const_constructors
 
+import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -31,8 +32,10 @@ class ChartBar extends StatelessWidget {
     }
 
     final barGroups = <BarChartGroupData>[];
+    double maxValue = 0;
     for (var i = 0; i < entries.length; i++) {
       final entry = entries[i];
+      maxValue = math.max(maxValue, entry.value);
       barGroups.add(
         BarChartGroupData(
           x: i,
@@ -47,9 +50,12 @@ class ChartBar extends StatelessWidget {
         ),
       );
     }
+    final maxY = maxValue <= 0 ? 1.0 : maxValue * 1.2;
 
     return BarChart(
       BarChartData(
+        maxY: maxY,
+        minY: 0,
         borderData: FlBorderData(show: false),
         gridData: FlGridData(show: true, drawHorizontalLine: true),
         titlesData: FlTitlesData(
