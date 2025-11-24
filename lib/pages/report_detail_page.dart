@@ -470,13 +470,13 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     final categories = categoryProvider.categories;
     final palette = [
-      cs.primary,
-      cs.secondary,
-      cs.tertiary,
-      cs.error,
-      cs.primaryContainer,
-      cs.secondaryContainer,
-      cs.tertiaryContainer,
+      const Color(0xFF3B82F6), // 蓝
+      const Color(0xFFF59E0B), // 橙
+      const Color(0xFF10B981), // 绿
+      const Color(0xFFE11D48), // 红
+      const Color(0xFF8B5CF6), // 紫
+      const Color(0xFF06B6D4), // 青
+      const Color(0xFF84CC16), // 黄绿
     ];
     var colorIndex = 0;
     final entries = <ChartEntry>[];
