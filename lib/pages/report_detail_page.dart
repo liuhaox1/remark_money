@@ -205,6 +205,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                     ? ChartBar(entries: distributionEntries)
                                     : ChartPie(entries: distributionEntries),
                               ),
+                              const SizedBox(height: 8),
+                              Text(
+                                AppStrings.chartCategoryDesc,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: cs.outline,
+                                ),
+                              ),
                               const SizedBox(height: 12),
                               for (final entry in distributionEntries)
                                 Padding(
@@ -259,6 +267,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                             ),
                           )
                         : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               for (final entry in ranking.take(5))
                                 ListTile(
@@ -274,6 +283,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                     ),
                                   ),
                                 ),
+                              const SizedBox(height: 4),
+                              Text(
+                                AppStrings.chartCategoryDesc,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: cs.outline,
+                                ),
+                              ),
                             ],
                           ),
                   ),
@@ -281,15 +298,28 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     const SizedBox(height: 12),
                     _SectionCard(
                       title: AppStrings.dailyTrend,
-                      child: SizedBox(
-                        height: 240,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: SizedBox(
-                            width: max(340, dailyEntries.length * 24),
-                            child: ChartBar(entries: dailyEntries),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: 240,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: SizedBox(
+                                width: max(340, dailyEntries.length * 24),
+                                child: ChartBar(entries: dailyEntries),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          Text(
+                            AppStrings.chartDailyTrendDesc,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.outline,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -297,9 +327,22 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     const SizedBox(height: 12),
                     _SectionCard(
                       title: compareTitle,
-                      child: SizedBox(
-                        height: 260,
-                        child: ChartBar(entries: compareEntries),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: 260,
+                            child: ChartBar(entries: compareEntries),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            AppStrings.chartRecentCompareDesc,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.outline,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

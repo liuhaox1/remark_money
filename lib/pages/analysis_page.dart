@@ -64,6 +64,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final hasYearRecords = recordProvider
         .recordsForBook(bookId)
         .any((r) => r.date.year == _selectedYear);
+    final totalRecordCount = recordProvider
+        .recordsForBook(bookId)
+        .where((r) => r.date.year == _selectedYear)
+        .length;
 
     return Scaffold(
       backgroundColor:
@@ -88,7 +92,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   expense: yearExpense,
                   balance: yearBalance,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                if (hasYearRecords)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${AppStrings.reportSummaryPrefix}$totalRecordCount'
+                        '${AppStrings.reportSummaryMiddleRecords}'
+                        '${yearExpense.toStringAsFixed(0)}'
+                        '${AppStrings.reportSummarySuffixYuan}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.outline,
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
                 Card(
                   margin: EdgeInsets.zero,
                   child: Padding(

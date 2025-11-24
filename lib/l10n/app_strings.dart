@@ -40,6 +40,23 @@ class AppStrings {
   static const noDataThisMonth = '本月暂无记录';
   static const datePickerTitle = '日期选择';
 
+  // Report / chart descriptions (new)
+  static const reportSummaryPrefix = '本期共记账 ';
+  static const reportSummaryMiddleRecords = ' 笔，支出 ';
+  static const reportSummarySuffixYuan = ' 元';
+  static const reportSummaryComparePrefix = '，较上一期 ';
+  static const reportSummaryCompareUp = '增加约 ';
+  static const reportSummaryCompareDown = '减少约 ';
+  static const reportSummaryCompareFlat = '与上一期大致持平';
+  static const reportSummaryMaxCategoryPrefix = '最大支出类别是「';
+  static const reportSummaryMaxCategorySuffix = '」，约占本期支出的 ';
+  static const chartCategoryDesc =
+      '按分类统计本期收支分布，帮助你看清钱花在哪些地方。';
+  static const chartDailyTrendDesc =
+      '展示本期每天的支出趋势，方便你了解消费高峰和低谷。';
+  static const chartRecentCompareDesc =
+      '展示最近若干周期的支出对比，帮助你判断支出是在上升还是下降。';
+
   // Navigation
   static const navHome = '首页';
   static const navStats = '统计';
