@@ -163,9 +163,36 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         setState(() => _showBarChart = value.first);
                       },
                     ),
-                    child: distributionEntries.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            SegmentedButton<bool>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: false,
+                                  label: Text(AppStrings.expense),
+                                ),
+                                ButtonSegment(
+                                  value: true,
+                                  label: Text(AppStrings.income),
+                                ),
+                              ],
+                              selected: {_showIncomeCategory},
+                              onSelectionChanged: (value) {
+                                setState(() {
+                                  _showIncomeCategory = value.first;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (distributionEntries.isEmpty)
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 20),
                             child: Center(
                               child: Text(
                                 emptyText,
@@ -173,85 +200,61 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                               ),
                             ),
                           )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                        else ...[
+                          SizedBox(
+                            height: 260,
+                            child: _showBarChart
+                                ? ChartBar(entries: distributionEntries)
+                                : ChartPie(entries: distributionEntries),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            AppStrings.chartCategoryDesc,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.outline,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          for (final entry in distributionEntries)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6,
+                              ),
+                              child: Row(
                                 children: [
-                                  SegmentedButton<bool>(
-                                    segments: const [
-                                      ButtonSegment(
-                                        value: false,
-                                        label: Text(AppStrings.expense),
+                                  Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: entry.color,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      entry.label,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                      ButtonSegment(
-                                        value: true,
-                                        label: Text(AppStrings.income),
-                                      ),
-                                    ],
-                                    selected: {_showIncomeCategory},
-                                    onSelectionChanged: (value) {
-                                      setState(() {
-                                        _showIncomeCategory = value.first;
-                                      });
-                                    },
+                                    ),
+                                  ),
+                                  Text(
+                                    '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
+                                    style: const TextStyle(
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures()
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                height: 260,
-                                child: _showBarChart
-                                    ? ChartBar(entries: distributionEntries)
-                                    : ChartPie(entries: distributionEntries),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                AppStrings.chartCategoryDesc,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: cs.outline,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              for (final entry in distributionEntries)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: entry.color,
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          entry.label,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      Text(
-                                        '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
-                                        style: const TextStyle(
-                                          fontFeatures: [
-                                            FontFeature.tabularFigures()
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
+                            ),
+                        ],
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _SectionCard(
