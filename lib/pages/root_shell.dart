@@ -167,6 +167,21 @@ class AssetsPage extends StatelessWidget {
                         totalDebts: totalDebts,
                         netWorth: netWorth,
                       ),
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Text(
+                          '账户余额来自你的记账记录，如不准确，可在账户中调整初始余额。',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.65),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       Expanded(
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

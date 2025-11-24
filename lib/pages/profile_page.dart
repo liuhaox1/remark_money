@@ -1,16 +1,22 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../l10n/app_strings.dart';
-import '../providers/account_provider.dart';
-import '../providers/category_provider.dart';
-import '../providers/book_provider.dart';
-import '../providers/record_provider.dart';
-import '../providers/theme_provider.dart';
-import '../utils/records_export_bundle.dart';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../l10n/app_strings.dart';
+import '../models/import_result.dart';
+import '../providers/account_provider.dart';
+import '../providers/book_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/record_provider.dart';
+import '../providers/reminder_provider.dart';
+import '../providers/theme_provider.dart';
+import '../utils/data_export_import.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -19,6 +25,7 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final bookProvider = context.watch<BookProvider>();
     final themeProvider = context.watch<ThemeProvider>();
+    final reminderProvider = context.watch<ReminderProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -41,38 +48,16 @@ class ProfilePage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             children: [
               _buildBookSection(context, bookProvider),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               _buildThemeSection(context, themeProvider),
-              const SizedBox(height: 24),
-              _buildDataSection(context),
-              const SizedBox(height: 24),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.account_balance_wallet_outlined),
-                  title: const Text(AppStrings.budget),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.pushNamed(context, '/budget'),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.category_outlined),
-                  title: const Text(AppStrings.categoryManager),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () =>
-                      Navigator.pushNamed(context, '/category-manager'),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Card(
-                child: ListTile(
-                  title: const Text(AppStrings.version),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () =>
-                      Navigator.pushNamed(context, '/finger-accounting'),
-                ),
-              ),
+              const SizedBox(height: 16),
+              _buildDataSecuritySection(context),
+              const SizedBox(height: 16),
+              _buildBudgetCategorySection(context),
+              const SizedBox(height: 16),
+              _buildHabitSection(context, reminderProvider),
+              const SizedBox(height: 16),
+              _buildHelpAboutSection(context),
             ],
           ),
         ),
@@ -218,19 +203,260 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildDataSection(BuildContext context) {
+  Widget _buildDataSecuritySection(BuildContext context) {
     return Card(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const ListTile(
+            leading: Icon(Icons.security_outlined),
+            title: Text('数据与安全'),
+          ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.cloud_upload_outlined),
-            title: const Text('导入记录（JSON 备份）'),
+            title: const Text('导入记录（JSON 数据包）'),
             subtitle: const Text('从指尖记账导出的 JSON 备份文件导入记账记录'),
             onTap: () => _importRecords(context),
           ),
+          ListTile(
+            leading: const Icon(Icons.ios_share_outlined),
+            title: const Text('导出数据'),
+            subtitle: const Text('导出当前账本的全部记账记录（CSV / JSON）'),
+            onTap: () => _showExportSheet(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_forever_outlined),
+            title: const Text('清空全部数据'),
+            subtitle: const Text('清除本地存储的账本、记录、账户等数据'),
+            onTap: () => _confirmClearAll(context),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBudgetCategorySection(BuildContext context) {
+    return Card(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ListTile(
+            leading: Icon(Icons.account_balance_wallet_outlined),
+            title: Text('预算与分类'),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.trending_down_outlined),
+            title: const Text(AppStrings.budget),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/budget'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.category_outlined),
+            title: const Text(AppStrings.categoryManager),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/category-manager'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHabitSection(
+    BuildContext context,
+    ReminderProvider reminderProvider,
+  ) {
+    final time = reminderProvider.timeOfDay;
+    final timeLabel =
+        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+    return Card(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ListTile(
+            leading: Icon(Icons.alarm_outlined),
+            title: Text('记账习惯与提醒'),
+          ),
+          const Divider(height: 1),
+          SwitchListTile(
+            value: reminderProvider.enabled,
+            title: const Text('开启每天记账提醒'),
+            subtitle: Text('每天固定时间提醒你打开「指尖记账」，坚持好习惯'),
+            onChanged: (v) => reminderProvider.setEnabled(v),
+          ),
+          ListTile(
+            leading: const Icon(Icons.schedule_outlined),
+            title: const Text('提醒时间'),
+            subtitle: Text(timeLabel),
+            onTap: () => _pickReminderTime(context, reminderProvider),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHelpAboutSection(BuildContext context) {
+    return Card(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ListTile(
+            leading: Icon(Icons.help_outline),
+            title: Text('帮助与关于'),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.menu_book_outlined),
+            title: const Text('使用帮助'),
+            onTap: () => _showPlaceholder(context, '使用帮助'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.feedback_outlined),
+            title: const Text('意见反馈'),
+            onTap: () => _showPlaceholder(context, '意见反馈'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('隐私政策'),
+            onTap: () => _showPlaceholder(context, '隐私政策'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: const Text('用户协议'),
+            onTap: () => _showPlaceholder(context, '用户协议'),
+          ),
+          const Divider(height: 1),
+          const ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text(AppStrings.version),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showExportSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.table_view_outlined),
+                title: const Text('导出为 CSV'),
+                subtitle: const Text('适合在 Excel / 表格中查看'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _exportAllCsv(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.data_object_outlined),
+                title: const Text('导出为 JSON 数据包'),
+                subtitle: const Text('适合备份或迁移到其他设备'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _exportAllJson(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _exportAllCsv(BuildContext context) async {
+    final recordProvider = context.read<RecordProvider>();
+    final bookProvider = context.read<BookProvider>();
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+
+    final bookId = bookProvider.activeBookId;
+    final records = recordProvider.recordsForBook(bookId);
+    if (records.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('当前账本暂无记录')),
+        );
+      }
+      return;
+    }
+
+    final categoryMap = {
+      for (final c in categoryProvider.categories) c.key: c,
+    };
+    final bookMap = {
+      for (final b in bookProvider.books) b.id: b,
+    };
+    final accountMap = {
+      for (final a in accountProvider.accounts) a.id: a,
+    };
+
+    final csv = buildCsvForRecords(
+      records,
+      categoriesByKey: categoryMap,
+      booksById: bookMap,
+      accountsById: accountMap,
+    );
+
+    final dir = await getTemporaryDirectory();
+    final fileName =
+        'remark_records_all_${bookId}_${DateTime.now().toIso8601String()}.csv';
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsString(csv, encoding: utf8);
+
+    if (!context.mounted) return;
+
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: '指尖记账导出 CSV',
+      text: '指尖记账导出的全部记录 CSV，可在表格中查看分析。',
+    );
+  }
+
+  Future<void> _exportAllJson(BuildContext context) async {
+    final recordProvider = context.read<RecordProvider>();
+    final bookProvider = context.read<BookProvider>();
+
+    final bookId = bookProvider.activeBookId;
+    final records = recordProvider.recordsForBook(bookId);
+    if (records.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('当前账本暂无记录')),
+        );
+      }
+      return;
+    }
+
+    records.sort((a, b) => a.date.compareTo(b.date));
+    final start = records.first.date;
+    final end = records.last.date;
+    final jsonText = buildJsonPackageForRecords(
+      records: records,
+      bookId: bookId,
+      start: start,
+      end: end,
+    );
+
+    final dir = await getTemporaryDirectory();
+    final fileName =
+        'remark_records_all_${bookId}_${DateTime.now().toIso8601String()}.json';
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsString(jsonText, encoding: utf8);
+
+    if (!context.mounted) return;
+
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: '指尖记账导出 JSON 数据包',
+      text: '指尖记账导出的 JSON 备份，可用于导入或迁移。',
     );
   }
 
@@ -247,16 +473,7 @@ class ProfilePage extends StatelessWidget {
     try {
       final file = File(path);
       final content = await file.readAsString();
-      final map = jsonDecode(content) as Map<String, dynamic>;
-      final bundle = RecordsExportBundle.fromMap(map);
-      if (bundle.type != 'records') {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('文件格式不正确，无法导入')),
-          );
-        }
-        return;
-      }
+      final bundle = parseRecordsJsonPackage(content);
 
       final imported = bundle.records;
       if (imported.isEmpty) {
@@ -268,12 +485,32 @@ class ProfilePage extends StatelessWidget {
         return;
       }
 
+      final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('导入记录'),
+              content: Text('将导入约 ${imported.length} 条记录，可能会与当前数据合并。是否继续？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text(AppStrings.cancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text(AppStrings.ok),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+
+      if (!confirmed) return;
+
       final recordProvider = context.read<RecordProvider>();
       final accountProvider = context.read<AccountProvider>();
       final categoryProvider = context.read<CategoryProvider>();
       final bookProvider = context.read<BookProvider>();
 
-      // Ensure related providers are loaded so that subsequent views work.
       await Future.wait([
         if (!recordProvider.loaded) recordProvider.load(),
         if (!accountProvider.loaded) accountProvider.load(),
@@ -281,11 +518,23 @@ class ProfilePage extends StatelessWidget {
         if (!bookProvider.loaded) bookProvider.load(),
       ]);
 
-      final count = await recordProvider.importRecords(imported);
+      final ImportResult summary = await recordProvider.importRecords(
+        imported,
+        activeBookId: bookProvider.activeBookId,
+        accountProvider: accountProvider,
+      );
 
       if (context.mounted) {
+        final text =
+            '导入完成：成功 ${summary.successCount} 条，失败 ${summary.failureCount} 条';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已导入 $count 条记录')),
+          SnackBar(content: Text(text)),
+        );
+      }
+    } on FormatException {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('文件格式不正确，无法导入')),
         );
       }
     } catch (_) {
@@ -294,6 +543,53 @@ class ProfilePage extends StatelessWidget {
           const SnackBar(content: Text('导入失败，请检查文件是否为指尖记账备份')),
         );
       }
+    }
+  }
+
+  Future<void> _pickReminderTime(
+    BuildContext context,
+    ReminderProvider provider,
+  ) async {
+    final current = provider.timeOfDay;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: current,
+    );
+    if (picked != null) {
+      await provider.setTime(picked);
+    }
+  }
+
+  Future<void> _confirmClearAll(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('清空全部数据'),
+            content: const Text('将删除本地存储的全部账本、记录、账户等数据，操作不可撤销。是否继续？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(AppStrings.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(AppStrings.delete),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // 简单提示用户重启应用以重新加载默认数据。
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('数据已清空，重新打开应用后将生效')),
+      );
     }
   }
 
@@ -309,7 +605,8 @@ class ProfilePage extends StatelessWidget {
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: AppStrings.bookNameHint),
+            decoration:
+                const InputDecoration(hintText: AppStrings.bookNameHint),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return AppStrings.bookNameRequired;
@@ -354,7 +651,8 @@ class ProfilePage extends StatelessWidget {
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: AppStrings.bookNameHint),
+            decoration:
+                const InputDecoration(hintText: AppStrings.bookNameHint),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return AppStrings.bookNameRequired;
@@ -401,6 +699,22 @@ class ProfilePage extends StatelessWidget {
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text(AppStrings.delete),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPlaceholder(BuildContext context, String title) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: const Text('该功能将在后续版本中完善，敬请期待。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(AppStrings.ok),
           ),
         ],
       ),

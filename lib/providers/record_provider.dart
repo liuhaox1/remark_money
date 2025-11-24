@@ -2,8 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../models/account.dart';
 import '../models/record.dart';
+import '../models/import_result.dart';
 import '../repository/record_repository.dart';
 import '../utils/date_utils.dart';
 import 'account_provider.dart';
@@ -212,16 +212,45 @@ class RecordProvider extends ChangeNotifier {
   /// - Skips empty input
   /// - Ensures record ids are unique in current storage
   /// - Keeps records ordered by date descending
-  Future<int> importRecords(List<Record> imported) async {
-    if (imported.isEmpty) return 0;
+  Future<ImportResult> importRecords(
+    List<Record> imported, {
+    required String activeBookId,
+    required AccountProvider accountProvider,
+  }) async {
+    if (imported.isEmpty) {
+      return const ImportResult(successCount: 0, failureCount: 0);
+    }
+
     final existingIds = _records.map((r) => r.id).toSet();
+    final accounts = accountProvider.accounts;
+    final defaultAccount =
+        accounts.firstWhere((a) => a.name == '现金', orElse: () => accounts.first);
+
     final newRecords = <Record>[];
+    var failure = 0;
+
     for (final r in imported) {
-      var record = r;
-      if (existingIds.contains(record.id)) {
-        record = record.copyWith(id: _generateId());
+      try {
+        var record = r;
+        // Map to current active book.
+        record = record.copyWith(bookId: activeBookId);
+
+        // Fix missing / unknown account.
+        final hasAccount =
+            accounts.any((a) => a.id == record.accountId);
+        if (!hasAccount) {
+          record = record.copyWith(accountId: defaultAccount.id);
+        }
+
+        // Ensure id uniqueness.
+        if (existingIds.contains(record.id)) {
+          record = record.copyWith(id: _generateId());
+        }
+
+        newRecords.add(record);
+      } catch (_) {
+        failure += 1;
       }
-      newRecords.add(record);
     }
 
     _records.addAll(newRecords);
@@ -231,7 +260,10 @@ class RecordProvider extends ChangeNotifier {
     _clearCache();
 
     notifyListeners();
-    return newRecords.length;
+    return ImportResult(
+      successCount: newRecords.length,
+      failureCount: failure,
+    );
   }
 
   Future<Record> transfer({

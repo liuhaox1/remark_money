@@ -8,6 +8,7 @@ import 'providers/budget_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
 import 'providers/saving_goal_provider.dart';
+import 'providers/reminder_provider.dart';
 import 'l10n/app_strings.dart';
 
 import 'pages/root_shell.dart';
@@ -34,6 +35,7 @@ Future<void> main() async {
   final themeProvider = ThemeProvider();
   final accountProvider = AccountProvider();
   final savingGoalProvider = SavingGoalProvider();
+  final reminderProvider = ReminderProvider();
 
   await Future.wait([
     bookProvider.load(),
@@ -42,6 +44,7 @@ Future<void> main() async {
     budgetProvider.load(),
     accountProvider.load(),
     savingGoalProvider.load(),
+    reminderProvider.load(),
     themeProvider.load(),
   ]);
   debugPrint('providers loaded: ${DateTime.now().toIso8601String()}');
@@ -55,6 +58,7 @@ Future<void> main() async {
       accountProvider: accountProvider,
       savingGoalProvider: savingGoalProvider,
       themeProvider: themeProvider,
+      reminderProvider: reminderProvider,
     ),
   );
 }
@@ -86,6 +90,7 @@ class RemarkMoneyApp extends StatelessWidget {
     required this.accountProvider,
     required this.savingGoalProvider,
     required this.themeProvider,
+    required this.reminderProvider,
   });
 
   final BookProvider bookProvider;
@@ -95,6 +100,7 @@ class RemarkMoneyApp extends StatelessWidget {
   final AccountProvider accountProvider;
   final SavingGoalProvider savingGoalProvider;
   final ThemeProvider themeProvider;
+  final ReminderProvider reminderProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +113,7 @@ class RemarkMoneyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: accountProvider),
         ChangeNotifierProvider.value(value: savingGoalProvider),
         ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider.value(value: reminderProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) {

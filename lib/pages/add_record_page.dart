@@ -1,11 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/account.dart';
 import '../models/category.dart';
-import '../models/saving_goal.dart';
 import '../models/record.dart';
+import '../models/recurring_record.dart';
+import '../models/record_template.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
@@ -13,6 +14,8 @@ import '../providers/account_provider.dart';
 import '../providers/saving_goal_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
+import '../repository/record_template_repository.dart';
+import '../repository/recurring_record_repository.dart';
 import 'add_account_type_page.dart';
 
 class AddRecordPage extends StatefulWidget {
@@ -39,13 +42,26 @@ class _AddRecordPageState extends State<AddRecordPage> {
   String? _selectedAccountId;
   bool _includeInStats = true;
   String? _selectedGoalId;
+  bool _saveAsTemplate = false;
+  bool _isRecurring = false;
+  RecurringPeriodType _recurringPeriodType = RecurringPeriodType.monthly;
+  String? _activeRecurringPlanId;
+
+  final RecordTemplateRepository _templateRepository =
+      RecordTemplateRepository();
+  final RecurringRecordRepository _recurringRepository =
+      RecurringRecordRepository();
+
+  List<RecordTemplate> _templates = const [];
+  List<RecurringRecordPlan> _duePlans = const [];
 
   @override
   void initState() {
     super.initState();
-    _isExpense = _lastIsExpense;
+    _isExpense = _lastIsExpense = widget.isExpense;
     _includeInStats = _lastIncludeInStats;
     _selectedGoalId = _lastSavingGoalId;
+    _loadTemplatesAndPlans();
   }
 
   @override
@@ -58,7 +74,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
   @override
   Widget build(BuildContext context) {
     final categories = context.watch<CategoryProvider>().categories;
-    final filtered = categories.where((c) => c.isExpense == _isExpense).toList();
+    final filtered =
+        categories.where((c) => c.isExpense == _isExpense).toList();
     _ensureCategorySelection(filtered);
     _ensureAccountSelection();
 
@@ -71,10 +88,16 @@ class _AddRecordPageState extends State<AddRecordPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_duePlans.isNotEmpty) _buildRecurringBanner(),
+            if (_duePlans.isNotEmpty) const SizedBox(height: 12),
             _buildAmountField(),
             const SizedBox(height: 20),
             _buildTypeSwitcher(),
             const SizedBox(height: 16),
+            if (_templates.isNotEmpty) ...[
+              _buildTemplateChips(),
+              const SizedBox(height: 16),
+            ],
             _buildCategoryPicker(filtered),
             const SizedBox(height: 16),
             _buildAccountPicker(),
@@ -83,17 +106,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
             const SizedBox(height: 16),
             _buildRemarkField(),
             const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _includeInStats,
-              title: const Text('计入收支统计'),
-              onChanged: (v) => setState(() => _includeInStats = v),
-            ),
-            if (_showSavingGoalSection())
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: _buildSavingGoalPicker(),
-              ),
+            _buildAdvancedSection(),
             const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
@@ -202,7 +215,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '璐︽埛',
+          '账户',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
@@ -212,7 +225,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
               .map(
                 (a) => DropdownMenuItem(
                   value: a.id,
-                  child: Text('${a.name} 路 ${a.currentBalance.toStringAsFixed(2)}'),
+                  child: Text(
+                    '${a.name} · ${a.currentBalance.toStringAsFixed(2)}',
+                  ),
                 ),
               )
               .toList(),
@@ -221,7 +236,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
             _selectedGoalId = null;
           }),
           decoration: const InputDecoration(
-            hintText: '閫夋嫨璐︽埛',
+            hintText: '选择账户',
             border: OutlineInputBorder(),
           ),
         ),
@@ -242,6 +257,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       ],
     );
   }
+
   Widget _buildDatePicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,10 +272,14 @@ class _AddRecordPageState extends State<AddRecordPage> {
           onTap: _pickDate,
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
               borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color:
+                    Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -297,7 +317,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "这笔钱用于哪个存款目标？（可选）",
+          '这笔钱关联到哪个存钱目标？',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
@@ -316,12 +336,153 @@ class _AddRecordPageState extends State<AddRecordPage> {
           onChanged: (v) => setState(() => _selectedGoalId = v),
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
-            hintText: "选择存款目标（可选）",
+            hintText: '选择目标（可选）',
           ),
         ),
       ],
     );
   }
+
+  Widget _buildAdvancedSection() {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: const Text(
+        '更多设置',
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: const Text(
+        '记账习惯、统计和循环记账',
+        style: TextStyle(fontSize: 12),
+      ),
+      childrenPadding: const EdgeInsets.only(top: 4),
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _includeInStats,
+          title: const Text('计入统计'),
+          onChanged: (v) => setState(() => _includeInStats = v),
+        ),
+        if (_showSavingGoalSection())
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: _buildSavingGoalPicker(),
+          ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _saveAsTemplate,
+          title: const Text('保存为常用模板'),
+          subtitle: const Text(
+            '保存当前分类、账户和备注，方便下次快速填写。',
+            style: TextStyle(fontSize: 12),
+          ),
+          onChanged: (v) => setState(() => _saveAsTemplate = v ?? false),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _isRecurring,
+          title: const Text('设为循环记账'),
+          subtitle: const Text(
+            '每周或每月提醒你再次记这笔账，不会自动生成记录。',
+            style: TextStyle(fontSize: 12),
+          ),
+          onChanged: (v) => setState(() => _isRecurring = v),
+        ),
+        if (_isRecurring)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            child: Row(
+              children: [
+                const Text(
+                  '循环周期',
+                  style:
+                      TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(width: 12),
+                DropdownButton<RecurringPeriodType>(
+                  value: _recurringPeriodType,
+                  items: const [
+                    DropdownMenuItem(
+                      value: RecurringPeriodType.weekly,
+                      child: Text('每周'),
+                    ),
+                    DropdownMenuItem(
+                      value: RecurringPeriodType.monthly,
+                      child: Text('每月'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _recurringPeriodType = v);
+                  },
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTemplateChips() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '常用模板',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _templates
+              .map(
+                (t) => ChoiceChip(
+                  label: Text(
+                    t.remark.isNotEmpty ? t.remark : t.categoryKey,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  selected: false,
+                  onSelected: (_) => _applyTemplate(t),
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecurringBanner() {
+    final plan = _duePlans.first;
+    return InkWell(
+      onTap: () => _applyRecurringPlan(plan),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.refresh_outlined,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                '有循环记账待记录，点击一键带出草稿。',
+                style: TextStyle(fontSize: 13),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _ensureCategorySelection(List<Category> categories) {
     if (categories.isEmpty) {
       _selectedCategoryKey = null;
@@ -343,6 +504,21 @@ class _AddRecordPageState extends State<AddRecordPage> {
       return;
     }
     _selectedAccountId = accounts.first.id;
+  }
+
+  Future<void> _loadTemplatesAndPlans() async {
+    final templates = await _templateRepository.loadTemplates();
+    final plans = await _recurringRepository.loadPlans();
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final due = plans
+        .where((p) => !p.nextDate.isAfter(todayDate))
+        .toList(growable: false);
+    if (!mounted) return;
+    setState(() {
+      _templates = templates;
+      _duePlans = due;
+    });
   }
 
   Future<void> _pickDate() async {
@@ -374,7 +550,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       return;
     }
     if (_selectedAccountId == null) {
-      _showMessage('璇烽€夋嫨璐︽埛');
+      _showMessage('请选择账户');
       return;
     }
 
@@ -403,9 +579,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
     _lastIncludeInStats = _includeInStats;
     _lastSavingGoalId = _selectedGoalId;
 
+    await _maybeSaveTemplate(record);
+    await _maybeSaveOrUpdateRecurring(record);
+
     if (!mounted) return;
     Navigator.pop(context);
-    debugPrint('Record created ${record.id}');
   }
 
   void _showMessage(String text) {
@@ -421,9 +599,72 @@ class _AddRecordPageState extends State<AddRecordPage> {
         context.read<AccountProvider>().byId(_selectedAccountId!);
     return account?.kind == AccountKind.asset;
   }
+
+  Future<void> _maybeSaveTemplate(Record record) async {
+    if (!_saveAsTemplate) return;
+    final template = RecordTemplate(
+      id: record.id,
+      categoryKey: record.categoryKey,
+      accountId: record.accountId,
+      direction: record.direction,
+      includeInStats: record.includeInStats,
+      remark: record.remark,
+      createdAt: DateTime.now(),
+      lastUsedAt: DateTime.now(),
+    );
+    await _templateRepository.upsertTemplate(template);
+  }
+
+  Future<void> _maybeSaveOrUpdateRecurring(Record record) async {
+    if (!_isRecurring) return;
+
+    final nextDate = _recurringPeriodType == RecurringPeriodType.weekly
+        ? record.date.add(const Duration(days: 7))
+        : DateTime(record.date.year, record.date.month + 1, record.date.day);
+
+    final planId = _activeRecurringPlanId ?? record.id;
+    final plan = RecurringRecordPlan(
+      id: planId,
+      bookId: record.bookId,
+      categoryKey: record.categoryKey,
+      accountId: record.accountId,
+      direction: record.direction,
+      includeInStats: record.includeInStats,
+      amount: record.amount,
+      remark: record.remark,
+      periodType: _recurringPeriodType,
+      nextDate: nextDate,
+    );
+    await _recurringRepository.upsert(plan);
+  }
+
+  Future<void> _applyTemplate(RecordTemplate template) async {
+    setState(() {
+      _isExpense = template.direction == TransactionDirection.out;
+      _lastIsExpense = _isExpense;
+      _selectedCategoryKey = template.categoryKey;
+      _selectedAccountId = template.accountId;
+      _includeInStats = template.includeInStats;
+      if (template.remark.isNotEmpty) {
+        _remarkCtrl.text = template.remark;
+      }
+    });
+    await _templateRepository.markUsed(template.id);
+  }
+
+  void _applyRecurringPlan(RecurringRecordPlan plan) {
+    setState(() {
+      _activeRecurringPlanId = plan.id;
+      _isRecurring = true;
+      _recurringPeriodType = plan.periodType;
+      _isExpense = plan.direction == TransactionDirection.out;
+      _lastIsExpense = _isExpense;
+      _selectedCategoryKey = plan.categoryKey;
+      _selectedAccountId = plan.accountId;
+      _includeInStats = plan.includeInStats;
+      _amountCtrl.text = plan.amount.toStringAsFixed(2);
+      _remarkCtrl.text = plan.remark;
+      _selectedDate = plan.nextDate;
+    });
+  }
 }
-
-
-
-
-

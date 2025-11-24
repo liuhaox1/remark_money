@@ -487,23 +487,39 @@ class _BudgetPageState extends State<BudgetPage> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 430),
-              child: TabBarView(
+              child: Column(
                 children: [
-                  _buildTabContent(
-                    cs: cs,
-                    bookId: bookId,
-                    budgetEntry: budgetEntry,
-                    expenseCats: expenseCats,
-                    data: monthData,
-                    showPeriodPicker: true,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Text(
+                      AppStrings.budgetDescription,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.7),
+                      ),
+                    ),
                   ),
-                  _buildTabContent(
-                    cs: cs,
-                    bookId: bookId,
-                    budgetEntry: budgetEntry,
-                    expenseCats: expenseCats,
-                    data: yearData,
-                    showPeriodPicker: false,
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildTabContent(
+                          cs: cs,
+                          bookId: bookId,
+                          budgetEntry: budgetEntry,
+                          expenseCats: expenseCats,
+                          data: monthData,
+                          showPeriodPicker: true,
+                        ),
+                        _buildTabContent(
+                          cs: cs,
+                          bookId: bookId,
+                          budgetEntry: budgetEntry,
+                          expenseCats: expenseCats,
+                          data: yearData,
+                          showPeriodPicker: false,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
