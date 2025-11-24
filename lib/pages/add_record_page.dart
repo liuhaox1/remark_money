@@ -291,14 +291,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Widget _buildSavingGoalPicker() {
     final goalProvider = context.watch<SavingGoalProvider>();
     final accountId = _selectedAccountId;
-    final goals = goalProvider.goals
-        .where((g) => g.accountId == accountId)
-        .toList();
+    final goals =
+        goalProvider.goals.where((g) => g.accountId == accountId).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '杩欑瑪閽辨槸鍚︾敤浜庢煇涓瓨娆剧洰鏍囷紵',
+          "这笔钱用于哪个存款目标？（可选）",
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
@@ -308,20 +307,21 @@ class _AddRecordPageState extends State<AddRecordPage> {
               .map(
                 (g) => DropdownMenuItem(
                   value: g.id,
-                  child: Text('${g.name} 路 鐩爣 楼${g.targetAmount.toStringAsFixed(0)}'),
+                  child: Text(
+                    '${g.name} · 目标 ¥${g.targetAmount.toStringAsFixed(0)}',
+                  ),
                 ),
               )
               .toList(),
           onChanged: (v) => setState(() => _selectedGoalId = v),
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
-            hintText: '閫夋嫨瀛樻鐩爣锛堝彲閫夛級',
+            hintText: "选择存款目标（可选）",
           ),
         ),
       ],
     );
   }
-
   void _ensureCategorySelection(List<Category> categories) {
     if (categories.isEmpty) {
       _selectedCategoryKey = null;
