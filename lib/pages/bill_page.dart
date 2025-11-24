@@ -4,11 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:remark_money/providers/record_provider.dart';
 import 'package:remark_money/providers/book_provider.dart';
+import 'package:remark_money/providers/account_provider.dart';
+import 'package:remark_money/providers/category_provider.dart';
 import 'package:remark_money/utils/date_utils.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/period_type.dart';
 import '../theme/app_tokens.dart';
+import '../utils/csv_utils.dart';
+import '../utils/records_export_bundle.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
 
@@ -161,9 +170,14 @@ class _BillPageState extends State<BillPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppStrings.billTitle),
-        actions: const [
-          BookSelectorButton(compact: true),
-          SizedBox(width: 8),
+        actions: [
+          const BookSelectorButton(compact: true),
+          IconButton(
+            tooltip: '导出数据',
+            icon: const Icon(Icons.ios_share_outlined),
+            onPressed: () => _showExportMenu(context, bookId),
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -226,6 +240,213 @@ class _BillPageState extends State<BillPage> {
           ),
         ],
       ),
+    );
+  }
+
+  DateTimeRange _currentRange() {
+    switch (_periodType) {
+      case PeriodType.week:
+        final start = DateTime(
+          _selectedWeek.start.year,
+          _selectedWeek.start.month,
+          _selectedWeek.start.day,
+        );
+        final end = DateTime(
+          _selectedWeek.end.year,
+          _selectedWeek.end.month,
+          _selectedWeek.end.day,
+          23,
+          59,
+          59,
+          999,
+        );
+        return DateTimeRange(start: start, end: end);
+      case PeriodType.month:
+        final start = DateUtilsX.firstDayOfMonth(_selectedMonth);
+        final end = DateUtilsX.lastDayOfMonth(_selectedMonth);
+        final endWithTime = DateTime(
+          end.year,
+          end.month,
+          end.day,
+          23,
+          59,
+          59,
+          999,
+        );
+        return DateTimeRange(start: start, end: endWithTime);
+      case PeriodType.year:
+        final start = DateTime(_selectedYear, 1, 1);
+        final end = DateTime(_selectedYear, 12, 31, 23, 59, 59, 999);
+        return DateTimeRange(start: start, end: end);
+    }
+  }
+
+  Future<void> _showExportMenu(BuildContext context, String bookId) async {
+    final range = _currentRange();
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('导出 CSV（用于 Excel 查看）'),
+                onTap: () => Navigator.pop(ctx, 'csv'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('导出 JSON（用于备份 / 迁移）'),
+                onTap: () => Navigator.pop(ctx, 'json'),
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!context.mounted || choice == null) return;
+
+    if (choice == 'csv') {
+      await _exportCsv(context, bookId, range);
+    } else if (choice == 'json') {
+      await _exportJson(context, bookId, range);
+    }
+  }
+
+  Future<void> _exportCsv(
+    BuildContext context,
+    String bookId,
+    DateTimeRange range,
+  ) async {
+    final recordProvider = context.read<RecordProvider>();
+    final categoryProvider = context.read<CategoryProvider>();
+    final bookProvider = context.read<BookProvider>();
+    final accountProvider = context.read<AccountProvider>();
+
+    final records = recordProvider.recordsForPeriod(
+      bookId,
+      start: range.start,
+      end: range.end,
+    );
+    if (records.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('当前时间范围内暂无记录')),
+        );
+      }
+      return;
+    }
+
+    final categoriesByKey = {
+      for (final c in categoryProvider.categories) c.key: c.name,
+    };
+    final booksById = {
+      for (final b in bookProvider.books) b.id: b.name,
+    };
+
+    final formatter = DateFormat('yyyy-MM-dd HH:mm');
+
+    final rows = <List<String>>[];
+    rows.add([
+      '日期',
+      '金额',
+      '收支方向',
+      '分类',
+      '账本',
+      '账户',
+      '备注',
+      '是否计入统计',
+    ]);
+
+    for (final r in records) {
+      final dateStr = formatter.format(r.date);
+      final amountStr = r.amount.toStringAsFixed(2);
+      final directionStr = r.isIncome ? '收入' : '支出';
+      final categoryName =
+          categoriesByKey[r.categoryKey] ?? r.categoryKey;
+      final bookName = booksById[r.bookId] ?? bookProvider.activeBook?.name ??
+          '默认账本';
+      final accountName =
+          accountProvider.byId(r.accountId)?.name ?? '未知账户';
+      final remark = r.remark;
+      final includeStr = r.includeInStats ? '是' : '否';
+
+      rows.add([
+        dateStr,
+        amountStr,
+        directionStr,
+        categoryName,
+        bookName,
+        accountName,
+        remark,
+        includeStr,
+      ]);
+    }
+
+    final csv = toCsv(rows);
+
+    final dir = await getTemporaryDirectory();
+    final fileName =
+        'remark_records_${range.start.toIso8601String()}_${range.end.toIso8601String()}.csv';
+    final file = File('${dir.path}/$fileName');
+
+    await file.writeAsString(csv, encoding: utf8);
+
+    if (!context.mounted) return;
+
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: '指尖记账导出 CSV',
+      text: '指尖记账导出记录 CSV，可用 Excel 打开查看。',
+    );
+  }
+
+  Future<void> _exportJson(
+    BuildContext context,
+    String bookId,
+    DateTimeRange range,
+  ) async {
+    final recordProvider = context.read<RecordProvider>();
+
+    final records = recordProvider.recordsForPeriod(
+      bookId,
+      start: range.start,
+      end: range.end,
+    );
+    if (records.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('当前时间范围内暂无记录')),
+        );
+      }
+      return;
+    }
+
+    final bundle = RecordsExportBundle(
+      version: 1,
+      exportedAt: DateTime.now().toUtc(),
+      type: 'records',
+      bookId: bookId,
+      start: range.start,
+      end: range.end,
+      records: records,
+    );
+
+    final dir = await getTemporaryDirectory();
+    final fileName =
+        'remark_records_${range.start.toIso8601String()}_${range.end.toIso8601String()}.json';
+    final file = File('${dir.path}/$fileName');
+
+    await file.writeAsString(bundle.toJson(), encoding: utf8);
+
+    if (!context.mounted) return;
+
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: '指尖记账导出 JSON 备份',
+      text: '指尖记账记录 JSON 备份，可用于导入或迁移。',
     );
   }
 

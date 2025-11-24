@@ -207,6 +207,33 @@ class RecordProvider extends ChangeNotifier {
     return stats.expense;
   }
 
+  /// Import a batch of records from backup.
+  ///
+  /// - Skips empty input
+  /// - Ensures record ids are unique in current storage
+  /// - Keeps records ordered by date descending
+  Future<int> importRecords(List<Record> imported) async {
+    if (imported.isEmpty) return 0;
+    final existingIds = _records.map((r) => r.id).toSet();
+    final newRecords = <Record>[];
+    for (final r in imported) {
+      var record = r;
+      if (existingIds.contains(record.id)) {
+        record = record.copyWith(id: _generateId());
+      }
+      newRecords.add(record);
+    }
+
+    _records.addAll(newRecords);
+    _records.sort((a, b) => b.date.compareTo(a.date));
+    await _repository.saveRecords(_records);
+    _rebuildBookCache();
+    _clearCache();
+
+    notifyListeners();
+    return newRecords.length;
+  }
+
   Future<Record> transfer({
     required AccountProvider accountProvider,
     required String fromAccountId,

@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
+import '../providers/account_provider.dart';
+import '../providers/category_provider.dart';
 import '../providers/book_provider.dart';
+import '../providers/record_provider.dart';
 import '../providers/theme_provider.dart';
+import '../utils/records_export_bundle.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -36,6 +43,8 @@ class ProfilePage extends StatelessWidget {
               _buildBookSection(context, bookProvider),
               const SizedBox(height: 24),
               _buildThemeSection(context, themeProvider),
+              const SizedBox(height: 24),
+              _buildDataSection(context),
               const SizedBox(height: 24),
               Card(
                 child: ListTile(
@@ -207,6 +216,85 @@ class ProfilePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildDataSection(BuildContext context) {
+    return Card(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.cloud_upload_outlined),
+            title: const Text('导入记录（JSON 备份）'),
+            subtitle: const Text('从指尖记账导出的 JSON 备份文件导入记账记录'),
+            onTap: () => _importRecords(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _importRecords(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final path = result.files.single.path;
+    if (path == null) return;
+
+    try {
+      final file = File(path);
+      final content = await file.readAsString();
+      final map = jsonDecode(content) as Map<String, dynamic>;
+      final bundle = RecordsExportBundle.fromMap(map);
+      if (bundle.type != 'records') {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('文件格式不正确，无法导入')),
+          );
+        }
+        return;
+      }
+
+      final imported = bundle.records;
+      if (imported.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('备份中没有任何记录')),
+          );
+        }
+        return;
+      }
+
+      final recordProvider = context.read<RecordProvider>();
+      final accountProvider = context.read<AccountProvider>();
+      final categoryProvider = context.read<CategoryProvider>();
+      final bookProvider = context.read<BookProvider>();
+
+      // Ensure related providers are loaded so that subsequent views work.
+      await Future.wait([
+        if (!recordProvider.loaded) recordProvider.load(),
+        if (!accountProvider.loaded) accountProvider.load(),
+        if (!categoryProvider.loaded) categoryProvider.load(),
+        if (!bookProvider.loaded) bookProvider.load(),
+      ]);
+
+      final count = await recordProvider.importRecords(imported);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已导入 $count 条记录')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('导入失败，请检查文件是否为指尖记账备份')),
+        );
+      }
+    }
   }
 
   Future<void> _showAddBookDialog(BuildContext context) async {
