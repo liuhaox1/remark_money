@@ -41,6 +41,7 @@ class ReportDetailPage extends StatefulWidget {
 
 class _ReportDetailPageState extends State<ReportDetailPage> {
   bool _showBarChart = true;
+  bool _showIncomeCategory = false;
 
   bool get _isYearMode => widget.periodType == PeriodType.year;
   bool get _isMonthMode => widget.periodType == PeriodType.month;
@@ -75,11 +76,20 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         comparison.hasData ? balance - comparison.balance : null;
     final range = _periodRange();
 
-    final expenseEntries = _buildExpenseEntries(
+    final expenseEntries = _buildCategoryEntries(
       records,
       categoryProvider,
       cs,
+      isIncome: false,
     );
+    final incomeEntries = _buildCategoryEntries(
+      records,
+      categoryProvider,
+      cs,
+      isIncome: true,
+    );
+    final distributionEntries =
+        _showIncomeCategory ? incomeEntries : expenseEntries;
     final ranking = List<ChartEntry>.from(expenseEntries)
       ..sort((a, b) => b.value.compareTo(a.value));
     final dailyEntries =
@@ -91,7 +101,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     final activity = _periodActivity(recordProvider, bookId);
     final totalExpenseValue =
-        expenseEntries.fold<double>(0, (sum, e) => sum + e.value);
+        distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
     final compareTitle =
         _isWeekMode ? '\u8fd1 6 \u5468\u5bf9\u6bd4' : AppStrings.recentMonthCompare;
     const emptyText = AppStrings.emptyPeriodRecords;
@@ -132,7 +142,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   ),
                   const SizedBox(height: 12),
                   _SectionCard(
-                    title: AppStrings.expenseDistribution,
+                    title: _showIncomeCategory
+                        ? AppStrings.incomeDistribution
+                        : AppStrings.expenseDistribution,
                     trailing: SegmentedButton<bool>(
                       segments: const [
                         ButtonSegment(
@@ -151,7 +163,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         setState(() => _showBarChart = value.first);
                       },
                     ),
-                    child: expenseEntries.isEmpty
+                    child: distributionEntries.isEmpty
                         ? Padding(
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             child: Center(
@@ -164,14 +176,37 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              Row(
+                                children: [
+                                  SegmentedButton<bool>(
+                                    segments: const [
+                                      ButtonSegment(
+                                        value: false,
+                                        label: Text(AppStrings.expense),
+                                      ),
+                                      ButtonSegment(
+                                        value: true,
+                                        label: Text(AppStrings.income),
+                                      ),
+                                    ],
+                                    selected: {_showIncomeCategory},
+                                    onSelectionChanged: (value) {
+                                      setState(() {
+                                        _showIncomeCategory = value.first;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
                               SizedBox(
                                 height: 260,
                                 child: _showBarChart
-                                    ? ChartBar(entries: expenseEntries)
-                                    : ChartPie(entries: expenseEntries),
+                                    ? ChartBar(entries: distributionEntries)
+                                    : ChartPie(entries: distributionEntries),
                               ),
                               const SizedBox(height: 12),
-                              for (final entry in ranking)
+                              for (final entry in distributionEntries)
                                 Padding(
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 6),
@@ -456,16 +491,18 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
-  List<ChartEntry> _buildExpenseEntries(
+  List<ChartEntry> _buildCategoryEntries(
     List<Record> records,
     CategoryProvider categoryProvider,
-    ColorScheme cs,
-  ) {
+    ColorScheme cs, {
+    required bool isIncome,
+  }) {
     final Map<String, double> expenseMap = {};
     for (final record in records) {
-      if (record.isIncome) continue;
+      if (record.isIncome != isIncome) continue;
+      final value = record.isIncome ? record.incomeValue : record.expenseValue;
       expenseMap[record.categoryKey] =
-          (expenseMap[record.categoryKey] ?? 0) + record.expenseValue;
+          (expenseMap[record.categoryKey] ?? 0) + value;
     }
 
     final categories = categoryProvider.categories;

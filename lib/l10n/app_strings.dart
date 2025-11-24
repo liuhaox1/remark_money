@@ -86,6 +86,7 @@ class AppStrings {
   static const yearReport = '年账单';
   static const expenseDistribution = '支出分布';
   static const expenseRanking = '支出排行';
+  static const incomeDistribution = '收入分布';
   static const dailyTrend = '日趋势';
   static const recentMonthCompare = '近6个月支出对比';
   static const viewPeriodDetail = '查看该周期明细';
