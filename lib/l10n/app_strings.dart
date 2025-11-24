@@ -78,6 +78,24 @@ class AppStrings {
   static const viewByYear = '按年';
   static const noYearData = '本年暂无支出记录';
   static const noMonthData = '本月暂无支出记录';
+  static const report = '报表';
+  static const reportOverview = '报表总览';
+  static const monthReport = '月账单';
+  static const yearReport = '年账单';
+  static const expenseDistribution = '支出分布';
+  static const expenseRanking = '支出排行';
+  static const dailyTrend = '日趋势';
+  static const recentMonthCompare = '近6个月支出对比';
+  static const viewPeriodDetail = '查看该周期明细';
+  static const reportAchievements = '记账成就';
+  static const previousPeriod = '较上期';
+  static const monthListTitle = '月度列表';
+  static const recordCount = '记录笔数';
+  static const activeDays = '活跃天数';
+  static const streakDays = '连续记账天数';
+  static String periodBillTitle(int year, {int? month}) => month != null
+      ? '$year年${month.toString().padLeft(2, '0')}月账单'
+      : '$year 年度账单';
 
   // Week labels
   static const tabMonth = '月';

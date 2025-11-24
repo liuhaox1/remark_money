@@ -10,18 +10,38 @@ import '../l10n/app_strings.dart';
 import '../theme/app_tokens.dart';
 
 class BillPage extends StatefulWidget {
-  const BillPage({super.key});
+  const BillPage({
+    super.key,
+    this.initialYear,
+    this.initialMonth,
+    this.initialShowYearMode,
+  });
+
+  final int? initialYear;
+  final DateTime? initialMonth;
+  final bool? initialShowYearMode;
 
   @override
   State<BillPage> createState() => _BillPageState();
 }
 
 class _BillPageState extends State<BillPage> {
-  bool showYearMode = true;
+  late bool showYearMode;
 
-  int _selectedYear = DateTime.now().year;
-  DateTime _selectedMonth =
-      DateTime(DateTime.now().year, DateTime.now().month, 1);
+  late int _selectedYear;
+  late DateTime _selectedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    showYearMode = widget.initialShowYearMode ?? true;
+    _selectedMonth = widget.initialMonth ?? DateTime(now.year, now.month, 1);
+    _selectedYear = widget.initialYear ?? _selectedMonth.year;
+    if (showYearMode && widget.initialYear != null) {
+      _selectedYear = widget.initialYear!;
+    }
+  }
 
   void _pickYear() async {
     final now = DateTime.now();
@@ -47,8 +67,7 @@ class _BillPageState extends State<BillPage> {
       helpText: AppStrings.pickMonth,
     );
     if (picked != null) {
-      setState(() =>
-          _selectedMonth = DateTime(picked.year, picked.month, 1));
+      setState(() => _selectedMonth = DateTime(picked.year, picked.month, 1));
     }
   }
 
@@ -93,14 +112,12 @@ class _BillPageState extends State<BillPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SegmentedButton<bool>(
               segments: const [
-                ButtonSegment(
-                    value: true, label: Text(AppStrings.yearlyBill)),
+                ButtonSegment(value: true, label: Text(AppStrings.yearlyBill)),
                 ButtonSegment(
                     value: false, label: Text(AppStrings.monthlyBill)),
               ],
               selected: {showYearMode},
-              onSelectionChanged: (s) =>
-                  setState(() => showYearMode = s.first),
+              onSelectionChanged: (s) => setState(() => showYearMode = s.first),
             ),
           ),
 
@@ -135,11 +152,9 @@ class _BillPageState extends State<BillPage> {
   // ======================================================
   // 📘 年度账单（展示 12 个月收入/支出/结余）
   // ======================================================
-  Widget _buildYearBill(
-      BuildContext context, ColorScheme cs, String bookId) {
+  Widget _buildYearBill(BuildContext context, ColorScheme cs, String bookId) {
     final recordProvider = context.watch<RecordProvider>();
-    final months =
-        DateUtilsX.monthsInYear(_selectedYear);
+    final months = DateUtilsX.monthsInYear(_selectedYear);
 
     return ListView.builder(
       padding: const EdgeInsets.all(12),
@@ -165,8 +180,7 @@ class _BillPageState extends State<BillPage> {
   // ======================================================
   // 📕 月度账单（按天显示）
   // ======================================================
-  Widget _buildMonthBill(
-      BuildContext context, ColorScheme cs, String bookId) {
+  Widget _buildMonthBill(BuildContext context, ColorScheme cs, String bookId) {
     final days = DateUtilsX.daysInMonth(_selectedMonth);
     final recordProvider = context.watch<RecordProvider>();
 

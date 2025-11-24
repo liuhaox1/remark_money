@@ -195,6 +195,7 @@ class _BudgetPageState extends State<BudgetPage> {
 
     if (result == null) return;
 
+    if (!mounted) return;
     final provider = context.read<BudgetProvider>();
     await provider.setPeriodStartDay(bookId, result);
   }
@@ -221,6 +222,7 @@ class _BudgetPageState extends State<BudgetPage> {
 
     if (!confirmed) return;
 
+    if (!mounted) return;
     final provider = context.read<BudgetProvider>();
     await provider.resetBudgetForBook(bookId);
 
@@ -405,6 +407,7 @@ class _BudgetPageState extends State<BudgetPage> {
 
     if (selectedKey == null) return;
 
+    if (!mounted) return;
     final category =
         expenseCategories.firstWhere((element) => element.key == selectedKey);
 
