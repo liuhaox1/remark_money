@@ -10,21 +10,43 @@ enum AccountType {
   other,
 }
 
-/// 账户的主类型，用于计算净资产和分组展示。
 enum AccountKind {
   asset,
   liability,
   lend,
 }
 
+enum AccountSubtype {
+  cash('cash'),
+  savingCard('saving_card'),
+  creditCard('credit_card'),
+  virtual('virtual'),
+  invest('invest'),
+  loan('loan'),
+  receivable('receivable'),
+  customAsset('custom_asset');
+
+  const AccountSubtype(this.code);
+  final String code;
+
+  static AccountSubtype fromCode(String? code) {
+    return AccountSubtype.values.firstWhere(
+      (value) => value.code == code,
+      orElse: () => AccountSubtype.cash,
+    );
+  }
+}
+
 class Account {
   const Account({
     required this.id,
     required this.name,
-    required this.type,
-    required this.icon,
-    required this.includeInTotal,
     required this.kind,
+    this.subtype = 'cash',
+    this.type = AccountType.cash,
+    this.icon = 'wallet',
+    this.includeInTotal = true,
+    this.includeInOverview = true,
     this.currency = 'CNY',
     this.sortOrder = 0,
     this.initialBalance = 0,
@@ -32,16 +54,19 @@ class Account {
     this.counterparty,
     this.interestRate,
     this.dueDate,
+    this.note,
     this.createdAt,
     this.updatedAt,
   });
 
   final String id;
   final String name;
+  final AccountKind kind;
+  final String subtype;
   final AccountType type;
   final String icon;
   final bool includeInTotal;
-  final AccountKind kind;
+  final bool includeInOverview;
   final String currency;
   final int sortOrder;
   final double initialBalance;
@@ -49,6 +74,7 @@ class Account {
   final String? counterparty;
   final double? interestRate;
   final DateTime? dueDate;
+  final String? note;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -59,34 +85,40 @@ class Account {
   Account copyWith({
     String? id,
     String? name,
+    AccountKind? kind,
+    String? subtype,
     AccountType? type,
     String? icon,
     bool? includeInTotal,
+    bool? includeInOverview,
     String? currency,
     int? sortOrder,
     double? initialBalance,
     double? currentBalance,
-    AccountKind? kind,
     String? counterparty,
     double? interestRate,
     DateTime? dueDate,
+    String? note,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return Account(
       id: id ?? this.id,
       name: name ?? this.name,
+      kind: kind ?? this.kind,
+      subtype: subtype ?? this.subtype,
       type: type ?? this.type,
       icon: icon ?? this.icon,
       includeInTotal: includeInTotal ?? this.includeInTotal,
+      includeInOverview: includeInOverview ?? this.includeInOverview,
       currency: currency ?? this.currency,
       sortOrder: sortOrder ?? this.sortOrder,
       initialBalance: initialBalance ?? this.initialBalance,
       currentBalance: currentBalance ?? this.currentBalance,
-      kind: kind ?? this.kind,
       counterparty: counterparty ?? this.counterparty,
       interestRate: interestRate ?? this.interestRate,
       dueDate: dueDate ?? this.dueDate,
+      note: note ?? this.note,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -96,17 +128,21 @@ class Account {
     return {
       'id': id,
       'name': name,
+      'category': kind.name,
+      'kind': kind.name,
+      'subtype': subtype,
       'type': type.name,
       'icon': icon,
       'includeInTotal': includeInTotal,
+      'includeInOverview': includeInOverview,
       'currency': currency,
       'sortOrder': sortOrder,
       'initialBalance': initialBalance,
       'currentBalance': currentBalance,
-      'kind': kind.name,
       'counterparty': counterparty,
       'interestRate': interestRate,
       'dueDate': dueDate?.toIso8601String(),
+      'note': note,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       // legacy fields
@@ -117,7 +153,7 @@ class Account {
 
   factory Account.fromMap(Map<String, dynamic> map) {
     final parsedKind = () {
-      final rawKind = map['kind'] as String?;
+      final rawKind = map['category'] as String? ?? map['kind'] as String?;
       if (rawKind != null) {
         return AccountKind.values.firstWhere(
           (k) => k.name == rawKind,
@@ -132,25 +168,31 @@ class Account {
         (map['balance'] as num?)?.toDouble() ??
         0;
 
+    final rawType = map['type'] as String?;
     return Account(
       id: map['id'] as String,
       name: map['name'] as String,
+      kind: parsedKind,
+      subtype: map['subtype'] as String? ?? _mapLegacySubtype(rawType),
       type: AccountType.values.firstWhere(
-        (t) => t.name == map['type'],
+        (t) => t.name == rawType,
         orElse: () => AccountType.cash,
       ),
       icon: map['icon'] as String? ?? 'wallet',
-      includeInTotal: map['includeInTotal'] as bool? ?? true,
+      includeInTotal:
+          map['includeInTotal'] as bool? ?? map['includeInOverview'] as bool? ?? true,
+      includeInOverview:
+          map['includeInOverview'] as bool? ?? map['includeInTotal'] as bool? ?? true,
       currency: map['currency'] as String? ?? 'CNY',
       sortOrder: map['sortOrder'] as int? ?? 0,
       initialBalance: (map['initialBalance'] as num?)?.toDouble() ??
           (map['balance'] as num?)?.toDouble() ??
           0,
       currentBalance: parsedBalance,
-      kind: parsedKind,
       counterparty: map['counterparty'] as String?,
       interestRate: (map['interestRate'] as num?)?.toDouble(),
       dueDate: map['dueDate'] != null ? DateTime.tryParse(map['dueDate']) : null,
+      note: map['note'] as String?,
       createdAt:
           map['createdAt'] != null ? DateTime.tryParse(map['createdAt']) : null,
       updatedAt:
@@ -164,3 +206,22 @@ class Account {
       Account.fromMap(json.decode(source) as Map<String, dynamic>);
 }
 
+String _mapLegacySubtype(String? rawType) {
+  switch (rawType) {
+    case 'bankCard':
+      return AccountSubtype.savingCard.code;
+    case 'eWallet':
+      return AccountSubtype.virtual.code;
+    case 'investment':
+      return AccountSubtype.invest.code;
+    case 'loan':
+      return AccountSubtype.loan.code;
+    case 'lend':
+      return AccountSubtype.receivable.code;
+    case 'other':
+      return AccountSubtype.customAsset.code;
+    case 'cash':
+    default:
+      return AccountSubtype.cash.code;
+  }
+}

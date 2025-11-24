@@ -3,15 +3,16 @@ import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/account.dart';
+import '../models/saving_goal.dart';
 import '../providers/account_provider.dart';
 import '../providers/saving_goal_provider.dart';
 import '../theme/app_tokens.dart';
-import '../widgets/account_edit_sheet.dart';
-import '../widgets/quick_add_sheet.dart';
+import 'add_account_type_page.dart';
+import 'add_record_page.dart';
 import 'account_detail_page.dart';
+import 'analysis_page.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
-import 'analysis_page.dart';
 
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
@@ -31,10 +32,9 @@ class _RootShellState extends State<RootShell> {
   ];
 
   Future<void> _openQuickAddSheet() async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const QuickAddSheet(),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddRecordPage()),
     );
   }
 
@@ -142,47 +142,54 @@ class AssetsPage extends StatelessWidget {
     final totalDebts = accountProvider.totalDebts;
     final netWorth = accountProvider.netWorth;
     final accounts = accountProvider.accounts;
+    final grouped = _groupAccounts(accounts);
 
     return Scaffold(
       backgroundColor:
           isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
         elevation: 0,
-        toolbarHeight: 0,
         backgroundColor: Colors.transparent,
+        title: const Text('资产总览'),
       ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: Column(
-              children: [
-                _AssetSummaryCard(
-                  totalAssets: totalAssets,
-                  totalDebts: totalDebts,
-                  netWorth: netWorth,
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: accounts.isEmpty
-                        ? const _EmptyAccounts()
-                        : _AccountList(
-                            accounts: accounts,
-                            savingGoalProvider: savingGoalProvider,
-                          ),
+            child: accounts.isEmpty
+                ? _EmptyAccounts(
+                    onAdd: () => _startAddAccountFlow(context),
+                  )
+                : Column(
+                    children: [
+                      _AssetSummaryCard(
+                        totalAssets: totalAssets,
+                        totalDebts: totalDebts,
+                        netWorth: netWorth,
+                      ),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          children: [
+                            for (final group in grouped)
+                              _AccountGroupPanel(
+                                group: group,
+                                savingGoalProvider: savingGoalProvider,
+                                onAdd: () => _startAddAccountFlow(context),
+                              ),
+                            const SizedBox(height: 12),
+                            _SavingGoalSection(
+                              savingGoalProvider: savingGoalProvider,
+                              accountProvider: accountProvider,
+                              onAddGoal: () => _openGoalSheet(context),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openAddAccount(context, accountProvider),
-        icon: const Icon(Icons.add),
-        label: const Text(AppStrings.addAccount),
       ),
     );
   }
@@ -207,9 +214,9 @@ class _AssetSummaryCard extends StatelessWidget {
     final netColor = AppColors.amount(netWorth);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
           gradient: isDark
               ? null
@@ -236,66 +243,31 @@ class _AssetSummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               AppStrings.netWorth,
               style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface.withOpacity(0.8),
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               _formatAmount(netWorth),
               style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
                 color: netColor,
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        AppStrings.totalAssets,
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatAmount(totalAssets),
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: cs.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        AppStrings.totalDebts,
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatAmount(totalDebts),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.orange,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            const SizedBox(height: 10),
+            Text(
+              '资产 ${_formatAmount(totalAssets)}    负债 ${_formatAmount(totalDebts)}',
+              style: TextStyle(
+                fontSize: 13,
+                color: cs.onSurface.withOpacity(0.7),
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -315,83 +287,55 @@ class _AssetSummaryCard extends StatelessWidget {
   }
 }
 
-class _AccountList extends StatelessWidget {
-  const _AccountList({
-    required this.accounts,
+class _AccountGroupPanel extends StatelessWidget {
+  const _AccountGroupPanel({
+    required this.group,
     required this.savingGoalProvider,
+    required this.onAdd,
   });
 
-  final List<Account> accounts;
+  final _AccountGroupData group;
   final SavingGoalProvider savingGoalProvider;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
-    final assetList =
-        accounts.where((a) => a.kind == AccountKind.asset).toList();
-    final debtList =
-        accounts.where((a) => a.kind == AccountKind.liability).toList();
-    final lendList = accounts.where((a) => a.kind == AccountKind.lend).toList();
-
-    return ListView(
-      children: [
-        if (assetList.isNotEmpty)
-          _AccountGroup(
-            title: '资产账户',
-            accounts: assetList,
-            savingGoalProvider: savingGoalProvider,
-          ),
-        if (debtList.isNotEmpty)
-          _AccountGroup(
-            title: '负债账户',
-            accounts: debtList,
-            savingGoalProvider: savingGoalProvider,
-          ),
-        if (lendList.isNotEmpty)
-          _AccountGroup(
-            title: '借出账户',
-            accounts: lendList,
-            savingGoalProvider: savingGoalProvider,
-          ),
-      ],
-    );
-  }
-}
-
-class _AccountGroup extends StatelessWidget {
-  const _AccountGroup({
-    required this.title,
-    required this.accounts,
-    required this.savingGoalProvider,
-  });
-
-  final String title;
-  final List<Account> accounts;
-  final SavingGoalProvider savingGoalProvider;
-
-  @override
-  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey,
-            ),
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+          child: Row(
+            children: [
+              Text(
+                group.title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('添加账户'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+              ),
+            ],
           ),
         ),
         Card(
           margin: EdgeInsets.zero,
           child: Column(
             children: [
-              for (final account in accounts)
+              for (final account in group.accounts)
                 _AccountTile(
                   account: account,
-                  isLast: account == accounts.last,
+                  isLast: account == group.accounts.last,
                   savingGoalProvider: savingGoalProvider,
                 ),
             ],
@@ -416,7 +360,7 @@ class _AccountTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDebt = account.isDebt;
+    final isDebt = account.kind == AccountKind.liability;
     final amountColor = isDebt ? Colors.orange : cs.primary;
     final icon = _iconForAccount(account);
     final goal = savingGoalProvider.goalForAccount(account.id);
@@ -439,15 +383,15 @@ class _AccountTile extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     color: cs.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: Icon(icon, size: 18, color: cs.primary),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,7 +400,7 @@ class _AccountTile extends StatelessWidget {
                         account.name,
                         style: const TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -474,7 +418,7 @@ class _AccountTile extends StatelessWidget {
                 Text(
                   account.currentBalance.toStringAsFixed(2),
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: amountColor,
                   ),
@@ -495,7 +439,7 @@ class _AccountTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '目标：${goal.name} · 已完成 ¥${contributed.toStringAsFixed(0)} / ¥${goal.targetAmount.toStringAsFixed(0)}',
+                    '目标 ${goal.name} · 已完成 ¥${contributed.toStringAsFixed(0)} / ¥${goal.targetAmount.toStringAsFixed(0)}',
                     style: const TextStyle(fontSize: 11),
                   ),
                 ],
@@ -504,7 +448,7 @@ class _AccountTile extends StatelessWidget {
           if (!isLast)
             Divider(
               height: 1,
-              indent: 54,
+              indent: 56,
               endIndent: 12,
               color: cs.outlineVariant.withOpacity(0.4),
             ),
@@ -514,79 +458,86 @@ class _AccountTile extends StatelessWidget {
   }
 
   IconData _iconForAccount(Account account) {
-    switch (account.type) {
-      case AccountType.cash:
+    final subtype = AccountSubtype.fromCode(account.subtype);
+    switch (subtype) {
+      case AccountSubtype.cash:
         return Icons.account_balance_wallet_outlined;
-      case AccountType.bankCard:
+      case AccountSubtype.savingCard:
         return Icons.credit_card;
-      case AccountType.eWallet:
-        return Icons.payment;
-      case AccountType.investment:
+      case AccountSubtype.creditCard:
+        return Icons.credit_score_outlined;
+      case AccountSubtype.virtual:
+        return Icons.qr_code_2_outlined;
+      case AccountSubtype.invest:
         return Icons.savings_outlined;
-      case AccountType.loan:
+      case AccountSubtype.loan:
         return Icons.trending_down;
-      case AccountType.lend:
+      case AccountSubtype.receivable:
         return Icons.swap_horiz_outlined;
-      case AccountType.other:
-      default:
-        return Icons.account_balance_outlined;
+      case AccountSubtype.customAsset:
+        return Icons.category_outlined;
     }
   }
 
   String _subtitleForAccount(Account account) {
-    if (account.kind == AccountKind.liability) return '负债账户';
-    if (account.kind == AccountKind.lend) return '借出账户';
-    switch (account.type) {
-      case AccountType.cash:
-        return AppStrings.cash;
-      case AccountType.bankCard:
-        return AppStrings.bankCard;
-      case AccountType.eWallet:
-        return AppStrings.payAccount;
-      case AccountType.investment:
-        return AppStrings.investment;
-      case AccountType.loan:
-        return AppStrings.borrow;
-      case AccountType.lend:
-        return '借出';
-      case AccountType.other:
-      default:
-        return AppStrings.other;
+    final subtype = AccountSubtype.fromCode(account.subtype);
+    switch (subtype) {
+      case AccountSubtype.cash:
+        return '现金';
+      case AccountSubtype.savingCard:
+        return '储蓄卡';
+      case AccountSubtype.creditCard:
+        return '信用卡 / 花呗';
+      case AccountSubtype.virtual:
+        return '虚拟账户';
+      case AccountSubtype.invest:
+        return '投资账户';
+      case AccountSubtype.loan:
+        return '贷款/借入';
+      case AccountSubtype.receivable:
+        return '应收/借出';
+      case AccountSubtype.customAsset:
+        return '自定义资产';
     }
   }
 }
 
 class _EmptyAccounts extends StatelessWidget {
-  const _EmptyAccounts();
+  const _EmptyAccounts({required this.onAdd});
+
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Center(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.account_balance_wallet_outlined,
-            size: 80,
+            size: 96,
             color: cs.outline,
           ),
           const SizedBox(height: 12),
           const Text(
-            AppStrings.emptyAccountsTitle,
+            '从第一个账户开始，看清你的钱',
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(AppStrings.emptyAccountsSubtitle),
+          const Text(
+            '添加你的现金、银行卡或借款账户，净资产一目了然。',
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: () =>
-                _openAddAccount(context, context.read<AccountProvider>()),
+            onPressed: onAdd,
             icon: const Icon(Icons.add),
-            label: const Text(AppStrings.addAccount),
+            label: const Text('添加账户'),
           ),
         ],
       ),
@@ -594,15 +545,229 @@ class _EmptyAccounts extends StatelessWidget {
   }
 }
 
-Future<void> _openAddAccount(
-  BuildContext context,
-  AccountProvider accountProvider,
-) async {
+class _SavingGoalSection extends StatelessWidget {
+  const _SavingGoalSection({
+    required this.savingGoalProvider,
+    required this.accountProvider,
+    required this.onAddGoal,
+  });
+
+  final SavingGoalProvider savingGoalProvider;
+  final AccountProvider accountProvider;
+  final VoidCallback onAddGoal;
+
+  @override
+  Widget build(BuildContext context) {
+    final goals = savingGoalProvider.goals;
+    if (goals.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '给资产账户设置一个存款目标，跟踪进度更有动力。',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
+              FilledButton(
+                onPressed: onAddGoal,
+                child: const Text('新建目标'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  '存款目标',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: onAddGoal,
+                  child: const Text('新建目标'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final goal in goals)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: _SavingGoalTile(
+                  goal: goal,
+                  accountProvider: accountProvider,
+                  savingGoalProvider: savingGoalProvider,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SavingGoalTile extends StatelessWidget {
+  const _SavingGoalTile({
+    required this.goal,
+    required this.accountProvider,
+    required this.savingGoalProvider,
+  });
+
+  final SavingGoal goal;
+  final AccountProvider accountProvider;
+  final SavingGoalProvider savingGoalProvider;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = savingGoalProvider.amountProgress(goal);
+    final contributed = savingGoalProvider.contributedAmount(goal.id);
+    final account = accountProvider.byId(goal.accountId);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    goal.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${account?.name ?? ''} · 已存 ¥${contributed.toStringAsFixed(0)} / ¥${goal.targetAmount.toStringAsFixed(0)}',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            Text('${(progress * 100).toStringAsFixed(0)}%'),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: progress,
+          minHeight: 8,
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ],
+    );
+  }
+}
+
+class _AccountGroupData {
+  _AccountGroupData({required this.title, required this.accounts});
+
+  final String title;
+  final List<Account> accounts;
+}
+
+class _GroupDefinition {
+  const _GroupDefinition({
+    required this.title,
+    required this.kind,
+    required this.subtypes,
+  });
+
+  final String title;
+  final AccountKind kind;
+  final List<String> subtypes;
+}
+
+List<_AccountGroupData> _groupAccounts(List<Account> accounts) {
+  final definitions = [
+    _GroupDefinition(
+      title: '现金',
+      kind: AccountKind.asset,
+      subtypes: [AccountSubtype.cash.code],
+    ),
+    _GroupDefinition(
+      title: '储蓄卡',
+      kind: AccountKind.asset,
+      subtypes: [AccountSubtype.savingCard.code],
+    ),
+    _GroupDefinition(
+      title: '信用卡',
+      kind: AccountKind.liability,
+      subtypes: [AccountSubtype.creditCard.code],
+    ),
+    _GroupDefinition(
+      title: '虚拟账户',
+      kind: AccountKind.asset,
+      subtypes: [AccountSubtype.virtual.code],
+    ),
+    _GroupDefinition(
+      title: '投资账户',
+      kind: AccountKind.asset,
+      subtypes: [AccountSubtype.invest.code],
+    ),
+    _GroupDefinition(
+      title: '自定义资产',
+      kind: AccountKind.asset,
+      subtypes: [AccountSubtype.customAsset.code],
+    ),
+    _GroupDefinition(
+      title: '负债（贷款/借入）',
+      kind: AccountKind.liability,
+      subtypes: [AccountSubtype.loan.code],
+    ),
+    _GroupDefinition(
+      title: '债权（应收/借出）',
+      kind: AccountKind.lend,
+      subtypes: [AccountSubtype.receivable.code],
+    ),
+  ];
+
+  final handled = <String>{};
+  final result = <_AccountGroupData>[];
+  for (final def in definitions) {
+    final list = accounts.where((a) {
+      if (handled.contains(a.id)) return false;
+      final belongs =
+          def.subtypes.contains(a.subtype) && a.kind == def.kind;
+      return belongs;
+    }).toList();
+    if (list.isNotEmpty) {
+      handled.addAll(list.map((e) => e.id));
+      result.add(_AccountGroupData(title: def.title, accounts: list));
+    }
+  }
+
+  final leftovers =
+      accounts.where((a) => !handled.contains(a.id)).toList();
+  if (leftovers.isNotEmpty) {
+    result.add(_AccountGroupData(title: '其他账户', accounts: leftovers));
+  }
+  return result;
+}
+
+Future<AccountKind?> _startAddAccountFlow(BuildContext context) async {
+  final accountProvider = context.read<AccountProvider>();
   final assetBefore = accountProvider.byKind(AccountKind.asset).length;
   final hasDebtBefore =
       accountProvider.byKind(AccountKind.liability).isNotEmpty;
-  final createdKind = await showAccountEditSheet(context);
-  if (createdKind == null) return;
+
+  final createdKind = await Navigator.push<AccountKind>(
+    context,
+    MaterialPageRoute(builder: (_) => const AddAccountTypePage()),
+  );
+  if (createdKind == null) return null;
 
   final assetAfter = accountProvider.byKind(AccountKind.asset).length;
   final hasDebtAfter =
@@ -610,20 +775,19 @@ Future<void> _openAddAccount(
   if (createdKind == AccountKind.asset &&
       assetBefore == 0 &&
       !hasDebtBefore &&
-      !hasDebtAfter) {
-    await _promptAddDebt(context, accountProvider);
+      !hasDebtAfter &&
+      context.mounted) {
+    await _promptAddDebt(context);
   }
+  return createdKind;
 }
 
-Future<void> _promptAddDebt(
-  BuildContext context,
-  AccountProvider accountProvider,
-) async {
+Future<void> _promptAddDebt(BuildContext context) async {
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('添加负债账户'),
-      content: const Text('要不要顺便添加一个负债账户，让净资产更真实？'),
+      content: const Text('要不要顺便把负债账户也加进去？这样净资产会更真实。'),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
@@ -638,9 +802,174 @@ Future<void> _promptAddDebt(
   );
 
   if (result == true && context.mounted) {
-    await showAccountEditSheet(
+    await Navigator.push<AccountKind>(
       context,
-      initialKind: AccountKind.liability,
+      MaterialPageRoute(builder: (_) => const AddAccountTypePage()),
     );
   }
+}
+
+Future<void> _openGoalSheet(BuildContext context) async {
+  final accountProvider = context.read<AccountProvider>();
+  final savingGoalProvider = context.read<SavingGoalProvider>();
+  final accounts = accountProvider.byKind(AccountKind.asset);
+  if (accounts.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('请先添加资产账户')),
+    );
+    return;
+  }
+
+  final nameCtrl = TextEditingController();
+  final amountCtrl = TextEditingController();
+  String? selectedAccountId = accounts.first.id;
+  DateTime startDate = DateTime.now();
+  DateTime? endDate;
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) {
+      final bottom = MediaQuery.of(ctx).viewInsets.bottom + 12;
+      return Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, bottom),
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '新建存款目标',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: '目标名称',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: '目标金额',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedAccountId,
+                  items: accounts
+                      .map(
+                        (a) => DropdownMenuItem(
+                          value: a.id,
+                          child: Text(a.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => selectedAccountId = v),
+                  decoration: const InputDecoration(
+                    labelText: '绑定账户',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: startDate,
+                            firstDate: DateTime.now()
+                                .subtract(const Duration(days: 365)),
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 365 * 5)),
+                          );
+                          if (picked != null) {
+                            setState(() => startDate = picked);
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: '起始日期',
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(_formatDate(startDate)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: endDate ?? DateTime.now(),
+                            firstDate: startDate,
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 365 * 5)),
+                          );
+                          if (picked != null) {
+                            setState(() => endDate = picked);
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: '截止日期（可选）',
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                            endDate == null
+                                ? '未设置'
+                                : _formatDate(endDate!),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () async {
+                    final amount = double.tryParse(amountCtrl.text.trim());
+                    if (amount == null || amount <= 0 || selectedAccountId == null) {
+                      return;
+                    }
+                    final goal = SavingGoal(
+                      id: '',
+                      name: nameCtrl.text.trim().isEmpty
+                          ? '存款目标'
+                          : nameCtrl.text.trim(),
+                      accountId: selectedAccountId!,
+                      targetAmount: amount,
+                      startDate: startDate,
+                      endDate: endDate,
+                      status: SavingGoalStatus.active,
+                    );
+                    await savingGoalProvider.addGoal(goal);
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text('保存目标'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    },
+  );
+
+  nameCtrl.dispose();
+  amountCtrl.dispose();
+}
+
+String _formatDate(DateTime date) {
+  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }

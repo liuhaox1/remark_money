@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -13,7 +13,7 @@ import '../providers/account_provider.dart';
 import '../providers/saving_goal_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
-import '../widgets/account_edit_sheet.dart';
+import 'add_account_type_page.dart';
 
 class AddRecordPage extends StatefulWidget {
   const AddRecordPage({super.key, this.isExpense = true});
@@ -202,7 +202,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '账户',
+          '璐︽埛',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
@@ -212,7 +212,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
               .map(
                 (a) => DropdownMenuItem(
                   value: a.id,
-                  child: Text('${a.name} · ${a.currentBalance.toStringAsFixed(2)}'),
+                  child: Text('${a.name} 路 ${a.currentBalance.toStringAsFixed(2)}'),
                 ),
               )
               .toList(),
@@ -221,25 +221,27 @@ class _AddRecordPageState extends State<AddRecordPage> {
             _selectedGoalId = null;
           }),
           decoration: const InputDecoration(
-            hintText: '选择账户',
+            hintText: '閫夋嫨璐︽埛',
             border: OutlineInputBorder(),
           ),
         ),
         if (accounts.isEmpty)
           TextButton(
             onPressed: () async {
-              final result = await showAccountEditSheet(context);
+              await Navigator.push<AccountKind>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AddAccountTypePage(),
+                ),
+              );
               if (!mounted) return;
-              if (result != null) {
-                setState(() => _selectedAccountId = null);
-              }
+              setState(() => _selectedAccountId = null);
             },
             child: const Text('去添加账户'),
           ),
       ],
     );
   }
-
   Widget _buildDatePicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,7 +298,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '这笔钱是否用于某个存款目标？',
+          '杩欑瑪閽辨槸鍚︾敤浜庢煇涓瓨娆剧洰鏍囷紵',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
@@ -306,14 +308,14 @@ class _AddRecordPageState extends State<AddRecordPage> {
               .map(
                 (g) => DropdownMenuItem(
                   value: g.id,
-                  child: Text('${g.name} · 目标 ¥${g.targetAmount.toStringAsFixed(0)}'),
+                  child: Text('${g.name} 路 鐩爣 楼${g.targetAmount.toStringAsFixed(0)}'),
                 ),
               )
               .toList(),
           onChanged: (v) => setState(() => _selectedGoalId = v),
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
-            hintText: '选择存款目标（可选）',
+            hintText: '閫夋嫨瀛樻鐩爣锛堝彲閫夛級',
           ),
         ),
       ],
@@ -372,7 +374,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       return;
     }
     if (_selectedAccountId == null) {
-      _showMessage('请选择账户');
+      _showMessage('璇烽€夋嫨璐︽埛');
       return;
     }
 
@@ -420,3 +422,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
     return account?.kind == AccountKind.asset;
   }
 }
+
+
+
+
+

@@ -12,8 +12,9 @@ class AccountProvider extends ChangeNotifier {
   final Random _random = Random();
 
   final List<Account> _accounts = [];
-  List<Account> get accounts =>
-      List.unmodifiable(_accounts..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
+  List<Account> get accounts => List.unmodifiable(
+        _accounts..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
+      );
 
   bool _loaded = false;
   bool get loaded => _loaded;
@@ -47,11 +48,11 @@ class AccountProvider extends ChangeNotifier {
   }
 
   double get totalAssets => _accounts
-      .where((a) => a.includeInTotal && a.kind != AccountKind.liability)
+      .where((a) => a.includeInOverview && a.kind != AccountKind.liability)
       .fold(0, (sum, a) => sum + a.currentBalance);
 
   double get totalDebts => _accounts
-      .where((a) => a.includeInTotal && a.kind == AccountKind.liability)
+      .where((a) => a.includeInOverview && a.kind == AccountKind.liability)
       .fold(0, (sum, a) => sum + a.currentBalance.abs());
 
   double get netWorth => totalAssets - totalDebts;

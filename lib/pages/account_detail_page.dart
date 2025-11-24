@@ -7,7 +7,7 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/saving_goal_provider.dart';
-import '../widgets/account_edit_sheet.dart';
+import 'account_form_page.dart';
 
 class AccountDetailPage extends StatelessWidget {
   const AccountDetailPage({super.key, required this.accountId});
@@ -38,7 +38,16 @@ class AccountDetailPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             onPressed: () async {
-              final result = await showAccountEditSheet(context, account: account);
+              final result = await Navigator.push<AccountKind>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AccountFormPage(
+                    kind: account.kind,
+                    subtype: AccountSubtype.fromCode(account.subtype),
+                    account: account,
+                  ),
+                ),
+              );
               if (result != null && context.mounted) Navigator.pop(context);
             },
           ),

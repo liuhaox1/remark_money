@@ -1,0 +1,328 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/account.dart';
+import '../providers/account_provider.dart';
+
+class AccountFormPage extends StatefulWidget {
+  const AccountFormPage({
+    super.key,
+    required this.kind,
+    required this.subtype,
+    this.account,
+  });
+
+  final AccountKind kind;
+  final AccountSubtype subtype;
+  final Account? account;
+
+  @override
+  State<AccountFormPage> createState() => _AccountFormPageState();
+}
+
+class _AccountFormPageState extends State<AccountFormPage> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _amountCtrl;
+  late final TextEditingController _noteCtrl;
+  late final TextEditingController _counterpartyCtrl;
+  bool _includeInOverview = true;
+  DateTime? _dueDate;
+
+  @override
+  void initState() {
+    super.initState();
+    final account = widget.account;
+    _nameCtrl = TextEditingController(text: account?.name ?? _defaultName());
+    _amountCtrl = TextEditingController(
+      text: (account?.currentBalance ?? account?.initialBalance ?? 0).toString(),
+    );
+    _noteCtrl = TextEditingController(text: account?.note ?? '');
+    _counterpartyCtrl = TextEditingController(text: account?.counterparty ?? '');
+    _includeInOverview = account?.includeInOverview ?? true;
+    _dueDate = account?.dueDate;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _amountCtrl.dispose();
+    _noteCtrl.dispose();
+    _counterpartyCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEditing = widget.account != null;
+    final kind = widget.account?.kind ?? widget.kind;
+    final subtype = widget.account != null
+        ? AccountSubtype.fromCode(widget.account!.subtype)
+        : widget.subtype;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isEditing ? '编辑账户' : '添加账户'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTypeHeader(kind, subtype),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: '账户名称',
+                hintText: '例如：招商银行(尾号1234)',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amountCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true, signed: false),
+              decoration: InputDecoration(
+                labelText: _amountLabel(kind),
+                hintText: '0.00',
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_showCounterparty(kind, subtype)) ...[
+              TextField(
+                controller: _counterpartyCtrl,
+                decoration: const InputDecoration(
+                  labelText: '对方名称（可选）',
+                  hintText: '如：银行/朋友姓名',
+                ),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _pickDate,
+                child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: '预计还清/收回日期（可选）',
+                border: OutlineInputBorder(),
+              ),
+              child: Text(_dueDate == null ? '未设置' : _formatDate(_dueDate!)),
+            ),
+          ),
+          const SizedBox(height: 12),
+            ],
+            TextField(
+              controller: _noteCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: '备注（可选）',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text(
+                '高级设置',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              children: [
+                SwitchListTile(
+                  title: const Text('计入资产汇总'),
+                  value: _includeInOverview,
+                  onChanged: (v) => setState(() => _includeInOverview = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => _handleSubmit(kind, subtype, isEditing),
+                child: Text(isEditing ? '保存' : '添加账户'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeHeader(AccountKind kind, AccountSubtype subtype) {
+    final kindLabel = () {
+      switch (kind) {
+        case AccountKind.asset:
+          return '资产账户';
+        case AccountKind.liability:
+          return '负债账户';
+        case AccountKind.lend:
+          return '借出/应收账户';
+      }
+    }();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          kindLabel,
+          style: const TextStyle(fontSize: 13, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _subtypeLabel(subtype),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+
+  bool _showCounterparty(AccountKind kind, AccountSubtype subtype) {
+    if (kind == AccountKind.liability) return true;
+    return subtype == AccountSubtype.receivable;
+  }
+
+  String _amountLabel(AccountKind kind) {
+    if (kind == AccountKind.liability) return '初始欠款金额';
+    if (kind == AccountKind.lend) return '初始应收金额';
+    return '初始余额';
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final result = await showDatePicker(
+      context: context,
+      initialDate: _dueDate ?? now,
+      firstDate: now.subtract(const Duration(days: 365 * 5)),
+      lastDate: now.add(const Duration(days: 365 * 10)),
+    );
+    if (result != null) {
+      setState(() => _dueDate = result);
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _handleSubmit(
+    AccountKind kind,
+    AccountSubtype subtype,
+    bool isEditing,
+  ) async {
+    final name = _nameCtrl.text.trim();
+    final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
+    if (name.isEmpty) {
+      _showSnack('请填写账户名称');
+      return;
+    }
+    final normalizedAmount = amount.abs();
+    final provider = context.read<AccountProvider>();
+    final accountType = _mapSubtypeToLegacy(subtype);
+
+    if (isEditing && widget.account != null) {
+      final updated = widget.account!.copyWith(
+        name: name,
+        kind: kind,
+        subtype: subtype.code,
+        type: accountType,
+        includeInTotal: _includeInOverview,
+        includeInOverview: _includeInOverview,
+        currentBalance: normalizedAmount,
+        counterparty: _counterpartyCtrl.text.trim().isEmpty
+            ? null
+            : _counterpartyCtrl.text.trim(),
+        dueDate: _dueDate,
+        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+      );
+      await provider.updateAccount(updated);
+    } else {
+      final account = Account(
+        id: '',
+        name: name,
+        kind: kind,
+        subtype: subtype.code,
+        type: accountType,
+        icon: 'wallet',
+        includeInTotal: _includeInOverview,
+        includeInOverview: _includeInOverview,
+        initialBalance: normalizedAmount,
+        currentBalance: normalizedAmount,
+        counterparty: _counterpartyCtrl.text.trim().isEmpty
+            ? null
+            : _counterpartyCtrl.text.trim(),
+        dueDate: _dueDate,
+        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+      );
+      await provider.addAccount(account);
+    }
+
+    if (!mounted) return;
+    Navigator.pop(context, kind);
+  }
+
+  void _showSnack(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  String _defaultName() {
+    switch (widget.subtype) {
+      case AccountSubtype.cash:
+        return '现金';
+      case AccountSubtype.savingCard:
+        return '储蓄卡';
+      case AccountSubtype.creditCard:
+        return '信用卡';
+      case AccountSubtype.virtual:
+        return '支付宝/微信';
+      case AccountSubtype.invest:
+        return '投资账户';
+      case AccountSubtype.loan:
+        return '贷款账户';
+      case AccountSubtype.receivable:
+        return '应收/借出';
+      case AccountSubtype.customAsset:
+        return '自定义资产';
+    }
+  }
+
+  String _subtypeLabel(AccountSubtype subtype) {
+    switch (subtype) {
+      case AccountSubtype.cash:
+        return '现金';
+      case AccountSubtype.savingCard:
+        return '储蓄卡';
+      case AccountSubtype.creditCard:
+        return '信用卡 / 花呗';
+      case AccountSubtype.virtual:
+        return '虚拟账户';
+      case AccountSubtype.invest:
+        return '投资账户';
+      case AccountSubtype.loan:
+        return '贷款/借入';
+      case AccountSubtype.receivable:
+        return '债权 / 借出';
+      case AccountSubtype.customAsset:
+        return '自定义资产';
+    }
+  }
+}
+
+AccountType _mapSubtypeToLegacy(AccountSubtype subtype) {
+  switch (subtype) {
+    case AccountSubtype.cash:
+      return AccountType.cash;
+    case AccountSubtype.savingCard:
+      return AccountType.bankCard;
+    case AccountSubtype.creditCard:
+      return AccountType.loan;
+    case AccountSubtype.virtual:
+      return AccountType.eWallet;
+    case AccountSubtype.invest:
+      return AccountType.investment;
+    case AccountSubtype.loan:
+      return AccountType.loan;
+    case AccountSubtype.receivable:
+      return AccountType.lend;
+    case AccountSubtype.customAsset:
+      return AccountType.other;
+  }
+}

@@ -16,6 +16,7 @@ class Record {
   final bool includeInStats;
   final String? pairId;
   final String? targetId;
+  String? get goalId => targetId;
 
   const Record({
     required this.id,
@@ -68,10 +69,11 @@ class Record {
       'categoryKey': categoryKey,
       'bookId': bookId,
       'accountId': accountId,
-      'direction': direction.name,
+      'direction': direction == TransactionDirection.income ? 'in' : 'out',
       'includeInStats': includeInStats,
       'pairId': pairId,
       'targetId': targetId,
+      'goalId': targetId,
       // legacy sign field for兼容
       'signedAmount': signedAmount,
     };
@@ -110,7 +112,7 @@ class Record {
       direction: direction,
       includeInStats: map['includeInStats'] as bool? ?? true,
       pairId: map['pairId'] as String?,
-      targetId: map['targetId'] as String?,
+      targetId: map['targetId'] as String? ?? map['goalId'] as String?,
     );
   }
 
