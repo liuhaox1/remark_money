@@ -7,6 +7,7 @@ import 'providers/category_provider.dart';
 import 'providers/budget_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
+import 'providers/saving_goal_provider.dart';
 import 'l10n/app_strings.dart';
 
 import 'pages/root_shell.dart';
@@ -32,6 +33,7 @@ Future<void> main() async {
   final budgetProvider = BudgetProvider();
   final themeProvider = ThemeProvider();
   final accountProvider = AccountProvider();
+  final savingGoalProvider = SavingGoalProvider();
 
   await Future.wait([
     bookProvider.load(),
@@ -39,6 +41,7 @@ Future<void> main() async {
     categoryProvider.load(),
     budgetProvider.load(),
     accountProvider.load(),
+    savingGoalProvider.load(),
     themeProvider.load(),
   ]);
   debugPrint('providers loaded: ${DateTime.now().toIso8601String()}');
@@ -50,6 +53,7 @@ Future<void> main() async {
       categoryProvider: categoryProvider,
       budgetProvider: budgetProvider,
       accountProvider: accountProvider,
+      savingGoalProvider: savingGoalProvider,
       themeProvider: themeProvider,
     ),
   );
@@ -80,6 +84,7 @@ class RemarkMoneyApp extends StatelessWidget {
     required this.categoryProvider,
     required this.budgetProvider,
     required this.accountProvider,
+    required this.savingGoalProvider,
     required this.themeProvider,
   });
 
@@ -88,6 +93,7 @@ class RemarkMoneyApp extends StatelessWidget {
   final CategoryProvider categoryProvider;
   final BudgetProvider budgetProvider;
   final AccountProvider accountProvider;
+  final SavingGoalProvider savingGoalProvider;
   final ThemeProvider themeProvider;
 
   @override
@@ -99,6 +105,7 @@ class RemarkMoneyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: categoryProvider),
         ChangeNotifierProvider.value(value: budgetProvider),
         ChangeNotifierProvider.value(value: accountProvider),
+        ChangeNotifierProvider.value(value: savingGoalProvider),
         ChangeNotifierProvider.value(value: themeProvider),
       ],
       child: Consumer<ThemeProvider>(

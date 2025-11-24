@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
+import '../providers/saving_goal_provider.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/account_edit_sheet.dart';
 import '../widgets/quick_add_sheet.dart';
+import 'account_detail_page.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
 import 'analysis_page.dart';
@@ -133,6 +136,7 @@ class AssetsPage extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final accountProvider = context.watch<AccountProvider>();
+    final savingGoalProvider = context.watch<SavingGoalProvider>();
 
     final totalAssets = accountProvider.totalAssets;
     final totalDebts = accountProvider.totalDebts;
@@ -164,7 +168,10 @@ class AssetsPage extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     child: accounts.isEmpty
                         ? const _EmptyAccounts()
-                        : _AccountList(accounts: accounts),
+                        : _AccountList(
+                            accounts: accounts,
+                            savingGoalProvider: savingGoalProvider,
+                          ),
                   ),
                 ),
               ],
@@ -173,7 +180,7 @@ class AssetsPage extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showEditAccountSheet(context),
+        onPressed: () => _openAddAccount(context, accountProvider),
         icon: const Icon(Icons.add),
         label: const Text(AppStrings.addAccount),
       ),
@@ -230,10 +237,19 @@ class _AssetSummaryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              AppStrings.assets,
+              AppStrings.netWorth,
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _formatAmount(netWorth),
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: netColor,
               ),
             ),
             const SizedBox(height: 8),
@@ -279,26 +295,6 @@ class _AssetSummaryCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        AppStrings.netWorth,
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatAmount(netWorth),
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: netColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ],
@@ -320,71 +316,89 @@ class _AssetSummaryCard extends StatelessWidget {
 }
 
 class _AccountList extends StatelessWidget {
-  const _AccountList({required this.accounts});
+  const _AccountList({
+    required this.accounts,
+    required this.savingGoalProvider,
+  });
 
   final List<Account> accounts;
+  final SavingGoalProvider savingGoalProvider;
 
   @override
   Widget build(BuildContext context) {
-    final groups = <String, List<Account>>{};
-    for (final account in accounts) {
-      final key = _groupName(account.type, account.isDebt);
-      groups.putIfAbsent(key, () => []).add(account);
-    }
+    final assetList =
+        accounts.where((a) => a.kind == AccountKind.asset).toList();
+    final debtList =
+        accounts.where((a) => a.kind == AccountKind.liability).toList();
+    final lendList = accounts.where((a) => a.kind == AccountKind.lend).toList();
 
-    final groupKeys = groups.keys.toList();
-
-    return ListView.builder(
-      itemCount: groupKeys.length,
-      itemBuilder: (context, index) {
-        final key = groupKeys[index];
-        final list = groups[key]!;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
-              child: Text(
-                key,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            Card(
-              margin: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  for (final account in list)
-                    _AccountTile(
-                      account: account,
-                      isLast: account == list.last,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
+    return ListView(
+      children: [
+        if (assetList.isNotEmpty)
+          _AccountGroup(
+            title: '资产账户',
+            accounts: assetList,
+            savingGoalProvider: savingGoalProvider,
+          ),
+        if (debtList.isNotEmpty)
+          _AccountGroup(
+            title: '负债账户',
+            accounts: debtList,
+            savingGoalProvider: savingGoalProvider,
+          ),
+        if (lendList.isNotEmpty)
+          _AccountGroup(
+            title: '借出账户',
+            accounts: lendList,
+            savingGoalProvider: savingGoalProvider,
+          ),
+      ],
     );
   }
+}
 
-  String _groupName(AccountType type, bool isDebt) {
-    if (isDebt) return AppStrings.debt;
-    switch (type) {
-      case AccountType.cash:
-      case AccountType.eWallet:
-        return AppStrings.cashAndPay;
-      case AccountType.bankCard:
-        return AppStrings.bankCard;
-      case AccountType.investment:
-        return AppStrings.investment;
-      case AccountType.other:
-      default:
-        return AppStrings.other;
-    }
+class _AccountGroup extends StatelessWidget {
+  const _AccountGroup({
+    required this.title,
+    required this.accounts,
+    required this.savingGoalProvider,
+  });
+
+  final String title;
+  final List<Account> accounts;
+  final SavingGoalProvider savingGoalProvider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              for (final account in accounts)
+                _AccountTile(
+                  account: account,
+                  isLast: account == accounts.last,
+                  savingGoalProvider: savingGoalProvider,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -392,10 +406,12 @@ class _AccountTile extends StatelessWidget {
   const _AccountTile({
     required this.account,
     required this.isLast,
+    required this.savingGoalProvider,
   });
 
   final Account account;
   final bool isLast;
+  final SavingGoalProvider savingGoalProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -403,9 +419,19 @@ class _AccountTile extends StatelessWidget {
     final isDebt = account.isDebt;
     final amountColor = isDebt ? Colors.orange : cs.primary;
     final icon = _iconForAccount(account);
+    final goal = savingGoalProvider.goalForAccount(account.id);
+    final goalProgress =
+        goal == null ? 0.0 : savingGoalProvider.amountProgress(goal);
+    final contributed =
+        goal == null ? 0.0 : savingGoalProvider.contributedAmount(goal.id);
 
     return InkWell(
-      onTap: () => _showEditAccountSheet(context, account: account),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AccountDetailPage(accountId: account.id),
+        ),
+      ),
       child: Column(
         children: [
           Padding(
@@ -446,7 +472,7 @@ class _AccountTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  account.balance.toStringAsFixed(2),
+                  account.currentBalance.toStringAsFixed(2),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -456,6 +482,25 @@ class _AccountTile extends StatelessWidget {
               ],
             ),
           ),
+          if (goal != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(56, 0, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(
+                    value: goalProgress,
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '目标：${goal.name} · 已完成 ¥${contributed.toStringAsFixed(0)} / ¥${goal.targetAmount.toStringAsFixed(0)}',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
           if (!isLast)
             Divider(
               height: 1,
@@ -480,6 +525,8 @@ class _AccountTile extends StatelessWidget {
         return Icons.savings_outlined;
       case AccountType.loan:
         return Icons.trending_down;
+      case AccountType.lend:
+        return Icons.swap_horiz_outlined;
       case AccountType.other:
       default:
         return Icons.account_balance_outlined;
@@ -487,7 +534,8 @@ class _AccountTile extends StatelessWidget {
   }
 
   String _subtitleForAccount(Account account) {
-    if (account.isDebt) return AppStrings.debtAccount;
+    if (account.kind == AccountKind.liability) return '负债账户';
+    if (account.kind == AccountKind.lend) return '借出账户';
     switch (account.type) {
       case AccountType.cash:
         return AppStrings.cash;
@@ -499,6 +547,8 @@ class _AccountTile extends StatelessWidget {
         return AppStrings.investment;
       case AccountType.loan:
         return AppStrings.borrow;
+      case AccountType.lend:
+        return '借出';
       case AccountType.other:
       default:
         return AppStrings.other;
@@ -533,7 +583,8 @@ class _EmptyAccounts extends StatelessWidget {
           const Text(AppStrings.emptyAccountsSubtitle),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: () => _showEditAccountSheet(context),
+            onPressed: () =>
+                _openAddAccount(context, context.read<AccountProvider>()),
             icon: const Icon(Icons.add),
             label: const Text(AppStrings.addAccount),
           ),
@@ -543,177 +594,53 @@ class _EmptyAccounts extends StatelessWidget {
   }
 }
 
-Future<void> _showEditAccountSheet(
-  BuildContext context, {
-  Account? account,
-}) async {
-  final isEditing = account != null;
-  final accountProvider = context.read<AccountProvider>();
+Future<void> _openAddAccount(
+  BuildContext context,
+  AccountProvider accountProvider,
+) async {
+  final assetBefore = accountProvider.byKind(AccountKind.asset).length;
+  final hasDebtBefore =
+      accountProvider.byKind(AccountKind.liability).isNotEmpty;
+  final createdKind = await showAccountEditSheet(context);
+  if (createdKind == null) return;
 
-  final nameController = TextEditingController(text: account?.name ?? '');
-  final balanceController =
-      TextEditingController(text: account?.balance.toString() ?? '');
-  AccountType type = account?.type ?? AccountType.cash;
-  bool isDebt = account?.isDebt ?? false;
-  bool includeInTotal = account?.includeInTotal ?? true;
+  final assetAfter = accountProvider.byKind(AccountKind.asset).length;
+  final hasDebtAfter =
+      accountProvider.byKind(AccountKind.liability).isNotEmpty;
+  if (createdKind == AccountKind.asset &&
+      assetBefore == 0 &&
+      !hasDebtBefore &&
+      !hasDebtAfter) {
+    await _promptAddDebt(context, accountProvider);
+  }
+}
 
-  await showModalBottomSheet(
+Future<void> _promptAddDebt(
+  BuildContext context,
+  AccountProvider accountProvider,
+) async {
+  final result = await showDialog<bool>(
     context: context,
-    isScrollControlled: true,
-    builder: (ctx) {
-      final viewInsets = MediaQuery.of(ctx).viewInsets;
-      return Padding(
-        padding: EdgeInsets.only(bottom: viewInsets.bottom),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: StatefulBuilder(
-              builder: (context, setState) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          isEditing
-                              ? AppStrings.editAccount
-                              : AppStrings.newAccount,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: AppStrings.accountName,
-                        hintText: AppStrings.accountNameHint,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<AccountType>(
-                      value: type,
-                      decoration:
-                          const InputDecoration(labelText: AppStrings.accountType),
-                      items: const [
-                        DropdownMenuItem(
-                          value: AccountType.cash,
-                          child: Text(AppStrings.cash),
-                        ),
-                        DropdownMenuItem(
-                          value: AccountType.bankCard,
-                          child: Text(AppStrings.bankCard),
-                        ),
-                        DropdownMenuItem(
-                          value: AccountType.eWallet,
-                          child: Text(AppStrings.payAccount),
-                        ),
-                        DropdownMenuItem(
-                          value: AccountType.investment,
-                          child: Text(AppStrings.investment),
-                        ),
-                        DropdownMenuItem(
-                          value: AccountType.loan,
-                          child: Text(AppStrings.debtAccount),
-                        ),
-                        DropdownMenuItem(
-                          value: AccountType.other,
-                          child: Text(AppStrings.other),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setState(() => type = value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: balanceController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: AppStrings.currentBalance,
-                        hintText: AppStrings.balanceHint,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text(AppStrings.debtAccountTitle),
-                      subtitle: const Text(AppStrings.debtAccountSubtitle),
-                      value: isDebt,
-                      onChanged: (value) {
-                        setState(() => isDebt = value);
-                      },
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text(AppStrings.includeInTotal),
-                      value: includeInTotal,
-                      onChanged: (value) {
-                        setState(() => includeInTotal = value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        if (isEditing)
-                          TextButton.icon(
-                            onPressed: () async {
-                              await accountProvider.deleteAccount(account.id);
-                              if (context.mounted) Navigator.pop(context);
-                            },
-                            icon: const Icon(Icons.delete_outline),
-                            label: const Text(AppStrings.deleteAccount),
-                          ),
-                        const Spacer(),
-                        FilledButton(
-                          onPressed: () async {
-                            final name = nameController.text.trim();
-                            final balance = double.tryParse(
-                                  balanceController.text.trim(),
-                                ) ??
-                                0;
-                            if (name.isEmpty) return;
-                            final base = Account(
-                              id: account?.id ?? '',
-                              name: name,
-                              type: type,
-                              icon: '',
-                              balance: balance,
-                              isDebt: isDebt,
-                              includeInTotal: includeInTotal,
-                            );
-                            if (isEditing) {
-                              await accountProvider.updateAccount(base);
-                            } else {
-                              await accountProvider.addAccount(base);
-                            }
-                            if (context.mounted) Navigator.pop(context);
-                          },
-                          child: Text(
-                            isEditing ? AppStrings.save : AppStrings.add,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
+    builder: (ctx) => AlertDialog(
+      title: const Text('添加负债账户'),
+      content: const Text('要不要顺便添加一个负债账户，让净资产更真实？'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('以后再说'),
         ),
-      );
-    },
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('添加负债账户'),
+        ),
+      ],
+    ),
   );
+
+  if (result == true && context.mounted) {
+    await showAccountEditSheet(
+      context,
+      initialKind: AccountKind.liability,
+    );
+  }
 }

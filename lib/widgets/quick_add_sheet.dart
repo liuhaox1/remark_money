@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
+import '../models/account.dart';
 import '../models/category.dart';
+import '../models/record.dart';
+import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
@@ -21,6 +24,8 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   bool _isExpense = true;
   DateTime _selectedDate = DateTime.now();
   String? _selectedCategoryKey;
+  String? _selectedAccountId;
+  bool _includeInStats = true;
 
   @override
   void dispose() {
@@ -35,6 +40,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     final filtered =
         categories.where((c) => c.isExpense == _isExpense).toList();
     _ensureCategorySelection(filtered);
+    _ensureAccountSelection();
 
     final media = MediaQuery.of(context);
 
@@ -73,9 +79,18 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 const SizedBox(height: 16),
                 _buildCategoryPicker(filtered),
                 const SizedBox(height: 16),
+                _buildAccountPicker(),
+                const SizedBox(height: 16),
                 _buildDatePicker(),
                 const SizedBox(height: 16),
                 _buildRemarkField(),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _includeInStats,
+                  title: const Text('计入收支统计'),
+                  onChanged: (v) => setState(() => _includeInStats = v),
+                ),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
@@ -218,6 +233,36 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     );
   }
 
+  Widget _buildAccountPicker() {
+    final accounts = context.watch<AccountProvider>().accounts;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '账户',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          value: _selectedAccountId,
+          items: accounts
+              .map(
+                (a) => DropdownMenuItem(
+                  value: a.id,
+                  child: Text('${a.name} · ${a.currentBalance.toStringAsFixed(2)}'),
+                ),
+              )
+              .toList(),
+          onChanged: (value) => setState(() => _selectedAccountId = value),
+          decoration: const InputDecoration(
+            hintText: '从哪个账户出/入',
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _ensureCategorySelection(List<Category> categories) {
     if (categories.isEmpty) {
       _selectedCategoryKey = null;
@@ -256,15 +301,25 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       _showMessage(AppStrings.selectCategoryError);
       return;
     }
+    if (_selectedAccountId == null) {
+      _showMessage('请选择账户');
+      return;
+    }
 
-    final actualAmount = _isExpense ? amount : -amount;
+    final direction =
+        _isExpense ? TransactionDirection.out : TransactionDirection.income;
     final bookId = context.read<BookProvider>().activeBookId;
+    final accountProvider = context.read<AccountProvider>();
     await context.read<RecordProvider>().addRecord(
-          amount: actualAmount,
+          amount: amount,
           remark: _remarkCtrl.text.trim(),
           date: _selectedDate,
           categoryKey: _selectedCategoryKey!,
           bookId: bookId,
+          accountId: _selectedAccountId!,
+          direction: direction,
+          includeInStats: _includeInStats,
+          accountProvider: accountProvider,
         );
 
     if (!mounted) return;
@@ -278,5 +333,12 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(text)),
     );
+  }
+
+  void _ensureAccountSelection() {
+    if (_selectedAccountId != null) return;
+    final accounts = context.read<AccountProvider>().accounts;
+    if (accounts.isEmpty) return;
+    _selectedAccountId = accounts.first.id;
   }
 }

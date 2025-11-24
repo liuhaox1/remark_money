@@ -2,9 +2,12 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../models/account.dart';
 import '../models/record.dart';
 import '../repository/record_repository.dart';
 import '../utils/date_utils.dart';
+import 'account_provider.dart';
+import 'saving_goal_provider.dart';
 
 class RecordProvider extends ChangeNotifier {
   RecordProvider();
@@ -12,11 +15,8 @@ class RecordProvider extends ChangeNotifier {
   final RecordRepository _repository = RecordRepository();
   final List<Record> _records = [];
   final Map<String, List<Record>> _recordsByBook = {};
-  
-  // 添加缓存来存储每月统计数据
+
   final Map<String, Map<int, Map<int, _MonthStats>>> _monthStatsCache = {};
-  
-  // 添加缓存来存储每日统计数据
   final Map<String, Map<DateTime, _DayStats>> _dayStatsCache = {};
 
   final Random _random = Random();
@@ -37,20 +37,32 @@ class RecordProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addRecord({
+  Future<Record> addRecord({
     required double amount,
     required String remark,
     required DateTime date,
     required String categoryKey,
     required String bookId,
+    required String accountId,
+    TransactionDirection direction = TransactionDirection.out,
+    bool includeInStats = true,
+    String? pairId,
+    String? targetId,
+    AccountProvider? accountProvider,
+    SavingGoalProvider? savingGoalProvider,
   }) async {
     final record = Record(
       id: _generateId(),
-      amount: amount,
+      amount: amount.abs(),
       remark: remark,
       date: date,
       categoryKey: categoryKey,
       bookId: bookId,
+      accountId: accountId,
+      direction: direction,
+      includeInStats: includeInStats,
+      pairId: pairId,
+      targetId: targetId,
     );
 
     final list = await _repository.insert(record);
@@ -58,32 +70,72 @@ class RecordProvider extends ChangeNotifier {
       ..clear()
       ..addAll(list);
     _rebuildBookCache();
-    _clearCache(); // 清除缓存
+    _clearCache();
+
+    await _applyAccountDelta(accountProvider, record);
+    await _syncSavingGoal(savingGoalProvider, record);
+
     notifyListeners();
+    return record;
   }
 
-  Future<void> updateRecord(Record updated) async {
+  Future<void> updateRecord(
+    Record updated, {
+    AccountProvider? accountProvider,
+    SavingGoalProvider? savingGoalProvider,
+  }) async {
+    final old = _records.firstWhere(
+      (r) => r.id == updated.id,
+      orElse: () => updated,
+    );
     final list = await _repository.update(updated);
     _records
       ..clear()
       ..addAll(list);
     _rebuildBookCache();
-    _clearCache(); // 清除缓存
+    _clearCache();
+
+    await _applyAccountDelta(accountProvider, old, reverse: true);
+    await _applyAccountDelta(accountProvider, updated);
+
+    if (savingGoalProvider != null) {
+      await savingGoalProvider.removeContributionByRecord(updated.id);
+      await _syncSavingGoal(savingGoalProvider, updated);
+    }
+
     notifyListeners();
   }
 
-  Future<void> deleteRecord(String id) async {
+  Future<void> deleteRecord(
+    String id, {
+    AccountProvider? accountProvider,
+    SavingGoalProvider? savingGoalProvider,
+  }) async {
+    Record? old;
+    try {
+      old = _records.firstWhere((r) => r.id == id);
+    } catch (_) {
+      old = null;
+    }
     final list = await _repository.remove(id);
     _records
       ..clear()
       ..addAll(list);
     _rebuildBookCache();
-    _clearCache(); // 清除缓存
+    _clearCache();
+
+    if (old != null) {
+      await _applyAccountDelta(accountProvider, old, reverse: true);
+      await savingGoalProvider?.removeContributionByRecord(id);
+    }
+
     notifyListeners();
   }
 
   List<Record> recordsForBook(String bookId) {
-    return List<Record>.from(_recordsByBook[bookId] ?? const []);
+    return List<Record>.from(
+      (_recordsByBook[bookId] ?? const []).where((r) => r.includeInStats),
+    );
   }
 
   List<Record> recordsForDay(String bookId, DateTime day) {
@@ -98,7 +150,6 @@ class RecordProvider extends ChangeNotifier {
         .toList();
   }
 
-  /// 指定时间区间内（闭区间）的记录
   List<Record> recordsForPeriod(
     String bookId, {
     required DateTime start,
@@ -116,7 +167,7 @@ class RecordProvider extends ChangeNotifier {
   }) {
     double expense = 0;
     for (final record in recordsForPeriod(bookId, start: start, end: end)) {
-      if (record.isIncome) continue;
+      if (record.isIncome || !record.includeInStats) continue;
       expense += record.expenseValue;
     }
     return expense;
@@ -129,7 +180,7 @@ class RecordProvider extends ChangeNotifier {
   }) {
     final result = <String, double>{};
     for (final record in recordsForPeriod(bookId, start: start, end: end)) {
-      if (record.isIncome) continue;
+      if (record.isIncome || !record.includeInStats) continue;
       result[record.categoryKey] =
           (result[record.categoryKey] ?? 0) + record.expenseValue;
     }
@@ -137,32 +188,254 @@ class RecordProvider extends ChangeNotifier {
   }
 
   double monthIncome(DateTime month, String bookId) {
-    // 检查缓存
     final stats = _getMonthStats(month, bookId);
     return stats.income;
   }
 
   double monthExpense(DateTime month, String bookId) {
-    // 检查缓存
     final stats = _getMonthStats(month, bookId);
     return stats.expense;
   }
 
   double dayIncome(String bookId, DateTime day) {
-    // 检查缓存
     final stats = _getDayStats(bookId, day);
     return stats.income;
   }
 
   double dayExpense(String bookId, DateTime day) {
-    // 检查缓存
     final stats = _getDayStats(bookId, day);
     return stats.expense;
   }
 
-  // 获取月份统计数据
+  Future<Record> transfer({
+    required AccountProvider accountProvider,
+    required String fromAccountId,
+    required String toAccountId,
+    required double amount,
+    double fee = 0,
+    String bookId = 'default-book',
+    DateTime? date,
+    String? remark,
+  }) async {
+    final pairId = _generateId();
+    final now = date ?? DateTime.now();
+    final baseRemark = remark ?? '';
+    final mainRemark = baseRemark.isEmpty ? '转账' : baseRemark;
+
+    await addRecord(
+      amount: amount,
+      remark: mainRemark,
+      date: now,
+      categoryKey: 'transfer-out',
+      bookId: bookId,
+      accountId: fromAccountId,
+      direction: TransactionDirection.out,
+      includeInStats: false,
+      pairId: pairId,
+      accountProvider: accountProvider,
+    );
+
+    await addRecord(
+      amount: amount,
+      remark: mainRemark,
+      date: now,
+      categoryKey: 'transfer-in',
+      bookId: bookId,
+      accountId: toAccountId,
+      direction: TransactionDirection.income,
+      includeInStats: false,
+      pairId: pairId,
+      accountProvider: accountProvider,
+    );
+
+    if (fee > 0) {
+      await addRecord(
+        amount: fee,
+        remark: '手续费',
+        date: now,
+        categoryKey: 'transfer-fee',
+        bookId: bookId,
+        accountId: fromAccountId,
+        direction: TransactionDirection.out,
+        includeInStats: false,
+        pairId: pairId,
+        accountProvider: accountProvider,
+      );
+    }
+
+    return _records.firstWhere((r) => r.pairId == pairId);
+  }
+
+  Future<void> borrow({
+    required AccountProvider accountProvider,
+    required String debtAccountId,
+    required String assetAccountId,
+    required double amount,
+    String bookId = 'default-book',
+    DateTime? date,
+    String? remark,
+  }) async {
+    final pairId = _generateId();
+    final now = date ?? DateTime.now();
+    final text = remark ?? '借入';
+    await addRecord(
+      amount: amount,
+      remark: text,
+      date: now,
+      categoryKey: 'borrow-in',
+      bookId: bookId,
+      accountId: assetAccountId,
+      direction: TransactionDirection.income,
+      includeInStats: false,
+      pairId: pairId,
+      accountProvider: accountProvider,
+    );
+    await addRecord(
+      amount: amount,
+      remark: text,
+      date: now,
+      categoryKey: 'borrow-liability',
+      bookId: bookId,
+      accountId: debtAccountId,
+      direction: TransactionDirection.income,
+      includeInStats: false,
+      pairId: pairId,
+      accountProvider: accountProvider,
+    );
+  }
+
+  Future<void> repay({
+    required AccountProvider accountProvider,
+    required String debtAccountId,
+    required String assetAccountId,
+    required double principal,
+    double interest = 0,
+    String bookId = 'default-book',
+    DateTime? date,
+    String? remark,
+  }) async {
+    final pairId = _generateId();
+    final now = date ?? DateTime.now();
+    final text = remark ?? '还款';
+    if (principal > 0) {
+      await addRecord(
+        amount: principal,
+        remark: text,
+        date: now,
+        categoryKey: 'repay-principal',
+        bookId: bookId,
+        accountId: assetAccountId,
+        direction: TransactionDirection.out,
+        includeInStats: false,
+        pairId: pairId,
+        accountProvider: accountProvider,
+      );
+      await addRecord(
+        amount: principal,
+        remark: text,
+        date: now,
+        categoryKey: 'repay-liability',
+        bookId: bookId,
+        accountId: debtAccountId,
+        direction: TransactionDirection.out,
+        includeInStats: false,
+        pairId: pairId,
+        accountProvider: accountProvider,
+      );
+    }
+    if (interest > 0) {
+      await addRecord(
+        amount: interest,
+        remark: '利息',
+        date: now,
+        categoryKey: 'interest',
+        bookId: bookId,
+        accountId: assetAccountId,
+        direction: TransactionDirection.out,
+        includeInStats: true,
+        pairId: pairId,
+        accountProvider: accountProvider,
+      );
+    }
+  }
+
+  Future<void> lendOut({
+    required AccountProvider accountProvider,
+    required String lendAccountId,
+    required String assetAccountId,
+    required double amount,
+    String bookId = 'default-book',
+    DateTime? date,
+    String? remark,
+  }) async {
+    final pairId = _generateId();
+    final now = date ?? DateTime.now();
+    final text = remark ?? '借出';
+    await addRecord(
+      amount: amount,
+      remark: text,
+      date: now,
+      categoryKey: 'lend-out',
+      bookId: bookId,
+      accountId: assetAccountId,
+      direction: TransactionDirection.out,
+      includeInStats: false,
+      pairId: pairId,
+      accountProvider: accountProvider,
+    );
+    await addRecord(
+      amount: amount,
+      remark: text,
+      date: now,
+      categoryKey: 'lend-receivable',
+      bookId: bookId,
+      accountId: lendAccountId,
+      direction: TransactionDirection.income,
+      includeInStats: false,
+      pairId: pairId,
+      accountProvider: accountProvider,
+    );
+  }
+
+  Future<void> receiveLend({
+    required AccountProvider accountProvider,
+    required String lendAccountId,
+    required String assetAccountId,
+    required double amount,
+    String bookId = 'default-book',
+    DateTime? date,
+    String? remark,
+  }) async {
+    final pairId = _generateId();
+    final now = date ?? DateTime.now();
+    final text = remark ?? '收回借款';
+    await addRecord(
+      amount: amount,
+      remark: text,
+      date: now,
+      categoryKey: 'lend-repay',
+      bookId: bookId,
+      accountId: assetAccountId,
+      direction: TransactionDirection.income,
+      includeInStats: false,
+      pairId: pairId,
+      accountProvider: accountProvider,
+    );
+    await addRecord(
+      amount: amount,
+      remark: text,
+      date: now,
+      categoryKey: 'lend-receivable-down',
+      bookId: bookId,
+      accountId: lendAccountId,
+      direction: TransactionDirection.out,
+      includeInStats: false,
+      pairId: pairId,
+      accountProvider: accountProvider,
+    );
+  }
+
   _MonthStats _getMonthStats(DateTime month, String bookId) {
-    // 检查缓存
     if (_monthStatsCache.containsKey(bookId)) {
       final yearMap = _monthStatsCache[bookId]!;
       if (yearMap.containsKey(month.year)) {
@@ -172,15 +445,15 @@ class RecordProvider extends ChangeNotifier {
         }
       }
     }
-    
-    // 计算统计数据
+
     double income = 0;
     double expense = 0;
-    
+
     for (final record in _records) {
-      if (record.bookId == bookId && 
-          record.date.year == month.year && 
+      if (record.bookId == bookId &&
+          record.date.year == month.year &&
           record.date.month == month.month) {
+        if (!record.includeInStats) continue;
         if (record.isIncome) {
           income += record.incomeValue;
         } else {
@@ -188,33 +461,30 @@ class RecordProvider extends ChangeNotifier {
         }
       }
     }
-    
+
     final stats = _MonthStats(income: income, expense: expense);
-    
-    // 缓存结果
+
     final yearMap = _monthStatsCache.putIfAbsent(bookId, () => {});
     final monthMap = yearMap.putIfAbsent(month.year, () => {});
     monthMap[month.month] = stats;
-    
+
     return stats;
   }
-  
-  // 获取每日统计数据
+
   _DayStats _getDayStats(String bookId, DateTime day) {
-    // 检查缓存
     if (_dayStatsCache.containsKey(bookId)) {
       final dayMap = _dayStatsCache[bookId]!;
       if (dayMap.containsKey(day)) {
         return dayMap[day]!;
       }
     }
-    
-    // 计算统计数据
+
     double income = 0;
     double expense = 0;
-    
+
     for (final record in _records) {
       if (record.bookId == bookId && DateUtilsX.isSameDay(record.date, day)) {
+        if (!record.includeInStats) continue;
         if (record.isIncome) {
           income += record.incomeValue;
         } else {
@@ -222,19 +492,17 @@ class RecordProvider extends ChangeNotifier {
         }
       }
     }
-    
+
     final stats = _DayStats(income: income, expense: expense);
-    
-    // 缓存结果
+
     final dayMap = _dayStatsCache.putIfAbsent(bookId, () => {});
     dayMap[day] = stats;
-    
+
     return stats;
   }
 
   String _generateId() {
     final timestamp = DateTime.now().microsecondsSinceEpoch;
-    // dart2js/js ints are 32-bit,避免位移溢出导致 max=0 的异常
     final randomBits = _random.nextInt(1 << 31);
     return '${timestamp.toRadixString(16)}-${randomBits.toRadixString(16)}';
   }
@@ -246,25 +514,51 @@ class RecordProvider extends ChangeNotifier {
       list.add(record);
     }
   }
-  
-  // 清除所有缓存
+
   void _clearCache() {
     _monthStatsCache.clear();
     _dayStatsCache.clear();
   }
+
+  Future<void> _applyAccountDelta(
+    AccountProvider? accountProvider,
+    Record record, {
+    bool reverse = false,
+  }) async {
+    if (accountProvider == null || record.accountId.isEmpty) return;
+    final target = accountProvider.byId(record.accountId);
+    if (target == null) return;
+    final baseDelta = record.isIncome ? record.amount : -record.amount;
+    final delta = reverse ? -baseDelta : baseDelta;
+    await accountProvider.adjustBalance(record.accountId, delta);
+  }
+
+  Future<void> _syncSavingGoal(
+    SavingGoalProvider? savingGoalProvider,
+    Record record,
+  ) async {
+    if (savingGoalProvider == null) return;
+    if (record.targetId == null || record.targetId!.isEmpty) return;
+    if (!record.isIncome) return;
+    await savingGoalProvider.addContribution(
+      goalId: record.targetId!,
+      recordId: record.id,
+      amount: record.amount,
+      date: record.date,
+    );
+  }
 }
 
-// 添加用于缓存统计信息的类
 class _MonthStats {
   final double income;
   final double expense;
-  
+
   const _MonthStats({required this.income, required this.expense});
 }
 
 class _DayStats {
   final double income;
   final double expense;
-  
+
   const _DayStats({required this.income, required this.expense});
 }

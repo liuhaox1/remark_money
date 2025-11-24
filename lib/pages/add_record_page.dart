@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
+import '../models/account.dart';
 import '../models/category.dart';
+import '../models/saving_goal.dart';
+import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
+import '../providers/account_provider.dart';
+import '../providers/saving_goal_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
+import '../widgets/account_edit_sheet.dart';
 
 class AddRecordPage extends StatefulWidget {
   const AddRecordPage({super.key, this.isExpense = true});
@@ -19,17 +25,27 @@ class AddRecordPage extends StatefulWidget {
 }
 
 class _AddRecordPageState extends State<AddRecordPage> {
+  static bool _lastIsExpense = true;
+  static String? _lastAccountId;
+  static bool _lastIncludeInStats = true;
+  static String? _lastSavingGoalId;
+
   final TextEditingController _amountCtrl = TextEditingController();
   final TextEditingController _remarkCtrl = TextEditingController();
 
   late bool _isExpense;
   DateTime _selectedDate = DateTime.now();
   String? _selectedCategoryKey;
+  String? _selectedAccountId;
+  bool _includeInStats = true;
+  String? _selectedGoalId;
 
   @override
   void initState() {
     super.initState();
-    _isExpense = widget.isExpense;
+    _isExpense = _lastIsExpense;
+    _includeInStats = _lastIncludeInStats;
+    _selectedGoalId = _lastSavingGoalId;
   }
 
   @override
@@ -44,6 +60,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final categories = context.watch<CategoryProvider>().categories;
     final filtered = categories.where((c) => c.isExpense == _isExpense).toList();
     _ensureCategorySelection(filtered);
+    _ensureAccountSelection();
 
     return Scaffold(
       appBar: AppBar(
@@ -60,9 +77,23 @@ class _AddRecordPageState extends State<AddRecordPage> {
             const SizedBox(height: 16),
             _buildCategoryPicker(filtered),
             const SizedBox(height: 16),
+            _buildAccountPicker(),
+            const SizedBox(height: 16),
             _buildDatePicker(),
             const SizedBox(height: 16),
             _buildRemarkField(),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _includeInStats,
+              title: const Text('计入收支统计'),
+              onChanged: (v) => setState(() => _includeInStats = v),
+            ),
+            if (_showSavingGoalSection())
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: _buildSavingGoalPicker(),
+              ),
             const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
@@ -107,6 +138,10 @@ class _AddRecordPageState extends State<AddRecordPage> {
       onSelectionChanged: (set) {
         setState(() {
           _isExpense = set.first;
+          _lastIsExpense = _isExpense;
+          if (_isExpense) {
+            _selectedGoalId = null;
+          }
         });
       },
     );
@@ -160,6 +195,51 @@ class _AddRecordPageState extends State<AddRecordPage> {
     );
   }
 
+  Widget _buildAccountPicker() {
+    final accountProvider = context.watch<AccountProvider>();
+    final accounts = accountProvider.accounts;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '账户',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          value: _selectedAccountId,
+          items: accounts
+              .map(
+                (a) => DropdownMenuItem(
+                  value: a.id,
+                  child: Text('${a.name} · ${a.currentBalance.toStringAsFixed(2)}'),
+                ),
+              )
+              .toList(),
+          onChanged: (value) => setState(() {
+            _selectedAccountId = value;
+            _selectedGoalId = null;
+          }),
+          decoration: const InputDecoration(
+            hintText: '选择账户',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        if (accounts.isEmpty)
+          TextButton(
+            onPressed: () async {
+              final result = await showAccountEditSheet(context);
+              if (!mounted) return;
+              if (result != null) {
+                setState(() => _selectedAccountId = null);
+              }
+            },
+            child: const Text('去添加账户'),
+          ),
+      ],
+    );
+  }
+
   Widget _buildDatePicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,6 +286,40 @@ class _AddRecordPageState extends State<AddRecordPage> {
     );
   }
 
+  Widget _buildSavingGoalPicker() {
+    final goalProvider = context.watch<SavingGoalProvider>();
+    final accountId = _selectedAccountId;
+    final goals = goalProvider.goals
+        .where((g) => g.accountId == accountId)
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '这笔钱是否用于某个存款目标？',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _selectedGoalId,
+          items: goals
+              .map(
+                (g) => DropdownMenuItem(
+                  value: g.id,
+                  child: Text('${g.name} · 目标 ¥${g.targetAmount.toStringAsFixed(0)}'),
+                ),
+              )
+              .toList(),
+          onChanged: (v) => setState(() => _selectedGoalId = v),
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: '选择存款目标（可选）',
+          ),
+        ),
+      ],
+    );
+  }
+
   void _ensureCategorySelection(List<Category> categories) {
     if (categories.isEmpty) {
       _selectedCategoryKey = null;
@@ -215,6 +329,18 @@ class _AddRecordPageState extends State<AddRecordPage> {
     if (!exists) {
       _selectedCategoryKey = categories.first.key;
     }
+  }
+
+  void _ensureAccountSelection() {
+    if (_selectedAccountId != null) return;
+    final accounts = context.read<AccountProvider>().accounts;
+    if (accounts.isEmpty) return;
+    final exists = accounts.any((a) => a.id == _lastAccountId);
+    if (_lastAccountId != null && exists) {
+      _selectedAccountId = _lastAccountId;
+      return;
+    }
+    _selectedAccountId = accounts.first.id;
   }
 
   Future<void> _pickDate() async {
@@ -245,25 +371,52 @@ class _AddRecordPageState extends State<AddRecordPage> {
       _showMessage(AppStrings.selectCategoryError);
       return;
     }
+    if (_selectedAccountId == null) {
+      _showMessage('请选择账户');
+      return;
+    }
 
-    final actualAmount = _isExpense ? -amount : amount;
+    final direction =
+        _isExpense ? TransactionDirection.out : TransactionDirection.income;
     final bookId = context.read<BookProvider>().activeBookId;
+    final accountProvider = context.read<AccountProvider>();
+    final savingGoalProvider = context.read<SavingGoalProvider>();
+    final targetId = _showSavingGoalSection() ? _selectedGoalId : null;
 
-    await context.read<RecordProvider>().addRecord(
-          amount: actualAmount,
+    final record = await context.read<RecordProvider>().addRecord(
+          amount: amount,
           remark: _remarkCtrl.text.trim(),
           date: _selectedDate,
           categoryKey: _selectedCategoryKey!,
           bookId: bookId,
+          accountId: _selectedAccountId!,
+          direction: direction,
+          includeInStats: _includeInStats,
+          targetId: targetId,
+          accountProvider: accountProvider,
+          savingGoalProvider: savingGoalProvider,
         );
+
+    _lastAccountId = _selectedAccountId;
+    _lastIncludeInStats = _includeInStats;
+    _lastSavingGoalId = _selectedGoalId;
 
     if (!mounted) return;
     Navigator.pop(context);
+    debugPrint('Record created ${record.id}');
   }
 
   void _showMessage(String text) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(text)),
     );
+  }
+
+  bool _showSavingGoalSection() {
+    if (_selectedAccountId == null) return false;
+    if (_isExpense) return false;
+    final account =
+        context.read<AccountProvider>().byId(_selectedAccountId!);
+    return account?.kind == AccountKind.asset;
   }
 }
