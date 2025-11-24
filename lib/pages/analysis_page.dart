@@ -94,7 +94,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 10),
-                    child: Row(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         PeriodSelector(
                           label: AppStrings.yearLabel(_selectedYear),
@@ -108,7 +111,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           }),
                           compact: true,
                         ),
-                        const Spacer(),
                         SegmentedButton<PeriodType>(
                           segments: const [
                             ButtonSegment(
@@ -200,34 +202,52 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   Future<void> _pickYear() async {
-    final years = DateUtilsX.yearRange(past: 5, future: 2);
+    final now = DateTime.now().year;
+    final years = List<int>.generate(100, (i) => now - 80 + i); // 80年前到20年后
+    final itemHeight = 52.0;
+    final initialIndex = years.indexOf(now).clamp(0, years.length - 1);
+    final controller = ScrollController(
+      initialScrollOffset: itemHeight * initialIndex,
+    );
     final selected = await showModalBottomSheet<int>(
       context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade400,
-                borderRadius: BorderRadius.circular(2),
+        child: Container(
+          color: Theme.of(context).colorScheme.surface,
+          constraints: const BoxConstraints(maxHeight: 420),
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            ...years.map(
-              (y) => ListTile(
-                title: Text(AppStrings.yearLabel(y)),
-                trailing: y == _selectedYear
-                    ? const Icon(Icons.check, color: Colors.green)
-                    : null,
-                onTap: () => Navigator.pop(ctx, y),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  itemExtent: itemHeight,
+                  itemCount: years.length,
+                  itemBuilder: (context, index) {
+                    final y = years[index];
+                    return ListTile(
+                      title: Text(AppStrings.yearLabel(y)),
+                      trailing: y == _selectedYear
+                          ? const Icon(Icons.check, color: Colors.green)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, y),
+                    );
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );

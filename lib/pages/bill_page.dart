@@ -68,8 +68,8 @@ class _BillPageState extends State<BillPage> {
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime(_selectedYear, 1, 1),
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 3),
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 5),
       helpText: AppStrings.pickYear,
     );
     if (picked != null) {
@@ -82,8 +82,8 @@ class _BillPageState extends State<BillPage> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedMonth,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 3),
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 5),
       helpText: AppStrings.pickMonth,
     );
     if (picked != null) {
@@ -96,8 +96,8 @@ class _BillPageState extends State<BillPage> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedWeek.start,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 3),
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 5),
       helpText: AppStrings.pickWeek,
     );
     if (picked != null) {

@@ -469,6 +469,16 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     }
 
     final categories = categoryProvider.categories;
+    final palette = [
+      cs.primary,
+      cs.secondary,
+      cs.tertiary,
+      cs.error,
+      cs.primaryContainer,
+      cs.secondaryContainer,
+      cs.tertiaryContainer,
+    ];
+    var colorIndex = 0;
     final entries = <ChartEntry>[];
     for (final entry in expenseMap.entries) {
       final category = categories.firstWhere(
@@ -480,11 +490,13 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           isExpense: true,
         ),
       );
+      final color = palette[colorIndex % palette.length];
+      colorIndex++;
       entries.add(
         ChartEntry(
           label: category.name,
           value: entry.value,
-          color: cs.primary,
+          color: color,
         ),
       );
     }
@@ -698,7 +710,7 @@ class _PeriodHeaderCard extends StatelessWidget {
               TextButton.icon(
                 onPressed: onViewDetail,
                 icon: const Icon(Icons.receipt_long, size: 16),
-                label: const Text('??'),
+                label: const Text('明细'),
               ),
             ],
           ),
