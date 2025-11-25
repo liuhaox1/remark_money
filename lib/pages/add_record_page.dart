@@ -127,7 +127,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                             if (_duePlans.isNotEmpty)
                               const SizedBox(height: 12),
                             _buildAmountAndTypeRow(),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 16),
                             if (_templates.isNotEmpty) ...[
                               _buildTemplateChips(),
                               const SizedBox(height: 16),
@@ -180,7 +180,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       controller: _amountCtrl,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       style: const TextStyle(
-        fontSize: 32,
+        fontSize: 36,
         fontWeight: FontWeight.w700,
         color: AppColors.textMain,
       ),
@@ -188,7 +188,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       readOnly: true,
       decoration: const InputDecoration(
         prefixText: '¥ ',
-        hintText: AppStrings.inputAmount,
+        hintText: '0.00',
         border: InputBorder.none,
       ),
     );
@@ -196,6 +196,15 @@ class _AddRecordPageState extends State<AddRecordPage> {
 
   Widget _buildTypeSwitcher() {
     return SegmentedButton<bool>(
+      showSelectedIcon: false,
+      style: ButtonStyle(
+        textStyle: MaterialStateProperty.all(
+          const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
       segments: const [
         ButtonSegment(value: true, label: Text(AppStrings.expense)),
         ButtonSegment(value: false, label: Text(AppStrings.income)),
@@ -411,13 +420,16 @@ class _AddRecordPageState extends State<AddRecordPage> {
       onTap: () => setState(() => _showRemarkInput = true),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: Theme.of(context)
-              .colorScheme
-              .surfaceVariant
-              .withOpacity(0.4),
+          color: Theme.of(context).colorScheme.surface,
+          border: Border.all(
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withOpacity(0.6),
+          ),
         ),
         child: const Text(
           AppStrings.remarkOptional,
@@ -432,7 +444,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
 
   Widget _buildNumberPad() {
     final bottom = MediaQuery.of(context).padding.bottom;
-    final color = Theme.of(context).colorScheme.surface;
+    final cs = Theme.of(context).colorScheme;
+    final keyBackground = cs.surfaceVariant.withOpacity(0.25);
 
     Widget buildKey({
       required String label,
@@ -447,7 +460,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
           child: Container(
             height: 56,
             alignment: Alignment.center,
-            color: background ?? color,
+            color: background ?? keyBackground,
             child: Text(
               label,
               style: TextStyle(
@@ -468,7 +481,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
         decoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.2),
+              color: Theme.of(context).dividerColor.withOpacity(0.35),
             ),
           ),
         ),
