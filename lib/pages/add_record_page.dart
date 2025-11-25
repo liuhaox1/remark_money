@@ -382,57 +382,72 @@ class _AddRecordPageState extends State<AddRecordPage> {
         ),
         const SizedBox(height: 8),
 
-        // 顶部：一级分类横向滑动
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: topCategories.map((top) {
-              final selected = top.key == activeTopKey;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  selected: selected,
-                  backgroundColor: cs.surfaceVariant.withOpacity(0.3),
-                  selectedColor: cs.primary.withOpacity(0.18),
-                  label: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        top.icon,
-                        size: 18,
-                        color:
-                            selected ? cs.primary : AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
+        // 顶部：一级分类，改为自动换行，避免横向拖动
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: topCategories.map((top) {
+            final selected = top.key == activeTopKey;
+            return InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () {
+                setState(() {
+                  final children = childrenMap[top.key] ?? const [];
+                  if (children.isNotEmpty) {
+                    // 选中某个一级时，默认选中它的第一个二级
+                    _selectedCategoryKey = children.first.key;
+                  } else {
+                    _selectedCategoryKey = top.key;
+                  }
+                });
+              },
+              child: Container(
+                width: 88,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  color: selected
+                      ? cs.primary.withOpacity(0.12)
+                      : cs.surface,
+                  border: Border.all(
+                    color: selected
+                        ? cs.primary
+                        : cs.outlineVariant.withOpacity(0.6),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      top.icon,
+                      size: 16,
+                      color: selected
+                          ? cs.primary
+                          : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
                         top.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: selected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+                          fontWeight: FontWeight.w500,
                           color: selected
                               ? cs.primary
                               : AppColors.textSecondary,
                         ),
                       ),
-                    ],
-                  ),
-                  onSelected: (_) {
-                    setState(() {
-                      final children = childrenMap[top.key] ?? const [];
-                      if (children.isNotEmpty) {
-                        // 选中某个一级时，默认选中它的第一个二级
-                        _selectedCategoryKey = children.first.key;
-                      } else {
-                        _selectedCategoryKey = top.key;
-                      }
-                    });
-                  },
+                    ),
+                  ],
                 ),
-              );
-            }).toList(),
-          ),
+              ),
+            );
+          }).toList(),
         ),
         const SizedBox(height: 10),
 
