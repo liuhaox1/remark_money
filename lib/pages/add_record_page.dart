@@ -81,46 +81,82 @@ class _AddRecordPageState extends State<AddRecordPage> {
     _ensureCategorySelection(filtered);
     _ensureAccountSelection();
 
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor:
+          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
         title: const Text(AppStrings.addRecord),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_duePlans.isNotEmpty) _buildRecurringBanner(),
-                  if (_duePlans.isNotEmpty) const SizedBox(height: 12),
-                  _buildAmountAndTypeRow(),
-                  const SizedBox(height: 24),
-                  if (_templates.isNotEmpty) ...[
-                    _buildTemplateChips(),
-                    const SizedBox(height: 16),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                ),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding:
+                            const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_duePlans.isNotEmpty)
+                              _buildRecurringBanner(),
+                            if (_duePlans.isNotEmpty)
+                              const SizedBox(height: 12),
+                            _buildAmountAndTypeRow(),
+                            const SizedBox(height: 24),
+                            if (_templates.isNotEmpty) ...[
+                              _buildTemplateChips(),
+                              const SizedBox(height: 16),
+                            ],
+                            _buildCategoryPicker(filtered),
+                            const SizedBox(height: 20),
+                            Row(
+                              children: [
+                                Expanded(child: _buildAccountPicker()),
+                                const SizedBox(width: 12),
+                                Expanded(child: _buildDatePicker()),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            _buildRemarkField(),
+                            const SizedBox(height: 8),
+                            _buildAdvancedSection(),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                    _buildNumberPad(),
                   ],
-                  _buildCategoryPicker(filtered),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(child: _buildAccountPicker()),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildDatePicker()),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  _buildRemarkField(),
-                  const SizedBox(height: 8),
-                  _buildAdvancedSection(),
-                  const SizedBox(height: 8),
-                ],
+                ),
               ),
             ),
           ),
-          _buildNumberPad(),
-        ],
+        ),
       ),
     );
   }
