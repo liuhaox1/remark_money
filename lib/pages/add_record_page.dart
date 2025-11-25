@@ -147,7 +147,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                             if (_duePlans.isNotEmpty)
                               const SizedBox(height: 12),
                             _buildAmountAndTypeRow(),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 4),
                             if (_templates.isNotEmpty) ...[
                               _buildTemplateChips(),
                               const SizedBox(height: 16),
@@ -284,16 +284,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Widget _buildAmountAndTypeRow() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        SizedBox(
-          width: 140,
-          child: _buildTypeSwitcher(),
-        ),
-        const SizedBox(width: 16),
-        Expanded(child: _buildAmountField()),
-      ],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        width: 160,
+        child: _buildTypeSwitcher(),
+      ),
     );
   }
 
@@ -803,43 +799,46 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Widget _buildRemarkField() {
-    if (_showRemarkInput || _remarkCtrl.text.isNotEmpty) {
-      return TextField(
-        controller: _remarkCtrl,
-        maxLines: 2,
-        decoration: const InputDecoration(
-          hintText: AppStrings.remarkOptional,
-          border: OutlineInputBorder(),
-        ),
-        onChanged: (_) {
-          setState(() {});
-        },
-      );
-    }
+    final cs = Theme.of(context).colorScheme;
+    final amountText =
+        _amountCtrl.text.isEmpty ? '0.00' : _amountCtrl.text;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => setState(() => _showRemarkInput = true),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: Theme.of(context).colorScheme.surface,
-          border: Border.all(
-            color: Theme.of(context)
-                .colorScheme
-                .outlineVariant
-                .withOpacity(0.6),
-          ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: cs.surface,
+        border: Border.all(
+          color: cs.outlineVariant.withOpacity(0.6),
         ),
-        child: const Text(
-          AppStrings.remarkOptional,
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textSecondary,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _remarkCtrl,
+              minLines: 1,
+              maxLines: 1,
+              decoration: const InputDecoration(
+                isCollapsed: true,
+                border: InputBorder.none,
+                hintText: AppStrings.remarkOptional,
+              ),
+              style: const TextStyle(
+                fontSize: 14,
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          Text(
+            '¥ $amountText',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
