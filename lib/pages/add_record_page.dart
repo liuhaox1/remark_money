@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -1101,15 +1102,137 @@ class _AddRecordPageState extends State<AddRecordPage> {
 
   Future<void> _pickDate() async {
     final today = DateTime.now();
-    final last = DateTime(today.year, today.month, today.day);
-    final initial = _selectedDate.isAfter(last) ? last : _selectedDate;
+    // 扩大可选年份范围：向前 20 年，向后 5 年
+    final startYear = today.year - 20;
+    final endYear = today.year + 5;
 
-    final result = await showDatePicker(
+    // 初始化临时值
+    int tempYear = _selectedDate.year.clamp(startYear, endYear);
+    int tempMonth = _selectedDate.month;
+    int tempDay = _selectedDate.day;
+
+    final years =
+        List<int>.generate(endYear - startYear + 1, (i) => startYear + i);
+    final months = List<int>.generate(12, (i) => i + 1);
+    final days = List<int>.generate(31, (i) => i + 1);
+
+    int yearIndex = years.indexOf(tempYear);
+    int monthIndex = tempMonth - 1;
+    int dayIndex = tempDay - 1;
+
+    final yearController =
+        FixedExtentScrollController(initialItem: yearIndex);
+    final monthController =
+        FixedExtentScrollController(initialItem: monthIndex);
+    final dayController =
+        FixedExtentScrollController(initialItem: dayIndex);
+
+    final result = await showModalBottomSheet<DateTime>(
       context: context,
-      initialDate: initial,
-      firstDate: DateTime(today.year - 5),
-      lastDate: last,
-      helpText: AppStrings.selectDate,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SizedBox(
+          height: 260,
+          child: Column(
+            children: [
+              SizedBox(
+                height: 44,
+                child: Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(AppStrings.cancel),
+                    ),
+                    const Expanded(
+                      child: Center(
+                        child: Text(
+                          AppStrings.selectDate,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        // 修正天数，避免 2 月 30 日这类非法日期
+                        final lastDayOfMonth =
+                            DateTime(tempYear, tempMonth + 1, 0).day;
+                        if (tempDay > lastDayOfMonth) {
+                          tempDay = lastDayOfMonth;
+                        }
+                        final picked =
+                            DateTime(tempYear, tempMonth, tempDay);
+                        Navigator.pop(context, picked);
+                      },
+                      child: const Text(AppStrings.confirm),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoPicker(
+                        scrollController: yearController,
+                        itemExtent: 32,
+                        onSelectedItemChanged: (index) {
+                          tempYear = years[index];
+                        },
+                        children: years
+                            .map(
+                              (y) => Center(
+                                child: Text('$y年'),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    Expanded(
+                      child: CupertinoPicker(
+                        scrollController: monthController,
+                        itemExtent: 32,
+                        onSelectedItemChanged: (index) {
+                          tempMonth = months[index];
+                        },
+                        children: months
+                            .map(
+                              (m) => Center(
+                                child: Text(m.toString().padLeft(2, '0')),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    Expanded(
+                      child: CupertinoPicker(
+                        scrollController: dayController,
+                        itemExtent: 32,
+                        onSelectedItemChanged: (index) {
+                          tempDay = days[index];
+                        },
+                        children: days
+                            .map(
+                              (d) => Center(
+                                child: Text(d.toString().padLeft(2, '0')),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
 
     if (result != null) {
