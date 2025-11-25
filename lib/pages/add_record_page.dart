@@ -374,36 +374,44 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          AppStrings.category,
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
+    final List<Widget> children = [
+      const Text(
+        AppStrings.category,
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 8),
+    ];
 
-        // 顶部：一级分类，改为自动换行，避免横向拖动
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: topCategories.map((top) {
-            final selected = top.key == activeTopKey;
-            return InkWell(
+    const itemsPerRow = 4;
+    final activeIndex =
+        activeTopKey == null ? 0 : topCategories.indexWhere((t) => t.key == activeTopKey);
+    final activeRow = activeIndex < 0 ? 0 : activeIndex ~/ itemsPerRow;
+    final rows =
+        (topCategories.length + itemsPerRow - 1) ~/ itemsPerRow;
+
+    for (var row = 0; row < rows; row++) {
+      final rowChildren = <Widget>[];
+      final start = row * itemsPerRow;
+      final end = (start + itemsPerRow).clamp(0, topCategories.length);
+      for (var i = start; i < end; i++) {
+        final top = topCategories[i];
+        final selected = top.key == activeTopKey;
+        rowChildren.add(
+          Expanded(
+            child: InkWell(
               borderRadius: BorderRadius.circular(999),
               onTap: () {
                 setState(() {
-                  final children = childrenMap[top.key] ?? const [];
-                  if (children.isNotEmpty) {
-                    // 选中某个一级时，默认选中它的第一个二级
-                    _selectedCategoryKey = children.first.key;
+                  final childrenList = childrenMap[top.key] ?? const [];
+                  if (childrenList.isNotEmpty) {
+                    _selectedCategoryKey = childrenList.first.key;
                   } else {
                     _selectedCategoryKey = top.key;
                   }
                 });
               },
               child: Container(
-                width: 88,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 6,
@@ -447,72 +455,86 @@ class _AddRecordPageState extends State<AddRecordPage> {
                   ],
                 ),
               ),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 10),
+            ),
+          ),
+        );
+      }
 
-        // 下方：浅色底的二级分类列表
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          decoration: BoxDecoration(
-            color: cs.surfaceVariant.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: currentChildren.map((cat) {
-              final selected = cat.key == _selectedCategoryKey;
-              return InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () {
-                  setState(() {
-                    _selectedCategoryKey = cat.key;
-                  });
-                },
-                child: Container(
-                  width: 80,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: selected
-                        ? cs.primary.withOpacity(0.12)
-                        : cs.surface,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        cat.icon,
-                        size: 20,
-                        color:
-                            selected ? cs.primary : AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        cat.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: selected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+      children.add(Row(children: rowChildren));
+
+      // 紧贴在当前行下面展示该行激活的二级分类
+      if (row == activeRow) {
+        children.add(const SizedBox(height: 10));
+        children.add(
+          Container(
+            width: double.infinity,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            decoration: BoxDecoration(
+              color: cs.surfaceVariant.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: currentChildren.map((cat) {
+                final selected = cat.key == _selectedCategoryKey;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    setState(() {
+                      _selectedCategoryKey = cat.key;
+                    });
+                  },
+                  child: Container(
+                    width: 80,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: selected
+                          ? cs.primary.withOpacity(0.12)
+                          : cs.surface,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          cat.icon,
+                          size: 20,
+                          color: selected
+                              ? cs.primary
+                              : AppColors.textSecondary,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Text(
+                          cat.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: selected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
-        ),
-      ],
+        );
+        children.add(const SizedBox(height: 4));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
     );
   }
 
