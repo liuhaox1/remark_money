@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
+import '../l10n/app_text_templates.dart';
 import '../models/book.dart';
 import '../models/category.dart';
 import '../models/period_type.dart';
@@ -105,12 +106,33 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final compareTitle =
         _isWeekMode ? '\u8fd1 6 \u5468\u5bf9\u6bd4' : AppStrings.recentMonthCompare;
     const emptyText = AppStrings.emptyPeriodRecords;
+    String? weeklySummaryText;
+    if (_isWeekMode && hasData) {
+      final currentExpense = expense;
+      final currentRange = range;
+      final prevStart = DateUtilsX.startOfWeek(currentRange.start)
+          .subtract(const Duration(days: 7));
+      final prevEnd = prevStart.add(const Duration(days: 6));
+      final prevExpense = recordProvider.periodExpense(
+        bookId: bookId,
+        start: prevStart,
+        end: prevEnd,
+      );
+      final diff = currentExpense - prevExpense;
+      final topCategory =
+          expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
+      weeklySummaryText = AppTextTemplates.weeklySummary(
+        expense: currentExpense,
+        diff: diff,
+        topCategory: topCategory,
+      );
+    }
 
     return Scaffold(
       backgroundColor:
           isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
-        title: Text(_periodLabel(range)),
+        title: Text(_appBarTitle(range)),
         actions: const [
           BookSelectorButton(compact: true),
           SizedBox(width: 8),
@@ -127,7 +149,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   _PeriodHeaderCard(
                     cs: cs,
                     isDark: isDark,
-                    title: _periodLabel(range),
+                    title: _headerTitle(range),
                     bookName: bookName,
                     range: range,
                     periodType: widget.periodType,
@@ -137,6 +159,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     balanceDiff: balanceDiff,
                     hasComparison: comparison.hasData,
                     hasData: hasData,
+                    weeklySummaryText: weeklySummaryText,
                     onViewDetail: () =>
                         _openBillDetail(context, range, bookName),
                   ),
@@ -201,21 +224,37 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                             ),
                           )
                         else ...[
-                          SizedBox(
-                            height: 260,
-                            child: _showBarChart
-                                ? ChartBar(entries: distributionEntries)
-                                : ChartPie(entries: distributionEntries),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            AppStrings.chartCategoryDesc,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.outline,
+                          if (distributionEntries.length >= 2) ...[
+                            SizedBox(
+                              height: 260,
+                              child: _showBarChart
+                                  ? ChartBar(entries: distributionEntries)
+                                  : ChartPie(entries: distributionEntries),
                             ),
-                          ),
-                          const SizedBox(height: 12),
+                            const SizedBox(height: 8),
+                            Text(
+                              AppTextTemplates.chartCategoryDistributionDesc,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.outline,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ] else if (distributionEntries.length == 1) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                AppTextTemplates.singleCategoryFullSummary(
+                                  label: distributionEntries.first.label,
+                                  amount: distributionEntries.first.value,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: cs.outline,
+                                ),
+                              ),
+                            ),
+                          ],
                           for (final entry in distributionEntries)
                             Padding(
                               padding: const EdgeInsets.symmetric(
@@ -288,7 +327,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                 ),
                               const SizedBox(height: 4),
                               Text(
-                                AppStrings.chartCategoryDesc,
+                                AppTextTemplates.chartExpenseRankingDesc,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: cs.outline,
@@ -377,7 +416,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     child: OutlinedButton.icon(
                       onPressed: () => _openBillDetail(context, range, bookName),
                       icon: const Icon(Icons.receipt_long),
-                      label: const Text(AppStrings.viewPeriodDetail),
+                      label: const Text(AppTextTemplates.viewBillList),
                     ),
                   ),
                 ],
@@ -389,14 +428,21 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
-  String _periodLabel(DateTimeRange range) {
+  String _appBarTitle(DateTimeRange range) {
     if (_isWeekMode) {
-      return '${DateUtilsX.weekLabel(_weekIndex(range.start))} · ${AppStrings.weekRangeLabel(range)}';
+      return DateUtilsX.weekLabel(_weekIndex(range.start));
     }
-    return AppStrings.periodBillTitle(
-      widget.year,
-      month: widget.month,
-    );
+    if (_isMonthMode) {
+      return AppStrings.monthReport;
+    }
+    return AppStrings.yearReport;
+  }
+
+  String _headerTitle(DateTimeRange range) {
+    if (_isWeekMode) {
+      return AppStrings.weekRangeLabel(range);
+    }
+    return AppStrings.periodBillTitle(widget.year, month: widget.month);
   }
 
   int _weekIndex(DateTime start) {
@@ -706,6 +752,7 @@ class _PeriodHeaderCard extends StatelessWidget {
     required this.balanceDiff,
     required this.hasComparison,
     required this.hasData,
+    this.weeklySummaryText,
     required this.onViewDetail,
   });
 
@@ -721,11 +768,17 @@ class _PeriodHeaderCard extends StatelessWidget {
   final double? balanceDiff;
   final bool hasComparison;
   final bool hasData;
+  final String? weeklySummaryText;
   final VoidCallback onViewDetail;
 
   @override
   Widget build(BuildContext context) {
     final conclusion = _buildConclusion();
+    final bool useWeeklySummary =
+        periodType == PeriodType.week && weeklySummaryText != null;
+    final subtitle = periodType == PeriodType.week
+        ? '${DateUtilsX.weekLabel(_weekIndexForRange(range))} · ${AppStrings.currentBookLabel(bookName)}'
+        : AppStrings.currentBookLabel(bookName);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -771,29 +824,19 @@ class _PeriodHeaderCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      AppStrings.currentBookLabel(bookName),
+                      subtitle,
                       style: TextStyle(
                         fontSize: 12,
                         color: cs.outline,
                       ),
                     ),
-                    if (periodType == PeriodType.week) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        AppStrings.weekRangeLabel(range),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.outline,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
               TextButton.icon(
                 onPressed: onViewDetail,
                 icon: const Icon(Icons.receipt_long, size: 16),
-                label: const Text('明细'),
+                label: const Text(AppTextTemplates.viewBillList),
               ),
             ],
           ),
@@ -823,7 +866,7 @@ class _PeriodHeaderCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      conclusion,
+                      useWeeklySummary ? weeklySummaryText! : conclusion,
                       style: TextStyle(
                         fontSize: 12,
                         color: cs.outline,
@@ -877,6 +920,13 @@ class _PeriodHeaderCard extends StatelessWidget {
     final verb = balanceDiff! >= 0 ? '\u7ed3\u4f59\u589e\u52a0' : '\u7ed3\u4f59\u51cf\u5c11';
     return '$periodName\u7ed3\u4f59 ${balance.toStringAsFixed(2)}\uff0c\u8f83\u4e0a\u4e00\u671f$verb ${balanceDiff!.abs().toStringAsFixed(2)}';
   }
+
+  int _weekIndexForRange(DateTimeRange range) {
+    final first =
+        DateUtilsX.startOfWeek(DateTime(range.start.year, 1, 1));
+    final diff = range.start.difference(first).inDays;
+    return (diff ~/ 7) + 1;
+  }
 }
 
 class _SectionCard extends StatelessWidget {
@@ -926,6 +976,13 @@ class _SectionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  int _weekIndexForRange(DateTimeRange range) {
+    final first =
+        DateUtilsX.startOfWeek(DateTime(range.start.year, 1, 1));
+    final diff = range.start.difference(first).inDays;
+    return (diff ~/ 7) + 1;
   }
 }
 
