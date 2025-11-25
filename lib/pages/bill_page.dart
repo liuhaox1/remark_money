@@ -9,6 +9,7 @@ import 'package:remark_money/providers/category_provider.dart';
 import 'package:remark_money/utils/date_utils.dart';
 
 import '../l10n/app_strings.dart';
+import '../l10n/app_text_templates.dart';
 import '../models/period_type.dart';
 import '../theme/app_tokens.dart';
 import '../utils/csv_utils.dart';
@@ -457,24 +458,53 @@ class _BillPageState extends State<BillPage> {
     final recordProvider = context.watch<RecordProvider>();
     final months = DateUtilsX.monthsInYear(_selectedYear);
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: months.length,
-      itemBuilder: (_, index) {
-        final m = months[index];
+    double totalIncome = 0;
+    double totalExpense = 0;
 
-        final income = recordProvider.monthIncome(m, bookId);
-        final expense = recordProvider.monthExpense(m, bookId);
-        final balance = income - expense;
+    final monthItems = <Widget>[];
+    for (final m in months) {
+      final income = recordProvider.monthIncome(m, bookId);
+      final expense = recordProvider.monthExpense(m, bookId);
+      final balance = income - expense;
 
-        return _billCard(
+      totalIncome += income;
+      totalExpense += expense;
+
+      // 只展示有记账的月份，避免一整年全是 0.00 的行
+      if (income == 0 && expense == 0) continue;
+
+      monthItems.add(
+        _billCard(
           title: AppStrings.monthLabel(m.month),
           income: income,
           expense: expense,
           balance: balance,
           cs: cs,
-        );
-      },
+        ),
+      );
+    }
+
+    final items = <Widget>[];
+    final totalBalance = totalIncome - totalExpense;
+
+    // 年度小结
+    items.add(
+      _billCard(
+        title: AppStrings.yearReport,
+        subtitle:
+            '本年收入 ${totalIncome.toStringAsFixed(2)} 元 · 支出 ${totalExpense.toStringAsFixed(2)} 元',
+        income: totalIncome,
+        expense: totalExpense,
+        balance: totalBalance,
+        cs: cs,
+      ),
+    );
+
+    items.addAll(monthItems);
+
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: items,
     );
   }
 
@@ -484,26 +514,24 @@ class _BillPageState extends State<BillPage> {
         List.generate(7, (i) => _selectedWeek.start.add(Duration(days: i)));
     double totalIncome = 0;
     double totalExpense = 0;
-    for (final d in days) {
-      totalIncome += recordProvider.dayIncome(bookId, d);
-      totalExpense += recordProvider.dayExpense(bookId, d);
-    }
-    final items = <Widget>[
-      _billCard(
-        title: DateUtilsX.weekLabel(_weekNumberForWeek(_selectedWeek.start)),
-        subtitle: AppStrings.weekRangeLabel(_selectedWeek),
-        income: totalIncome,
-        expense: totalExpense,
-        balance: totalIncome - totalExpense,
-        cs: cs,
-      ),
-    ];
+    int emptyDays = 0;
+
+    final dayItems = <Widget>[];
 
     for (final d in days) {
       final income = recordProvider.dayIncome(bookId, d);
       final expense = recordProvider.dayExpense(bookId, d);
+
+      totalIncome += income;
+      totalExpense += expense;
+
+      if (income == 0 && expense == 0) {
+        emptyDays += 1;
+        continue;
+      }
+
       final balance = income - expense;
-      items.add(
+      dayItems.add(
         _billCard(
           title: AppStrings.monthDayLabel(d.month, d.day),
           subtitle: DateUtilsX.weekdayShort(d),
@@ -514,6 +542,24 @@ class _BillPageState extends State<BillPage> {
         ),
       );
     }
+
+    final subtitleParts = <String>[AppStrings.weekRangeLabel(_selectedWeek)];
+    if (emptyDays > 0) {
+      subtitleParts.add(AppTextTemplates.weekEmptyDaysHint(emptyDays));
+    }
+
+    final items = <Widget>[
+      _billCard(
+        title: DateUtilsX.weekLabel(_weekNumberForWeek(_selectedWeek.start)),
+        subtitle: subtitleParts.join(' · '),
+        income: totalIncome,
+        expense: totalExpense,
+        balance: totalIncome - totalExpense,
+        cs: cs,
+      ),
+    ];
+
+    items.addAll(dayItems);
 
     return ListView(
       padding: const EdgeInsets.all(12),
@@ -527,25 +573,79 @@ class _BillPageState extends State<BillPage> {
   Widget _buildMonthBill(BuildContext context, ColorScheme cs, String bookId) {
     final days = DateUtilsX.daysInMonth(_selectedMonth);
     final recordProvider = context.watch<RecordProvider>();
+    double totalIncome = 0;
+    double totalExpense = 0;
+    double maxDailyExpense = 0;
+    int recordedDays = 0;
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: days.length,
-      itemBuilder: (_, index) {
-        final d = days[index];
+    // 先统计整月概况，并记录哪些日期有记账
+    final nonEmptyDays = <DateTime>[];
+    for (final d in days) {
+      final income = recordProvider.dayIncome(bookId, d);
+      final expense = recordProvider.dayExpense(bookId, d);
 
-        final income = recordProvider.dayIncome(bookId, d);
-        final expense = recordProvider.dayExpense(bookId, d);
-        final balance = income - expense;
+      totalIncome += income;
+      totalExpense += expense;
 
-        return _billCard(
+      if (income != 0 || expense != 0) {
+        recordedDays += 1;
+        nonEmptyDays.add(d);
+      }
+      if (expense > maxDailyExpense) {
+        maxDailyExpense = expense;
+      }
+    }
+
+    final totalDays = days.length;
+    final avgExpense = totalDays > 0 ? totalExpense / totalDays : 0;
+    final emptyDays = totalDays - recordedDays;
+
+    final items = <Widget>[];
+
+    // 顶部本月小结
+    final subtitleParts = <String>[];
+    subtitleParts.add(
+        '本月支出 ${totalExpense.toStringAsFixed(2)} 元 · 日均 ${avgExpense.toStringAsFixed(2)} 元');
+    subtitleParts.add('记账 $recordedDays 天');
+    if (emptyDays > 0) {
+      subtitleParts.add(AppTextTemplates.monthEmptyDaysHint(emptyDays));
+    }
+    if (maxDailyExpense > 0) {
+      subtitleParts
+          .add('单日最高支出 ${maxDailyExpense.toStringAsFixed(2)} 元');
+    }
+
+    items.add(
+      _billCard(
+        title: AppStrings.monthListTitle,
+        subtitle: subtitleParts.join(' · '),
+        income: totalIncome,
+        expense: totalExpense,
+        balance: totalIncome - totalExpense,
+        cs: cs,
+      ),
+    );
+
+    // 只展示有记账的日期，避免一长串全是 0.00
+    for (final d in nonEmptyDays) {
+      final income = recordProvider.dayIncome(bookId, d);
+      final expense = recordProvider.dayExpense(bookId, d);
+      final balance = income - expense;
+
+      items.add(
+        _billCard(
           title: AppStrings.monthDayLabel(d.month, d.day),
           income: income,
           expense: expense,
           balance: balance,
           cs: cs,
-        );
-      },
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: items,
     );
   }
 

@@ -18,6 +18,7 @@ import '../utils/date_utils.dart';
 import '../widgets/chart_bar.dart';
 import '../widgets/chart_pie.dart';
 import '../widgets/book_selector_button.dart';
+import '../widgets/quick_add_sheet.dart';
 import 'bill_page.dart';
 
 class ReportDetailPage extends StatefulWidget {
@@ -163,230 +164,228 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         _openBillDetail(context, range, bookName),
                   ),
                   const SizedBox(height: 12),
-                  _SectionCard(
-                    title: _showIncomeCategory
-                        ? AppStrings.incomeDistribution
-                        : AppStrings.expenseDistribution,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            SegmentedButton<bool>(
-                              segments: const [
-                                ButtonSegment(
-                                  value: false,
-                                  label: Text(AppStrings.expense),
-                                ),
-                                ButtonSegment(
-                                  value: true,
-                                  label: Text(AppStrings.income),
-                                ),
-                              ],
-                              selected: {_showIncomeCategory},
-                              onSelectionChanged: (value) {
-                                setState(() {
-                                  _showIncomeCategory = value.first;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        if (distributionEntries.isEmpty)
-                          Padding(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 20),
-                            child: Center(
-                              child: Text(
-                                emptyText,
-                                style: TextStyle(color: cs.outline),
-                              ),
-                            ),
-                          )
-                        else ...[
-                          SizedBox(
-                            height: 260,
-                            child: ChartPie(entries: distributionEntries),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            distributionEntries.length == 1
-                                ? AppTextTemplates.singleCategoryFullSummary(
-                                    label: distributionEntries.first.label,
-                                    amount: distributionEntries.first.value,
-                                  )
-                                : AppTextTemplates.chartCategoryDistributionDesc,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.outline,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          for (final entry in distributionEntries)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      color: entry.color,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
+                  if (!hasData)
+                    _EmptyPeriodCard(cs: cs)
+                  else ...[
+                    _SectionCard(
+                      title: _showIncomeCategory
+                          ? AppStrings.incomeDistribution
+                          : AppStrings.expenseDistribution,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              SegmentedButton<bool>(
+                                segments: const [
+                                  ButtonSegment(
+                                    value: false,
+                                    label: Text(AppStrings.expense),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      entry.label,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
-                                    style: const TextStyle(
-                                      fontFeatures: [
-                                        FontFeature.tabularFigures()
-                                      ],
-                                    ),
+                                  ButtonSegment(
+                                    value: true,
+                                    label: Text(AppStrings.income),
                                   ),
                                 ],
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _SectionCard(
-                    title: AppStrings.expenseRanking,
-                    child: ranking.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                            child: Center(
-                              child: Text(
-                                emptyText,
-                                style: TextStyle(color: cs.outline),
-                              ),
-                            ),
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (final entry in ranking.take(5))
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(entry.label),
-                                  trailing: Text(
-                                    '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontFeatures: [
-                                        FontFeature.tabularFigures()
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 4),
-                              Text(
-                                AppTextTemplates.chartExpenseRankingDesc,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: cs.outline,
-                                ),
+                                selected: {_showIncomeCategory},
+                                onSelectionChanged: (value) {
+                                  setState(() {
+                                    _showIncomeCategory = value.first;
+                                  });
+                                },
                               ),
                             ],
                           ),
-                  ),
-                  if (dailyEntries.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _SectionCard(
-                      title: AppStrings.dailyTrend,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            height: 240,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: SizedBox(
-                                width: max(340, dailyEntries.length * 24),
-                                child: ChartBar(entries: dailyEntries),
+                          const SizedBox(height: 8),
+                          if (distributionEntries.isEmpty)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 20),
+                              child: Center(
+                                child: Text(
+                                  emptyText,
+                                  style: TextStyle(color: cs.outline),
+                                ),
+                              ),
+                            )
+                          else ...[
+                            SizedBox(
+                              height: 260,
+                              child: ChartPie(entries: distributionEntries),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              distributionEntries.length == 1
+                                  ? AppTextTemplates.singleCategoryFullSummary(
+                                      label: distributionEntries.first.label,
+                                      amount: distributionEntries.first.value,
+                                    )
+                                  : AppTextTemplates
+                                      .chartCategoryDistributionDesc,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.outline,
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            AppStrings.chartDailyTrendDesc,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.outline,
-                            ),
-                          ),
+                            const SizedBox(height: 12),
+                            for (final entry in distributionEntries)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: entry.color,
+                                        borderRadius:
+                                            BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        entry.label,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
+                                      style: const TextStyle(
+                                        fontFeatures: [
+                                          FontFeature.tabularFigures()
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ],
                       ),
                     ),
-                  ],
-                  if (compareEntries.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _SectionCard(
-                      title: compareTitle,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            height: 260,
-                            child: ChartBar(entries: compareEntries),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            AppStrings.chartRecentCompareDesc,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.outline,
+                      title: AppStrings.expenseRanking,
+                      child: ranking.isEmpty
+                          ? Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 20),
+                              child: Center(
+                                child: Text(
+                                  emptyText,
+                                  style: TextStyle(color: cs.outline),
+                                ),
+                              ),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                for (final entry in ranking.take(5))
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(entry.label),
+                                    trailing: Text(
+                                      '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontFeatures: [
+                                          FontFeature.tabularFigures()
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  AppTextTemplates.chartExpenseRankingDesc,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: cs.outline,
+                                  ),
+                                ),
+                              ],
                             ),
+                    ),
+                    if (dailyEntries.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _SectionCard(
+                        title: AppStrings.dailyTrend,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: 240,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: SizedBox(
+                                  width: max(340, dailyEntries.length * 24),
+                                  child: ChartBar(entries: dailyEntries),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              AppStrings.chartDailyTrendDesc,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.outline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (compareEntries.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _SectionCard(
+                        title: compareTitle,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: 260,
+                              child: ChartBar(entries: compareEntries),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              AppStrings.chartRecentCompareDesc,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.outline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    _SectionCard(
+                      title: AppStrings.reportAchievements,
+                      child: Column(
+                        children: [
+                          _AchievementRow(
+                            label: AppStrings.recordCount,
+                            value: activity.recordCount.toString(),
+                          ),
+                          const SizedBox(height: 6),
+                          _AchievementRow(
+                            label: AppStrings.activeDays,
+                            value: activity.activeDays.toString(),
+                          ),
+                          const SizedBox(height: 6),
+                          _AchievementRow(
+                            label: AppStrings.streakDays,
+                            value: activity.streak.toString(),
                           ),
                         ],
                       ),
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  _SectionCard(
-                    title: AppStrings.reportAchievements,
-                    child: Column(
-                      children: [
-                        _AchievementRow(
-                          label: AppStrings.recordCount,
-                          value: activity.recordCount.toString(),
-                        ),
-                        const SizedBox(height: 6),
-                        _AchievementRow(
-                          label: AppStrings.activeDays,
-                          value: activity.activeDays.toString(),
-                        ),
-                        const SizedBox(height: 6),
-                        _AchievementRow(
-                          label: AppStrings.streakDays,
-                          value: activity.streak.toString(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _openBillDetail(context, range, bookName),
-                      icon: const Icon(Icons.receipt_long),
-                      label: const Text(AppTextTemplates.viewBillList),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -950,6 +949,49 @@ class _SectionCard extends StatelessWidget {
         DateUtilsX.startOfWeek(DateTime(range.start.year, 1, 1));
     final diff = range.start.difference(first).inDays;
     return (diff ~/ 7) + 1;
+  }
+}
+
+class _EmptyPeriodCard extends StatelessWidget {
+  const _EmptyPeriodCard({required this.cs});
+
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            AppStrings.emptyPeriodRecords,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => const QuickAddSheet(),
+              );
+            },
+            icon: const Icon(Icons.add),
+            label: const Text(AppStrings.goRecord),
+          ),
+        ],
+      ),
+    );
   }
 }
 

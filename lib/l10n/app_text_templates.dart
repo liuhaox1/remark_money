@@ -38,6 +38,5 @@ class AppTextTemplates {
   static String exportNotSupportedHint(String target) =>
       '当前视图暂不支持导出，请切换到 $target 后再试';
 
-  static const String viewBillList = '查看账单列表';
+  static const String viewBillList = '查看本期流水明细';
 }
-
