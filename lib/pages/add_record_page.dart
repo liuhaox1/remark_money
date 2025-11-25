@@ -275,7 +275,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: SingleChildScrollView(
-              child: _buildAdvancedSection(),
+              child: _buildAdvancedSheetContent(),
             ),
           ),
         );
@@ -438,6 +438,89 @@ class _AddRecordPageState extends State<AddRecordPage> {
             );
           }).toList(),
         ),
+      ],
+    );
+  }
+
+  Widget _buildAdvancedSheetContent() {
+    final statsLabel = _isExpense ? '计入支出统计' : '计入收入统计';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          '更多设置',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          '记账习惯、统计和循环记账',
+          style: TextStyle(fontSize: 12),
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _includeInStats,
+          title: Text(statsLabel),
+          onChanged: (v) => setState(() => _includeInStats = v),
+        ),
+        if (_showSavingGoalSection())
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: _buildSavingGoalPicker(),
+          ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _saveAsTemplate,
+          title: const Text('保存为常用模板'),
+          subtitle: const Text(
+            '保存当前分类、账户和备注，方便下次快速填写',
+            style: TextStyle(fontSize: 12),
+          ),
+          onChanged: (v) => setState(() => _saveAsTemplate = v ?? false),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _isRecurring,
+          title: const Text('设为循环记账'),
+          subtitle: const Text(
+            '每周或每月提醒你再次记这笔账，不会自动生成记录',
+            style: TextStyle(fontSize: 12),
+          ),
+          onChanged: (v) => setState(() => _isRecurring = v),
+        ),
+        if (_isRecurring)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            child: Row(
+              children: [
+                const Text(
+                  '循环周期',
+                  style:
+                      TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(width: 12),
+                DropdownButton<RecurringPeriodType>(
+                  value: _recurringPeriodType,
+                  items: const [
+                    DropdownMenuItem(
+                      value: RecurringPeriodType.weekly,
+                      child: Text('每周'),
+                    ),
+                    DropdownMenuItem(
+                      value: RecurringPeriodType.monthly,
+                      child: Text('每月'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _recurringPeriodType = v);
+                  },
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
