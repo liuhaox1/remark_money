@@ -133,7 +133,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                               _buildTemplateChips(),
                               const SizedBox(height: 16),
                             ],
-                            _buildCategoryPicker(filtered),
+                            _buildCategorySection(filtered),
                             const SizedBox(height: 20),
                             Row(
                               children: [
@@ -313,6 +313,188 @@ class _AddRecordPageState extends State<AddRecordPage> {
               ),
             );
           }).toList(),
+        ),
+      ],
+    );
+  }
+
+  /// 新版分类区域：上方一级分类，点击后下方展示对应的二级分类
+  Widget _buildCategorySection(List<Category> categories) {
+    // 是否存在二级分类（有 parentKey）
+    final hasSecondLevel =
+        categories.any((c) => c.parentKey != null);
+
+    // 没有层级信息时，退回老的单层分类样式（兼容旧数据）
+    if (!hasSecondLevel) {
+      return _buildCategoryQuickPicker(categories);
+    }
+
+    // 一级分类：parentKey 为空
+    final topCategories =
+        categories.where((c) => c.parentKey == null).toList();
+
+    // 二级分类：按 parentKey 分组
+    final Map<String, List<Category>> childrenMap = {};
+    for (final cat in categories) {
+      final parent = cat.parentKey;
+      if (parent == null) continue;
+      childrenMap.putIfAbsent(parent, () => []).add(cat);
+    }
+
+    // 当前选中的分类（一般是二级）
+    Category? selectedCategory;
+    if (_selectedCategoryKey != null) {
+      for (final c in categories) {
+        if (c.key == _selectedCategoryKey) {
+          selectedCategory = c;
+          break;
+        }
+      }
+    }
+
+    // 当前激活的一级：优先用已选分类的 parent，否则用第一个一级
+    String? activeTopKey = selectedCategory?.parentKey;
+    activeTopKey ??= topCategories.isNotEmpty ? topCategories.first.key : null;
+
+    final currentChildren = activeTopKey != null
+        ? (childrenMap[activeTopKey] ?? const <Category>[])
+        : const <Category>[];
+
+    // 万一某个一级下面没有二级（极端兼容），退回单层样式
+    if (currentChildren.isEmpty) {
+      final secondLevel =
+          categories.where((c) => c.parentKey != null).toList();
+      if (secondLevel.isEmpty) {
+        return _buildCategoryQuickPicker(categories);
+      }
+      return _buildCategoryQuickPicker(secondLevel);
+    }
+
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          AppStrings.category,
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+
+        // 顶部：一级分类横向滑动
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: topCategories.map((top) {
+              final selected = top.key == activeTopKey;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  selected: selected,
+                  backgroundColor: cs.surfaceVariant.withOpacity(0.3),
+                  selectedColor: cs.primary.withOpacity(0.18),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        top.icon,
+                        size: 18,
+                        color:
+                            selected ? cs.primary : AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        top.name,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: selected
+                              ? cs.primary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  onSelected: (_) {
+                    setState(() {
+                      final children = childrenMap[top.key] ?? const [];
+                      if (children.isNotEmpty) {
+                        // 选中某个一级时，默认选中它的第一个二级
+                        _selectedCategoryKey = children.first.key;
+                      } else {
+                        _selectedCategoryKey = top.key;
+                      }
+                    });
+                  },
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // 下方：浅色底的二级分类列表
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          decoration: BoxDecoration(
+            color: cs.surfaceVariant.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: currentChildren.map((cat) {
+              final selected = cat.key == _selectedCategoryKey;
+              return InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  setState(() {
+                    _selectedCategoryKey = cat.key;
+                  });
+                },
+                child: Container(
+                  width: 80,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: selected
+                        ? cs.primary.withOpacity(0.12)
+                        : cs.surface,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        cat.icon,
+                        size: 20,
+                        color:
+                            selected ? cs.primary : AppColors.textSecondary,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        cat.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ),
       ],
     );

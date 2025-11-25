@@ -513,7 +513,8 @@ class CategoryRepository {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_key);
 
-    if (raw == null) {
+    // 如果本地还没有数据，或者被清空为一个空列表，就回写一份默认分类
+    if (raw == null || raw.isEmpty) {
       await saveCategories(defaultCategories);
       return List<Category>.from(defaultCategories);
     }
