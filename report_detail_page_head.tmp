@@ -73,8 +73,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final expense = _periodExpense(recordProvider, bookId, records);
     final balance = income - expense;
     final comparison = _previousBalance(recordProvider, bookId);
-    final expenseDiff =
-        comparison.hasData ? expense - comparison.balance : null;
+    final balanceDiff =
+        comparison.hasData ? balance - comparison.balance : null;
     final range = _periodRange();
 
     final expenseEntries = _buildCategoryEntries(
@@ -156,7 +156,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     income: income,
                     expense: expense,
                     balance: balance,
-                    balanceDiff: expenseDiff,
+                    balanceDiff: balanceDiff,
                     hasComparison: comparison.hasData,
                     hasData: hasData,
                     weeklySummaryText: weeklySummaryText,
@@ -504,11 +504,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         start: prevRange.start,
         end: prevRange.end,
       );
+      final income = records
+          .where((r) => r.isIncome)
+          .fold<double>(0, (sum, r) => sum + r.incomeValue);
       final expense = records
           .where((r) => r.isExpense)
           .fold<double>(0, (sum, r) => sum + r.expenseValue);
       return _PeriodComparison(
-        balance: expense,
+        balance: income - expense,
         hasData: records.isNotEmpty,
       );
     }
@@ -521,11 +524,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         start: prevRange.start,
         end: prevRange.end,
       );
+      final income = records
+          .where((r) => r.isIncome)
+          .fold<double>(0, (sum, r) => sum + r.incomeValue);
       final expense = records
           .where((r) => r.isExpense)
           .fold<double>(0, (sum, r) => sum + r.expenseValue);
       return _PeriodComparison(
-        balance: expense,
+        balance: income - expense,
         hasData: records.isNotEmpty,
       );
     }
@@ -533,11 +539,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final currentMonth =
         DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
     final prevMonth = DateTime(currentMonth.year, currentMonth.month - 1, 1);
+    final income = recordProvider.monthIncome(prevMonth, bookId);
     final expense = recordProvider.monthExpense(prevMonth, bookId);
     final hasData = recordProvider
         .recordsForMonth(bookId, prevMonth.year, prevMonth.month)
         .isNotEmpty;
-    return _PeriodComparison(balance: expense, hasData: hasData);
+    return _PeriodComparison(
+      balance: income - expense,
+      hasData: hasData,
+    );
   }
 
   List<ChartEntry> _buildCategoryEntries(
@@ -773,7 +783,7 @@ class _PeriodHeaderCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      AppStrings.currentBookLabel(bookName),
+                      subtitle,
                       style: TextStyle(
                         fontSize: 12,
                         color: cs.outline,
@@ -860,16 +870,14 @@ class _PeriodHeaderCard extends StatelessWidget {
         : periodType == PeriodType.week
             ? '\u672c\u5468'
             : '\u672c\u6708';
-    final compareLabel =
-        periodType == PeriodType.year ? '上年' : periodType == PeriodType.week ? '上周' : '上月';
     if (!hasData) {
       return AppStrings.emptyPeriodRecords;
     }
     if (!hasComparison || balanceDiff == null) {
       return AppStrings.previousPeriodNoData;
     }
-    final verb = balanceDiff! >= 0 ? '增加' : '减少';
-    return '$periodName\u652f\u51fa ${expense.toStringAsFixed(2)} \u5143\uff0c\u8f83$compareLabel$verb ${balanceDiff!.abs().toStringAsFixed(2)} \u5143';
+    final verb = balanceDiff! >= 0 ? '\u7ed3\u4f59\u589e\u52a0' : '\u7ed3\u4f59\u51cf\u5c11';
+    return '$periodName\u7ed3\u4f59 ${balance.toStringAsFixed(2)}\uff0c\u8f83\u4e0a\u4e00\u671f$verb ${balanceDiff!.abs().toStringAsFixed(2)}';
   }
 
   int _weekIndexForRange(DateTimeRange range) {
