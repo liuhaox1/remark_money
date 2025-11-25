@@ -205,35 +205,24 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                             ),
                           )
                         else ...[
-                          if (distributionEntries.length >= 2) ...[
-                            SizedBox(
-                              height: 260,
-                              child: ChartPie(entries: distributionEntries),
+                          SizedBox(
+                            height: 260,
+                            child: ChartPie(entries: distributionEntries),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            distributionEntries.length == 1
+                                ? AppTextTemplates.singleCategoryFullSummary(
+                                    label: distributionEntries.first.label,
+                                    amount: distributionEntries.first.value,
+                                  )
+                                : AppTextTemplates.chartCategoryDistributionDesc,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.outline,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              AppTextTemplates.chartCategoryDistributionDesc,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.outline,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                          ] else if (distributionEntries.length == 1) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                AppTextTemplates.singleCategoryFullSummary(
-                                  label: distributionEntries.first.label,
-                                  amount: distributionEntries.first.value,
-                                ),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: cs.outline,
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
+                          const SizedBox(height: 12),
                           for (final entry in distributionEntries)
                             Padding(
                               padding: const EdgeInsets.symmetric(
