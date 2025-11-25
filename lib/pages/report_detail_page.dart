@@ -41,7 +41,6 @@ class ReportDetailPage extends StatefulWidget {
 }
 
 class _ReportDetailPageState extends State<ReportDetailPage> {
-  bool _showBarChart = true;
   bool _showIncomeCategory = false;
 
   bool get _isYearMode => widget.periodType == PeriodType.year;
@@ -168,24 +167,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     title: _showIncomeCategory
                         ? AppStrings.incomeDistribution
                         : AppStrings.expenseDistribution,
-                    trailing: SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(
-                          value: true,
-                          icon: Icon(Icons.bar_chart),
-                          label: Text(AppStrings.chartBar),
-                        ),
-                        ButtonSegment(
-                          value: false,
-                          icon: Icon(Icons.pie_chart),
-                          label: Text(AppStrings.chartPie),
-                        ),
-                      ],
-                      selected: {_showBarChart},
-                      onSelectionChanged: (value) {
-                        setState(() => _showBarChart = value.first);
-                      },
-                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -227,9 +208,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                           if (distributionEntries.length >= 2) ...[
                             SizedBox(
                               height: 260,
-                              child: _showBarChart
-                                  ? ChartBar(entries: distributionEntries)
-                                  : ChartPie(entries: distributionEntries),
+                              child: ChartPie(entries: distributionEntries),
                             ),
                             const SizedBox(height: 8),
                             Text(
