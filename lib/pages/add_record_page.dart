@@ -14,6 +14,7 @@ import '../providers/account_provider.dart';
 import '../providers/saving_goal_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
+import '../widgets/account_select_bottom_sheet.dart';
 import '../repository/record_template_repository.dart';
 import '../repository/recurring_record_repository.dart';
 import 'add_account_type_page.dart';
@@ -315,6 +316,16 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Widget _buildAccountPicker() {
     final accountProvider = context.watch<AccountProvider>();
     final accounts = accountProvider.accounts;
+    Account? selectedAccount;
+    if (_selectedAccountId != null) {
+      for (final a in accounts) {
+        if (a.id == _selectedAccountId) {
+          selectedAccount = a;
+          break;
+        }
+      }
+    }
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -323,25 +334,47 @@ class _AddRecordPageState extends State<AddRecordPage> {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: _selectedAccountId,
-          items: accounts
-              .map(
-                (a) => DropdownMenuItem(
-                  value: a.id,
+        InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () async {
+            final selectedId = await showAccountSelectBottomSheet(
+              context,
+              accounts,
+              selectedAccountId: _selectedAccountId,
+            );
+            if (!mounted || selectedId == null) return;
+            setState(() {
+              _selectedAccountId = selectedId;
+              _selectedGoalId = null;
+            });
+          },
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: colorScheme.surfaceVariant.withOpacity(0.4),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
                   child: Text(
-                    '${a.name} · ${a.currentBalance.toStringAsFixed(2)}',
+                    selectedAccount != null
+                        ? '${selectedAccount.name} · ${selectedAccount.currentBalance.toStringAsFixed(2)}'
+                        : '选择账户',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: selectedAccount != null
+                          ? AppColors.textMain
+                          : Theme.of(context).hintColor,
+                    ),
                   ),
                 ),
-              )
-              .toList(),
-          onChanged: (value) => setState(() {
-            _selectedAccountId = value;
-            _selectedGoalId = null;
-          }),
-          decoration: const InputDecoration(
-            hintText: '选择账户',
-            border: OutlineInputBorder(),
+                const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+              ],
+            ),
           ),
         ),
         if (accounts.isEmpty)
