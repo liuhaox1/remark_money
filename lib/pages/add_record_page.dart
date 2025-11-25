@@ -46,6 +46,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
   bool _isRecurring = false;
   RecurringPeriodType _recurringPeriodType = RecurringPeriodType.monthly;
   String? _activeRecurringPlanId;
+  bool _showRemarkInput = false;
+  String _amountExpression = '';
 
   final RecordTemplateRepository _templateRepository =
       RecordTemplateRepository();
@@ -83,44 +85,57 @@ class _AddRecordPageState extends State<AddRecordPage> {
       appBar: AppBar(
         title: const Text(AppStrings.addRecord),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_duePlans.isNotEmpty) _buildRecurringBanner(),
-            if (_duePlans.isNotEmpty) const SizedBox(height: 12),
-            _buildAmountField(),
-            const SizedBox(height: 20),
-            _buildTypeSwitcher(),
-            const SizedBox(height: 16),
-            if (_templates.isNotEmpty) ...[
-              _buildTemplateChips(),
-              const SizedBox(height: 16),
-            ],
-            _buildCategoryPicker(filtered),
-            const SizedBox(height: 16),
-            _buildAccountPicker(),
-            const SizedBox(height: 16),
-            _buildDatePicker(),
-            const SizedBox(height: 16),
-            _buildRemarkField(),
-            const SizedBox(height: 8),
-            _buildAdvancedSection(),
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _handleSubmit,
-                child: const Text(
-                  AppStrings.save,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_duePlans.isNotEmpty) _buildRecurringBanner(),
+                  if (_duePlans.isNotEmpty) const SizedBox(height: 12),
+                  _buildAmountAndTypeRow(),
+                  const SizedBox(height: 24),
+                  if (_templates.isNotEmpty) ...[
+                    _buildTemplateChips(),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildCategoryPicker(filtered),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(child: _buildAccountPicker()),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildDatePicker()),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildRemarkField(),
+                  const SizedBox(height: 8),
+                  _buildAdvancedSection(),
+                  const SizedBox(height: 8),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          _buildNumberPad(),
+        ],
       ),
+    );
+  }
+
+  Widget _buildAmountAndTypeRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        SizedBox(
+          width: 140,
+          child: _buildTypeSwitcher(),
+        ),
+        const SizedBox(width: 16),
+        Expanded(child: _buildAmountField()),
+      ],
     );
   }
 
@@ -133,6 +148,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
         fontWeight: FontWeight.w700,
         color: AppColors.textMain,
       ),
+      textAlign: TextAlign.right,
+      readOnly: true,
       decoration: const InputDecoration(
         prefixText: '¥ ',
         hintText: AppStrings.inputAmount,
@@ -161,6 +178,30 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Widget _buildCategoryPicker(List<Category> categories) {
+    return _buildCategoryQuickPicker(categories);
+  }
+
+  Widget _buildCategoryQuickPicker(List<Category> categories) {
+    if (categories.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            AppStrings.category,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          SizedBox(height: 6),
+          Text(
+            AppStrings.emptyCategoryForRecord,
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -168,42 +209,60 @@ class _AddRecordPageState extends State<AddRecordPage> {
           AppStrings.category,
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: _selectedCategoryKey,
-          items: categories
-              .map(
-                (cat) => DropdownMenuItem(
-                  value: cat.key,
-                  child: Row(
-                    children: [
-                      Icon(cat.icon, size: 18),
-                      const SizedBox(width: 8),
-                      Text(cat.name),
-                    ],
-                  ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: categories.map((cat) {
+            final selected = cat.key == _selectedCategoryKey;
+            return InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                setState(() => _selectedCategoryKey = cat.key);
+              },
+              child: Container(
+                width: 80,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: selected
+                      ? Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withOpacity(0.08)
+                      : Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant
+                          .withOpacity(0.4),
                 ),
-              )
-              .toList(),
-          onChanged: categories.isEmpty
-              ? null
-              : (value) => setState(() => _selectedCategoryKey = value),
-          decoration: const InputDecoration(
-            hintText: AppStrings.selectCategory,
-            border: OutlineInputBorder(),
-          ),
-        ),
-        if (categories.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              AppStrings.emptyCategoryForRecord,
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      cat.icon,
+                      size: 22,
+                      color: selected
+                          ? Theme.of(context).colorScheme.primary
+                          : AppColors.textSecondary,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      cat.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          }).toList(),
+        ),
       ],
     );
   }
@@ -271,15 +330,14 @@ class _AddRecordPageState extends State<AddRecordPage> {
           borderRadius: BorderRadius.circular(10),
           onTap: _pickDate,
           child: Container(
-            width: double.infinity,
             padding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color:
-                    Theme.of(context).colorScheme.outlineVariant,
-              ),
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceVariant
+                  .withOpacity(0.4),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -298,14 +356,250 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Widget _buildRemarkField() {
-    return TextField(
-      controller: _remarkCtrl,
-      maxLines: 2,
-      decoration: const InputDecoration(
-        hintText: AppStrings.remarkOptional,
-        border: OutlineInputBorder(),
+    if (_showRemarkInput || _remarkCtrl.text.isNotEmpty) {
+      return TextField(
+        controller: _remarkCtrl,
+        maxLines: 2,
+        decoration: const InputDecoration(
+          hintText: AppStrings.remarkOptional,
+          border: OutlineInputBorder(),
+        ),
+        onChanged: (_) {
+          setState(() {});
+        },
+      );
+    }
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => setState(() => _showRemarkInput = true),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceVariant
+              .withOpacity(0.4),
+        ),
+        child: const Text(
+          AppStrings.remarkOptional,
+          style: TextStyle(
+            fontSize: 14,
+            color: AppColors.textSecondary,
+          ),
+        ),
       ),
     );
+  }
+
+  Widget _buildNumberPad() {
+    final bottom = MediaQuery.of(context).padding.bottom;
+    final color = Theme.of(context).colorScheme.surface;
+
+    Widget buildKey({
+      required String label,
+      VoidCallback? onTap,
+      Color? background,
+      Color? textColor,
+      FontWeight fontWeight = FontWeight.w500,
+    }) {
+      return Expanded(
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            height: 56,
+            alignment: Alignment.center,
+            color: background ?? color,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 18,
+                color: textColor ?? AppColors.textMain,
+                fontWeight: fontWeight,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(0, 4, 0, bottom > 0 ? 0 : 4),
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(context).dividerColor.withOpacity(0.2),
+            ),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                buildKey(label: '7', onTap: () => _onDigitTap('7')),
+                buildKey(label: '8', onTap: () => _onDigitTap('8')),
+                buildKey(label: '9', onTap: () => _onDigitTap('9')),
+                buildKey(
+                  label: '今天',
+                  fontWeight: FontWeight.w600,
+                  onTap: _onTodayTap,
+                  textColor: AppColors.textSecondary,
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                buildKey(label: '4', onTap: () => _onDigitTap('4')),
+                buildKey(label: '5', onTap: () => _onDigitTap('5')),
+                buildKey(label: '6', onTap: () => _onDigitTap('6')),
+                buildKey(
+                  label: '+',
+                  onTap: () => _onOperatorTap('+'),
+                  textColor: AppColors.textSecondary,
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                buildKey(label: '1', onTap: () => _onDigitTap('1')),
+                buildKey(label: '2', onTap: () => _onDigitTap('2')),
+                buildKey(label: '3', onTap: () => _onDigitTap('3')),
+                buildKey(
+                  label: '-',
+                  onTap: () => _onOperatorTap('-'),
+                  textColor: AppColors.textSecondary,
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                buildKey(label: '.', onTap: _onDotTap),
+                buildKey(label: '0', onTap: () => _onDigitTap('0')),
+                buildKey(
+                  label: '⌫',
+                  onTap: _onBackspace,
+                  textColor: AppColors.textSecondary,
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: _onPadSubmit,
+                    child: Container(
+                      height: 56,
+                      alignment: Alignment.center,
+                      color: Theme.of(context).colorScheme.primary,
+                      child: const Text(
+                        '完成',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onDigitTap(String digit) {
+    setState(() {
+      _amountExpression += digit;
+      _amountCtrl.text = _amountExpression;
+    });
+  }
+
+  void _onDotTap() {
+    setState(() {
+      _amountExpression += '.';
+      _amountCtrl.text = _amountExpression;
+    });
+  }
+
+  void _onOperatorTap(String op) {
+    setState(() {
+      if (_amountExpression.isEmpty) {
+        if (op == '-') {
+          _amountExpression = '-';
+        }
+      } else {
+        final last = _amountExpression[_amountExpression.length - 1];
+        if (last == '+' || last == '-') {
+          _amountExpression =
+              _amountExpression.substring(0, _amountExpression.length - 1) +
+                  op;
+        } else {
+          _amountExpression += op;
+        }
+      }
+      _amountCtrl.text = _amountExpression;
+    });
+  }
+
+  void _onBackspace() {
+    if (_amountExpression.isEmpty) return;
+    setState(() {
+      _amountExpression =
+          _amountExpression.substring(0, _amountExpression.length - 1);
+      _amountCtrl.text = _amountExpression;
+    });
+  }
+
+  void _onTodayTap() {
+    final now = DateTime.now();
+    setState(() {
+      _selectedDate = DateTime(now.year, now.month, now.day);
+    });
+  }
+
+  double? _evaluateAmount() {
+    var exp = _amountExpression.trim();
+    if (exp.isEmpty) return null;
+    final last = exp[exp.length - 1];
+    if (last == '+' || last == '-') {
+      exp = exp.substring(0, exp.length - 1);
+    }
+    if (exp.isEmpty) return null;
+
+    final regex = RegExp(r'([+-])|([0-9]*\.?[0-9]+)');
+    double total = 0;
+    var op = '+';
+    for (final match in regex.allMatches(exp)) {
+      final token = match.group(0)!;
+      if (token == '+' || token == '-') {
+        op = token;
+      } else {
+        final value = double.tryParse(token);
+        if (value == null) return null;
+        if (op == '+') {
+          total += value;
+        } else {
+          total -= value;
+        }
+      }
+    }
+    return total;
+  }
+
+  Future<void> _onPadSubmit() async {
+    final amount = _evaluateAmount();
+    if (amount == null || amount <= 0) {
+      _showMessage(AppStrings.amountError);
+      return;
+    }
+    _amountCtrl.text = amount.toStringAsFixed(2);
+    // 清空表达式，后续若再次编辑会从结果继续
+    _amountExpression = _amountCtrl.text;
+    await _handleSubmit();
   }
 
   Widget _buildSavingGoalPicker() {
