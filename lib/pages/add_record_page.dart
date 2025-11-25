@@ -30,6 +30,23 @@ class AddRecordPage extends StatefulWidget {
 }
 
 class _AddRecordPageState extends State<AddRecordPage> {
+  static const double _kCategoryIconSize = 20;
+  static const double _kCategoryItemWidth = 88;
+  static const double _kCategoryItemHeight = 80;
+  static const BorderRadius _kCategoryBorderRadius =
+      BorderRadius.all(Radius.circular(16));
+
+  static const Map<String, String> _kCategoryNameShortMap = {
+    // 一级分类：控制字数，避免挤不下
+    AppStrings.catTopLiving: '居住账单',
+    AppStrings.catTopFamily: '家庭人情',
+    AppStrings.catTopFinance: '金融其他',
+    // 容易过长的二级分类
+    AppStrings.catFoodMeal: '正餐工作',
+    AppStrings.catFinRepay: '还贷卡费',
+    AppStrings.catFinFee: '利息手续费',
+  };
+
   static bool _lastIsExpense = true;
   static String? _lastAccountId;
   static bool _lastIncludeInStats = true;
@@ -273,11 +290,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 setState(() => _selectedCategoryKey = cat.key);
               },
               child: Container(
-                width: 80,
+                width: _kCategoryItemWidth,
+                height: _kCategoryItemHeight,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: _kCategoryBorderRadius,
                   color: selected
                       ? Theme.of(context)
                           .colorScheme
@@ -290,19 +308,21 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       cat.icon,
-                      size: 22,
+                      size: _kCategoryIconSize,
                       color: selected
                           ? Theme.of(context).colorScheme.primary
                           : AppColors.textSecondary,
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      cat.name,
-                      maxLines: 1,
+                      _displayCategoryName(cat),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight:
@@ -317,6 +337,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
         ),
       ],
     );
+  }
+
+  String _displayCategoryName(Category category) {
+    final original = category.name;
+    final short = _kCategoryNameShortMap[original];
+    return short ?? original;
   }
 
   /// 新版分类区域：上方一级分类，点击后下方展示对应的二级分类
@@ -397,9 +423,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
         final top = topCategories[i];
         final selected = top.key == activeTopKey;
         rowChildren.add(
-          Expanded(
+          SizedBox(
+            width: _kCategoryItemWidth,
+            height: _kCategoryItemHeight,
             child: InkWell(
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: _kCategoryBorderRadius,
               onTap: () {
                 setState(() {
                   final childrenList = childrenMap[top.key] ?? const [];
@@ -414,7 +442,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 6,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(999),
@@ -427,29 +455,29 @@ class _AddRecordPageState extends State<AddRecordPage> {
                         : cs.outlineVariant.withOpacity(0.6),
                   ),
                 ),
-                child: Row(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       top.icon,
-                      size: 16,
+                      size: _kCategoryIconSize,
                       color: selected
                           ? cs.primary
                           : AppColors.textSecondary,
                     ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        top.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: selected
-                              ? cs.primary
-                              : AppColors.textSecondary,
-                        ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _displayCategoryName(top),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: selected
+                            ? cs.primary
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -460,7 +488,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
         );
       }
 
-      children.add(Row(children: rowChildren));
+      children.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: rowChildren,
+        ),
+      );
 
       // 紧贴在当前行下面展示该行激活的二级分类
       if (row == activeRow) {
@@ -479,48 +512,52 @@ class _AddRecordPageState extends State<AddRecordPage> {
               runSpacing: 8,
               children: currentChildren.map((cat) {
                 final selected = cat.key == _selectedCategoryKey;
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    setState(() {
-                      _selectedCategoryKey = cat.key;
-                    });
-                  },
-                  child: Container(
-                    width: 80,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: selected
-                          ? cs.primary.withOpacity(0.12)
-                          : cs.surface,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          cat.icon,
-                          size: 20,
-                          color: selected
-                              ? cs.primary
-                              : AppColors.textSecondary,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          cat.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: selected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+                return SizedBox(
+                  width: _kCategoryItemWidth,
+                  height: _kCategoryItemHeight,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      setState(() {
+                        _selectedCategoryKey = cat.key;
+                      });
+                    },
+                    child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: _kCategoryBorderRadius,
+                        color: selected
+                            ? cs.primary.withOpacity(0.12)
+                            : cs.surface,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            cat.icon,
+                            size: _kCategoryIconSize,
+                            color: selected
+                                ? cs.primary
+                                : AppColors.textSecondary,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 6),
+                          Text(
+                            _displayCategoryName(cat),
+                            maxLines: 2,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: selected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
