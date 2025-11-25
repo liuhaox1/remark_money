@@ -224,7 +224,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Widget _buildCategoryPicker(List<Category> categories) {
-    return _buildCategoryQuickPicker(categories);
+    // 如果存在二级分类（parentKey 不为空），优先展示二级；
+    // 否则回退到旧版的一层分类，保持兼容旧数据。
+    final secondLevel =
+        categories.where((c) => c.parentKey != null).toList();
+    final effective = secondLevel.isNotEmpty ? secondLevel : categories;
+    return _buildCategoryQuickPicker(effective);
   }
 
   Widget _buildCategoryQuickPicker(List<Category> categories) {

@@ -6,12 +6,15 @@ class Category {
   final String name;
   final IconData icon;
   final bool isExpense;
+  /// 一级分类 key；为 null 表示自己就是一级分类
+  final String? parentKey;
 
   Category({
     required this.key,
     required this.name,
     required this.icon,
     required this.isExpense,
+    this.parentKey,
   });
 
   Category copyWith({
@@ -19,12 +22,14 @@ class Category {
     String? name,
     IconData? icon,
     bool? isExpense,
+    String? parentKey,
   }) {
     return Category(
       key: key ?? this.key,
       name: name ?? this.name,
       icon: icon ?? this.icon,
       isExpense: isExpense ?? this.isExpense,
+      parentKey: parentKey ?? this.parentKey,
     );
   }
 
@@ -36,6 +41,7 @@ class Category {
       'fontFamily': icon.fontFamily,
       'fontPackage': icon.fontPackage,
       'isExpense': isExpense,
+      'parentKey': parentKey,
     };
   }
 
@@ -49,6 +55,7 @@ class Category {
         fontPackage: map['fontPackage'],
       ),
       isExpense: map['isExpense'],
+      parentKey: map['parentKey'] as String?,
     );
   }
 

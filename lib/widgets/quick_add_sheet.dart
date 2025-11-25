@@ -134,6 +134,9 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   }
 
   Widget _buildCategoryPicker(List<Category> categories) {
+    // 仅展示二级分类
+    final secondLevel =
+        categories.where((c) => c.parentKey != null).toList();
     if (categories.isEmpty) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -180,7 +183,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: categories.map((cat) {
+          children: secondLevel.map((cat) {
             final selected = cat.key == _selectedCategoryKey;
             return ChoiceChip(
               selected: selected,
