@@ -767,44 +767,34 @@ class _PeriodHeaderCard extends StatelessWidget {
   final double balance;
   final double? balanceDiff;
   final bool hasComparison;
-  final bool hasData;
-  final String? weeklySummaryText;
-  final VoidCallback onViewDetail;
-
-  @override
-  Widget build(BuildContext context) {
-    final conclusion = _buildConclusion();
-    final bool useWeeklySummary =
-        periodType == PeriodType.week && weeklySummaryText != null;
-    final subtitle = periodType == PeriodType.week
-        ? '${DateUtilsX.weekLabel(_weekIndexForRange(range))} · ${AppStrings.currentBookLabel(bookName)}'
-        : AppStrings.currentBookLabel(bookName);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: isDark
-            ? null
-            : LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  cs.primary.withOpacity(0.18),
-                  Colors.white,
-                ],
-              ),
-        color: isDark ? cs.surface : null,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-      ),
+    final bool hasData;
+    final String? weeklySummaryText;
+    final VoidCallback onViewDetail;
+  
+    @override
+    Widget build(BuildContext context) {
+      final conclusion = _buildConclusion();
+      final bool useWeeklySummary =
+          periodType == PeriodType.week && weeklySummaryText != null;
+      // 这里的副标题只展示当前账本，避免与 AppBar 和标题重复展示周期信息
+      final subtitle = AppStrings.currentBookLabel(bookName);
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: cs.outlineVariant.withOpacity(0.4),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: cs.outlineVariant.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
