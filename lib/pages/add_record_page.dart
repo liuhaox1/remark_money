@@ -31,8 +31,8 @@ class AddRecordPage extends StatefulWidget {
 
 class _AddRecordPageState extends State<AddRecordPage> {
   static const double _kCategoryIconSize = 20;
-  static const double _kCategoryItemWidth = 88;
-  static const double _kCategoryItemHeight = 80;
+  static const double _kCategoryItemWidth = 84;
+  static const double _kCategoryItemHeight = 72;
   static const BorderRadius _kCategoryBorderRadius =
       BorderRadius.all(Radius.circular(16));
 
@@ -110,6 +110,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
+        toolbarHeight: 44,
         title: const Text(AppStrings.addRecord),
       ),
       body: SafeArea(
@@ -117,7 +118,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
               child: Container(
                 decoration: BoxDecoration(
                   color: cs.surface,
@@ -137,7 +138,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                     Expanded(
                       child: SingleChildScrollView(
                         padding:
-                            const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                            const EdgeInsets.fromLTRB(16, 8, 16, 12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -146,29 +147,18 @@ class _AddRecordPageState extends State<AddRecordPage> {
                             if (_duePlans.isNotEmpty)
                               const SizedBox(height: 12),
                             _buildAmountAndTypeRow(),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 8),
                             if (_templates.isNotEmpty) ...[
                               _buildTemplateChips(),
                               const SizedBox(height: 16),
                             ],
                             _buildCategorySection(filtered),
-                            const SizedBox(height: 20),
-                            Row(
-                              children: [
-                                Expanded(child: _buildAccountPicker()),
-                                const SizedBox(width: 12),
-                                Expanded(child: _buildDatePicker()),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            _buildRemarkField(),
-                            const SizedBox(height: 8),
-                            _buildAdvancedSection(),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
                           ],
                         ),
                       ),
                     ),
+                    _buildBottomAccountDateBar(),
                     _buildNumberPad(),
                   ],
                 ),
@@ -177,6 +167,119 @@ class _AddRecordPageState extends State<AddRecordPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildBottomAccountDateBar() {
+    final dividerColor =
+        Theme.of(context).dividerColor.withOpacity(0.15);
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: dividerColor),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildQuickToolItem(
+                icon: Icons.account_balance_wallet_outlined,
+                label: '账户',
+                onTap: _onQuickAccountTap,
+              ),
+              _buildQuickToolItem(
+                icon: Icons.tune_outlined,
+                label: '更多',
+                onTap: _onQuickMoreTap,
+              ),
+              _buildQuickToolItem(
+                icon: Icons.calendar_today_outlined,
+                label: '日期',
+                onTap: _pickDate,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _buildRemarkField(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickToolItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: AppColors.textSecondary),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onQuickAccountTap() async {
+    final accounts = context.read<AccountProvider>().accounts;
+    if (accounts.isEmpty) {
+      await Navigator.push<AccountKind>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AddAccountTypePage(),
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _selectedAccountId = null);
+      return;
+    }
+
+    final selectedId = await showAccountSelectBottomSheet(
+      context,
+      accounts,
+      selectedAccountId: _selectedAccountId,
+    );
+    if (!mounted || selectedId == null) return;
+    setState(() {
+      _selectedAccountId = selectedId;
+      _selectedGoalId = null;
+    });
+  }
+
+  Future<void> _onQuickMoreTap() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: SingleChildScrollView(
+              child: _buildAdvancedSection(),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -199,7 +302,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       controller: _amountCtrl,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       style: const TextStyle(
-        fontSize: 36,
+        fontSize: 30,
         fontWeight: FontWeight.w700,
         color: AppColors.textMain,
       ),
@@ -217,6 +320,10 @@ class _AddRecordPageState extends State<AddRecordPage> {
     return SegmentedButton<bool>(
       showSelectedIcon: false,
       style: ButtonStyle(
+        padding: MaterialStateProperty.all(
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        ),
+        visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
         textStyle: MaterialStateProperty.all(
           const TextStyle(
             fontSize: 14,
@@ -278,10 +385,10 @@ class _AddRecordPageState extends State<AddRecordPage> {
           AppStrings.category,
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Wrap(
           spacing: 12,
-          runSpacing: 12,
+          runSpacing: 6,
           children: categories.map((cat) {
             final selected = cat.key == _selectedCategoryKey;
             return InkWell(
@@ -293,7 +400,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 width: _kCategoryItemWidth,
                 height: _kCategoryItemHeight,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 decoration: BoxDecoration(
                   borderRadius: _kCategoryBorderRadius,
                   color: selected
@@ -317,7 +424,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           ? Theme.of(context).colorScheme.primary
                           : AppColors.textSecondary,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       _displayCategoryName(cat),
                       maxLines: 2,
@@ -405,7 +512,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
         AppStrings.category,
         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: 4),
     ];
 
     const itemsPerRow = 4;
@@ -441,11 +548,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
+                  horizontal: 8,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: _kCategoryBorderRadius,
                   color: selected
                       ? cs.primary.withOpacity(0.12)
                       : cs.surface,
@@ -466,7 +573,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           ? cs.primary
                           : AppColors.textSecondary,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       _displayCategoryName(top),
                       maxLines: 2,
@@ -509,7 +616,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
             ),
             child: Wrap(
               spacing: 8,
-              runSpacing: 8,
+              runSpacing: 6,
               children: currentChildren.map((cat) {
                 final selected = cat.key == _selectedCategoryKey;
                 return SizedBox(
@@ -523,9 +630,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       });
                     },
                     child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 8,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 6,
                 ),
                 decoration: BoxDecoration(
                   borderRadius: _kCategoryBorderRadius,
@@ -544,7 +651,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                                 ? cs.primary
                                 : AppColors.textSecondary,
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           Text(
                             _displayCategoryName(cat),
                             maxLines: 2,
