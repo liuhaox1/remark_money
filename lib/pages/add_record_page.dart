@@ -21,9 +21,17 @@ import '../repository/recurring_record_repository.dart';
 import 'add_account_type_page.dart';
 
 class AddRecordPage extends StatefulWidget {
-  const AddRecordPage({super.key, this.isExpense = true});
+  const AddRecordPage({
+    super.key,
+    this.isExpense = true,
+    this.initialRecord,
+  });
 
+  /// 默认记一笔时的收支方向
   final bool isExpense;
+
+  /// 如果传入，则进入「编辑记录」模式
+  final Record? initialRecord;
 
   @override
   State<AddRecordPage> createState() => _AddRecordPageState();
@@ -79,9 +87,23 @@ class _AddRecordPageState extends State<AddRecordPage> {
   @override
   void initState() {
     super.initState();
-    _isExpense = _lastIsExpense = widget.isExpense;
-    _includeInStats = _lastIncludeInStats;
-    _selectedGoalId = _lastSavingGoalId;
+    final initial = widget.initialRecord;
+    if (initial != null) {
+      // 编辑模式：用原记录初始化各字段
+      _isExpense = initial.isExpense;
+      _selectedDate = initial.date;
+      _selectedCategoryKey = initial.categoryKey;
+      _selectedAccountId = initial.accountId;
+      _includeInStats = initial.includeInStats;
+      _selectedGoalId = initial.targetId;
+      _amountCtrl.text = initial.amount.toStringAsFixed(2);
+      _remarkCtrl.text = initial.remark;
+    } else {
+      // 新增模式：沿用上一次的记账偏好
+      _isExpense = _lastIsExpense = widget.isExpense;
+      _includeInStats = _lastIncludeInStats;
+      _selectedGoalId = _lastSavingGoalId;
+    }
     _loadTemplatesAndPlans();
   }
 
@@ -111,7 +133,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         toolbarHeight: 44,
-        title: const Text(AppStrings.addRecord),
+        title: Text(
+          widget.initialRecord == null
+              ? AppStrings.addRecord
+              : AppStrings.edit,
+        ),
       ),
       body: SafeArea(
         child: Center(
@@ -1510,26 +1536,49 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final savingGoalProvider = context.read<SavingGoalProvider>();
     final targetId = _showSavingGoalSection() ? _selectedGoalId : null;
 
-    final record = await context.read<RecordProvider>().addRecord(
-          amount: amount,
-          remark: _remarkCtrl.text.trim(),
-          date: _selectedDate,
-          categoryKey: _selectedCategoryKey!,
-          bookId: bookId,
-          accountId: _selectedAccountId!,
-          direction: direction,
-          includeInStats: _includeInStats,
-          targetId: targetId,
-          accountProvider: accountProvider,
-          savingGoalProvider: savingGoalProvider,
-        );
+    final recordProvider = context.read<RecordProvider>();
 
-    _lastAccountId = _selectedAccountId;
-    _lastIncludeInStats = _includeInStats;
-    _lastSavingGoalId = _selectedGoalId;
+    if (widget.initialRecord != null) {
+      // 编辑已有记录
+      final updated = widget.initialRecord!.copyWith(
+        amount: amount.abs(),
+        remark: _remarkCtrl.text.trim(),
+        date: _selectedDate,
+        categoryKey: _selectedCategoryKey!,
+        accountId: _selectedAccountId!,
+        direction: direction,
+        includeInStats: _includeInStats,
+        targetId: targetId,
+      );
 
-    await _maybeSaveTemplate(record);
-    await _maybeSaveOrUpdateRecurring(record);
+      await recordProvider.updateRecord(
+        updated,
+        accountProvider: accountProvider,
+        savingGoalProvider: savingGoalProvider,
+      );
+    } else {
+      // 新增记录
+      final record = await recordProvider.addRecord(
+        amount: amount,
+        remark: _remarkCtrl.text.trim(),
+        date: _selectedDate,
+        categoryKey: _selectedCategoryKey!,
+        bookId: bookId,
+        accountId: _selectedAccountId!,
+        direction: direction,
+        includeInStats: _includeInStats,
+        targetId: targetId,
+        accountProvider: accountProvider,
+        savingGoalProvider: savingGoalProvider,
+      );
+
+      _lastAccountId = _selectedAccountId;
+      _lastIncludeInStats = _includeInStats;
+      _lastSavingGoalId = _selectedGoalId;
+
+      await _maybeSaveTemplate(record);
+      await _maybeSaveOrUpdateRecurring(record);
+    }
 
     if (!mounted) return;
     Navigator.pop(context);

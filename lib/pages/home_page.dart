@@ -7,6 +7,8 @@ import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
+import '../providers/account_provider.dart';
+import '../providers/saving_goal_provider.dart';
 import '../utils/date_utils.dart';
 import '../models/period_type.dart';
 import '../widgets/book_selector_button.dart';
@@ -15,6 +17,7 @@ import '../widgets/period_selector.dart';
 import '../widgets/timeline_item.dart';
 import '../widgets/week_strip.dart';
 import '../widgets/quick_add_sheet.dart';
+import 'add_record_page.dart';
 import 'home_page_date_panel.dart';
 
 class HomePage extends StatefulWidget {
@@ -40,6 +43,11 @@ class _DayStats {
 class _HomePageState extends State<HomePage> {
   DateTime _selectedDay = DateTime.now();
   final ScrollController _monthScrollController = ScrollController();
+
+  // 记录列表选择 / 批量删除状态
+  bool _selectionMode = false;
+  final Set<String> _selectedRecordIds = <String>{};
+  List<Record> _currentVisibleRecords = const [];
   final Map<DateTime, GlobalKey> _dayHeaderKeys = {};
   final String _searchKeyword = '';
   String? _filterCategoryKey;
@@ -80,6 +88,8 @@ class _HomePageState extends State<HomePage> {
     final Map<String, Category> categoryMap = {
       for (final c in categoryProvider.categories) c.key: c,
     };
+    final filteredRecords = _applyFilters(monthRecords, categoryMap);
+    _currentVisibleRecords = filteredRecords;
 
     debugPrint(
       'HomePage build duration: '
@@ -126,10 +136,18 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       const HomeBudgetBar(),
                       const SizedBox(height: 4),
+                      if (_selectionMode)
+                        _SelectionToolbar(
+                          selectedCount: _selectedRecordIds.length,
+                          totalCount: _currentVisibleRecords.length,
+                          onExit: _exitSelectionMode,
+                          onSelectAll: _handleSelectAll,
+                          onDeleteSelected: _handleDeleteSelectedBatch,
+                        ),
                       Expanded(
                         child: hasMonthRecords
                             ? _buildMonthTimeline(
-                                _applyFilters(monthRecords, categoryMap),
+                                filteredRecords,
                                 categoryMap,
                               )
                             : _buildEmptyState(context),
@@ -768,11 +786,19 @@ class _HomePageState extends State<HomePage> {
                 itemCount: dayRecords.length,
                 itemBuilder: (context, index) {
                   final record = dayRecords[index];
+                  final selected = _selectedRecordIds.contains(record.id);
                   return TimelineItem(
                     key: ValueKey(record.id), // 为每个项目添加唯一键
                     record: record,
                     category: categoryMap[record.categoryKey],
                     leftSide: false,
+                    onTap: () => _handleRecordTap(record),
+                    onLongPress: () => _handleRecordLongPress(record),
+                    onDelete: () => _confirmAndDeleteSingle(record),
+                    selectionMode: _selectionMode,
+                    selected: selected,
+                    onSelectedChanged: (value) =>
+                        _toggleRecordSelection(record, value),
                   );
                 },
               ),
@@ -818,6 +844,145 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _handleRecordTap(Record record) {
+    if (_selectionMode) {
+      _toggleRecordSelection(record, !_selectedRecordIds.contains(record.id));
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddRecordPage(
+          initialRecord: record,
+          isExpense: record.isExpense,
+        ),
+      ),
+    );
+  }
+
+  void _handleRecordLongPress(Record record) {
+    if (_selectionMode) return;
+    setState(() {
+      _selectionMode = true;
+      _selectedRecordIds
+        ..clear()
+        ..add(record.id);
+    });
+  }
+
+  void _toggleRecordSelection(Record record, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedRecordIds.add(record.id);
+      } else {
+        _selectedRecordIds.remove(record.id);
+        if (_selectedRecordIds.isEmpty) {
+          _selectionMode = false;
+        }
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedRecordIds.clear();
+    });
+  }
+
+  void _handleSelectAll() {
+    setState(() {
+      _selectionMode = true;
+      _selectedRecordIds
+        ..clear()
+        ..addAll(_currentVisibleRecords.map((e) => e.id));
+    });
+  }
+
+  Future<void> _handleDeleteSelectedBatch() async {
+    if (_selectedRecordIds.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text(AppStrings.delete),
+            content: Text('确定删除选中的 ${_selectedRecordIds.length} 条记录吗？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(AppStrings.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(AppStrings.delete),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    final recordProvider = context.read<RecordProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final savingGoalProvider = context.read<SavingGoalProvider>();
+
+    final ids = List<String>.from(_selectedRecordIds);
+    for (final id in ids) {
+      await recordProvider.deleteRecord(
+        id,
+        accountProvider: accountProvider,
+        savingGoalProvider: savingGoalProvider,
+      );
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已删除 ${ids.length} 条记录')),
+    );
+
+    _exitSelectionMode();
+  }
+
+  Future<void> _confirmAndDeleteSingle(Record record) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text(AppStrings.delete),
+            content: const Text('确定删除这条记录吗？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(AppStrings.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(AppStrings.delete),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    final recordProvider = context.read<RecordProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final savingGoalProvider = context.read<SavingGoalProvider>();
+
+    await recordProvider.deleteRecord(
+      record.id,
+      accountProvider: accountProvider,
+      savingGoalProvider: savingGoalProvider,
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('记录已删除')),
+    );
+  }
+
   Future<void> _pickDate() async {
     await showModalBottomSheet(
       context: context,
@@ -827,6 +992,68 @@ class _HomePageState extends State<HomePage> {
         onDayChanged: (day) {
           setState(() => _selectedDay = day);
         },
+      ),
+    );
+  }
+}
+
+class _SelectionToolbar extends StatelessWidget {
+  const _SelectionToolbar({
+    required this.selectedCount,
+    required this.totalCount,
+    required this.onExit,
+    required this.onSelectAll,
+    required this.onDeleteSelected,
+  });
+
+  final int selectedCount;
+  final int totalCount;
+  final VoidCallback onExit;
+  final VoidCallback onSelectAll;
+  final VoidCallback onDeleteSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final text =
+        selectedCount == 0 ? '选择记录' : '已选 $selectedCount 条记录';
+    final allSelected = totalCount > 0 && selectedCount == totalCount;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      color: cs.surface,
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: onExit,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: totalCount == 0 ? null : onSelectAll,
+            child: Text(allSelected ? '全不选' : '全选'),
+          ),
+          const SizedBox(width: 4),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+            ),
+            onPressed: selectedCount == 0 ? null : onDeleteSelected,
+            icon: const Icon(Icons.delete_outline, size: 18),
+            label: const Text(AppStrings.delete),
+          ),
+        ],
       ),
     );
   }
