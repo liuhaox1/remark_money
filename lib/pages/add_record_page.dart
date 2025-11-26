@@ -97,6 +97,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       _includeInStats = initial.includeInStats;
       _selectedGoalId = initial.targetId;
       _amountCtrl.text = initial.amount.toStringAsFixed(2);
+      _amountExpression = _amountCtrl.text;
       _remarkCtrl.text = initial.remark;
     } else {
       // 新增模式：沿用上一次的记账偏好
@@ -1661,6 +1662,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       _selectedAccountId = plan.accountId;
       _includeInStats = plan.includeInStats;
       _amountCtrl.text = plan.amount.toStringAsFixed(2);
+      _amountExpression = _amountCtrl.text;
       _remarkCtrl.text = plan.remark;
       _selectedDate = plan.nextDate;
     });
