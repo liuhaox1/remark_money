@@ -7,9 +7,9 @@ import '../models/saving_goal.dart';
 import '../providers/account_provider.dart';
 import '../providers/saving_goal_provider.dart';
 import '../theme/app_tokens.dart';
+import 'account_detail_page.dart';
 import 'add_account_type_page.dart';
 import 'add_record_page.dart';
-import 'account_detail_page.dart';
 import 'analysis_page.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
@@ -31,7 +31,7 @@ class _RootShellState extends State<RootShell> {
     const ProfilePage(),
   ];
 
-  Future<void> _openQuickAddSheet() async {
+  Future<void> _openQuickAddPage() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AddRecordPage()),
@@ -40,18 +40,17 @@ class _RootShellState extends State<RootShell> {
 
   void _handleDestination(int value) {
     if (value == 2) {
-      _openQuickAddSheet();
+      _openQuickAddPage();
       return;
     }
-    final mappedIndex = value > 2 ? value - 1 : value;
-    setState(() => _index = mappedIndex);
+    final mapped = value > 2 ? value - 1 : value;
+    setState(() => _index = mapped);
   }
 
   @override
   Widget build(BuildContext context) {
-    final buildStart = DateTime.now();
     final cs = Theme.of(context).colorScheme;
-    final scaffold = Scaffold(
+    return Scaffold(
       body: IndexedStack(
         index: _index,
         children: _pages,
@@ -60,6 +59,7 @@ class _RootShellState extends State<RootShell> {
         backgroundColor: cs.surface,
         indicatorColor: cs.primary.withOpacity(0.12),
         selectedIndex: _index >= 2 ? _index + 1 : _index,
+        onDestinationSelected: _handleDestination,
         destinations: [
           const NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -87,42 +87,6 @@ class _RootShellState extends State<RootShell> {
             label: AppStrings.navProfile,
           ),
         ],
-        onDestinationSelected: _handleDestination,
-      ),
-    );
-    debugPrint(
-      'RootShell build: ${DateTime.now().difference(buildStart).inMilliseconds}ms',
-    );
-    return scaffold;
-  }
-}
-
-class _RecordNavIcon extends StatelessWidget {
-  const _RecordNavIcon({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.35),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Icon(
-        Icons.add,
-        size: 26,
-        color: cs.onPrimary,
       ),
     );
   }
@@ -133,15 +97,27 @@ class AssetsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return const DefaultTabController(
+      length: 2,
+      child: _AssetsPageBody(),
+    );
+  }
+}
+
+class _AssetsPageBody extends StatelessWidget {
+  const _AssetsPageBody();
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final accountProvider = context.watch<AccountProvider>();
     final savingGoalProvider = context.watch<SavingGoalProvider>();
 
+    final accounts = accountProvider.accounts;
     final totalAssets = accountProvider.totalAssets;
     final totalDebts = accountProvider.totalDebts;
     final netWorth = accountProvider.netWorth;
-    final accounts = accountProvider.accounts;
     final grouped = _groupAccounts(accounts);
 
     return Scaffold(
@@ -150,59 +126,64 @@ class AssetsPage extends StatelessWidget {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        title: const Text('资产总览'),
+        title: const Text('资产'),
+        bottom: const TabBar(
+          tabs: [
+            Tab(text: '账户总览'),
+            Tab(text: '存款目标'),
+          ],
+        ),
       ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: accounts.isEmpty
-                ? _EmptyAccounts(
-                    onAdd: () => _startAddAccountFlow(context),
-                  )
-                : Column(
-                    children: [
-                      _AssetSummaryCard(
-                        totalAssets: totalAssets,
-                        totalDebts: totalDebts,
-                        netWorth: netWorth,
-                      ),
-                      Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Text(
-                          '账户余额来自你的记账记录，如不准确，可在账户中调整初始余额。',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.65),
+            child: TabBarView(
+              children: [
+                accounts.isEmpty
+                    ? _EmptyAccounts(
+                        onAdd: () => _startAddAccountFlow(context),
+                      )
+                    : Column(
+                        children: [
+                          _AssetSummaryCard(
+                            totalAssets: totalAssets,
+                            totalDebts: totalDebts,
+                            netWorth: netWorth,
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                          children: [
-                            for (final group in grouped)
-                              _AccountGroupPanel(
-                                group: group,
-                                savingGoalProvider: savingGoalProvider,
-                                onAdd: () => _startAddAccountFlow(context),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '账户余额来自你的记账记录，如不准确，可在账户详情中调整初始余额。',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurface
+                                    .withOpacity(0.65),
                               ),
-                            const SizedBox(height: 12),
-                            _SavingGoalSection(
-                              savingGoalProvider: savingGoalProvider,
-                              accountProvider: accountProvider,
-                              onAddGoal: () => _openGoalSheet(context),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 4),
+                          Expanded(
+                            child: ListView(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                              children: [
+                                for (final group in grouped)
+                                  _AccountGroupPanel(
+                                    group: group,
+                                    savingGoalProvider: savingGoalProvider,
+                                    onAdd: () => _startAddAccountFlow(context),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                _SavingGoalsTab(
+                  savingGoalProvider: savingGoalProvider,
+                  accountProvider: accountProvider,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -291,14 +272,14 @@ class _AssetSummaryCard extends StatelessWidget {
   }
 
   String _formatAmount(double value) {
-    final absValue = value.abs();
-    if (absValue >= 100000000) {
+    final abs = value.abs();
+    if (abs >= 100000000) {
       return '${(value / 100000000).toStringAsFixed(1)}${AppStrings.unitYi}';
-    } else if (absValue >= 10000) {
-      return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
-    } else {
-      return value.toStringAsFixed(2);
     }
+    if (abs >= 10000) {
+      return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
+    }
+    return value.toStringAsFixed(2);
   }
 }
 
@@ -356,6 +337,13 @@ class _AccountGroupPanel extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 8),
+        Divider(
+          height: 1,
+          indent: 4,
+          endIndent: 4,
+          color: cs.outlineVariant.withOpacity(0.2),
+        ),
       ],
     );
   }
@@ -379,18 +367,20 @@ class _AccountTile extends StatelessWidget {
     final amountColor = isDebt ? Colors.orange : cs.primary;
     final icon = _iconForAccount(account);
     final goal = savingGoalProvider.goalForAccount(account.id);
-    final goalProgress =
+    final progress =
         goal == null ? 0.0 : savingGoalProvider.amountProgress(goal);
     final contributed =
         goal == null ? 0.0 : savingGoalProvider.contributedAmount(goal.id);
 
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AccountDetailPage(accountId: account.id),
-        ),
-      ),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AccountDetailPage(accountId: account.id),
+          ),
+        );
+      },
       child: Column(
         children: [
           Padding(
@@ -448,13 +438,13 @@ class _AccountTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   LinearProgressIndicator(
-                    value: goalProgress,
+                    value: progress,
                     minHeight: 8,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '目标 ${goal.name} · 已完成 ¥${contributed.toStringAsFixed(0)} / ¥${goal.targetAmount.toStringAsFixed(0)}',
+                    '目标 ${goal.name} · 已存 ¥${contributed.toStringAsFixed(0)} / ¥${goal.targetAmount.toStringAsFixed(0)}',
                     style: const TextStyle(fontSize: 11),
                   ),
                 ],
@@ -508,9 +498,9 @@ class _AccountTile extends StatelessWidget {
       case AccountSubtype.invest:
         return '投资账户';
       case AccountSubtype.loan:
-        return '贷款/借入';
+        return '贷款 / 借入';
       case AccountSubtype.receivable:
-        return '应收/借出';
+        return '应收 / 借出';
       case AccountSubtype.customAsset:
         return '自定义资产';
     }
@@ -537,7 +527,7 @@ class _EmptyAccounts extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            '从第一个账户开始，看清你的钱',
+            '从第一个账户开始，看清你的资产',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -560,74 +550,60 @@ class _EmptyAccounts extends StatelessWidget {
   }
 }
 
-class _SavingGoalSection extends StatelessWidget {
-  const _SavingGoalSection({
+class _SavingGoalsTab extends StatelessWidget {
+  const _SavingGoalsTab({
     required this.savingGoalProvider,
     required this.accountProvider,
-    required this.onAddGoal,
   });
 
   final SavingGoalProvider savingGoalProvider;
   final AccountProvider accountProvider;
-  final VoidCallback onAddGoal;
 
   @override
   Widget build(BuildContext context) {
     final goals = savingGoalProvider.goals;
     if (goals.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  '给资产账户设置一个存款目标，跟踪进度更有动力。',
-                  style: TextStyle(fontSize: 13),
-                ),
-              ),
-              FilledButton(
-                onPressed: onAddGoal,
-                child: const Text('新建目标'),
-              ),
-            ],
-          ),
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.flag_outlined, size: 64, color: Colors.grey),
+            const SizedBox(height: 12),
+            const Text(
+              '为重要的事情设一个存款目标',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '例如旅游、应急金或房租，把目标金额和时间写下来，慢慢靠近它。',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => _openGoalSheet(context),
+              child: const Text('新建存款目标'),
+            ),
+          ],
         ),
       );
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text(
-                  '存款目标',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: onAddGoal,
-                  child: const Text('新建目标'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            for (final goal in goals)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: _SavingGoalTile(
-                  goal: goal,
-                  accountProvider: accountProvider,
-                  savingGoalProvider: savingGoalProvider,
-                ),
-              ),
-          ],
-        ),
-      ),
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      itemCount: goals.length,
+      itemBuilder: (context, index) {
+        final goal = goals[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _SavingGoalTile(
+            goal: goal,
+            accountProvider: accountProvider,
+            savingGoalProvider: savingGoalProvider,
+          ),
+        );
+      },
     );
   }
 }
@@ -645,49 +621,187 @@ class _SavingGoalTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = savingGoalProvider.amountProgress(goal);
+    final cs = Theme.of(context).colorScheme;
     final contributed = savingGoalProvider.contributedAmount(goal.id);
+    final progress = savingGoalProvider.amountProgress(goal);
+    final percent = (progress * 100).clamp(0, 100).toStringAsFixed(0);
     final account = accountProvider.byId(goal.accountId);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    final today = DateTime.now();
+    final checkedIn = savingGoalProvider.hasCheckedInOn(goal.id, today);
+    final streak = savingGoalProvider.currentStreak(goal.id, today);
+    final longest = savingGoalProvider.longestStreak(goal.id);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    goal.name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        goal.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${account?.name ?? ''} · 已存 ¥${contributed.toStringAsFixed(0)} / ¥${goal.targetAmount.toStringAsFixed(0)}',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${account?.name ?? ''} · 已存 ¥${contributed.toStringAsFixed(0)} / ¥${goal.targetAmount.toStringAsFixed(0)}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$percent%',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  checkedIn ? Icons.star : Icons.star_border,
+                  size: 18,
+                  color: checkedIn ? Colors.amber : cs.outline,
+                ),
+              ],
             ),
-            Text('${(progress * 100).toStringAsFixed(0)}%'),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '已坚持打卡 $streak 天 · 最长 $longest 天',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed:
+                          checkedIn ? null : () => _checkInGoal(context, goal),
+                      child: const Text('今日打卡'),
+                    ),
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'edit':
+                            _editGoal(context, goal);
+                            break;
+                          case 'delete':
+                            _deleteGoal(context, goal);
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Text('编辑'),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text('删除'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ],
         ),
-        const SizedBox(height: 6),
-        LinearProgressIndicator(
-          value: progress,
-          minHeight: 8,
-          borderRadius: BorderRadius.circular(6),
-        ),
-      ],
+      ),
     );
+  }
+
+  Future<void> _checkInGoal(BuildContext context, SavingGoal goal) async {
+    final provider = context.read<SavingGoalProvider>();
+    final suggested = provider.suggestedDailyAmount(goal);
+    final ctrl = TextEditingController(
+      text: suggested > 0 ? suggested.toStringAsFixed(0) : '',
+    );
+
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('为「${goal.name}」打卡存钱'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: '本次存入金额',
+            prefixText: '¥ ',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final value = double.tryParse(ctrl.text.trim());
+              if (value == null || value <= 0) {
+                Navigator.pop(ctx);
+                return;
+              }
+              Navigator.pop(ctx, value);
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+
+    ctrl.dispose();
+    if (amount == null || amount <= 0) return;
+    await provider.checkIn(goalId: goal.id, amount: amount);
+  }
+
+  Future<void> _editGoal(BuildContext context, SavingGoal goal) async {
+    await _openGoalSheet(context, goal: goal);
+  }
+
+  Future<void> _deleteGoal(BuildContext context, SavingGoal goal) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('删除目标'),
+            content: Text('确定删除「${goal.name}」吗？已有打卡记录也会一并删除。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('删除'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    await context.read<SavingGoalProvider>().deleteGoal(goal.id);
   }
 }
 
 class _AccountGroupData {
-  _AccountGroupData({required this.title, required this.accounts});
+  const _AccountGroupData({required this.title, required this.accounts});
 
   final String title;
   final List<Account> accounts;
@@ -738,12 +852,12 @@ List<_AccountGroupData> _groupAccounts(List<Account> accounts) {
       subtypes: [AccountSubtype.customAsset.code],
     ),
     _GroupDefinition(
-      title: '负债（贷款/借入）',
+      title: '负债（贷款 / 借入）',
       kind: AccountKind.liability,
       subtypes: [AccountSubtype.loan.code],
     ),
     _GroupDefinition(
-      title: '债权（应收/借出）',
+      title: '债权（应收 / 借出）',
       kind: AccountKind.lend,
       subtypes: [AccountSubtype.receivable.code],
     ),
@@ -751,11 +865,11 @@ List<_AccountGroupData> _groupAccounts(List<Account> accounts) {
 
   final handled = <String>{};
   final result = <_AccountGroupData>[];
+
   for (final def in definitions) {
     final list = accounts.where((a) {
       if (handled.contains(a.id)) return false;
-      final belongs =
-          def.subtypes.contains(a.subtype) && a.kind == def.kind;
+      final belongs = def.subtypes.contains(a.subtype) && a.kind == def.kind;
       return belongs;
     }).toList();
     if (list.isNotEmpty) {
@@ -764,8 +878,7 @@ List<_AccountGroupData> _groupAccounts(List<Account> accounts) {
     }
   }
 
-  final leftovers =
-      accounts.where((a) => !handled.contains(a.id)).toList();
+  final leftovers = accounts.where((a) => !handled.contains(a.id)).toList();
   if (leftovers.isNotEmpty) {
     result.add(_AccountGroupData(title: '其他账户', accounts: leftovers));
   }
@@ -785,8 +898,7 @@ Future<AccountKind?> _startAddAccountFlow(BuildContext context) async {
   if (createdKind == null) return null;
 
   final assetAfter = accountProvider.byKind(AccountKind.asset).length;
-  final hasDebtAfter =
-      accountProvider.byKind(AccountKind.liability).isNotEmpty;
+  final hasDebtAfter = accountProvider.byKind(AccountKind.liability).isNotEmpty;
   if (createdKind == AccountKind.asset &&
       assetBefore == 0 &&
       !hasDebtBefore &&
@@ -824,7 +936,10 @@ Future<void> _promptAddDebt(BuildContext context) async {
   }
 }
 
-Future<void> _openGoalSheet(BuildContext context) async {
+Future<void> _openGoalSheet(
+  BuildContext context, {
+  SavingGoal? goal,
+}) async {
   final accountProvider = context.read<AccountProvider>();
   final savingGoalProvider = context.read<SavingGoalProvider>();
   final accounts = accountProvider.byKind(AccountKind.asset);
@@ -835,11 +950,13 @@ Future<void> _openGoalSheet(BuildContext context) async {
     return;
   }
 
-  final nameCtrl = TextEditingController();
-  final amountCtrl = TextEditingController();
-  String? selectedAccountId = accounts.first.id;
-  DateTime startDate = DateTime.now();
-  DateTime? endDate;
+  final nameCtrl = TextEditingController(text: goal?.name ?? '');
+  final amountCtrl = TextEditingController(
+    text: goal?.targetAmount.toStringAsFixed(0) ?? '',
+  );
+  String? selectedAccountId = goal?.accountId ?? accounts.first.id;
+  DateTime startDate = goal?.startDate ?? DateTime.now();
+  DateTime? endDate = goal?.endDate;
 
   await showModalBottomSheet(
     context: context,
@@ -854,9 +971,12 @@ Future<void> _openGoalSheet(BuildContext context) async {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '新建存款目标',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                Text(
+                  goal == null ? '新建存款目标' : '编辑存款目标',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -941,9 +1061,7 @@ Future<void> _openGoalSheet(BuildContext context) async {
                             border: OutlineInputBorder(),
                           ),
                           child: Text(
-                            endDate == null
-                                ? '未设置'
-                                : _formatDate(endDate!),
+                            endDate == null ? '未设置' : _formatDate(endDate!),
                           ),
                         ),
                       ),
@@ -953,22 +1071,38 @@ Future<void> _openGoalSheet(BuildContext context) async {
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: () async {
-                    final amount = double.tryParse(amountCtrl.text.trim());
-                    if (amount == null || amount <= 0 || selectedAccountId == null) {
+                    final amount =
+                        double.tryParse(amountCtrl.text.trim() ?? '');
+                    if (amount == null ||
+                        amount <= 0 ||
+                        selectedAccountId == null) {
                       return;
                     }
-                    final goal = SavingGoal(
-                      id: '',
-                      name: nameCtrl.text.trim().isEmpty
-                          ? '存款目标'
-                          : nameCtrl.text.trim(),
-                      accountId: selectedAccountId!,
-                      targetAmount: amount,
-                      startDate: startDate,
-                      endDate: endDate,
-                      status: SavingGoalStatus.active,
-                    );
-                    await savingGoalProvider.addGoal(goal);
+                    if (goal == null) {
+                      final newGoal = SavingGoal(
+                        id: '',
+                        name: nameCtrl.text.trim().isEmpty
+                            ? '存款目标'
+                            : nameCtrl.text.trim(),
+                        accountId: selectedAccountId!,
+                        targetAmount: amount,
+                        startDate: startDate,
+                        endDate: endDate,
+                        status: SavingGoalStatus.active,
+                      );
+                      await savingGoalProvider.addGoal(newGoal);
+                    } else {
+                      final updated = goal.copyWith(
+                        name: nameCtrl.text.trim().isEmpty
+                            ? goal.name
+                            : nameCtrl.text.trim(),
+                        accountId: selectedAccountId!,
+                        targetAmount: amount,
+                        startDate: startDate,
+                        endDate: endDate,
+                      );
+                      await savingGoalProvider.updateGoal(updated);
+                    }
                     if (context.mounted) Navigator.pop(context);
                   },
                   child: const Text('保存目标'),
@@ -987,4 +1121,35 @@ Future<void> _openGoalSheet(BuildContext context) async {
 
 String _formatDate(DateTime date) {
   return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+}
+
+class _RecordNavIcon extends StatelessWidget {
+  const _RecordNavIcon({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Icon(
+        Icons.add,
+        size: 26,
+        color: cs.onPrimary,
+      ),
+    );
+  }
 }

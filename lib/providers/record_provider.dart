@@ -73,7 +73,6 @@ class RecordProvider extends ChangeNotifier {
     _clearCache();
 
     await _applyAccountDelta(accountProvider, record);
-    await _syncSavingGoal(savingGoalProvider, record);
 
     notifyListeners();
     return record;
@@ -98,11 +97,6 @@ class RecordProvider extends ChangeNotifier {
     await _applyAccountDelta(accountProvider, old, reverse: true);
     await _applyAccountDelta(accountProvider, updated);
 
-    if (savingGoalProvider != null) {
-      await savingGoalProvider.removeContributionByRecord(updated.id);
-      await _syncSavingGoal(savingGoalProvider, updated);
-    }
-
     notifyListeners();
   }
 
@@ -126,7 +120,6 @@ class RecordProvider extends ChangeNotifier {
 
     if (old != null) {
       await _applyAccountDelta(accountProvider, old, reverse: true);
-      await savingGoalProvider?.removeContributionByRecord(id);
     }
 
     notifyListeners();
