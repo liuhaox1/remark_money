@@ -15,8 +15,6 @@ class Record {
   final TransactionDirection direction;
   final bool includeInStats;
   final String? pairId;
-  final String? targetId;
-  String? get goalId => targetId;
 
   const Record({
     required this.id,
@@ -29,7 +27,6 @@ class Record {
     required this.direction,
     this.includeInStats = true,
     this.pairId,
-    this.targetId,
   });
 
   Record copyWith({
@@ -43,7 +40,6 @@ class Record {
     TransactionDirection? direction,
     bool? includeInStats,
     String? pairId,
-    String? targetId,
   }) {
     return Record(
       id: id ?? this.id,
@@ -56,7 +52,6 @@ class Record {
       direction: direction ?? this.direction,
       includeInStats: includeInStats ?? this.includeInStats,
       pairId: pairId ?? this.pairId,
-      targetId: targetId ?? this.targetId,
     );
   }
 
@@ -72,8 +67,6 @@ class Record {
       'direction': direction == TransactionDirection.income ? 'in' : 'out',
       'includeInStats': includeInStats,
       'pairId': pairId,
-      'targetId': targetId,
-      'goalId': targetId,
       // legacy sign field for兼容
       'signedAmount': signedAmount,
     };
@@ -112,7 +105,6 @@ class Record {
       direction: direction,
       includeInStats: map['includeInStats'] as bool? ?? true,
       pairId: map['pairId'] as String?,
-      targetId: map['targetId'] as String? ?? map['goalId'] as String?,
     );
   }
 

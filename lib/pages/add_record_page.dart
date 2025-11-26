@@ -12,7 +12,6 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/account_provider.dart';
-import '../providers/saving_goal_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../widgets/account_select_bottom_sheet.dart';
@@ -58,7 +57,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
   static bool _lastIsExpense = true;
   static String? _lastAccountId;
   static bool _lastIncludeInStats = true;
-  static String? _lastSavingGoalId;
 
   final TextEditingController _amountCtrl = TextEditingController();
   final TextEditingController _remarkCtrl = TextEditingController();
@@ -68,7 +66,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
   String? _selectedCategoryKey;
   String? _selectedAccountId;
   bool _includeInStats = true;
-  String? _selectedGoalId;
   bool _saveAsTemplate = false;
   bool _isRecurring = false;
   RecurringPeriodType _recurringPeriodType = RecurringPeriodType.monthly;
@@ -95,7 +92,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
       _selectedCategoryKey = initial.categoryKey;
       _selectedAccountId = initial.accountId;
       _includeInStats = initial.includeInStats;
-      _selectedGoalId = initial.targetId;
       _amountCtrl.text = initial.amount.toStringAsFixed(2);
       _amountExpression = _amountCtrl.text;
       _remarkCtrl.text = initial.remark;
@@ -103,7 +99,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
       // 新增模式：沿用上一次的记账偏好
       _isExpense = _lastIsExpense = widget.isExpense;
       _includeInStats = _lastIncludeInStats;
-      _selectedGoalId = _lastSavingGoalId;
     }
     _loadTemplatesAndPlans();
   }
@@ -285,7 +280,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
     if (!mounted || selectedId == null) return;
     setState(() {
       _selectedAccountId = selectedId;
-      _selectedGoalId = null;
     });
   }
 
@@ -363,9 +357,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
         setState(() {
           _isExpense = set.first;
           _lastIsExpense = _isExpense;
-          if (_isExpense) {
-            _selectedGoalId = null;
-          }
         });
       },
     );
@@ -492,11 +483,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
           title: Text(statsLabel),
           onChanged: (v) => setState(() => _includeInStats = v),
         ),
-        if (_showSavingGoalSection())
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: _buildSavingGoalPicker(),
-          ),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           value: _saveAsTemplate,
@@ -820,7 +806,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
             if (!mounted || selectedId == null) return;
             setState(() {
               _selectedAccountId = selectedId;
-              _selectedGoalId = null;
             });
           },
           child: Container(
@@ -1162,41 +1147,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
     await _handleSubmit();
   }
 
-  Widget _buildSavingGoalPicker() {
-    final goalProvider = context.watch<SavingGoalProvider>();
-    final accountId = _selectedAccountId;
-    final goals =
-        goalProvider.goals.where((g) => g.accountId == accountId).toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '这笔钱关联到哪个存钱目标？',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: _selectedGoalId,
-          items: goals
-              .map(
-                (g) => DropdownMenuItem(
-                  value: g.id,
-                  child: Text(
-                    '${g.name} · 目标 ¥${g.targetAmount.toStringAsFixed(0)}',
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: (v) => setState(() => _selectedGoalId = v),
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: '选择目标（可选）',
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildAdvancedSection() {
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
@@ -1216,11 +1166,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
           title: const Text('计入统计'),
           onChanged: (v) => setState(() => _includeInStats = v),
         ),
-        if (_showSavingGoalSection())
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: _buildSavingGoalPicker(),
-          ),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           value: _saveAsTemplate,
@@ -1534,8 +1479,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
         _isExpense ? TransactionDirection.out : TransactionDirection.income;
     final bookId = context.read<BookProvider>().activeBookId;
     final accountProvider = context.read<AccountProvider>();
-    final savingGoalProvider = context.read<SavingGoalProvider>();
-    final targetId = _showSavingGoalSection() ? _selectedGoalId : null;
 
     final recordProvider = context.read<RecordProvider>();
 
@@ -1549,13 +1492,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
         accountId: _selectedAccountId!,
         direction: direction,
         includeInStats: _includeInStats,
-        targetId: targetId,
       );
 
       await recordProvider.updateRecord(
         updated,
         accountProvider: accountProvider,
-        savingGoalProvider: savingGoalProvider,
       );
     } else {
       // 新增记录
@@ -1568,14 +1509,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
         accountId: _selectedAccountId!,
         direction: direction,
         includeInStats: _includeInStats,
-        targetId: targetId,
         accountProvider: accountProvider,
-        savingGoalProvider: savingGoalProvider,
       );
 
       _lastAccountId = _selectedAccountId;
       _lastIncludeInStats = _includeInStats;
-      _lastSavingGoalId = _selectedGoalId;
 
       await _maybeSaveTemplate(record);
       await _maybeSaveOrUpdateRecurring(record);
@@ -1589,14 +1527,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(text)),
     );
-  }
-
-  bool _showSavingGoalSection() {
-    if (_selectedAccountId == null) return false;
-    if (_isExpense) return false;
-    final account =
-        context.read<AccountProvider>().byId(_selectedAccountId!);
-    return account?.kind == AccountKind.asset;
   }
 
   Future<void> _maybeSaveTemplate(Record record) async {

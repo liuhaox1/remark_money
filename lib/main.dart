@@ -7,7 +7,6 @@ import 'providers/category_provider.dart';
 import 'providers/budget_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
-import 'providers/saving_goal_provider.dart';
 import 'providers/reminder_provider.dart';
 import 'l10n/app_strings.dart';
 
@@ -34,7 +33,6 @@ Future<void> main() async {
   final budgetProvider = BudgetProvider();
   final themeProvider = ThemeProvider();
   final accountProvider = AccountProvider();
-  final savingGoalProvider = SavingGoalProvider();
   final reminderProvider = ReminderProvider();
 
   await Future.wait([
@@ -43,7 +41,6 @@ Future<void> main() async {
     categoryProvider.load(),
     budgetProvider.load(),
     accountProvider.load(),
-    savingGoalProvider.load(),
     reminderProvider.load(),
     themeProvider.load(),
   ]);
@@ -56,7 +53,6 @@ Future<void> main() async {
       categoryProvider: categoryProvider,
       budgetProvider: budgetProvider,
       accountProvider: accountProvider,
-      savingGoalProvider: savingGoalProvider,
       themeProvider: themeProvider,
       reminderProvider: reminderProvider,
     ),
@@ -88,7 +84,6 @@ class RemarkMoneyApp extends StatelessWidget {
     required this.categoryProvider,
     required this.budgetProvider,
     required this.accountProvider,
-    required this.savingGoalProvider,
     required this.themeProvider,
     required this.reminderProvider,
   });
@@ -98,7 +93,6 @@ class RemarkMoneyApp extends StatelessWidget {
   final CategoryProvider categoryProvider;
   final BudgetProvider budgetProvider;
   final AccountProvider accountProvider;
-  final SavingGoalProvider savingGoalProvider;
   final ThemeProvider themeProvider;
   final ReminderProvider reminderProvider;
 
@@ -111,7 +105,6 @@ class RemarkMoneyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: categoryProvider),
         ChangeNotifierProvider.value(value: budgetProvider),
         ChangeNotifierProvider.value(value: accountProvider),
-        ChangeNotifierProvider.value(value: savingGoalProvider),
         ChangeNotifierProvider.value(value: themeProvider),
         ChangeNotifierProvider.value(value: reminderProvider),
       ],

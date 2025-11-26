@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/account.dart';
-import '../models/saving_goal.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
-import '../providers/saving_goal_provider.dart';
 import 'account_form_page.dart';
 
 class AccountDetailPage extends StatelessWidget {
@@ -18,8 +16,6 @@ class AccountDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final accountProvider = context.watch<AccountProvider>();
     final account = accountProvider.byId(accountId);
-    final savingGoalProvider = context.watch<SavingGoalProvider>();
-    final goal = savingGoalProvider.goalForAccount(accountId);
 
     if (account == null) {
       return Scaffold(
@@ -100,8 +96,6 @@ class AccountDetailPage extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            if (goal != null) _buildGoalCard(context, goal, savingGoalProvider),
             if (actions.isNotEmpty) ...[
               const SizedBox(height: 12),
               Card(
@@ -124,14 +118,6 @@ class AccountDetailPage extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-            ],
-            if (account.kind == AccountKind.asset && goal == null) ...[
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => _openGoalSheet(context, accountId),
-                icon: const Icon(Icons.flag_outlined),
-                label: const Text('设置存款目标'),
               ),
             ],
           ],
@@ -180,59 +166,6 @@ class AccountDetailPage extends StatelessWidget {
     }
 
     return buttons;
-  }
-
-  Widget _buildGoalCard(
-    BuildContext context,
-    SavingGoal goal,
-    SavingGoalProvider provider,
-  ) {
-    final contributed = provider.contributedAmount(goal.id);
-    final progress = provider.amountProgress(goal);
-    final timeProgress = provider.timeProgress(goal);
-    final status = provider.resolveStatus(goal);
-    final cs = Theme.of(context).colorScheme;
-    final remain = (goal.targetAmount - contributed).clamp(0, goal.targetAmount);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  goal.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  _statusLabel(status),
-                  style: TextStyle(color: cs.primary),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '已完成 ¥${contributed.toStringAsFixed(0)} / 目标 ¥${goal.targetAmount.toStringAsFixed(0)}',
-            ),
-            const SizedBox(height: 4),
-            Text('剩余金额 ¥${remain.toStringAsFixed(0)}'),
-            const SizedBox(height: 4),
-            Text('时间进度 ${(timeProgress * 100).toStringAsFixed(0)}%'),
-          ],
-        ),
-      ),
-    );
   }
 
   void _openTransferSheet(BuildContext context, Account account) {
@@ -665,150 +598,6 @@ class AccountDetailPage extends StatelessWidget {
         );
       },
     );
-  }
-
-  void _openGoalSheet(BuildContext context, String accountId) {
-    final nameCtrl = TextEditingController();
-    final amountCtrl = TextEditingController();
-    DateTime startDate = DateTime.now();
-    DateTime? endDate;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final bottom = MediaQuery.of(ctx).viewInsets.bottom + 12;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, bottom),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '新建存款目标',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: '目标名称',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: amountCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: '目标金额',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: startDate,
-                              firstDate: DateTime.now()
-                                  .subtract(const Duration(days: 365)),
-                              lastDate:
-                                  DateTime.now().add(const Duration(days: 365 * 5)),
-                            );
-                            if (picked != null) {
-                              setState(() => startDate = picked);
-                            }
-                          },
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              labelText: '起始日期',
-                              border: OutlineInputBorder(),
-                            ),
-                            child: Text(
-                              '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: endDate ?? DateTime.now(),
-                              firstDate: startDate,
-                              lastDate:
-                                  DateTime.now().add(const Duration(days: 365 * 5)),
-                            );
-                            if (picked != null) {
-                              setState(() => endDate = picked);
-                            }
-                          },
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              labelText: '截止日期（可选）',
-                              border: OutlineInputBorder(),
-                            ),
-                            child: Text(
-                              endDate == null
-                                  ? '未设置'
-                                  : '${endDate!.year}-${endDate!.month.toString().padLeft(2, '0')}-${endDate!.day.toString().padLeft(2, '0')}',
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: () async {
-                      final amount = double.tryParse(amountCtrl.text.trim());
-                      if (amount == null || amount <= 0) return;
-                      final goal = SavingGoal(
-                        id: '',
-                        name: nameCtrl.text.trim().isEmpty
-                            ? '存款目标'
-                            : nameCtrl.text.trim(),
-                        accountId: accountId,
-                        targetAmount: amount,
-                        startDate: startDate,
-                        endDate: endDate,
-                        status: SavingGoalStatus.active,
-                      );
-                      await context.read<SavingGoalProvider>().addGoal(goal);
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    child: const Text('保存目标'),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  String _statusLabel(SavingGoalStatus status) {
-    switch (status) {
-      case SavingGoalStatus.completed:
-        return '已完成';
-      case SavingGoalStatus.overdue:
-        return '已逾期';
-      case SavingGoalStatus.pending:
-        return '未开始';
-      case SavingGoalStatus.active:
-      default:
-        return '进行中';
-    }
   }
 
   String _kindLabel(AccountKind kind) {

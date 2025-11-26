@@ -8,7 +8,6 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/account_provider.dart';
-import '../providers/saving_goal_provider.dart';
 import '../utils/date_utils.dart';
 import '../models/period_type.dart';
 import '../widgets/book_selector_button.dart';
@@ -924,14 +923,12 @@ class _HomePageState extends State<HomePage> {
 
     final recordProvider = context.read<RecordProvider>();
     final accountProvider = context.read<AccountProvider>();
-    final savingGoalProvider = context.read<SavingGoalProvider>();
 
     final ids = List<String>.from(_selectedRecordIds);
     for (final id in ids) {
       await recordProvider.deleteRecord(
         id,
         accountProvider: accountProvider,
-        savingGoalProvider: savingGoalProvider,
       );
     }
 
@@ -967,12 +964,10 @@ class _HomePageState extends State<HomePage> {
 
     final recordProvider = context.read<RecordProvider>();
     final accountProvider = context.read<AccountProvider>();
-    final savingGoalProvider = context.read<SavingGoalProvider>();
 
     await recordProvider.deleteRecord(
       record.id,
       accountProvider: accountProvider,
-      savingGoalProvider: savingGoalProvider,
     );
 
     if (!mounted) return;

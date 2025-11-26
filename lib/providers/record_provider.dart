@@ -7,7 +7,6 @@ import '../models/import_result.dart';
 import '../repository/record_repository.dart';
 import '../utils/date_utils.dart';
 import 'account_provider.dart';
-import 'saving_goal_provider.dart';
 
 class RecordProvider extends ChangeNotifier {
   RecordProvider();
@@ -47,9 +46,7 @@ class RecordProvider extends ChangeNotifier {
     TransactionDirection direction = TransactionDirection.out,
     bool includeInStats = true,
     String? pairId,
-    String? targetId,
     AccountProvider? accountProvider,
-    SavingGoalProvider? savingGoalProvider,
   }) async {
     final record = Record(
       id: _generateId(),
@@ -62,7 +59,6 @@ class RecordProvider extends ChangeNotifier {
       direction: direction,
       includeInStats: includeInStats,
       pairId: pairId,
-      targetId: targetId,
     );
 
     final list = await _repository.insert(record);
@@ -81,7 +77,6 @@ class RecordProvider extends ChangeNotifier {
   Future<void> updateRecord(
     Record updated, {
     AccountProvider? accountProvider,
-    SavingGoalProvider? savingGoalProvider,
   }) async {
     final old = _records.firstWhere(
       (r) => r.id == updated.id,
@@ -103,7 +98,6 @@ class RecordProvider extends ChangeNotifier {
   Future<void> deleteRecord(
     String id, {
     AccountProvider? accountProvider,
-    SavingGoalProvider? savingGoalProvider,
   }) async {
     Record? old;
     try {
@@ -585,20 +579,6 @@ class RecordProvider extends ChangeNotifier {
     await accountProvider.adjustBalance(record.accountId, delta);
   }
 
-  Future<void> _syncSavingGoal(
-    SavingGoalProvider? savingGoalProvider,
-    Record record,
-  ) async {
-    if (savingGoalProvider == null) return;
-    if (record.targetId == null || record.targetId!.isEmpty) return;
-    if (!record.isIncome) return;
-    await savingGoalProvider.addContribution(
-      goalId: record.targetId!,
-      recordId: record.id,
-      amount: record.amount,
-      date: record.date,
-    );
-  }
 }
 
 class _MonthStats {
