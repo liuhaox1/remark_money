@@ -16,7 +16,6 @@ import '../widgets/home_budget_bar.dart';
 import '../widgets/period_selector.dart';
 import '../widgets/timeline_item.dart';
 import '../widgets/week_strip.dart';
-import '../widgets/quick_add_sheet.dart';
 import 'add_record_page.dart';
 import 'home_page_date_panel.dart';
 
@@ -827,7 +826,7 @@ class _HomePageState extends State<HomePage> {
           const Text(AppStrings.quickAddHint),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: _openQuickAddSheet,
+            onPressed: _openAddRecordPage,
             icon: const Icon(Icons.add),
             label: const Text(AppStrings.quickAdd),
           ),
@@ -836,11 +835,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _openQuickAddSheet() async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const QuickAddSheet(),
+  Future<void> _openAddRecordPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddRecordPage()),
     );
   }
 

@@ -9,7 +9,7 @@ import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
-import '../widgets/quick_add_sheet.dart';
+import 'add_record_page.dart';
 import 'report_detail_page.dart';
 
 class AnalysisPage extends StatefulWidget {
@@ -898,10 +898,11 @@ class _EmptyYearCard extends StatelessWidget {
           const SizedBox(height: 10),
           FilledButton.icon(
             onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => const QuickAddSheet(),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AddRecordPage(),
+                ),
               );
             },
             icon: const Icon(Icons.add),

@@ -18,7 +18,7 @@ import '../utils/date_utils.dart';
 import '../widgets/chart_bar.dart';
 import '../widgets/chart_pie.dart';
 import '../widgets/book_selector_button.dart';
-import '../widgets/quick_add_sheet.dart';
+import 'add_record_page.dart';
 import 'bill_page.dart';
 
 class ReportDetailPage extends StatefulWidget {
@@ -965,10 +965,11 @@ class _EmptyPeriodCard extends StatelessWidget {
           const SizedBox(height: 10),
           FilledButton.icon(
             onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => const QuickAddSheet(),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AddRecordPage(),
+                ),
               );
             },
             icon: const Icon(Icons.add),
