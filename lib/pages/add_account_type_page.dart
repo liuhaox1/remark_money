@@ -63,6 +63,18 @@ class AddAccountTypePage extends StatelessWidget {
                   }
                   return;
                 }
+                if (option.subtype == AccountSubtype.virtual) {
+                  final result = await Navigator.push<AccountKind>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VirtualAccountSelectionPage(option: option),
+                    ),
+                  );
+                  if (result != null && context.mounted) {
+                    Navigator.pop(context, result);
+                  }
+                  return;
+                }
                 final result = await Navigator.push<AccountKind>(
                   context,
                   MaterialPageRoute(
@@ -226,8 +238,118 @@ class BankSelectionPage extends StatelessWidget {
                       subtype: option.subtype,
                       initialBrandKey: brand.key,
                       presetName: brand.displayName,
-                      customTitle: '添加${brand.displayName}',
+                      customTitle: null,
                       showAdvancedSettings: false,
+                    ),
+                  ),
+                );
+                if (result != null && context.mounted) {
+                  Navigator.pop(context, result);
+                }
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _VirtualAccountOption {
+  const _VirtualAccountOption({
+    required this.title,
+    required this.subtitle,
+    required this.presetName,
+    required this.color,
+    required this.icon,
+    this.showAdvancedSettings = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final String presetName;
+  final Color color;
+  final IconData icon;
+  final bool showAdvancedSettings;
+}
+
+const List<_VirtualAccountOption> _virtualOptions = [
+  _VirtualAccountOption(
+    title: '支付宝',
+    subtitle: '支付宝余额/余额宝',
+    presetName: '支付宝',
+    color: Color(0xFF0AA1E4),
+    icon: Icons.currency_yuan,
+  ),
+  _VirtualAccountOption(
+    title: '微信',
+    subtitle: '微信零钱/零钱通',
+    presetName: '微信',
+    color: Color(0xFF22B573),
+    icon: Icons.wechat_rounded,
+  ),
+  _VirtualAccountOption(
+    title: '其他虚拟账户',
+    subtitle: '京东、云闪付等',
+    presetName: '虚拟账户',
+    color: Color(0xFFFFCA28),
+    icon: Icons.account_balance_wallet_outlined,
+    showAdvancedSettings: true,
+  ),
+];
+
+class VirtualAccountSelectionPage extends StatelessWidget {
+  const VirtualAccountSelectionPage({super.key, required this.option});
+
+  final _AccountTypeOption option;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFFCEF),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFFFD54F),
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: const Text('添加虚拟账户'),
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _virtualOptions.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final item = _virtualOptions[index];
+          return Container(
+            color: Colors.white,
+            child: ListTile(
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: item.color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(item.icon, color: item.color),
+              ),
+              title: Text(
+                item.title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                item.subtitle,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final result = await Navigator.push<AccountKind>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccountFormPage(
+                      kind: option.kind,
+                      subtype: option.subtype,
+                      presetName: item.presetName,
+                      customTitle: null,
+                      showAdvancedSettings: item.showAdvancedSettings,
                     ),
                   ),
                 );

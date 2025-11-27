@@ -74,18 +74,21 @@ class _AccountFormPageState extends State<AccountFormPage> {
         : widget.subtype;
     final isBankCard = subtype == AccountSubtype.savingCard ||
         subtype == AccountSubtype.creditCard;
+    final isVirtual = subtype == AccountSubtype.virtual;
 
     return Scaffold(
       backgroundColor: isBankCard ? const Color(0xFFFFFCEF) : null,
       appBar: AppBar(
-        backgroundColor: isBankCard ? const Color(0xFFFFD54F) : null,
-        foregroundColor: isBankCard ? Colors.black : null,
-        elevation: isBankCard ? 0 : null,
+        backgroundColor: (isBankCard || isVirtual) ? const Color(0xFFFFD54F) : null,
+        foregroundColor: (isBankCard || isVirtual) ? Colors.black : null,
+        elevation: (isBankCard || isVirtual) ? 0 : null,
         title: Text(widget.customTitle ?? (isEditing ? '编辑账户' : '添加账户')),
       ),
       body: isBankCard
           ? _buildBankCardForm(context, kind, subtype, isEditing)
-          : _buildDefaultForm(context, kind, subtype, isEditing),
+          : isVirtual
+              ? _buildVirtualForm(context, kind, subtype, isEditing)
+              : _buildDefaultForm(context, kind, subtype, isEditing),
     );
   }
 
@@ -100,6 +103,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
           return '借出/应收账户';
       }
     }();
+    final hideSubtypeLabel = subtype == AccountSubtype.virtual;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -107,11 +111,13 @@ class _AccountFormPageState extends State<AccountFormPage> {
           kindLabel,
           style: const TextStyle(fontSize: 13, color: Colors.grey),
         ),
-        const SizedBox(height: 4),
-        Text(
-          _subtypeLabel(subtype),
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
+        if (!hideSubtypeLabel) ...[
+          const SizedBox(height: 4),
+          Text(
+            _subtypeLabel(subtype),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+        ],
       ],
     );
   }
@@ -329,6 +335,83 @@ class _AccountFormPageState extends State<AccountFormPage> {
     );
   }
 
+  Widget _buildVirtualForm(
+    BuildContext context,
+    AccountKind kind,
+    AccountSubtype subtype,
+    bool isEditing,
+  ) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTypeHeader(kind, subtype),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _buildBankInputRow(
+                  context,
+                  label: '名称',
+                  child: _buildPlainTextField(
+                    controller: _nameCtrl,
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildBankInputRow(
+                  context,
+                  label: '备注',
+                  child: _buildPlainTextField(
+                    controller: _noteCtrl,
+                    hintText: '（选填）',
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildBankInputRow(
+                  context,
+                  label: '余额',
+                  child: _buildPlainTextField(
+                    controller: _amountCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD54F),
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: () => _handleSubmit(kind, subtype, isEditing),
+              child: Text(isEditing ? '保存' : '添加账户'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool _shouldShowBrandSelector(AccountSubtype subtype) {
     return subtype == AccountSubtype.savingCard || subtype == AccountSubtype.creditCard;
   }
@@ -514,6 +597,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     TextInputType? keyboardType,
     bool enabled = true,
     String? helperText,
+    TextAlign textAlign = TextAlign.right,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -523,7 +607,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
           controller: controller,
           enabled: enabled,
           keyboardType: keyboardType,
-          textAlign: TextAlign.right,
+          textAlign: textAlign,
           decoration: InputDecoration(
             hintText: hintText,
             border: InputBorder.none,
