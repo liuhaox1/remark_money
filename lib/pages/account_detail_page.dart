@@ -6,6 +6,7 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/account_select_bottom_sheet.dart';
 import 'account_form_page.dart';
 
 class AccountDetailPage extends StatelessWidget {
@@ -272,20 +273,65 @@ class AccountDetailPage extends StatelessWidget {
                     '账户间转账',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: toAccountId,
-                    items: accounts
-                        .map((a) => DropdownMenuItem(
-                              value: a.id,
-                              child: Text(a.name),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setState(() => toAccountId = v),
-                    decoration: const InputDecoration(
-                      labelText: '转入账户',
-                      border: OutlineInputBorder(),
-                    ),
+                  const SizedBox(height: 16),
+                  // 转入账户选择
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '转入账户',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () async {
+                          final selectedId = await showAccountSelectBottomSheet(
+                            context,
+                            accounts,
+                            selectedAccountId: toAccountId,
+                            title: '选择转入账户',
+                          );
+                          if (selectedId != null) {
+                            setState(() => toAccountId = selectedId);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  toAccountId != null
+                                      ? accounts.firstWhere((a) => a.id == toAccountId).name
+                                      : '请选择转入账户',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: toAccountId != null
+                                        ? Theme.of(context).colorScheme.onSurface
+                                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_drop_down,
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   TextField(

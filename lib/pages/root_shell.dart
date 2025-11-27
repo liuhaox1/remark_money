@@ -7,6 +7,7 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/account_select_bottom_sheet.dart';
 import 'account_detail_page.dart';
 import 'add_account_type_page.dart';
 import 'add_record_page.dart';
@@ -735,45 +736,141 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: fromAccountId,
-                  items: assetAccounts
-                      .map((a) => DropdownMenuItem(
-                            value: a.id,
-                            child: Text(a.name),
-                          ))
-                      .toList(),
-                  onChanged: (v) {
-                    setState(() {
-                      fromAccountId = v;
-                      // 如果转出账户和转入账户相同，自动选择另一个账户
-                      if (v == toAccountId && assetAccounts.length > 1) {
-                        toAccountId = assetAccounts
-                            .firstWhere((a) => a.id != v)
-                            .id;
-                      }
-                    });
-                  },
-                  decoration: const InputDecoration(
-                    labelText: '转出账户',
-                    border: OutlineInputBorder(),
-                  ),
+                // 转出账户选择
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '转出账户',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    InkWell(
+                      onTap: () async {
+                        final selectedId = await showAccountSelectBottomSheet(
+                          context,
+                          assetAccounts,
+                          selectedAccountId: fromAccountId,
+                          title: '选择转出账户',
+                        );
+                        if (selectedId != null) {
+                          setState(() {
+                            fromAccountId = selectedId;
+                            // 如果转出账户和转入账户相同，自动选择另一个账户
+                            if (selectedId == toAccountId && assetAccounts.length > 1) {
+                              toAccountId = assetAccounts
+                                  .firstWhere((a) => a.id != selectedId)
+                                  .id;
+                            }
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                fromAccountId != null
+                                    ? assetAccounts.firstWhere((a) => a.id == fromAccountId).name
+                                    : '请选择转出账户',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: fromAccountId != null
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: toAccountId,
-                  items: assetAccounts
-                      .where((a) => a.id != fromAccountId)
-                      .map((a) => DropdownMenuItem(
-                            value: a.id,
-                            child: Text(a.name),
-                          ))
-                      .toList(),
-                  onChanged: (v) => setState(() => toAccountId = v),
-                  decoration: const InputDecoration(
-                    labelText: '转入账户',
-                    border: OutlineInputBorder(),
-                  ),
+                // 转入账户选择
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '转入账户',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    InkWell(
+                      onTap: () async {
+                        final availableAccounts = assetAccounts
+                            .where((a) => a.id != fromAccountId)
+                            .toList();
+                        if (availableAccounts.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('没有可选的转入账户')),
+                          );
+                          return;
+                        }
+                        final selectedId = await showAccountSelectBottomSheet(
+                          context,
+                          availableAccounts,
+                          selectedAccountId: toAccountId,
+                          title: '选择转入账户',
+                        );
+                        if (selectedId != null) {
+                          setState(() => toAccountId = selectedId);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                toAccountId != null
+                                    ? assetAccounts.firstWhere((a) => a.id == toAccountId).name
+                                    : '请选择转入账户',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: toAccountId != null
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 TextField(
