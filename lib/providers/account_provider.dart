@@ -92,6 +92,22 @@ class AccountProvider extends ChangeNotifier {
     await _persist();
   }
 
+  /// 调整初始余额（用于修正历史偏差）
+  /// 会同时更新 currentBalance，保持余额一致性
+  Future<void> adjustInitialBalance(String accountId, double newInitialBalance) async {
+    final index = _accounts.indexWhere((a) => a.id == accountId);
+    if (index == -1) return;
+    final account = _accounts[index];
+    // 计算差额，用于同步更新 currentBalance
+    final delta = newInitialBalance - account.initialBalance;
+    _accounts[index] = account.copyWith(
+      initialBalance: newInitialBalance,
+      currentBalance: account.currentBalance + delta,
+      updatedAt: DateTime.now(),
+    );
+    await _persist();
+  }
+
   Future<void> deleteAccount(String id) async {
     _accounts.removeWhere((a) => a.id == id);
     await _persist();

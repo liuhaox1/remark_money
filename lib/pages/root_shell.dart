@@ -139,13 +139,48 @@ class _AssetsPageBody extends StatelessWidget {
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          '账户余额来自你的记账记录，如不准确，可在账户详情中调整初始余额。',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color:
-                                theme.colorScheme.onSurface.withOpacity(0.65),
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '账户余额来自你的记账记录。如不准确，请进入账户详情页，点击"调整余额"进行修正。',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color:
+                                    theme.colorScheme.onSurface.withOpacity(0.65),
+                              ),
+                            ),
+                            if (_hasAnyBalanceIssue(accounts)) ...[
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.danger.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.warning_amber_rounded,
+                                      size: 14,
+                                      color: AppColors.danger,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        '检测到异常余额，请及时检查',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.danger,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -338,7 +373,10 @@ class _AccountTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDebt = account.kind == AccountKind.liability;
-    final amountColor = isDebt ? Colors.orange : cs.primary;
+    final hasIssue = _hasBalanceIssue(account);
+    final amountColor = hasIssue 
+        ? AppColors.danger 
+        : (isDebt ? Colors.orange : AppColors.amount(account.currentBalance));
     final icon = _iconForAccount(account);
 
     return InkWell(
@@ -389,13 +427,47 @@ class _AccountTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  account.currentBalance.toStringAsFixed(2),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: amountColor,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      account.currentBalance.toStringAsFixed(2),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: amountColor,
+                      ),
+                    ),
+                    if (hasIssue) ...[
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 10,
+                              color: AppColors.danger,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '异常',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: AppColors.danger,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -455,6 +527,29 @@ class _AccountTile extends StatelessWidget {
         return '自定义资产';
     }
   }
+
+  bool _hasBalanceIssue(Account account) {
+    final subtype = AccountSubtype.fromCode(account.subtype);
+    // 储蓄卡、现金等资产账户不应该有负余额
+    if (account.kind == AccountKind.asset && 
+        (subtype == AccountSubtype.savingCard || subtype == AccountSubtype.cash) &&
+        account.currentBalance < 0) {
+      return true;
+    }
+    return false;
+  }
+}
+
+bool _hasAnyBalanceIssue(List<Account> accounts) {
+  for (final account in accounts) {
+    final subtype = AccountSubtype.fromCode(account.subtype);
+    if (account.kind == AccountKind.asset && 
+        (subtype == AccountSubtype.savingCard || subtype == AccountSubtype.cash) &&
+        account.currentBalance < 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 class _EmptyAccounts extends StatelessWidget {

@@ -33,8 +33,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
     super.initState();
     final account = widget.account;
     _nameCtrl = TextEditingController(text: account?.name ?? _defaultName());
+    // 编辑时显示当前余额，新建时显示0
     _amountCtrl = TextEditingController(
-      text: (account?.currentBalance ?? account?.initialBalance ?? 0).toString(),
+      text: account != null 
+          ? account.currentBalance.toStringAsFixed(2)
+          : '0',
     );
     _noteCtrl = TextEditingController(text: account?.note ?? '');
     _counterpartyCtrl = TextEditingController(text: account?.counterparty ?? '');
@@ -77,16 +80,31 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 hintText: '例如：招商银行(尾号1234)',
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _amountCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true, signed: false),
-              decoration: InputDecoration(
-                labelText: _amountLabel(kind),
-                hintText: '0.00',
+            if (!isEditing) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _amountCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true, signed: false),
+                decoration: InputDecoration(
+                  labelText: _amountLabel(kind),
+                  hintText: '0.00',
+                ),
               ),
-            ),
+            ] else ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _amountCtrl,
+                enabled: false,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true, signed: false),
+                decoration: InputDecoration(
+                  labelText: _amountLabel(kind),
+                  hintText: '0.00',
+                  helperText: '编辑账户时不能修改余额，请在账户详情页使用"调整余额"功能',
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             if (_showCounterparty(kind, subtype)) ...[
               TextField(
@@ -217,6 +235,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
     final accountType = _mapSubtypeToLegacy(subtype);
 
     if (isEditing && widget.account != null) {
+      // 编辑账户时，只更新账户信息，不修改余额
+      // 余额调整应该通过专门的"调整余额"功能进行
       final updated = widget.account!.copyWith(
         name: name,
         kind: kind,
@@ -224,7 +244,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
         type: accountType,
         includeInTotal: _includeInOverview,
         includeInOverview: _includeInOverview,
-        currentBalance: normalizedAmount,
+        // 保持原有的 initialBalance 和 currentBalance 不变
         counterparty: _counterpartyCtrl.text.trim().isEmpty
             ? null
             : _counterpartyCtrl.text.trim(),
