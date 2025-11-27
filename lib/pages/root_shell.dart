@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
+import '../providers/book_provider.dart';
+import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
 import 'account_detail_page.dart';
 import 'add_account_type_page.dart';
@@ -203,6 +205,39 @@ class _AssetsPageBody extends StatelessWidget {
                                 ),
                               ),
                             ],
+                          ],
+                        ),
+                      ),
+                      // 快速操作栏
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _openTransferSheet(context, accounts),
+                                icon: const Icon(Icons.swap_horiz, size: 18),
+                                label: const Text('转账'),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  side: BorderSide(
+                                    color: theme.colorScheme.primary,
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () => _startAddAccountFlow(context),
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text('添加账户'),
+                                style: FilledButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -633,6 +668,175 @@ bool _hasAnyBalanceIssue(List<Account> accounts) {
     }
   }
   return false;
+}
+
+void _openTransferSheet(BuildContext context, List<Account> accounts) {
+  final amountCtrl = TextEditingController();
+  final feeCtrl = TextEditingController();
+  String? fromAccountId;
+  String? toAccountId;
+
+  // 过滤出资产账户（不包括负债账户）
+  final assetAccounts = accounts.where((a) {
+    return a.kind != AccountKind.liability;
+  }).toList();
+
+  if (assetAccounts.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('至少需要两个资产账户才能进行转账')),
+    );
+    return;
+  }
+
+  // 默认选择第一个和第二个账户
+  if (assetAccounts.length >= 2) {
+    fromAccountId = assetAccounts[0].id;
+    toAccountId = assetAccounts[1].id;
+  } else {
+    fromAccountId = assetAccounts[0].id;
+  }
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) {
+      final bottom = MediaQuery.of(ctx).viewInsets.bottom + 12;
+      return Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, bottom),
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '账户间转账',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: fromAccountId,
+                  items: assetAccounts
+                      .map((a) => DropdownMenuItem(
+                            value: a.id,
+                            child: Text(a.name),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() {
+                      fromAccountId = v;
+                      // 如果转出账户和转入账户相同，自动选择另一个账户
+                      if (v == toAccountId && assetAccounts.length > 1) {
+                        toAccountId = assetAccounts
+                            .firstWhere((a) => a.id != v)
+                            .id;
+                      }
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    labelText: '转出账户',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: toAccountId,
+                  items: assetAccounts
+                      .where((a) => a.id != fromAccountId)
+                      .map((a) => DropdownMenuItem(
+                            value: a.id,
+                            child: Text(a.name),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => toAccountId = v),
+                  decoration: const InputDecoration(
+                    labelText: '转入账户',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: '金额',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: feeCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: '手续费（可选）',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('取消'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () async {
+                          final amount = double.tryParse(amountCtrl.text.trim());
+                          if (amount == null || amount <= 0) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('请输入有效的金额')),
+                            );
+                            return;
+                          }
+                          final fee = double.tryParse(feeCtrl.text.trim()) ?? 0;
+                          final fromId = fromAccountId;
+                          final toId = toAccountId;
+                          if (fromId == null || toId == null) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('请选择转出和转入账户')),
+                            );
+                            return;
+                          }
+                          if (fromId == toId) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('转出账户和转入账户不能相同')),
+                            );
+                            return;
+                          }
+                          final bookId =
+                              context.read<BookProvider>().activeBookId;
+                          await context.read<RecordProvider>().transfer(
+                                accountProvider: context.read<AccountProvider>(),
+                                fromAccountId: fromId,
+                                toAccountId: toId,
+                                amount: amount,
+                                fee: fee,
+                                bookId: bookId,
+                              );
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('转账成功')),
+                            );
+                          }
+                        },
+                        child: const Text('确认转账'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    },
+  );
 }
 
 class _EmptyAccounts extends StatelessWidget {
