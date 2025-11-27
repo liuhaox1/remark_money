@@ -119,8 +119,8 @@ class _AssetsPageBody extends StatelessWidget {
           isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
         elevation: 0,
+        toolbarHeight: 0,
         backgroundColor: Colors.transparent,
-        title: const Text('资产'),
       ),
       body: SafeArea(
         child: Center(
@@ -132,10 +132,14 @@ class _AssetsPageBody extends StatelessWidget {
                   )
                 : Column(
                     children: [
-                      _AssetSummaryCard(
-                        totalAssets: totalAssets,
-                        totalDebts: totalDebts,
-                        netWorth: netWorth,
+                      // 白色背景容器包裹汇总卡片
+                      Container(
+                        color: isDark ? theme.colorScheme.surface : Colors.white,
+                        child: _AssetSummaryCard(
+                          totalAssets: totalAssets,
+                          totalDebts: totalDebts,
+                          netWorth: netWorth,
+                        ),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -247,7 +251,7 @@ class _AssetSummaryCard extends StatelessWidget {
     final netColor = AppColors.amount(netWorth);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
