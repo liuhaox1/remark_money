@@ -132,14 +132,10 @@ class _AssetsPageBody extends StatelessWidget {
                   )
                 : Column(
                     children: [
-                      // 白色背景容器包裹汇总卡片
-                      Container(
-                        color: isDark ? theme.colorScheme.surface : Colors.white,
-                        child: _AssetSummaryCard(
-                          totalAssets: totalAssets,
-                          totalDebts: totalDebts,
-                          netWorth: netWorth,
-                        ),
+                      _AssetSummaryCard(
+                        totalAssets: totalAssets,
+                        totalDebts: totalDebts,
+                        netWorth: netWorth,
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -251,7 +247,7 @@ class _AssetSummaryCard extends StatelessWidget {
     final netColor = AppColors.amount(netWorth);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
