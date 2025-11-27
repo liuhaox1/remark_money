@@ -75,6 +75,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     final isBankCard = subtype == AccountSubtype.savingCard ||
         subtype == AccountSubtype.creditCard;
     final isVirtual = subtype == AccountSubtype.virtual;
+    final isSimpleAsset = kind == AccountKind.asset && !isBankCard && !isVirtual;
 
     return Scaffold(
       backgroundColor: isBankCard ? const Color(0xFFFFFCEF) : null,
@@ -88,7 +89,9 @@ class _AccountFormPageState extends State<AccountFormPage> {
           ? _buildBankCardForm(context, kind, subtype, isEditing)
           : isVirtual
               ? _buildVirtualForm(context, kind, subtype, isEditing)
-              : _buildDefaultForm(context, kind, subtype, isEditing),
+              : isSimpleAsset
+                  ? _buildSimpleAssetForm(context, kind, subtype, isEditing)
+                  : _buildDefaultForm(context, kind, subtype, isEditing),
     );
   }
 
@@ -336,6 +339,83 @@ class _AccountFormPageState extends State<AccountFormPage> {
   }
 
   Widget _buildVirtualForm(
+    BuildContext context,
+    AccountKind kind,
+    AccountSubtype subtype,
+    bool isEditing,
+  ) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTypeHeader(kind, subtype),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _buildBankInputRow(
+                  context,
+                  label: '名称',
+                  child: _buildPlainTextField(
+                    controller: _nameCtrl,
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildBankInputRow(
+                  context,
+                  label: '备注',
+                  child: _buildPlainTextField(
+                    controller: _noteCtrl,
+                    hintText: '（选填）',
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildBankInputRow(
+                  context,
+                  label: '余额',
+                  child: _buildPlainTextField(
+                    controller: _amountCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD54F),
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: () => _handleSubmit(kind, subtype, isEditing),
+              child: Text(isEditing ? '保存' : '添加账户'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleAssetForm(
     BuildContext context,
     AccountKind kind,
     AccountSubtype subtype,
