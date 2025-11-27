@@ -159,15 +159,15 @@ class _AssetsPageBody extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
-                                    child: Text(
+                        child: Text(
                                       '账户余额来自你的记账记录。如不准确，请进入账户详情页，点击"调整余额"进行修正。',
-                                      style: TextStyle(
+                          style: TextStyle(
                                         fontSize: 11,
-                                        color:
-                                            theme.colorScheme.onSurface.withOpacity(0.65),
-                                      ),
-                                    ),
-                                  ),
+                            color:
+                                theme.colorScheme.onSurface.withOpacity(0.65),
+                          ),
+                        ),
+                      ),
                                 ],
                               ),
                             ),
@@ -210,35 +210,96 @@ class _AssetsPageBody extends StatelessWidget {
                       ),
                       // 快速操作栏
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _openTransferSheet(context, accounts),
-                                icon: const Icon(Icons.swap_horiz, size: 18),
-                                label: const Text('转账'),
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  side: BorderSide(
-                                    color: theme.colorScheme.primary,
-                                    width: 1.5,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? theme.colorScheme.surface : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: isDark
+                                ? null
+                                : [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.02),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () => _openTransferSheet(context, accounts),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: theme.colorScheme.primary.withOpacity(0.3),
+                                          width: 1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.swap_horiz,
+                                            size: 18,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '转账',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () => _startAddAccountFlow(context),
-                                icon: const Icon(Icons.add, size: 18),
-                                label: const Text('添加账户'),
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () => _startAddAccountFlow(context),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.add,
+                                            size: 18,
+                                            color: theme.colorScheme.onPrimary,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '添加账户',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: theme.colorScheme.onPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -249,7 +310,6 @@ class _AssetsPageBody extends StatelessWidget {
                             for (final group in grouped)
                               _AccountGroupPanel(
                                 group: group,
-                                onAdd: () => _startAddAccountFlow(context),
                               ),
                           ],
                         ),
@@ -386,11 +446,9 @@ class _AssetSummaryCard extends StatelessWidget {
 class _AccountGroupPanel extends StatelessWidget {
   const _AccountGroupPanel({
     required this.group,
-    required this.onAdd,
   });
 
   final _AccountGroupData group;
-  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -403,48 +461,13 @@ class _AccountGroupPanel extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
-          child: Row(
-            children: [
-              Text(
+          child: Text(
                 group.title,
-                style: TextStyle(
-                  fontSize: 14,
+            style: TextStyle(
+              fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: cs.onSurface.withOpacity(0.9),
-                ),
-              ),
-              const Spacer(),
-              InkWell(
-                onTap: onAdd,
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.add,
-                        size: 16,
-                        color: cs.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '添加账户',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: cs.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+              color: cs.onSurface.withOpacity(0.9),
+            ),
           ),
         ),
         Container(
@@ -458,8 +481,8 @@ class _AccountGroupPanel extends StatelessWidget {
                       color: Colors.black.withOpacity(0.03),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
-                    ),
-                  ],
+              ),
+            ],
           ),
           child: Column(
             children: [
@@ -547,12 +570,12 @@ class _AccountTile extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      account.currentBalance.toStringAsFixed(2),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: amountColor,
+                Text(
+                  account.currentBalance.toStringAsFixed(2),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: amountColor,
                       ),
                     ),
                     if (hasIssue) ...[
@@ -672,7 +695,6 @@ bool _hasAnyBalanceIssue(List<Account> accounts) {
 
 void _openTransferSheet(BuildContext context, List<Account> accounts) {
   final amountCtrl = TextEditingController();
-  final feeCtrl = TextEditingController();
   String? fromAccountId;
   String? toAccountId;
 
@@ -763,16 +785,6 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: feeCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: '手续费（可选）',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -793,7 +805,6 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                             );
                             return;
                           }
-                          final fee = double.tryParse(feeCtrl.text.trim()) ?? 0;
                           final fromId = fromAccountId;
                           final toId = toAccountId;
                           if (fromId == null || toId == null) {
@@ -815,7 +826,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                                 fromAccountId: fromId,
                                 toAccountId: toId,
                                 amount: amount,
-                                fee: fee,
+                                fee: 0,
                                 bookId: bookId,
                               );
                           if (context.mounted) {

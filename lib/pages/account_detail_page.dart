@@ -248,7 +248,6 @@ class AccountDetailPage extends StatelessWidget {
 
   void _openTransferSheet(BuildContext context, Account account) {
     final amountCtrl = TextEditingController();
-    final feeCtrl = TextEditingController();
     String? toAccountId;
 
     showModalBottomSheet(
@@ -299,21 +298,10 @@ class AccountDetailPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: feeCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: '手续费（可选）',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () async {
                       final amount = double.tryParse(amountCtrl.text.trim());
                       if (amount == null || amount <= 0) return;
-                      final fee = double.tryParse(feeCtrl.text.trim()) ?? 0;
                       final targetId = toAccountId;
                       if (targetId == null) return;
                       final bookId =
@@ -323,7 +311,7 @@ class AccountDetailPage extends StatelessWidget {
                             fromAccountId: account.id,
                             toAccountId: targetId,
                             amount: amount,
-                            fee: fee,
+                            fee: 0,
                             bookId: bookId,
                           );
                       if (context.mounted) Navigator.pop(context);
