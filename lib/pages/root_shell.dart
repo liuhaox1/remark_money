@@ -142,35 +142,58 @@ class _AssetsPageBody extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              '账户余额来自你的记账记录。如不准确，请进入账户详情页，点击"调整余额"进行修正。',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color:
-                                    theme.colorScheme.onSurface.withOpacity(0.65),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surface,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    size: 14,
+                                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      '账户余额来自你的记账记录。如不准确，请进入账户详情页，点击"调整余额"进行修正。',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color:
+                                            theme.colorScheme.onSurface.withOpacity(0.65),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             if (_hasAnyBalanceIssue(accounts)) ...[
                               const SizedBox(height: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: AppColors.danger.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppColors.danger.withOpacity(0.2),
+                                    width: 1,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
                                     Icon(
                                       Icons.warning_amber_rounded,
-                                      size: 14,
+                                      size: 16,
                                       color: AppColors.danger,
                                     ),
-                                    const SizedBox(width: 6),
+                                    const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         '检测到异常余额，请及时检查',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           color: AppColors.danger,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -183,10 +206,10 @@ class _AssetsPageBody extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       Expanded(
                         child: ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                           children: [
                             for (final group in grouped)
                               _AccountGroupPanel(
@@ -224,9 +247,9 @@ class _AssetSummaryCard extends StatelessWidget {
     final netColor = AppColors.amount(netWorth);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           gradient: isDark
               ? null
@@ -256,28 +279,31 @@ class _AssetSummaryCard extends StatelessWidget {
             Text(
               AppStrings.netWorth,
               style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface.withOpacity(0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.7),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 2),
             Text(
               _formatAmount(netWorth),
               style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
                 color: netColor,
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              '资产 ${_formatAmount(totalAssets)}    负债 ${_formatAmount(totalDebts)}',
-              style: TextStyle(
-                fontSize: 13,
-                color: cs.onSurface.withOpacity(0.7),
-                fontWeight: FontWeight.w600,
-              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatItem('资产', totalAssets, cs),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatItem('负债', totalDebts, cs),
+                ),
+              ],
             ),
           ],
         ),
@@ -295,6 +321,31 @@ class _AssetSummaryCard extends StatelessWidget {
     }
     return value.toStringAsFixed(2);
   }
+
+  Widget _buildStatItem(String label, double value, ColorScheme cs) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: cs.onSurface.withOpacity(0.6),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          _formatAmount(value),
+          style: TextStyle(
+            fontSize: 14,
+            color: cs.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _AccountGroupPanel extends StatelessWidget {
@@ -308,36 +359,73 @@ class _AccountGroupPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+          padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
           child: Row(
             children: [
               Text(
                 group.title,
-                style: const TextStyle(
-                  fontSize: 13,
+                style: TextStyle(
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey,
+                  color: cs.onSurface.withOpacity(0.9),
                 ),
               ),
               const Spacer(),
-              TextButton.icon(
-                onPressed: onAdd,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('添加账户'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+              InkWell(
+                onTap: onAdd,
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: cs.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.add,
+                        size: 16,
+                        color: cs.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '添加账户',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        Card(
-          margin: EdgeInsets.zero,
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? cs.surface : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+          ),
           child: Column(
             children: [
               for (final account in group.accounts)
@@ -348,13 +436,7 @@ class _AccountGroupPanel extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        Divider(
-          height: 1,
-          indent: 4,
-          endIndent: 4,
-          color: cs.outlineVariant.withOpacity(0.2),
-        ),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -391,7 +473,7 @@ class _AccountTile extends StatelessWidget {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 Container(
@@ -475,9 +557,10 @@ class _AccountTile extends StatelessWidget {
           if (!isLast)
             Divider(
               height: 1,
-              indent: 56,
+              indent: 60,
               endIndent: 12,
-              color: cs.outlineVariant.withOpacity(0.4),
+              color: cs.outlineVariant.withOpacity(0.3),
+              thickness: 0.5,
             ),
         ],
       ),

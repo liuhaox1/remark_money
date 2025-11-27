@@ -108,7 +108,6 @@ class AccountTemplateSelectionPage extends StatelessWidget {
                               builder: (_) => AccountFormPage(
                                 kind: template.kind,
                                 subtype: template.subtype,
-                                template: template,
                               ),
                             ),
                           );
