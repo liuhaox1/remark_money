@@ -47,9 +47,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     );
     // 编辑时显示当前余额，新建时显示0
     _amountCtrl = TextEditingController(
-      text: account != null 
-          ? account.currentBalance.toStringAsFixed(2)
-          : '0',
+      text: account != null ? account.currentBalance.toStringAsFixed(2) : '',
     );
     _noteCtrl = TextEditingController(text: account?.note ?? '');
     _counterpartyCtrl = TextEditingController(text: account?.counterparty ?? '');
