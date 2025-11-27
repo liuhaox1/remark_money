@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter/material.dart';
+
+import '../constants/bank_brands.dart';
 import '../models/account.dart';
 import 'account_form_page.dart';
 
@@ -9,36 +12,74 @@ class AddAccountTypePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = _options;
+    const primaryColor = Color(0xFFFFD54F);
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F6),
       appBar: AppBar(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.black,
+        elevation: 0,
         title: const Text('添加账户'),
       ),
       body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         itemBuilder: (context, index) {
           final option = options[index];
-          return ListTile(
-            leading: Icon(option.icon, size: 28),
-            title: Text(option.title),
-            subtitle: Text(option.subtitle),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () async {
-              final result = await Navigator.push<AccountKind>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AccountFormPage(
-                    kind: option.kind,
-                    subtype: option.subtype,
-                  ),
+          return Container(
+            color: Colors.white,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: option.color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-              );
-              if (result != null && context.mounted) {
-                Navigator.pop(context, result);
-              }
-            },
+                child: Icon(option.icon, color: option.color, size: 24),
+              ),
+              title: Text(
+                option.title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  option.subtitle,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                if (option.subtype == AccountSubtype.savingCard) {
+                  final result = await Navigator.push<AccountKind>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BankSelectionPage(option: option),
+                    ),
+                  );
+                  if (result != null && context.mounted) {
+                    Navigator.pop(context, result);
+                  }
+                  return;
+                }
+                final result = await Navigator.push<AccountKind>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccountFormPage(
+                      kind: option.kind,
+                      subtype: option.subtype,
+                    ),
+                  ),
+                );
+                if (result != null && context.mounted) {
+                  Navigator.pop(context, result);
+                }
+              },
+            ),
           );
         },
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, __) => const SizedBox(height: 1),
         itemCount: options.length,
       ),
     );
@@ -52,6 +93,7 @@ class _AccountTypeOption {
     required this.kind,
     required this.subtype,
     required this.icon,
+    required this.color,
   });
 
   final String title;
@@ -59,6 +101,7 @@ class _AccountTypeOption {
   final AccountKind kind;
   final AccountSubtype subtype;
   final IconData icon;
+  final Color color;
 }
 
 const List<_AccountTypeOption> _options = [
@@ -67,7 +110,8 @@ const List<_AccountTypeOption> _options = [
     subtitle: '钱包/备用金等',
     kind: AccountKind.asset,
     subtype: AccountSubtype.cash,
-    icon: Icons.savings_outlined,
+    icon: Icons.attach_money,
+    color: Color(0xFF00C853),
   ),
   _AccountTypeOption(
     title: '储蓄卡',
@@ -75,6 +119,7 @@ const List<_AccountTypeOption> _options = [
     kind: AccountKind.asset,
     subtype: AccountSubtype.savingCard,
     icon: Icons.credit_card,
+    color: Color(0xFFFFA000),
   ),
   _AccountTypeOption(
     title: '信用卡',
@@ -82,6 +127,7 @@ const List<_AccountTypeOption> _options = [
     kind: AccountKind.liability,
     subtype: AccountSubtype.creditCard,
     icon: Icons.credit_card_rounded,
+    color: Color(0xFFFFC400),
   ),
   _AccountTypeOption(
     title: '虚拟账户',
@@ -89,20 +135,23 @@ const List<_AccountTypeOption> _options = [
     kind: AccountKind.asset,
     subtype: AccountSubtype.virtual,
     icon: Icons.qr_code_2_outlined,
+    color: Color(0xFFFFCA28),
   ),
   _AccountTypeOption(
     title: '投资账户',
     subtitle: '股票/基金等',
     kind: AccountKind.asset,
     subtype: AccountSubtype.invest,
-    icon: Icons.show_chart,
+    icon: Icons.trending_up,
+    color: Color(0xFFFFB300),
   ),
   _AccountTypeOption(
     title: '负债账户',
     subtitle: '贷款/借入等',
     kind: AccountKind.liability,
     subtype: AccountSubtype.loan,
-    icon: Icons.trending_down,
+    icon: Icons.account_balance_wallet_outlined,
+    color: Color(0xFFFF7043),
   ),
   _AccountTypeOption(
     title: '债权账户',
@@ -110,12 +159,86 @@ const List<_AccountTypeOption> _options = [
     kind: AccountKind.lend,
     subtype: AccountSubtype.receivable,
     icon: Icons.swap_horiz_outlined,
+    color: Color(0xFF29B6F6),
   ),
   _AccountTypeOption(
     title: '自定义资产',
     subtitle: '其它资产账户',
     kind: AccountKind.asset,
     subtype: AccountSubtype.customAsset,
-    icon: Icons.category_outlined,
+    icon: Icons.view_in_ar_outlined,
+    color: Color(0xFF7E57C2),
   ),
 ];
+
+class BankSelectionPage extends StatelessWidget {
+  const BankSelectionPage({super.key, required this.option});
+
+  final _AccountTypeOption option;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFFCEF),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFFFD54F),
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: const Text('选择银行'),
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: kSupportedBankBrands.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final brand = kSupportedBankBrands[index];
+          return Container(
+            color: Colors.white,
+            child: ListTile(
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: brand.color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  brand.shortName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: brand.color,
+                  ),
+                ),
+              ),
+              title: Text(
+                brand.displayName,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final result = await Navigator.push<AccountKind>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccountFormPage(
+                      kind: option.kind,
+                      subtype: option.subtype,
+                      initialBrandKey: brand.key,
+                      presetName: brand.displayName,
+                      customTitle: '添加${brand.displayName}',
+                      showAdvancedSettings: false,
+                    ),
+                  ),
+                );
+                if (result != null && context.mounted) {
+                  Navigator.pop(context, result);
+                }
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}

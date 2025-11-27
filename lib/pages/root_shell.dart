@@ -7,6 +7,7 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import 'account_detail_page.dart';
 import 'add_account_type_page.dart';
@@ -535,14 +536,12 @@ class _AccountTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(icon, size: 18, color: cs.primary),
+                BrandLogoAvatar(
+                  size: 38,
+                  brandKey: account.brandKey,
+                  icon: icon,
+                  iconColor: cs.primary,
+                  backgroundColor: cs.primary.withOpacity(0.08),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

@@ -55,6 +55,7 @@ class Account {
     this.interestRate,
     this.dueDate,
     this.note,
+    this.brandKey,
     this.createdAt,
     this.updatedAt,
   });
@@ -75,6 +76,7 @@ class Account {
   final double? interestRate;
   final DateTime? dueDate;
   final String? note;
+  final String? brandKey;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -99,6 +101,7 @@ class Account {
     double? interestRate,
     DateTime? dueDate,
     String? note,
+    String? brandKey,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -119,6 +122,7 @@ class Account {
       interestRate: interestRate ?? this.interestRate,
       dueDate: dueDate ?? this.dueDate,
       note: note ?? this.note,
+      brandKey: brandKey ?? this.brandKey,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -143,6 +147,7 @@ class Account {
       'interestRate': interestRate,
       'dueDate': dueDate?.toIso8601String(),
       'note': note,
+      'brandKey': brandKey,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       // legacy fields
@@ -193,6 +198,7 @@ class Account {
       interestRate: (map['interestRate'] as num?)?.toDouble(),
       dueDate: map['dueDate'] != null ? DateTime.tryParse(map['dueDate']) : null,
       note: map['note'] as String?,
+      brandKey: map['brandKey'] as String?,
       createdAt:
           map['createdAt'] != null ? DateTime.tryParse(map['createdAt']) : null,
       updatedAt:

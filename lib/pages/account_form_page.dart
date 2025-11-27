@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../constants/bank_brands.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
 
@@ -10,11 +11,19 @@ class AccountFormPage extends StatefulWidget {
     required this.kind,
     required this.subtype,
     this.account,
+    this.initialBrandKey,
+    this.presetName,
+    this.customTitle,
+    this.showAdvancedSettings = true,
   });
 
   final AccountKind kind;
   final AccountSubtype subtype;
   final Account? account;
+  final String? initialBrandKey;
+  final String? presetName;
+  final String? customTitle;
+  final bool showAdvancedSettings;
 
   @override
   State<AccountFormPage> createState() => _AccountFormPageState();
@@ -27,12 +36,15 @@ class _AccountFormPageState extends State<AccountFormPage> {
   late final TextEditingController _counterpartyCtrl;
   bool _includeInOverview = true;
   DateTime? _dueDate;
+  String? _brandKey;
 
   @override
   void initState() {
     super.initState();
     final account = widget.account;
-    _nameCtrl = TextEditingController(text: account?.name ?? _defaultName());
+    _nameCtrl = TextEditingController(
+      text: account?.name ?? widget.presetName ?? _defaultName(),
+    );
     // 编辑时显示当前余额，新建时显示0
     _amountCtrl = TextEditingController(
       text: account != null 
@@ -43,6 +55,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     _counterpartyCtrl = TextEditingController(text: account?.counterparty ?? '');
     _includeInOverview = account?.includeInOverview ?? true;
     _dueDate = account?.dueDate;
+    _brandKey = account?.brandKey ?? widget.initialBrandKey;
   }
 
   @override
@@ -61,106 +74,20 @@ class _AccountFormPageState extends State<AccountFormPage> {
     final subtype = widget.account != null
         ? AccountSubtype.fromCode(widget.account!.subtype)
         : widget.subtype;
+    final isBankCard = subtype == AccountSubtype.savingCard ||
+        subtype == AccountSubtype.creditCard;
 
     return Scaffold(
+      backgroundColor: isBankCard ? const Color(0xFFFFFCEF) : null,
       appBar: AppBar(
-        title: Text(isEditing ? '编辑账户' : '添加账户'),
+        backgroundColor: isBankCard ? const Color(0xFFFFD54F) : null,
+        foregroundColor: isBankCard ? Colors.black : null,
+        elevation: isBankCard ? 0 : null,
+        title: Text(widget.customTitle ?? (isEditing ? '编辑账户' : '添加账户')),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildTypeHeader(kind, subtype),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: '账户名称',
-                hintText: '例如：招商银行(尾号1234)',
-              ),
-            ),
-            if (!isEditing) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _amountCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true, signed: false),
-                decoration: InputDecoration(
-                  labelText: _amountLabel(kind),
-                  hintText: '0.00',
-                ),
-              ),
-            ] else ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _amountCtrl,
-                enabled: false,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true, signed: false),
-                decoration: InputDecoration(
-                  labelText: _amountLabel(kind),
-                  hintText: '0.00',
-                  helperText: '编辑账户时不能修改余额，请在账户详情页使用"调整余额"功能',
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            if (_showCounterparty(kind, subtype)) ...[
-              TextField(
-                controller: _counterpartyCtrl,
-                decoration: const InputDecoration(
-                  labelText: '对方名称（可选）',
-                  hintText: '如：银行/朋友姓名',
-                ),
-              ),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: _pickDate,
-                child: InputDecorator(
-              decoration: const InputDecoration(
-                labelText: '预计还清/收回日期（可选）',
-                border: OutlineInputBorder(),
-              ),
-              child: Text(_dueDate == null ? '未设置' : _formatDate(_dueDate!)),
-            ),
-          ),
-          const SizedBox(height: 12),
-            ],
-            TextField(
-              controller: _noteCtrl,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: '备注（可选）',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text(
-                '高级设置',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              children: [
-                SwitchListTile(
-                  title: const Text('计入资产汇总'),
-                  value: _includeInOverview,
-                  onChanged: (v) => setState(() => _includeInOverview = v),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => _handleSubmit(kind, subtype, isEditing),
-                child: Text(isEditing ? '保存' : '添加账户'),
-              ),
-            ),
-          ],
-        ),
-      ),
+      body: isBankCard
+          ? _buildBankCardForm(context, kind, subtype, isEditing)
+          : _buildDefaultForm(context, kind, subtype, isEditing),
     );
   }
 
@@ -194,6 +121,425 @@ class _AccountFormPageState extends State<AccountFormPage> {
   bool _showCounterparty(AccountKind kind, AccountSubtype subtype) {
     if (kind == AccountKind.liability) return true;
     return subtype == AccountSubtype.receivable;
+  }
+
+  Widget _buildDefaultForm(
+    BuildContext context,
+    AccountKind kind,
+    AccountSubtype subtype,
+    bool isEditing,
+  ) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTypeHeader(kind, subtype),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(
+              labelText: '账户名称',
+              hintText: '例如：招商银行(尾号1234)',
+            ),
+          ),
+          if (!isEditing) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amountCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true, signed: false),
+              decoration: InputDecoration(
+                labelText: _amountLabel(kind),
+                hintText: '0.00',
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amountCtrl,
+              enabled: false,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true, signed: false),
+              decoration: InputDecoration(
+                labelText: _amountLabel(kind),
+                hintText: '0.00',
+                helperText: '编辑账户时不能修改余额，请在账户详情页使用"调整余额"功能',
+              ),
+            ),
+          ],
+          if (_shouldShowBrandSelector(subtype)) ...[
+            const SizedBox(height: 12),
+            _buildBrandSelector(context),
+          ],
+          const SizedBox(height: 12),
+          if (_showCounterparty(kind, subtype)) ...[
+            TextField(
+              controller: _counterpartyCtrl,
+              decoration: const InputDecoration(
+                labelText: '对方名称（可选）',
+                hintText: '如：银行/朋友姓名',
+              ),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: _pickDate,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: '预计还清/收回日期（可选）',
+                  border: OutlineInputBorder(),
+                ),
+                child: Text(_dueDate == null ? '未设置' : _formatDate(_dueDate!)),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          TextField(
+            controller: _noteCtrl,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: '备注（可选）',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (widget.showAdvancedSettings)
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text(
+                '高级设置',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              children: [
+                SwitchListTile(
+                  title: const Text('计入资产汇总'),
+                  value: _includeInOverview,
+                  onChanged: (v) => setState(() => _includeInOverview = v),
+                ),
+              ],
+            ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => _handleSubmit(kind, subtype, isEditing),
+              child: Text(isEditing ? '保存' : '添加账户'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBankCardForm(
+    BuildContext context,
+    AccountKind kind,
+    AccountSubtype subtype,
+    bool isEditing,
+  ) {
+    final showBankSelectorRow =
+        widget.account != null || widget.initialBrandKey == null;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTypeHeader(kind, subtype),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                if (showBankSelectorRow) ...[
+                  _buildBankInfoRow(context),
+                  const Divider(height: 1),
+                ],
+                _buildBankInputRow(
+                  context,
+                  label: '卡号（后四位）',
+                  child: _buildPlainTextField(
+                    controller: _counterpartyCtrl,
+                    hintText: '选填',
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                _buildBankInputRow(
+                  context,
+                  label: '备注',
+                  child: _buildPlainTextField(
+                    controller: _noteCtrl,
+                    hintText: '选填',
+                  ),
+                ),
+                _buildBankInputRow(
+                  context,
+                  label: '余额',
+                  child: _buildPlainTextField(
+                    controller: _amountCtrl,
+                    hintText: '0.00',
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    enabled: !isEditing,
+                    helperText:
+                        isEditing ? '请前往账户详情页>调整余额进行修改' : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (widget.showAdvancedSettings)
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text(
+                '高级设置',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              children: [
+                SwitchListTile(
+                  title: const Text('计入资产汇总'),
+                  value: _includeInOverview,
+                  onChanged: (v) => setState(() => _includeInOverview = v),
+                ),
+              ],
+            ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD54F),
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: () => _handleSubmit(kind, subtype, isEditing),
+              child: Text(isEditing ? '保存' : '添加账户'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _shouldShowBrandSelector(AccountSubtype subtype) {
+    return subtype == AccountSubtype.savingCard || subtype == AccountSubtype.creditCard;
+  }
+
+  Widget _buildBrandSelector(BuildContext context) {
+    final brand = findBankBrand(_brandKey);
+    final hasBrand = _brandKey != null && brand != null && brand.key != 'custom';
+    final labelColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '银行品牌',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () async {
+            final selected = await _pickBankBrand(context);
+            if (!mounted) return;
+            setState(() => _brandKey = selected);
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    hasBrand ? brand.displayName : '选择银行（可选）',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: hasBrand
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.5),
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_drop_down,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<String?> _pickBankBrand(BuildContext context) async {
+    return showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '选择银行',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: kSupportedBankBrands.length,
+                  itemBuilder: (context, index) {
+                    final brand = kSupportedBankBrands[index];
+                    final selected = brand.key == _brandKey;
+                    return ListTile(
+                      title: Text(brand.displayName),
+                      trailing: selected
+                          ? Icon(
+                              Icons.check,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                          : null,
+                      onTap: () => Navigator.pop(context, brand.key),
+                    );
+                  },
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                  ),
+                ),
+              ),
+              ListTile(
+                title: const Text('不指定银行'),
+                onTap: () => Navigator.pop(context, null),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBankInfoRow(BuildContext context) {
+    final brand = findBankBrand(_brandKey);
+    final title = brand != null && brand.key != 'custom'
+        ? brand.displayName
+        : '选择银行';
+    final labelColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
+    return InkWell(
+      onTap: () async {
+        final selected = await _pickBankBrand(context);
+        if (!mounted) return;
+        setState(() => _brandKey = selected);
+      },
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        child: Row(
+          children: [
+            Text(
+              '所在银行',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: labelColor),
+            ),
+            const Spacer(),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                color: brand != null && brand.key != 'custom'
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: labelColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBankInputRow(
+    BuildContext context, {
+    required String label,
+    required Widget child,
+  }) {
+    final labelColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontSize: 15, color: labelColor, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Align(alignment: Alignment.centerRight, child: child)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlainTextField({
+    required TextEditingController controller,
+    String? hintText,
+    TextInputType? keyboardType,
+    bool enabled = true,
+    String? helperText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: controller,
+          enabled: enabled,
+          keyboardType: keyboardType,
+          textAlign: TextAlign.right,
+          decoration: InputDecoration(
+            hintText: hintText,
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        if (helperText != null)
+          Text(
+            helperText,
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+      ],
+    );
   }
 
   String _amountLabel(AccountKind kind) {
@@ -248,6 +594,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
         counterparty: _counterpartyCtrl.text.trim().isEmpty
             ? null
             : _counterpartyCtrl.text.trim(),
+        brandKey: _brandKey,
         dueDate: _dueDate,
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       );
@@ -264,6 +611,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
         includeInOverview: _includeInOverview,
         initialBalance: normalizedAmount,
         currentBalance: normalizedAmount,
+        brandKey: _brandKey,
         counterparty: _counterpartyCtrl.text.trim().isEmpty
             ? null
             : _counterpartyCtrl.text.trim(),

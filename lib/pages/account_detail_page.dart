@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../constants/bank_brands.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import 'account_form_page.dart';
 
@@ -43,12 +45,20 @@ class AccountDetailPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      account.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            account.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (account.brandKey != null)
+                          _BrandBadge(brandKey: account.brandKey!),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -864,6 +874,33 @@ class AccountDetailPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _BrandBadge extends StatelessWidget {
+  const _BrandBadge({required this.brandKey});
+
+  final String brandKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final brand = findBankBrand(brandKey);
+    if (brand == null || brand.key == 'custom') return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: brand.color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        brand.shortName,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: brand.color,
+        ),
+      ),
     );
   }
 }
