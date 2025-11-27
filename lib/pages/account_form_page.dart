@@ -259,8 +259,6 @@ class _AccountFormPageState extends State<AccountFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildTypeHeader(kind, subtype),
-          const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -286,6 +284,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     controller: _counterpartyCtrl,
                     hintText: '选填',
                     keyboardType: TextInputType.number,
+                    textAlign: TextAlign.right,
                   ),
                 ),
                 _buildBankInputRow(
@@ -293,7 +292,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   label: '备注',
                   child: _buildPlainTextField(
                     controller: _noteCtrl,
-                    hintText: '选填',
+                    hintText: '（选填）',
+                    textAlign: TextAlign.right,
                   ),
                 ),
                 _buildBankInputRow(
@@ -301,9 +301,9 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   label: '余额',
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
-                    hintText: '0.00',
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.right,
                     enabled: !isEditing,
                     helperText:
                         isEditing ? '请前往账户详情页>调整余额进行修改' : null,
@@ -312,22 +312,6 @@ class _AccountFormPageState extends State<AccountFormPage> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          if (widget.showAdvancedSettings)
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text(
-                '高级设置',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              children: [
-                SwitchListTile(
-                  title: const Text('计入资产汇总'),
-                  value: _includeInOverview,
-                  onChanged: (v) => setState(() => _includeInOverview = v),
-                ),
-              ],
-            ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
