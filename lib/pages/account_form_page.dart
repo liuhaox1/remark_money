@@ -37,6 +37,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
   bool _includeInOverview = true;
   DateTime? _dueDate;
   String? _brandKey;
+  String? _customTitle;
 
   @override
   void initState() {
@@ -54,6 +55,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     _includeInOverview = account?.includeInOverview ?? true;
     _dueDate = account?.dueDate;
     _brandKey = account?.brandKey ?? widget.initialBrandKey;
+    _customTitle = widget.customTitle;
   }
 
   @override
@@ -88,7 +90,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
             (isBankCard || isVirtual || isCash) ? const Color(0xFFFFD54F) : null,
         foregroundColor: (isBankCard || isVirtual || isCash) ? Colors.black : null,
         elevation: (isBankCard || isVirtual || isCash) ? 0 : null,
-        title: Text(widget.customTitle ??
+        title: Text(_customTitle ??
             (isCash ? '现金' : isEditing ? '编辑账户' : '添加账户')),
       ),
       body: isBankCard
@@ -252,6 +254,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
     AccountSubtype subtype,
     bool isEditing,
   ) {
+    final brand = findBankBrand(_brandKey);
+    final title = brand != null && brand.key != 'custom' ? brand.displayName : null;
+    if (title != null) {
+      _customTitle ??= title;
+    }
     final showBankSelectorRow =
         widget.account != null || widget.initialBrandKey == null;
     return SingleChildScrollView(
@@ -585,9 +592,15 @@ class _AccountFormPageState extends State<AccountFormPage> {
         const SizedBox(height: 6),
         InkWell(
           onTap: () async {
-            final selected = await _pickBankBrand(context);
-            if (!mounted) return;
-            setState(() => _brandKey = selected);
+                        final selected = await _pickBankBrand(context);
+                        if (!mounted) return;
+                        setState(() {
+                          _brandKey = selected;
+                          final pickedBrand = findBankBrand(selected);
+                          if (pickedBrand != null && pickedBrand.key != 'custom') {
+                            _customTitle = pickedBrand.displayName;
+                          }
+                        });
           },
           borderRadius: BorderRadius.circular(10),
           child: Container(
