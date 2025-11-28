@@ -110,6 +110,7 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.transparent,
       ),
       body: SafeArea(
+        bottom: false, // 禁用底部 SafeArea，手动处理底部导航栏
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
@@ -718,75 +719,81 @@ class _HomePageState extends State<HomePage> {
     // 清除不再需要的日期统计缓存
     _dayStatsCache.removeWhere((key, value) => !days.contains(key));
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-      controller: _monthScrollController,
-      // 添加一些性能优化属性
-      shrinkWrap: true,
-      physics: const ClampingScrollPhysics(),
-      cacheExtent: 1000, // 缓存更多内容以减少重新构建
-      itemBuilder: (context, index) {
-        final day = days[index];
-        final dayRecords = groups[day]!;
+    // 计算底部 padding：系统安全区域 + 底部导航栏高度 + 额外安全边距
+    final mediaQuery = MediaQuery.of(context);
+    final systemBottomPadding = mediaQuery.viewPadding.bottom; // 系统底部安全区域
+    final navigationBarHeight = 80.0; // NavigationBar 高度
+    final extraPadding = 24.0; // 额外安全边距
+    final bottomPadding = systemBottomPadding + navigationBarHeight + extraPadding;
+    
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        controller: _monthScrollController,
+        // 使用 AlwaysScrollableScrollPhysics 确保可以滚动到底部
+        physics: const AlwaysScrollableScrollPhysics(),
+        cacheExtent: 1000, // 缓存更多内容以减少重新构建
+        itemBuilder: (context, index) {
+          final day = days[index];
+          final dayRecords = groups[day]!;
 
-        // 获取或计算当天的统计信息
-        _DayStats dayStats;
-        if (_dayStatsCache.containsKey(day)) {
-          dayStats = _dayStatsCache[day]!;
-        } else {
-          final totalExpense = dayRecords
-              .where((r) => r.isExpense)
-              .fold<double>(0, (sum, r) => sum + r.absAmount);
-          final totalIncome = dayRecords
-              .where((r) => !r.isExpense)
-              .fold<double>(0, (sum, r) => sum + r.absAmount);
-          final totalBalance = totalIncome - totalExpense;
+          // 获取或计算当天的统计信息
+          _DayStats dayStats;
+          if (_dayStatsCache.containsKey(day)) {
+            dayStats = _dayStatsCache[day]!;
+          } else {
+            final totalExpense = dayRecords
+                .where((r) => r.isExpense)
+                .fold<double>(0, (sum, r) => sum + r.absAmount);
+            final totalIncome = dayRecords
+                .where((r) => !r.isExpense)
+                .fold<double>(0, (sum, r) => sum + r.absAmount);
+            final totalBalance = totalIncome - totalExpense;
 
-          dayStats = _DayStats(
-            totalIncome: totalIncome,
-            totalExpense: totalExpense,
-            totalBalance: totalBalance,
-          );
-
-          // 缓存统计信息
-          _dayStatsCache[day] = dayStats;
-        }
-
-        final normalized = DateTime(day.year, day.month, day.day);
-        final headerKey =
-            _dayHeaderKeys.putIfAbsent(normalized, () => GlobalKey());
-
-        final dateLabel =
-            AppStrings.monthDayWithCount(
-              day.month,
-              day.day,
-              DateUtilsX.weekdayShort(day),
-              dayRecords.length,
+            dayStats = _DayStats(
+              totalIncome: totalIncome,
+              totalExpense: totalExpense,
+              totalBalance: totalBalance,
             );
 
-        // 使用 ListView.builder 来优化大量记录的显示
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _DayHeader(
-              key: headerKey,
-              dateLabel: dateLabel,
-              income: dayStats.totalIncome,
-              expense: dayStats.totalExpense,
-              balance: dayStats.totalBalance,
-            ),
-            const SizedBox(height: 2),
-            // 对于每天的记录列表，也使用 ListView.builder
-            SizedBox(
-              height: dayRecords.length * 36.0, // 预估每条记录的高度
-              child: ListView.builder(
-                physics: const NeverScrollableScrollPhysics(), // 禁止内部滚动
+            // 缓存统计信息
+            _dayStatsCache[day] = dayStats;
+          }
+
+          final normalized = DateTime(day.year, day.month, day.day);
+          final headerKey =
+              _dayHeaderKeys.putIfAbsent(normalized, () => GlobalKey());
+
+          final dateLabel = AppStrings.monthDayWithCount(
+            day.month,
+            day.day,
+            DateUtilsX.weekdayShort(day),
+            dayRecords.length,
+          );
+
+          // 使用 ListView.builder 来优化大量记录的显示
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DayHeader(
+                key: headerKey,
+                dateLabel: dateLabel,
+                income: dayStats.totalIncome,
+                expense: dayStats.totalExpense,
+                balance: dayStats.totalBalance,
+              ),
+              const SizedBox(height: 2),
+              // 对于每天的记录列表，使用 shrinkWrap 让高度自适应，避免估算高度导致底部被裁剪
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 itemCount: dayRecords.length,
                 itemBuilder: (context, index) {
                   final record = dayRecords[index];
                   final selected = _selectedRecordIds.contains(record.id);
                   return TimelineItem(
-                    key: ValueKey(record.id), // 为每个项目添加唯一键
+                    key: ValueKey(record.id),
                     record: record,
                     category: categoryMap[record.categoryKey],
                     leftSide: false,
@@ -800,12 +807,12 @@ class _HomePageState extends State<HomePage> {
                   );
                 },
               ),
-            ),
-          ],
-        );
-      },
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemCount: days.length,
+            ],
+          );
+        },
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemCount: days.length,
+      ),
     );
   }
 
