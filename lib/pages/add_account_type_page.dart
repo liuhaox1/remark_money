@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:flutter/material.dart';
-
 import '../constants/bank_brands.dart';
 import '../models/account.dart';
 import 'account_form_page.dart';
@@ -56,6 +54,18 @@ class AddAccountTypePage extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => BankSelectionPage(option: option),
+                    ),
+                  );
+                  if (result != null && context.mounted) {
+                    Navigator.pop(context, result);
+                  }
+                  return;
+                }
+                if (option.subtype == AccountSubtype.creditCard) {
+                  final result = await Navigator.push<AccountKind>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CreditCardSelectionPage(option: option),
                     ),
                   );
                   if (result != null && context.mounted) {
@@ -204,6 +214,78 @@ class BankSelectionPage extends StatelessWidget {
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final brand = kSupportedBankBrands[index];
+          return Container(
+            color: Colors.white,
+            child: ListTile(
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: brand.color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  brand.shortName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: brand.color,
+                  ),
+                ),
+              ),
+              title: Text(
+                brand.displayName,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final result = await Navigator.push<AccountKind>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccountFormPage(
+                      kind: option.kind,
+                      subtype: option.subtype,
+                      initialBrandKey: brand.key,
+                      presetName: brand.displayName,
+                      customTitle: null,
+                      showAdvancedSettings: false,
+                    ),
+                  ),
+                );
+                if (result != null && context.mounted) {
+                  Navigator.pop(context, result);
+                }
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class CreditCardSelectionPage extends StatelessWidget {
+  const CreditCardSelectionPage({super.key, required this.option});
+
+  final _AccountTypeOption option;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFFCEF),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFFFD54F),
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: const Text('选择信用卡'),
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: kSupportedCreditCardBrands.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final brand = kSupportedCreditCardBrands[index];
           return Container(
             color: Colors.white,
             child: ListTile(

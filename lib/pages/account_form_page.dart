@@ -81,6 +81,24 @@ class _AccountFormPageState extends State<AccountFormPage> {
     final isSimpleAsset =
         kind == AccountKind.asset && !isBankCard && !isVirtual && !isCash;
 
+    // 动态计算标题：如果是储蓄卡/信用卡，优先显示银行名称
+    String appBarTitle;
+    if (isCash) {
+      appBarTitle = '现金';
+    } else if (isBankCard) {
+      // 根据账户类型选择查找函数
+      final brand = subtype == AccountSubtype.creditCard
+          ? findCreditCardBrand(_brandKey ?? widget.initialBrandKey)
+          : findBankBrand(_brandKey ?? widget.initialBrandKey);
+      if (brand != null && brand.key != 'custom' && brand.key != 'other_credit' && brand.key != 'other_bank') {
+        appBarTitle = brand.displayName;
+      } else {
+        appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
+      }
+    } else {
+      appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
+    }
+
     return Scaffold(
       backgroundColor: (isBankCard || isVirtual || isCash)
           ? const Color(0xFFFFFCEF)
@@ -90,8 +108,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
             (isBankCard || isVirtual || isCash) ? const Color(0xFFFFD54F) : null,
         foregroundColor: (isBankCard || isVirtual || isCash) ? Colors.black : null,
         elevation: (isBankCard || isVirtual || isCash) ? 0 : null,
-        title: Text(_customTitle ??
-            (isCash ? '现金' : isEditing ? '编辑账户' : '添加账户')),
+        title: Text(appBarTitle),
       ),
       body: isBankCard
           ? _buildBankCardForm(context, kind, subtype, isEditing)
@@ -254,8 +271,16 @@ class _AccountFormPageState extends State<AccountFormPage> {
     AccountSubtype subtype,
     bool isEditing,
   ) {
-    final brand = findBankBrand(_brandKey);
-    final title = brand != null && brand.key != 'custom' ? brand.displayName : null;
+    // 根据账户类型选择查找函数
+    final brand = subtype == AccountSubtype.creditCard
+        ? findCreditCardBrand(_brandKey)
+        : findBankBrand(_brandKey);
+    final title = brand != null && 
+            brand.key != 'custom' && 
+            brand.key != 'other_credit' && 
+            brand.key != 'other_bank'
+        ? brand.displayName
+        : null;
     if (title != null) {
       _customTitle ??= title;
     }
@@ -575,8 +600,18 @@ class _AccountFormPageState extends State<AccountFormPage> {
   }
 
   Widget _buildBrandSelector(BuildContext context) {
-    final brand = findBankBrand(_brandKey);
-    final hasBrand = _brandKey != null && brand != null && brand.key != 'custom';
+    final subtype = widget.account != null
+        ? AccountSubtype.fromCode(widget.account!.subtype)
+        : widget.subtype;
+    final isCreditCard = subtype == AccountSubtype.creditCard;
+    final brand = isCreditCard
+        ? findCreditCardBrand(_brandKey)
+        : findBankBrand(_brandKey);
+    final hasBrand = _brandKey != null && 
+            brand != null && 
+            brand.key != 'custom' && 
+            brand.key != 'other_credit' && 
+            brand.key != 'other_bank';
     final labelColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -592,15 +627,24 @@ class _AccountFormPageState extends State<AccountFormPage> {
         const SizedBox(height: 6),
         InkWell(
           onTap: () async {
-                        final selected = await _pickBankBrand(context);
-                        if (!mounted) return;
-                        setState(() {
-                          _brandKey = selected;
-                          final pickedBrand = findBankBrand(selected);
-                          if (pickedBrand != null && pickedBrand.key != 'custom') {
-                            _customTitle = pickedBrand.displayName;
-                          }
-                        });
+            final selected = await _pickBankBrand(context);
+            if (!mounted) return;
+            setState(() {
+              _brandKey = selected;
+              final subtype = widget.account != null
+                  ? AccountSubtype.fromCode(widget.account!.subtype)
+                  : widget.subtype;
+              final isCreditCard = subtype == AccountSubtype.creditCard;
+              final pickedBrand = isCreditCard
+                  ? findCreditCardBrand(selected)
+                  : findBankBrand(selected);
+              if (pickedBrand != null && 
+                  pickedBrand.key != 'custom' && 
+                  pickedBrand.key != 'other_credit' && 
+                  pickedBrand.key != 'other_bank') {
+                _customTitle = pickedBrand.displayName;
+              }
+            });
           },
           borderRadius: BorderRadius.circular(10),
           child: Container(
@@ -641,6 +685,13 @@ class _AccountFormPageState extends State<AccountFormPage> {
   }
 
   Future<String?> _pickBankBrand(BuildContext context) async {
+    final subtype = widget.account != null
+        ? AccountSubtype.fromCode(widget.account!.subtype)
+        : widget.subtype;
+    final isCreditCard = subtype == AccountSubtype.creditCard;
+    final brands = isCreditCard ? kSupportedCreditCardBrands : kSupportedBankBrands;
+    final title = isCreditCard ? '选择信用卡' : '选择银行';
+    
     return showModalBottomSheet<String>(
       context: context,
       builder: (ctx) {
@@ -648,22 +699,22 @@ class _AccountFormPageState extends State<AccountFormPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    '选择银行',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    title,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
               Flexible(
                 child: ListView.separated(
                   shrinkWrap: true,
-                  itemCount: kSupportedBankBrands.length,
+                  itemCount: brands.length,
                   itemBuilder: (context, index) {
-                    final brand = kSupportedBankBrands[index];
+                    final brand = brands[index];
                     final selected = brand.key == _brandKey;
                     return ListTile(
                       title: Text(brand.displayName),
@@ -683,7 +734,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 ),
               ),
               ListTile(
-                title: const Text('不指定银行'),
+                title: Text(isCreditCard ? '不指定信用卡' : '不指定银行'),
                 onTap: () => Navigator.pop(context, null),
               ),
             ],
@@ -694,16 +745,37 @@ class _AccountFormPageState extends State<AccountFormPage> {
   }
 
   Widget _buildBankInfoRow(BuildContext context) {
-    final brand = findBankBrand(_brandKey);
-    final title = brand != null && brand.key != 'custom'
+    final subtype = widget.account != null
+        ? AccountSubtype.fromCode(widget.account!.subtype)
+        : widget.subtype;
+    final isCreditCard = subtype == AccountSubtype.creditCard;
+    final brand = isCreditCard
+        ? findCreditCardBrand(_brandKey)
+        : findBankBrand(_brandKey);
+    final defaultTitle = isCreditCard ? '选择信用卡' : '选择银行';
+    final title = brand != null && 
+            brand.key != 'custom' && 
+            brand.key != 'other_credit' && 
+            brand.key != 'other_bank'
         ? brand.displayName
-        : '选择银行';
+        : defaultTitle;
     final labelColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
     return InkWell(
       onTap: () async {
         final selected = await _pickBankBrand(context);
         if (!mounted) return;
-        setState(() => _brandKey = selected);
+        setState(() {
+          _brandKey = selected;
+          final pickedBrand = isCreditCard
+              ? findCreditCardBrand(selected)
+              : findBankBrand(selected);
+          if (pickedBrand != null && 
+              pickedBrand.key != 'custom' && 
+              pickedBrand.key != 'other_credit' && 
+              pickedBrand.key != 'other_bank') {
+            _customTitle = pickedBrand.displayName;
+          }
+        });
       },
       borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
       child: Padding(
@@ -719,7 +791,10 @@ class _AccountFormPageState extends State<AccountFormPage> {
               title,
               style: TextStyle(
                 fontSize: 15,
-                color: brand != null && brand.key != 'custom'
+                color: brand != null && 
+                        brand.key != 'custom' && 
+                        brand.key != 'other_credit' && 
+                        brand.key != 'other_bank'
                     ? Theme.of(context).colorScheme.onSurface
                     : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
               ),
