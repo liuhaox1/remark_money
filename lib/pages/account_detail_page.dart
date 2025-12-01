@@ -29,7 +29,6 @@ class AccountDetailPage extends StatelessWidget {
     }
 
     final cs = Theme.of(context).colorScheme;
-    final actions = _buildActions(context, account);
 
     return Scaffold(
       appBar: AppBar(
@@ -108,14 +107,6 @@ class AccountDetailPage extends StatelessWidget {
                         ],
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '初始余额：${account.initialBalance.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.outline,
-                      ),
-                    ),
                     if (account.counterparty != null &&
                         account.counterparty!.isNotEmpty) ...[
                       const SizedBox(height: 8),
@@ -158,57 +149,12 @@ class AccountDetailPage extends StatelessWidget {
                             side: BorderSide(color: cs.primary),
                           ),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final result = await Navigator.push<AccountKind>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => AccountFormPage(
-                                  kind: account.kind,
-                                  subtype: AccountSubtype.fromCode(account.subtype),
-                                  account: account,
-                                ),
-                              ),
-                            );
-                            if (result != null && context.mounted) Navigator.pop(context);
-                          },
-                          icon: const Icon(Icons.edit_outlined, size: 16),
-                          label: const Text('编辑账户'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            side: BorderSide(color: cs.primary),
-                          ),
-                        ),
                       ],
                     ),
                   ],
                 ),
               ),
             ),
-            if (actions.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '账户操作',
-                        style:
-                            TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: actions,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -770,9 +716,6 @@ class AccountDetailPage extends StatelessWidget {
     final balanceCtrl = TextEditingController(
       text: account.currentBalance.toStringAsFixed(2),
     );
-    final initialBalanceCtrl = TextEditingController(
-      text: account.initialBalance.toStringAsFixed(2),
-    );
 
     showModalBottomSheet(
       context: context,
@@ -791,7 +734,7 @@ class AccountDetailPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '如果账户余额与实际不符，可以调整初始余额来修正。调整后，当前余额会自动同步更新。',
+                '如果账户余额与实际不符，可以直接调整余额。',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
@@ -799,21 +742,12 @@ class AccountDetailPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               TextField(
-                controller: initialBalanceCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: '初始余额',
-                  helperText: '修改初始余额以修正历史偏差',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
                 controller: balanceCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                autofocus: true,
                 decoration: const InputDecoration(
-                  labelText: '当前余额',
-                  helperText: '当前账户的实际余额',
+                  labelText: '余额',
+                  helperText: '输入账户的实际余额',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -830,10 +764,9 @@ class AccountDetailPage extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       onPressed: () async {
-                        final newInitialBalance = double.tryParse(initialBalanceCtrl.text.trim());
-                        final newCurrentBalance = double.tryParse(balanceCtrl.text.trim());
+                        final newBalance = double.tryParse(balanceCtrl.text.trim());
                         
-                        if (newInitialBalance == null || newCurrentBalance == null) {
+                        if (newBalance == null) {
                           ScaffoldMessenger.of(ctx).showSnackBar(
                             const SnackBar(content: Text('请输入有效的金额')),
                           );
@@ -844,23 +777,10 @@ class AccountDetailPage extends StatelessWidget {
                         final currentAccount = accountProvider.byId(account.id);
                         if (currentAccount == null) return;
                         
-                        // 计算初始余额的调整量
-                        final initialBalanceDelta = newInitialBalance - account.initialBalance;
-                        // 计算当前余额的调整量
-                        final currentBalanceDelta = newCurrentBalance - account.currentBalance;
-                        
-                        // 如果初始余额有变化，先调整初始余额（这会自动更新currentBalance）
-                        if (initialBalanceDelta.abs() > 0.01) {
-                          await accountProvider.adjustInitialBalance(
-                            account.id,
-                            newInitialBalance,
-                          );
-                        }
-                        
-                        // 然后调整当前余额到目标值（考虑初始余额调整的影响）
-                        final finalBalanceDelta = currentBalanceDelta - initialBalanceDelta;
-                        if (finalBalanceDelta.abs() > 0.01) {
-                          await accountProvider.adjustBalance(account.id, finalBalanceDelta);
+                        // 直接调整余额到目标值
+                        final balanceDelta = newBalance - account.currentBalance;
+                        if (balanceDelta.abs() > 0.01) {
+                          await accountProvider.adjustBalance(account.id, balanceDelta);
                         }
 
                         if (context.mounted) Navigator.pop(context);

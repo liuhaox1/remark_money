@@ -47,8 +47,8 @@ class AddAccountTypePage extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
                 if (option.subtype == AccountSubtype.savingCard) {
                   final result = await Navigator.push<AccountKind>(
                     context,
@@ -85,19 +85,31 @@ class AddAccountTypePage extends StatelessWidget {
                   }
                   return;
                 }
-                final result = await Navigator.push<AccountKind>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AccountFormPage(
-                      kind: option.kind,
-                      subtype: option.subtype,
+                if (option.subtype == AccountSubtype.invest) {
+                  final result = await Navigator.push<AccountKind>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => InvestAccountSelectionPage(option: option),
                     ),
-                  ),
-                );
-                if (result != null && context.mounted) {
-                  Navigator.pop(context, result);
+                  );
+                  if (result != null && context.mounted) {
+                    Navigator.pop(context, result);
+                  }
+                  return;
                 }
-              },
+              final result = await Navigator.push<AccountKind>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AccountFormPage(
+                    kind: option.kind,
+                    subtype: option.subtype,
+                  ),
+                ),
+              );
+              if (result != null && context.mounted) {
+                Navigator.pop(context, result);
+              }
+            },
             ),
           );
         },
@@ -168,20 +180,12 @@ const List<_AccountTypeOption> _options = [
     color: Color(0xFFFFB300),
   ),
   _AccountTypeOption(
-    title: '负债账户',
+    title: '负债',
     subtitle: '贷款/借入等',
     kind: AccountKind.liability,
     subtype: AccountSubtype.loan,
     icon: Icons.account_balance_wallet_outlined,
     color: Color(0xFFFF7043),
-  ),
-  _AccountTypeOption(
-    title: '债权账户',
-    subtitle: '应收/借出',
-    kind: AccountKind.lend,
-    subtype: AccountSubtype.receivable,
-    icon: Icons.swap_horiz_outlined,
-    color: Color(0xFF29B6F6),
   ),
   _AccountTypeOption(
     title: '自定义资产',
@@ -432,6 +436,113 @@ class VirtualAccountSelectionPage extends StatelessWidget {
                       presetName: item.presetName,
                       customTitle: null,
                       showAdvancedSettings: item.showAdvancedSettings,
+                    ),
+                  ),
+                );
+                if (result != null && context.mounted) {
+                  Navigator.pop(context, result);
+                }
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _InvestAccountOption {
+  const _InvestAccountOption({
+    required this.title,
+    required this.subtitle,
+    required this.presetName,
+    required this.color,
+    required this.icon,
+  });
+
+  final String title;
+  final String subtitle;
+  final String presetName;
+  final Color color;
+  final IconData icon;
+}
+
+const List<_InvestAccountOption> _investOptions = [
+  _InvestAccountOption(
+    title: '股票',
+    subtitle: '股票账户',
+    presetName: '股票',
+    color: Color(0xFFFFB300),
+    icon: Icons.trending_up,
+  ),
+  _InvestAccountOption(
+    title: '基金',
+    subtitle: '基金账户',
+    presetName: '基金',
+    color: Color(0xFFFFC400),
+    icon: Icons.account_balance,
+  ),
+  _InvestAccountOption(
+    title: '其他',
+    subtitle: '其他投资账户',
+    presetName: '投资账户',
+    color: Color(0xFFFFD54F),
+    icon: Icons.account_balance_wallet_outlined,
+  ),
+];
+
+class InvestAccountSelectionPage extends StatelessWidget {
+  const InvestAccountSelectionPage({super.key, required this.option});
+
+  final _AccountTypeOption option;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFFCEF),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFFFD54F),
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: const Text('选择投资账户'),
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _investOptions.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final item = _investOptions[index];
+          return Container(
+            color: Colors.white,
+            child: ListTile(
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: item.color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(item.icon, color: item.color),
+              ),
+              title: Text(
+                item.title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                item.subtitle,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final result = await Navigator.push<AccountKind>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccountFormPage(
+                      kind: option.kind,
+                      subtype: option.subtype,
+                      presetName: item.presetName,
+                      customTitle: item.presetName == '投资账户' ? '其他投资账户' : null,
+                      showAdvancedSettings: false,
                     ),
                   ),
                 );

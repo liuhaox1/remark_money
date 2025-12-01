@@ -34,6 +34,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
   late final TextEditingController _amountCtrl;
   late final TextEditingController _noteCtrl;
   late final TextEditingController _counterpartyCtrl;
+  final FocusNode _amountFocusNode = FocusNode();
   bool _includeInOverview = true;
   DateTime? _dueDate;
   String? _brandKey;
@@ -50,8 +51,15 @@ class _AccountFormPageState extends State<AccountFormPage> {
     // 支付宝和微信使用预设名称，不需要用户输入
     final isVirtual = widget.subtype == AccountSubtype.virtual;
     final isOtherVirtual = isVirtual && widget.presetName == '虚拟账户';
+    // 如果是"其他投资账户"，名称输入框应该为空，让用户自己输入
+    // 股票和基金使用预设名称，不需要用户输入
+    final isInvest = widget.subtype == AccountSubtype.invest;
+    final isOtherInvest = isInvest && widget.presetName == '投资账户';
+    // 负债和自定义资产名称输入框应该为空，让用户自己输入
+    final isLoan = widget.subtype == AccountSubtype.loan;
+    final isCustomAsset = widget.subtype == AccountSubtype.customAsset;
     final nameText = account?.name ?? 
-        (isOtherBank || isOtherVirtual ? '' : (widget.presetName ?? _defaultName()));
+        (isOtherBank || isOtherVirtual || isOtherInvest || isLoan || isCustomAsset ? '' : (widget.presetName ?? _defaultName()));
     _nameCtrl = TextEditingController(text: nameText);
     // 编辑时显示当前余额，新建时显示0
     _amountCtrl = TextEditingController(
@@ -63,6 +71,15 @@ class _AccountFormPageState extends State<AccountFormPage> {
     _dueDate = account?.dueDate;
     _brandKey = account?.brandKey ?? widget.initialBrandKey;
     _customTitle = widget.customTitle;
+    
+    // 如果是新建账户，在页面构建后自动聚焦到金额输入框
+    if (account == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _amountFocusNode.requestFocus();
+        }
+      });
+    }
   }
 
   @override
@@ -71,6 +88,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     _amountCtrl.dispose();
     _noteCtrl.dispose();
     _counterpartyCtrl.dispose();
+    _amountFocusNode.dispose();
     super.dispose();
   }
 
@@ -86,7 +104,9 @@ class _AccountFormPageState extends State<AccountFormPage> {
     final isVirtual = subtype == AccountSubtype.virtual;
     final isCash = subtype == AccountSubtype.cash;
     final isSimpleAsset =
-        kind == AccountKind.asset && !isBankCard && !isVirtual && !isCash;
+        kind == AccountKind.asset && !isBankCard && !isVirtual && !isCash && subtype != AccountSubtype.customAsset;
+    final isLoan = subtype == AccountSubtype.loan;
+    final isCustomAsset = subtype == AccountSubtype.customAsset;
 
     // 动态计算标题：如果是储蓄卡/信用卡，优先显示银行名称
     // 如果是虚拟账户（支付宝、微信），显示对应的名称
@@ -100,29 +120,51 @@ class _AccountFormPageState extends State<AccountFormPage> {
           : findBankBrand(_brandKey ?? widget.initialBrandKey);
       if (brand != null && brand.key != 'custom' && brand.key != 'other_credit' && brand.key != 'other_bank') {
         appBarTitle = brand.displayName;
+      } else if (brand != null && brand.key == 'other_credit') {
+        appBarTitle = '其他信用卡';
+      } else if (brand != null && brand.key == 'other_bank') {
+        appBarTitle = '其他银行';
       } else {
         appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
       }
     } else if (isVirtual) {
-      // 虚拟账户：支付宝和微信显示对应名称
+      // 虚拟账户：支付宝和微信显示对应名称，"其他虚拟账户"显示"其他虚拟账户"
       if (widget.presetName == '支付宝' || widget.presetName == '微信') {
         appBarTitle = widget.presetName!;
+      } else if (widget.presetName == '虚拟账户') {
+        appBarTitle = '其他虚拟账户';
       } else {
         appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
       }
+    } else if (subtype == AccountSubtype.invest) {
+      // 投资账户：股票、基金显示对应名称，"其他投资账户"显示"其他投资账户"
+      if (widget.presetName == '股票' || widget.presetName == '基金') {
+        appBarTitle = widget.presetName!;
+      } else if (widget.presetName == '投资账户') {
+        appBarTitle = _customTitle ?? '其他投资账户';
+      } else {
+        appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
+      }
+    } else if (subtype == AccountSubtype.loan) {
+      appBarTitle = '负债';
+    } else if (subtype == AccountSubtype.customAsset) {
+      appBarTitle = '自定义资产';
     } else {
       appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
     }
 
     return Scaffold(
-      backgroundColor: (isBankCard || isVirtual || isCash)
+      backgroundColor: (isBankCard || isVirtual || isCash || isLoan || isCustomAsset)
           ? const Color(0xFFFFFCEF)
           : null,
       appBar: AppBar(
-        backgroundColor:
-            (isBankCard || isVirtual || isCash) ? const Color(0xFFFFD54F) : null,
-        foregroundColor: (isBankCard || isVirtual || isCash) ? Colors.black : null,
-        elevation: (isBankCard || isVirtual || isCash) ? 0 : null,
+        backgroundColor: (isBankCard || isVirtual || isCash || isLoan || isCustomAsset)
+            ? const Color(0xFFFFD54F)
+            : null,
+        foregroundColor: (isBankCard || isVirtual || isCash || isLoan || isCustomAsset)
+            ? Colors.black
+            : null,
+        elevation: (isBankCard || isVirtual || isCash || isLoan || isCustomAsset) ? 0 : null,
         title: Text(appBarTitle),
       ),
       body: isBankCard
@@ -133,6 +175,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   ? _buildCashForm(context, kind, subtype, isEditing)
               : isSimpleAsset
                   ? _buildSimpleAssetForm(context, kind, subtype, isEditing)
+              : isLoan || isCustomAsset
+                  ? _buildSimpleForm(context, kind, subtype, isEditing)
                   : _buildDefaultForm(context, kind, subtype, isEditing),
     );
   }
@@ -148,7 +192,9 @@ class _AccountFormPageState extends State<AccountFormPage> {
           return '借出/应收账户';
       }
     }();
-    final hideSubtypeLabel = subtype == AccountSubtype.virtual;
+    // 虚拟账户和投资账户都不显示 subtype 标签
+    final hideSubtypeLabel = subtype == AccountSubtype.virtual || 
+                            subtype == AccountSubtype.invest;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -361,7 +407,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 ),
                 _buildBankInputRow(
                   context,
-                  label: '余额',
+                  label: subtype == AccountSubtype.creditCard ? '金额' : '余额',
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
                     keyboardType:
@@ -370,6 +416,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     enabled: !isEditing,
                     helperText:
                         isEditing ? '请前往账户详情页>调整余额进行修改' : null,
+                    focusNode: !isEditing ? _amountFocusNode : null,
                   ),
                 ),
               ],
@@ -406,8 +453,6 @@ class _AccountFormPageState extends State<AccountFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildTypeHeader(kind, subtype),
-          const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -476,7 +521,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     );
   }
 
-  Widget _buildSimpleAssetForm(
+  Widget _buildSimpleForm(
     BuildContext context,
     AccountKind kind,
     AccountSubtype subtype,
@@ -487,8 +532,6 @@ class _AccountFormPageState extends State<AccountFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildTypeHeader(kind, subtype),
-          const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -524,12 +567,104 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 const Divider(height: 1),
                 _buildBankInputRow(
                   context,
+                  label: '金额',
+                  child: _buildPlainTextField(
+                    controller: _amountCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.right,
+                    enabled: !isEditing,
+                    helperText:
+                        isEditing ? '请前往账户详情页>调整余额进行修改' : null,
+                    focusNode: !isEditing ? _amountFocusNode : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD54F),
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: () => _handleSubmit(kind, subtype, isEditing),
+              child: Text(isEditing ? '保存' : '添加账户'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleAssetForm(
+    BuildContext context,
+    AccountKind kind,
+    AccountSubtype subtype,
+    bool isEditing,
+  ) {
+    // 投资账户：股票和基金不需要名称输入框，只有"其他投资账户"才需要
+    final isInvest = subtype == AccountSubtype.invest;
+    final isOtherInvest = isInvest && widget.presetName == '投资账户';
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 投资账户不显示类型标签
+          if (!isInvest) ...[
+            _buildTypeHeader(kind, subtype),
+            const SizedBox(height: 12),
+          ],
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // 只有"其他投资账户"才显示名称输入框
+                if (isOtherInvest) ...[
+                  _buildBankInputRow(
+                    context,
+                    label: '名称',
+                    child: _buildPlainTextField(
+                      controller: _nameCtrl,
+                      textAlign: TextAlign.right,
+                      hintText: '请输入账户名称',
+                    ),
+                  ),
+                  const Divider(height: 1),
+                ],
+                _buildBankInputRow(
+                  context,
+                  label: '备注',
+                  child: _buildPlainTextField(
+                    controller: _noteCtrl,
+                    hintText: '（选填）',
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildBankInputRow(
+                  context,
                   label: '余额',
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
+                    focusNode: !isEditing ? _amountFocusNode : null,
                   ),
                 ),
               ],
@@ -878,7 +1013,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
     bool enabled = true,
     String? helperText,
     TextAlign textAlign = TextAlign.right,
-  bool autofocus = false,
+    bool autofocus = false,
+    FocusNode? focusNode,
   }) {
     return Column(
     crossAxisAlignment: CrossAxisAlignment.end,
@@ -889,7 +1025,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
           enabled: enabled,
           keyboardType: keyboardType,
           textAlign: textAlign,
-        autofocus: autofocus,
+          autofocus: autofocus,
+          focusNode: focusNode,
           decoration: InputDecoration(
             hintText: hintText,
             border: InputBorder.none,

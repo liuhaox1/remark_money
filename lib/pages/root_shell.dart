@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/account.dart';
@@ -511,6 +512,40 @@ class _AccountTile extends StatelessWidget {
   final Account account;
   final bool isLast;
 
+  Future<void> _handleDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除账户'),
+        content: Text('确定删除账户"${account.name}"吗？删除后无法恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.danger,
+            ),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed) return;
+
+    final accountProvider = context.read<AccountProvider>();
+    await accountProvider.deleteAccount(account.id);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('账户已删除')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -521,7 +556,7 @@ class _AccountTile extends StatelessWidget {
         : (isDebt ? Colors.orange : AppColors.amount(account.currentBalance));
     final icon = _iconForAccount(account);
 
-    return InkWell(
+    final tileContent = InkWell(
       onTap: () {
         Navigator.push(
           context,
@@ -622,6 +657,24 @@ class _AccountTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+
+    return Slidable(
+      key: ValueKey(account.id),
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.22,
+        children: [
+          SlidableAction(
+            onPressed: (_) => _handleDelete(context),
+            backgroundColor: AppColors.danger,
+            foregroundColor: Colors.white,
+            label: '删除',
+            icon: Icons.delete_outline,
+          ),
+        ],
+      ),
+      child: tileContent,
     );
   }
 
@@ -1044,11 +1097,6 @@ List<_AccountGroupData> _groupAccounts(List<Account> accounts) {
       title: '负债（贷款 / 借入）',
       kind: AccountKind.liability,
       subtypes: [AccountSubtype.loan.code],
-    ),
-    _GroupDefinition(
-      title: '债权（应收 / 借出）',
-      kind: AccountKind.lend,
-      subtypes: [AccountSubtype.receivable.code],
     ),
   ];
 
