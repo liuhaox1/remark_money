@@ -50,47 +50,66 @@ class ChartBar extends StatelessWidget {
         ),
       );
     }
-    // 为了避免最高一档的刻度和柱状贴在顶部，被裁剪或显得太拥挤，
-    // 这里适当放大一点最大值，给顶部预留更多空间。
-    final maxY = maxValue <= 0 ? 1.0 : maxValue * 1.35;
 
-    return BarChart(
-      BarChartData(
-        maxY: maxY,
-        minY: 0,
-        borderData: FlBorderData(show: false),
-        gridData: FlGridData(show: true, drawHorizontalLine: true),
-        titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true, reservedSize: 42),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, _) {
-                final index = value.toInt();
-                if (index < 0 || index >= entries.length) {
-                  return const SizedBox.shrink();
-                }
-                final entry = entries[index];
-                return Transform.rotate(
-                  angle: -0.7,
-                  child: Text(
-                    entry.label,
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                );
-              },
+    // 为了避免最高一档的刻度和柱状贴在顶部，被裁剪或显得太拥挤，
+    // 这里对 maxY 做“向上取整”，同时尽量保持刻度是好看的整数。
+    double maxY;
+    if (maxValue <= 0) {
+      maxY = 1.0;
+    } else {
+      final rawMax = maxValue * 1.1; // 留一点 10% 的顶部空间
+      double step;
+      if (maxValue <= 20) {
+        step = 2;
+      } else if (maxValue <= 100) {
+        step = 10;
+      } else {
+        step = 50;
+      }
+      maxY = (rawMax / step).ceil() * step;
+    }
+
+    return Padding(
+      // 给图表顶部和底部一点内边距，防止 Y 轴最上面的数字被容器圆角裁剪
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: BarChart(
+        BarChartData(
+          maxY: maxY,
+          minY: 0,
+          borderData: FlBorderData(show: false),
+          gridData: FlGridData(show: true, drawHorizontalLine: true),
+          titlesData: FlTitlesData(
+            leftTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: true, reservedSize: 42),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, _) {
+                  final index = value.toInt();
+                  if (index < 0 || index >= entries.length) {
+                    return const SizedBox.shrink();
+                  }
+                  final entry = entries[index];
+                  return Transform.rotate(
+                    angle: -0.7,
+                    child: Text(
+                      entry.label,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
+          barGroups: barGroups,
         ),
-        barGroups: barGroups,
       ),
     );
   }

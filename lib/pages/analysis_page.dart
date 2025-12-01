@@ -91,6 +91,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   income: yearIncome,
                   expense: yearExpense,
                   balance: yearBalance,
+                  periodType: _periodType,
                 ),
                 const SizedBox(height: 4),
                 if (hasYearRecords)
@@ -347,6 +348,7 @@ class _HeaderCard extends StatelessWidget {
     required this.income,
     required this.expense,
     required this.balance,
+    required this.periodType,
   });
 
   final bool isDark;
@@ -356,6 +358,7 @@ class _HeaderCard extends StatelessWidget {
   final double income;
   final double expense;
   final double balance;
+  final PeriodType periodType;
 
   @override
   Widget build(BuildContext context) {
@@ -404,7 +407,7 @@ class _HeaderCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              AppStrings.yearLabel(year),
+              _periodLabel(),
               style: TextStyle(
                 fontSize: 13,
                 color: cs.outline,
@@ -442,6 +445,18 @@ class _HeaderCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _periodLabel() {
+    final yearLabel = AppStrings.yearLabel(year);
+    switch (periodType) {
+      case PeriodType.week:
+        return '$yearLabel · 周账单';
+      case PeriodType.month:
+        return '$yearLabel · 月账单';
+      case PeriodType.year:
+        return '$yearLabel · 年度账单';
+    }
   }
 }
 

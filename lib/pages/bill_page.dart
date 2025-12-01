@@ -680,7 +680,6 @@ class _BillPageState extends State<BillPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ----------------- 标题 -----------------
           Text(
             title,
             style: TextStyle(
@@ -699,20 +698,14 @@ class _BillPageState extends State<BillPage> {
               ),
             ),
           ],
-          const SizedBox(height: 10),
-
-          // ----------------- 收入 / 支出 -----------------
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _line(AppStrings.income, income, AppColors.success),
-              _line(AppStrings.expense, expense, AppColors.danger),
-              _line(
-                AppStrings.balance,
-                balance,
-                AppColors.amount(balance),
-              ),
-            ],
+          const SizedBox(height: 8),
+          Text(
+            '本期收入 ${income.toStringAsFixed(2)} 元 · 支出 ${expense.toStringAsFixed(2)} 元 · 结余 ${balance.toStringAsFixed(2)} 元',
+            style: TextStyle(
+              fontSize: 13,
+              color: cs.onSurface.withOpacity(0.75),
+              fontWeight: FontWeight.w500,
+            ),
           )
         ],
       ),

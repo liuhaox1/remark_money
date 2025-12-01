@@ -94,18 +94,23 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         _showIncomeCategory ? incomeEntries : expenseEntries;
     final ranking = List<ChartEntry>.from(expenseEntries)
       ..sort((a, b) => b.value.compareTo(a.value));
-    final dailyEntries =
-        (_isMonthMode || _isWeekMode)
-            ? _buildDailyEntries(recordProvider, bookId, cs)
-            : <ChartEntry>[];
-    final compareEntries =
-        _buildRecentPeriodEntries(recordProvider, bookId, cs);
+    final dailyEntries = (_isMonthMode || _isWeekMode)
+        ? _buildDailyEntries(recordProvider, bookId, cs)
+        : <ChartEntry>[];
+    // 近 6 期对比：
+    // - 周模式：近 6 周支出对比
+    // - 年模式：近 6 个月支出对比
+    // - 月模式：不展示（避免与当前月的日趋势混淆）
+    final compareEntries = (_isWeekMode || _isYearMode)
+        ? _buildRecentPeriodEntries(recordProvider, bookId, cs)
+        : <ChartEntry>[];
 
     final activity = _periodActivity(recordProvider, bookId);
     final totalExpenseValue =
         distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
-    final compareTitle =
-        _isWeekMode ? '\u8fd1 6 \u5468\u5bf9\u6bd4' : AppStrings.recentMonthCompare;
+    final compareTitle = _isWeekMode
+        ? '近 6 周支出对比'
+        : AppStrings.recentMonthCompare; // 年度视图：近 6 个月支出对比
     const emptyText = AppStrings.emptyPeriodRecords;
     String? weeklySummaryText;
     if (_isWeekMode && hasData) {
@@ -556,8 +561,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     }
 
     final categories = categoryProvider.categories;
-    final palette = [
-      const Color(0xFF3B82F6), // 钃?      const Color(0xFFF59E0B), // 姗?      const Color(0xFF10B981), // 缁?      const Color(0xFFE11D48), // 绾?      const Color(0xFF8B5CF6), // 绱?      const Color(0xFF06B6D4), // 闈?      const Color(0xFF84CC16), // 榛勭豢
+    // 统一的分类调色板：保证不同分类在饼图/柱状图中使用不同的颜色
+    const palette = <Color>[
+      Color(0xFF3B82F6), // 蓝
+      Color(0xFFF59E0B), // 橙
+      Color(0xFF10B981), // 绿
+      Color(0xFFE11D48), // 红
+      Color(0xFF8B5CF6), // 紫
+      Color(0xFF06B6D4), // 青
+      Color(0xFF84CC16), // 黄绿
     ];
     var colorIndex = 0;
     final entries = <ChartEntry>[];
@@ -646,7 +658,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           ),
         );
       }
-    } else if (_isMonthMode) {
+    } else if (_isYearMode) {
+      // 年度模式：展示最近 6 个月的总支出对比
       final baseMonth = DateTime(widget.year, widget.month ?? 12, 1);
       for (var i = 5; i >= 0; i--) {
         final month = DateTime(baseMonth.year, baseMonth.month - i, 1);
