@@ -43,9 +43,16 @@ class _AccountFormPageState extends State<AccountFormPage> {
   void initState() {
     super.initState();
     final account = widget.account;
-    _nameCtrl = TextEditingController(
-      text: account?.name ?? widget.presetName ?? _defaultName(),
-    );
+    // 如果是"其他银行"或"其他信用卡"，名称输入框应该为空，让用户自己输入
+    final isOtherBank = (widget.initialBrandKey == 'other_bank' || 
+                        widget.initialBrandKey == 'other_credit');
+    // 如果是"其他虚拟账户"，名称输入框应该为空，让用户自己输入
+    // 支付宝和微信使用预设名称，不需要用户输入
+    final isVirtual = widget.subtype == AccountSubtype.virtual;
+    final isOtherVirtual = isVirtual && widget.presetName == '虚拟账户';
+    final nameText = account?.name ?? 
+        (isOtherBank || isOtherVirtual ? '' : (widget.presetName ?? _defaultName()));
+    _nameCtrl = TextEditingController(text: nameText);
     // 编辑时显示当前余额，新建时显示0
     _amountCtrl = TextEditingController(
       text: account != null ? account.currentBalance.toStringAsFixed(2) : '',
@@ -82,6 +89,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
         kind == AccountKind.asset && !isBankCard && !isVirtual && !isCash;
 
     // 动态计算标题：如果是储蓄卡/信用卡，优先显示银行名称
+    // 如果是虚拟账户（支付宝、微信），显示对应的名称
     String appBarTitle;
     if (isCash) {
       appBarTitle = '现金';
@@ -92,6 +100,13 @@ class _AccountFormPageState extends State<AccountFormPage> {
           : findBankBrand(_brandKey ?? widget.initialBrandKey);
       if (brand != null && brand.key != 'custom' && brand.key != 'other_credit' && brand.key != 'other_bank') {
         appBarTitle = brand.displayName;
+      } else {
+        appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
+      }
+    } else if (isVirtual) {
+      // 虚拟账户：支付宝和微信显示对应名称
+      if (widget.presetName == '支付宝' || widget.presetName == '微信') {
+        appBarTitle = widget.presetName!;
       } else {
         appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
       }
@@ -286,6 +301,9 @@ class _AccountFormPageState extends State<AccountFormPage> {
     }
     final showBankSelectorRow =
         widget.account != null || widget.initialBrandKey == null;
+    // 检查是否是"其他银行"或"其他信用卡"
+    final isOtherBank = (_brandKey ?? widget.initialBrandKey) == 'other_bank' ||
+        (_brandKey ?? widget.initialBrandKey) == 'other_credit';
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       child: Column(
@@ -307,6 +325,19 @@ class _AccountFormPageState extends State<AccountFormPage> {
               children: [
                 if (showBankSelectorRow) ...[
                   _buildBankInfoRow(context),
+                  const Divider(height: 1),
+                ],
+                // 如果是"其他银行"或"其他信用卡"，在最上面显示名称输入框
+                if (isOtherBank) ...[
+                  _buildBankInputRow(
+                    context,
+                    label: '名称',
+                    child: _buildPlainTextField(
+                      controller: _nameCtrl,
+                      textAlign: TextAlign.right,
+                      hintText: '请输入银行名称',
+                    ),
+                  ),
                   const Divider(height: 1),
                 ],
                 _buildBankInputRow(
@@ -368,6 +399,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
     AccountSubtype subtype,
     bool isEditing,
   ) {
+    // 支付宝和微信不需要名称输入框，只有"其他虚拟账户"才需要
+    final isOtherVirtual = widget.presetName == '虚拟账户';
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       child: Column(
@@ -389,15 +422,19 @@ class _AccountFormPageState extends State<AccountFormPage> {
             ),
             child: Column(
               children: [
-                _buildBankInputRow(
-                  context,
-                  label: '名称',
-                  child: _buildPlainTextField(
-                    controller: _nameCtrl,
-                    textAlign: TextAlign.right,
+                // 只有"其他虚拟账户"才显示名称输入框
+                if (isOtherVirtual) ...[
+                  _buildBankInputRow(
+                    context,
+                    label: '名称',
+                    child: _buildPlainTextField(
+                      controller: _nameCtrl,
+                      textAlign: TextAlign.right,
+                      hintText: '请输入账户名称',
+                    ),
                   ),
-                ),
-                const Divider(height: 1),
+                  const Divider(height: 1),
+                ],
                 _buildBankInputRow(
                   context,
                   label: '备注',
@@ -626,26 +663,30 @@ class _AccountFormPageState extends State<AccountFormPage> {
         ),
         const SizedBox(height: 6),
         InkWell(
-          onTap: () async {
-            final selected = await _pickBankBrand(context);
-            if (!mounted) return;
-            setState(() {
-              _brandKey = selected;
-              final subtype = widget.account != null
-                  ? AccountSubtype.fromCode(widget.account!.subtype)
-                  : widget.subtype;
-              final isCreditCard = subtype == AccountSubtype.creditCard;
-              final pickedBrand = isCreditCard
-                  ? findCreditCardBrand(selected)
-                  : findBankBrand(selected);
-              if (pickedBrand != null && 
-                  pickedBrand.key != 'custom' && 
-                  pickedBrand.key != 'other_credit' && 
-                  pickedBrand.key != 'other_bank') {
-                _customTitle = pickedBrand.displayName;
-              }
-            });
-          },
+      onTap: () async {
+        final selected = await _pickBankBrand(context);
+        if (!mounted) return;
+        setState(() {
+          _brandKey = selected;
+          final subtype = widget.account != null
+              ? AccountSubtype.fromCode(widget.account!.subtype)
+              : widget.subtype;
+          final isCreditCard = subtype == AccountSubtype.creditCard;
+          final pickedBrand = isCreditCard
+              ? findCreditCardBrand(selected)
+              : findBankBrand(selected);
+          // 如果选择了"其他银行"或"其他信用卡"，清空名称输入框，让用户自己输入
+          if (selected == 'other_bank' || selected == 'other_credit') {
+            _nameCtrl.clear();
+            _customTitle = null;
+          } else if (pickedBrand != null && 
+              pickedBrand.key != 'custom' && 
+              pickedBrand.key != 'other_credit' && 
+              pickedBrand.key != 'other_bank') {
+            _customTitle = pickedBrand.displayName;
+          }
+        });
+      },
           borderRadius: BorderRadius.circular(10),
           child: Container(
             width: double.infinity,
