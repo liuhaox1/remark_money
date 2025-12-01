@@ -50,7 +50,9 @@ class ChartBar extends StatelessWidget {
         ),
       );
     }
-    final maxY = maxValue <= 0 ? 1.0 : maxValue * 1.2;
+    // 为了避免最高一档的刻度和柱状贴在顶部，被裁剪或显得太拥挤，
+    // 这里适当放大一点最大值，给顶部预留更多空间。
+    final maxY = maxValue <= 0 ? 1.0 : maxValue * 1.35;
 
     return BarChart(
       BarChartData(

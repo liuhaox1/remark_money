@@ -818,25 +818,30 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildEmptyState(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.hourglass_empty_rounded, size: 72, color: cs.outline),
-          const SizedBox(height: 12),
-          const Text(
-            AppStrings.emptyToday,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.hourglass_empty_rounded, size: 72, color: cs.outline),
+              const SizedBox(height: 12),
+              const Text(
+                AppStrings.emptyToday,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              const Text(AppStrings.quickAddHint),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _openAddRecordPage,
+                icon: const Icon(Icons.add),
+                label: const Text(AppStrings.quickAdd),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          const Text(AppStrings.quickAddHint),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _openAddRecordPage,
-            icon: const Icon(Icons.add),
-            label: const Text(AppStrings.quickAdd),
-          ),
-        ],
+        ),
       ),
     );
   }
