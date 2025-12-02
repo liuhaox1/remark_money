@@ -193,12 +193,42 @@ class _BillPageState extends State<BillPage> {
             icon: const Icon(Icons.filter_alt_outlined),
             onPressed: _openFilterSheet,
           ),
-          TextButton(
-            onPressed: () => _openReportDetail(context, bookId),
-            child: const Text(
-              AppStrings.report,
-              style: TextStyle(fontSize: 14),
-            ),
+          Builder(
+            builder: (context) {
+              final cs = Theme.of(context).colorScheme;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: OutlinedButton.icon(
+                  onPressed: () => _openReportDetail(context, bookId),
+                  icon: Icon(
+                    Icons.bar_chart_outlined,
+                    size: 18,
+                    color: cs.primary,
+                  ),
+                  label: Text(
+                    AppStrings.report,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.primary,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    side: BorderSide(
+                      color: cs.primary.withOpacity(0.3),
+                      width: 1,
+                    ),
+                    backgroundColor: cs.primary.withOpacity(0.05),
+                  ),
+                ),
+              );
+            },
           ),
           IconButton(
             tooltip: '导出数据',

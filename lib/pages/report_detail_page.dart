@@ -24,6 +24,7 @@ import '../repository/category_repository.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../widgets/chart_bar.dart';
+import '../widgets/chart_line.dart';
 import '../widgets/chart_pie.dart';
 import '../widgets/book_selector_button.dart';
 import 'add_record_page.dart';
@@ -190,6 +191,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   totalExpenseValue: totalExpenseValue,
                   ranking: ranking,
                   totalRankingValue: totalRankingValue,
+                  categoryProvider: categoryProvider,
                   dailyEntries: dailyEntries,
                   compareEntries: compareEntries,
                   compareTitle: compareTitle,
@@ -224,6 +226,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     required double totalExpenseValue,
     required List<ChartEntry> ranking,
     required double totalRankingValue,
+    required CategoryProvider categoryProvider,
     required List<ChartEntry> dailyEntries,
     required List<ChartEntry> compareEntries,
     required String compareTitle,
@@ -295,9 +298,69 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                               ),
                             )
                           else ...[
-                            SizedBox(
-                              height: 200,
-                              child: ChartPie(entries: distributionEntries),
+                            // 饼图和分类列表横向布局
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // 左侧：饼图
+                                SizedBox(
+                                  width: 120,
+                                  height: 120,
+                                  child: ChartPie(entries: distributionEntries),
+                                ),
+                                const SizedBox(width: 16),
+                                // 右侧：分类列表
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      for (final entry in distributionEntries)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 12),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                width: 12,
+                                                height: 12,
+                                                margin: const EdgeInsets.only(top: 2),
+                                                decoration: BoxDecoration(
+                                                  color: entry.color,
+                                                  borderRadius:
+                                                      BorderRadius.circular(3),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Text(
+                                                  entry.label,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: cs.onSurface.withOpacity(0.9),
+                                                  ),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: 100,
+                                                child: Text(
+                                                  '${_formatAmount(entry.value)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: cs.onSurface,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                  textAlign: TextAlign.right,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 12),
                             Text(
@@ -314,55 +377,36 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                 height: 1.5,
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            for (final entry in distributionEntries)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      width: 12,
-                                      height: 12,
-                                      margin: const EdgeInsets.only(top: 2),
-                                      decoration: BoxDecoration(
-                                        color: entry.color,
-                                        borderRadius:
-                                            BorderRadius.circular(3),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        entry.label,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: cs.onSurface.withOpacity(0.9),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      width: 130,
-                                      child: Text(
-                                        '${_formatAmount(entry.value)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: cs.onSurface,
-                                          letterSpacing: 0.2,
-                                        ),
-                                        textAlign: TextAlign.right,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                           ],
                         ],
                       ),
                     ),
                     const SizedBox(height: 16),
+                    // 支出排行TOP3
+                    if (ranking.isNotEmpty)
+                      _SectionCard(
+                        title: _showIncomeCategory
+                            ? '收入排行'
+                            : AppStrings.expenseRanking,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (var i = 0; i < ranking.take(3).length; i++)
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: i < 2 ? 16 : 0,
+                                ),
+                                child: _RankingItem(
+                                  rank: i + 1,
+                                  entry: ranking[i],
+                                  categoryProvider: categoryProvider,
+                                  cs: cs,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    if (ranking.isNotEmpty) const SizedBox(height: 16),
                     _SectionCard(
                       title: AppStrings.dailyTrend,
                       child: dailyEntries.isEmpty
@@ -398,29 +442,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                 ),
                               ),
                             )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(
-                                  height: 200,
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: SizedBox(
-                                      width: max(340, dailyEntries.length * 24),
-                                      child: ChartBar(entries: dailyEntries),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  AppStrings.chartDailyTrendDesc,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: cs.onSurface.withOpacity(0.6),
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ],
+                          : _buildDailyTrendContent(
+                              dailyEntries: dailyEntries,
+                              totalExpense: expense,
+                              cs: cs,
                             ),
                     ),
                     if (compareEntries.isNotEmpty) ...[
@@ -610,6 +635,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             totalExpenseValue: totalExpenseValue,
             ranking: ranking,
             totalRankingValue: totalRankingValue,
+            categoryProvider: categoryProvider,
             dailyEntries: dailyEntries,
             compareEntries: compareEntries,
             compareTitle: compareTitle,
@@ -947,11 +973,27 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     String bookId,
     ColorScheme cs,
   ) {
-    final range = _periodRange();
-    final dayCount = range.end.difference(range.start).inDays + 1;
+    // 日趋势的横轴应该覆盖完整周期：
+    // - 月视图：当月 1 号 ~ 当月最后一天（即使还没到月底，后面的天数也显示为 0）
+    // - 周视图：本周 7 天
+    final baseRange = _periodRange();
+    DateTime start = baseRange.start;
+    DateTime end = baseRange.end;
+
+    if (_isMonthMode) {
+      // 当月从 1 号到最后一天
+      start = DateTime(start.year, start.month, 1);
+      end = DateTime(start.year, start.month + 1, 0);
+    } else if (_isWeekMode) {
+      // 确保是完整的一周（7 天）
+      start = DateUtilsX.startOfWeek(start);
+      end = start.add(const Duration(days: 6));
+    }
+
+    final dayCount = end.difference(start).inDays + 1;
     final days = List.generate(
       dayCount,
-      (i) => range.start.add(Duration(days: i)),
+      (i) => start.add(Duration(days: i)),
     );
 
     return days
@@ -963,6 +1005,100 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           ),
         )
         .toList();
+  }
+
+  // 构建日趋势内容（包含统计摘要和图表）
+  Widget _buildDailyTrendContent({
+    required List<ChartEntry> dailyEntries,
+    required double totalExpense,
+    required ColorScheme cs,
+  }) {
+    // 使用和 _buildDailyEntries 相同的逻辑计算范围
+    final baseRange = _periodRange();
+    DateTime start = baseRange.start;
+    DateTime end = baseRange.end;
+
+    if (_isMonthMode) {
+      // 当月从 1 号到最后一天
+      start = DateTime(start.year, start.month, 1);
+      end = DateTime(start.year, start.month + 1, 0);
+    } else if (_isWeekMode) {
+      // 确保是完整的一周（7 天）
+      start = DateUtilsX.startOfWeek(start);
+      end = start.add(const Duration(days: 6));
+    }
+
+    final dayCount = end.difference(start).inDays + 1;
+    final days = List.generate(
+      dayCount,
+      (i) => start.add(Duration(days: i)),
+    );
+
+    // 计算统计数据 - 确保索引匹配
+    double maxDailyExpense = 0;
+    DateTime? maxDate;
+    // dailyEntries 的长度应该和 days 的长度一致
+    final minLength = min(dailyEntries.length, days.length);
+    for (var i = 0; i < minLength; i++) {
+      if (dailyEntries[i].value > maxDailyExpense) {
+        maxDailyExpense = dailyEntries[i].value;
+        maxDate = days[i];
+      }
+    }
+
+    final avgDailyExpense = dayCount > 0 ? totalExpense / dayCount : 0.0;
+    final periodLabel = _isWeekMode ? '本周' : _isMonthMode ? '本月' : '本期';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 统计摘要
+        Row(
+          children: [
+            Expanded(
+              child: _DailyTrendStatItem(
+                label: '单日支出最高',
+                value: maxDailyExpense,
+                date: maxDate,
+                cs: cs,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _DailyTrendStatItem(
+                label: '日均支出',
+                value: avgDailyExpense,
+                cs: cs,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _DailyTrendStatItem(
+                label: '$periodLabel支出',
+                value: totalExpense,
+                cs: cs,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // 图表：直接在卡片宽度内显示所有天数
+        SizedBox(
+          height: 200,
+          width: double.infinity,
+          child: ChartLine(entries: dailyEntries),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          AppStrings.chartDailyTrendDesc,
+          style: TextStyle(
+            fontSize: 12,
+            color: cs.onSurface.withOpacity(0.6),
+            height: 1.5,
+          ),
+        ),
+      ],
+    );
   }
 
   List<ChartEntry> _buildRecentPeriodEntries(
@@ -1547,4 +1683,181 @@ class _PeriodComparison {
 
   final double balance;
   final bool hasData;
+}
+
+// 排行项组件
+class _RankingItem extends StatelessWidget {
+  const _RankingItem({
+    required this.rank,
+    required this.entry,
+    required this.categoryProvider,
+    required this.cs,
+  });
+
+  final int rank;
+  final ChartEntry entry;
+  final CategoryProvider categoryProvider;
+  final ColorScheme cs;
+
+  String _formatAmount(double value) {
+    final abs = value.abs();
+    if (abs >= 100000000) {
+      return '${(value / 100000000).toStringAsFixed(1)}${AppStrings.unitYi}';
+    }
+    if (abs >= 10000) {
+      return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
+    }
+    return value.toStringAsFixed(2);
+  }
+
+  Category _findCategoryByLabel(String label) {
+    // 尝试通过名称匹配分类
+    final categories = categoryProvider.categories;
+    try {
+      return categories.firstWhere(
+        (c) => c.name == label,
+      );
+    } catch (_) {
+      // 如果精确匹配失败，尝试模糊匹配
+      try {
+        return categories.firstWhere(
+          (c) => c.name.contains(label) || label.contains(c.name),
+        );
+      } catch (_) {
+        // 如果都找不到，返回默认分类
+        return Category(
+          key: '',
+          name: label,
+          icon: Icons.category_outlined,
+          isExpense: true,
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final category = _findCategoryByLabel(entry.label);
+    return Row(
+      children: [
+        // 排名
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: cs.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Center(
+            child: Text(
+              rank.toString(),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.primary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // 分类图标
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: entry.color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            category.icon,
+            size: 18,
+            color: entry.color,
+          ),
+        ),
+        const SizedBox(width: 12),
+        // 分类名称
+        Expanded(
+          child: Text(
+            entry.label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: cs.onSurface.withOpacity(0.9),
+            ),
+          ),
+        ),
+        // 金额
+        Text(
+          _formatAmount(entry.value),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// 日趋势统计项组件
+class _DailyTrendStatItem extends StatelessWidget {
+  const _DailyTrendStatItem({
+    required this.label,
+    required this.value,
+    this.date,
+    required this.cs,
+  });
+
+  final String label;
+  final double value;
+  final DateTime? date;
+  final ColorScheme cs;
+
+  String _formatAmount(double value) {
+    final abs = value.abs();
+    if (abs >= 100000000) {
+      return '${(value / 100000000).toStringAsFixed(1)}${AppStrings.unitYi}';
+    }
+    if (abs >= 10000) {
+      return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
+    }
+    return value.toStringAsFixed(2);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: cs.onSurface.withOpacity(0.6),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _formatAmount(value),
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (date != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            '${date!.month}月${date!.day}日',
+            style: TextStyle(
+              fontSize: 10,
+              color: cs.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }

@@ -48,7 +48,7 @@ class _HomePageState extends State<HomePage> {
   List<Record> _currentVisibleRecords = const [];
   final Map<DateTime, GlobalKey> _dayHeaderKeys = {};
   final String _searchKeyword = '';
-  String? _filterCategoryKey;
+  Set<String> _filterCategoryKeys = {}; // 改为多选
   double? _minAmount;
   double? _maxAmount;
   // 添加新的筛选状态变量
@@ -210,9 +210,11 @@ class _HomePageState extends State<HomePage> {
       }).toList();
     }
 
-    if (_filterCategoryKey != null) {
-      filtered =
-          filtered.where((r) => r.categoryKey == _filterCategoryKey).toList();
+    // 支持多分类筛选
+    if (_filterCategoryKeys.isNotEmpty) {
+      filtered = filtered
+          .where((r) => _filterCategoryKeys.contains(r.categoryKey))
+          .toList();
     }
 
     if (_minAmount != null) {
@@ -259,7 +261,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openFilterSheet() async {
     final categories = context.read<CategoryProvider>().categories;
-    String? tempCategoryKey = _filterCategoryKey;
+    Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys); // 多选
     final minCtrl = TextEditingController(
       text: _minAmount != null ? _minAmount!.toString() : '',
     );
@@ -317,25 +319,28 @@ class _HomePageState extends State<HomePage> {
                       Builder(
                         builder: (context) {
                           final chips = <Widget>[];
-                          if (tempCategoryKey != null) {
-                            final cat = categories.firstWhere(
-                              (c) => c.key == tempCategoryKey,
-                              orElse: () => Category(
-                                key: tempCategoryKey!,
-                                name: '分类',
-                                icon: Icons.category_outlined,
-                                isExpense: true,
-                              ),
-                            );
-                            chips.add(
-                              _buildFilterChip(
-                                label: cat.name,
-                                selected: true,
-                                onSelected: () {
-                                  setModalState(() => tempCategoryKey = null);
-                                },
-                              ),
-                            );
+                          // 多分类显示
+                          if (tempCategoryKeys.isNotEmpty) {
+                            for (final key in tempCategoryKeys) {
+                              final cat = categories.firstWhere(
+                                (c) => c.key == key,
+                                orElse: () => Category(
+                                  key: key,
+                                  name: '分类',
+                                  icon: Icons.category_outlined,
+                                  isExpense: true,
+                                ),
+                              );
+                              chips.add(
+                                _buildFilterChip(
+                                  label: cat.name,
+                                  selected: true,
+                                  onSelected: () {
+                                    setModalState(() => tempCategoryKeys.remove(key));
+                                  },
+                                ),
+                              );
+                            }
                           }
                           if (tempIncomeExpense != null) {
                             chips.add(
@@ -393,17 +398,42 @@ class _HomePageState extends State<HomePage> {
                             );
                           }
 
-                          if (chips.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: chips,
-                            ),
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (chips.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: chips,
+                                  ),
+                                ),
+                              // 一键清除按钮
+                              if (chips.isNotEmpty ||
+                                  minCtrl.text.trim().isNotEmpty ||
+                                  maxCtrl.text.trim().isNotEmpty ||
+                                  tempStartDate != null ||
+                                  tempEndDate != null)
+                                TextButton.icon(
+                                  onPressed: () {
+                                    setModalState(() {
+                                      tempCategoryKeys.clear();
+                                      tempIncomeExpense = null;
+                                      minCtrl.clear();
+                                      maxCtrl.clear();
+                                      tempStartDate = null;
+                                      tempEndDate = null;
+                                    });
+                                  },
+                                  icon: const Icon(Icons.clear_all, size: 18),
+                                  label: const Text('一键清除'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                            ],
                           );
                         },
                       ),
@@ -552,13 +582,18 @@ class _HomePageState extends State<HomePage> {
                                         spacing: 6,
                                         runSpacing: 6,
                                         children: children.map((c) {
-                                          final selected = tempCategoryKey == c.key;
+                                          final selected = tempCategoryKeys.contains(c.key);
                                           return _buildFilterChip(
                                             label: c.name,
                                             selected: selected,
                                             onSelected: () {
-                                              setModalState(() => tempCategoryKey =
-                                                  selected ? null : c.key);
+                                              setModalState(() {
+                                                if (selected) {
+                                                  tempCategoryKeys.remove(c.key);
+                                                } else {
+                                                  tempCategoryKeys.add(c.key);
+                                                }
+                                              });
                                             },
                                           );
                                         }).toList(),
@@ -590,13 +625,18 @@ class _HomePageState extends State<HomePage> {
                               spacing: 6,
                               runSpacing: 6,
                               children: secondLevelCategories.map((c) {
-                                final selected = tempCategoryKey == c.key;
+                                final selected = tempCategoryKeys.contains(c.key);
                                 return _buildFilterChip(
                                   label: c.name,
                                   selected: selected,
                                   onSelected: () {
-                                    setModalState(() => tempCategoryKey =
-                                        selected ? null : c.key);
+                                    setModalState(() {
+                                      if (selected) {
+                                        tempCategoryKeys.remove(c.key);
+                                      } else {
+                                        tempCategoryKeys.add(c.key);
+                                      }
+                                    });
                                   },
                                 );
                               }).toList(),
@@ -792,34 +832,44 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 16),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           TextButton(
                             onPressed: () {
-                              minCtrl.clear();
-                              maxCtrl.clear();
-                              setModalState(() {
-                                tempCategoryKey = null;
-                                tempIncomeExpense = null;
-                                tempStartDate = null;
-                                tempEndDate = null;
-                              });
+                              Navigator.pop(ctx); // 取消，不应用筛选
                             },
-                            child: const Text(AppStrings.reset),
+                            child: const Text(AppStrings.cancel),
                           ),
-                          const SizedBox(width: 8),
-                          FilledButton(
-                            onPressed: () {
-                              Navigator.pop<Map<String, dynamic>>(ctx, {
-                                'categoryKey': tempCategoryKey,
-                                'min': minCtrl.text.trim(),
-                                'max': maxCtrl.text.trim(),
-                                'incomeExpense': tempIncomeExpense,
-                                'startDate': tempStartDate,
-                                'endDate': tempEndDate,
-                              });
-                            },
-                            child: const Text(AppStrings.confirm),
+                          Row(
+                            children: [
+                              TextButton(
+                                onPressed: () {
+                                  minCtrl.clear();
+                                  maxCtrl.clear();
+                                  setModalState(() {
+                                    tempCategoryKeys.clear();
+                                    tempIncomeExpense = null;
+                                    tempStartDate = null;
+                                    tempEndDate = null;
+                                  });
+                                },
+                                child: const Text(AppStrings.reset),
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton(
+                                onPressed: () {
+                                  Navigator.pop<Map<String, dynamic>>(ctx, {
+                                    'categoryKeys': tempCategoryKeys.toList(), // 多选
+                                    'min': minCtrl.text.trim(),
+                                    'max': maxCtrl.text.trim(),
+                                    'incomeExpense': tempIncomeExpense,
+                                    'startDate': tempStartDate,
+                                    'endDate': tempEndDate,
+                                  });
+                                },
+                                child: const Text(AppStrings.confirm),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -837,7 +887,12 @@ class _HomePageState extends State<HomePage> {
 
     if (result != null) {
       setState(() {
-        _filterCategoryKey = result['categoryKey'] as String?;
+        // 多分类筛选
+        final categoryKeysList = result['categoryKeys'] as List<dynamic>?;
+        _filterCategoryKeys = categoryKeysList != null
+            ? Set<String>.from(categoryKeysList.cast<String>())
+            : <String>{};
+        
         _filterIncomeExpense = result['incomeExpense'] as bool?;
 
         final minText = result['min'] as String;
