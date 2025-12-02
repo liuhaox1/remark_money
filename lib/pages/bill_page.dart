@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:remark_money/providers/record_provider.dart';
@@ -114,29 +115,231 @@ class _BillPageState extends State<BillPage> {
 
   void _pickYear() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final startYear = now.year - 10;
+    final endYear = now.year; // 限制为当前年份
+    
+    int tempYear = _selectedYear.clamp(startYear, endYear);
+    final years = List<int>.generate(endYear - startYear + 1, (i) => startYear + i);
+    int yearIndex = years.indexOf(tempYear);
+    
+    final yearController = FixedExtentScrollController(initialItem: yearIndex);
+    
+    final result = await showModalBottomSheet<int>(
       context: context,
-      initialDate: DateTime(_selectedYear, 1, 1),
-      firstDate: DateTime(now.year - 10),
-      lastDate: DateTime(now.year, 12, 31), // 限制为当前年份
-      helpText: AppStrings.pickYear,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SizedBox(
+          height: 260,
+          child: Column(
+            children: [
+              SizedBox(
+                height: 44,
+                child: Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(AppStrings.cancel),
+                    ),
+                    const Expanded(
+                      child: Center(
+                        child: Text(
+                          AppStrings.pickYear,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context, tempYear);
+                      },
+                      child: const Text(AppStrings.confirm),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: CupertinoPicker(
+                  scrollController: yearController,
+                  itemExtent: 32,
+                  onSelectedItemChanged: (index) {
+                    tempYear = years[index];
+                  },
+                  children: years
+                      .asMap()
+                      .entries
+                      .map(
+                        (entry) => GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            yearController.animateToItem(
+                              entry.key,
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOut,
+                            );
+                            tempYear = entry.value;
+                          },
+                          child: Center(
+                            child: Text('${entry.value}年'),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
-    if (picked != null) {
-      setState(() => _selectedYear = picked.year);
+    
+    if (result != null) {
+      setState(() => _selectedYear = result);
     }
   }
 
   void _pickMonth() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final startYear = now.year - 10;
+    final endYear = now.year;
+    
+    int tempYear = _selectedMonth.year.clamp(startYear, endYear);
+    int tempMonth = _selectedMonth.month;
+    
+    final years = List<int>.generate(endYear - startYear + 1, (i) => startYear + i);
+    final months = List<int>.generate(12, (i) => i + 1);
+    
+    int yearIndex = years.indexOf(tempYear);
+    int monthIndex = tempMonth - 1;
+    
+    final yearController = FixedExtentScrollController(initialItem: yearIndex);
+    final monthController = FixedExtentScrollController(initialItem: monthIndex);
+    
+    final result = await showModalBottomSheet<DateTime>(
       context: context,
-      initialDate: _selectedMonth,
-      firstDate: DateTime(now.year - 10),
-      lastDate: DateTime(now.year, now.month, 1), // 限制为当前月份
-      helpText: AppStrings.pickMonth,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SizedBox(
+          height: 260,
+          child: Column(
+            children: [
+              SizedBox(
+                height: 44,
+                child: Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(AppStrings.cancel),
+                    ),
+                    const Expanded(
+                      child: Center(
+                        child: Text(
+                          AppStrings.pickMonth,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        // 限制不能超过当前月份
+                        if (tempYear > now.year || 
+                            (tempYear == now.year && tempMonth > now.month)) {
+                          tempYear = now.year;
+                          tempMonth = now.month;
+                        }
+                        final picked = DateTime(tempYear, tempMonth, 1);
+                        Navigator.pop(context, picked);
+                      },
+                      child: const Text(AppStrings.confirm),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoPicker(
+                        scrollController: yearController,
+                        itemExtent: 32,
+                        onSelectedItemChanged: (index) {
+                          tempYear = years[index];
+                        },
+                        children: years
+                            .asMap()
+                            .entries
+                            .map(
+                              (entry) => GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  yearController.animateToItem(
+                                    entry.key,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOut,
+                                  );
+                                  tempYear = entry.value;
+                                },
+                                child: Center(
+                                  child: Text('${entry.value}年'),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    Expanded(
+                      child: CupertinoPicker(
+                        scrollController: monthController,
+                        itemExtent: 32,
+                        onSelectedItemChanged: (index) {
+                          tempMonth = months[index];
+                        },
+                        children: months
+                            .asMap()
+                            .entries
+                            .map(
+                              (entry) => GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  monthController.animateToItem(
+                                    entry.key,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOut,
+                                  );
+                                  tempMonth = entry.value;
+                                },
+                                child: Center(
+                                  child: Text(entry.value.toString().padLeft(2, '0')),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
-    if (picked != null) {
-      setState(() => _selectedMonth = DateTime(picked.year, picked.month, 1));
+    
+    if (result != null) {
+      setState(() => _selectedMonth = result);
     }
   }
 

@@ -72,8 +72,6 @@ class ProfilePage extends StatelessWidget {
               _buildDataSecuritySection(context),
               const SizedBox(height: 16),
               _buildDangerSection(context),
-              const SizedBox(height: 16),
-              _buildHelpAboutSection(context),
             ],
           ),
         ),
@@ -396,26 +394,6 @@ class ProfilePage extends StatelessWidget {
             title: const Text('提醒时间'),
             subtitle: Text(timeLabel),
             onTap: () => _pickReminderTime(context, reminderProvider),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHelpAboutSectionLegacy(BuildContext context) {
-    return Card(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('关于'),
-          ),
-          const Divider(height: 1),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text(AppStrings.version),
-            subtitle: Text('指尖记账'),
           ),
         ],
       ),
@@ -836,26 +814,6 @@ class ProfilePage extends StatelessWidget {
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text(AppStrings.delete),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHelpAboutSection(BuildContext context) {
-    return const Card(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('帮助与关于'),
-          ),
-          Divider(height: 1),
-          ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text(AppStrings.version),
-            subtitle: Text('指尖记账'),
           ),
         ],
       ),
