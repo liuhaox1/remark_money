@@ -134,7 +134,8 @@ class _HomePageState extends State<HomePage> {
       ),
       body: SafeArea(
         bottom: false, // 禁用底部 SafeArea，手动处理底部导航栏
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
             child: SingleChildScrollView(
@@ -377,8 +378,12 @@ class _HomePageState extends State<HomePage> {
 
   void _handleQuickTimeRange(HomeTimeRangeType type) {
     setState(() {
-      _timeRangeType = type;
-      if (type != HomeTimeRangeType.custom) {
+      if (_timeRangeType == type && type != HomeTimeRangeType.month) {
+        _timeRangeType = HomeTimeRangeType.month;
+      } else {
+        _timeRangeType = type;
+      }
+      if (_timeRangeType != HomeTimeRangeType.custom) {
         _startDate = null;
         _endDate = null;
       }

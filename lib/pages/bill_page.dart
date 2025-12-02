@@ -345,16 +345,234 @@ class _BillPageState extends State<BillPage> {
 
   Future<void> _pickWeek() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final startYear = now.year - 10;
+    final endYear = now.year;
+    
+    int tempYear = _selectedWeek.start.year.clamp(startYear, endYear);
+    int tempMonth = _selectedWeek.start.month;
+    int tempDay = _selectedWeek.start.day;
+    
+    final years = List<int>.generate(endYear - startYear + 1, (i) => startYear + i);
+    final months = List<int>.generate(12, (i) => i + 1);
+    final days = List<int>.generate(31, (i) => i + 1);
+    
+    int yearIndex = years.indexOf(tempYear);
+    int monthIndex = tempMonth - 1;
+    int dayIndex = tempDay - 1;
+    
+    final yearController = FixedExtentScrollController(initialItem: yearIndex);
+    final monthController = FixedExtentScrollController(initialItem: monthIndex);
+    final dayController = FixedExtentScrollController(initialItem: dayIndex);
+    
+    final result = await showModalBottomSheet<DateTime>(
       context: context,
-      initialDate: _selectedWeek.start,
-      firstDate: DateTime(now.year - 10),
-      lastDate: now, // 限制为当前日期
-      helpText: AppStrings.pickWeek,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return SizedBox(
+              height: 260,
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 44,
+                    child: Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(AppStrings.cancel),
+                        ),
+                        const Expanded(
+                          child: Center(
+                            child: Text(
+                              AppStrings.pickWeek,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            // 修正天数，避免 2 月 30 日这类非法日期
+                            final lastDayOfMonth =
+                                DateTime(tempYear, tempMonth + 1, 0).day;
+                            if (tempDay > lastDayOfMonth) {
+                              tempDay = lastDayOfMonth;
+                            }
+                            final picked = DateTime(tempYear, tempMonth, tempDay);
+                            // 限制不能超过当前日期
+                            if (picked.isAfter(now)) {
+                              Navigator.pop(context, now);
+                            } else {
+                              Navigator.pop(context, picked);
+                            }
+                          },
+                          child: const Text(AppStrings.confirm),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: CupertinoPicker(
+                            scrollController: yearController,
+                            itemExtent: 32,
+                            onSelectedItemChanged: (index) {
+                              tempYear = years[index];
+                              // 更新天数范围
+                              final lastDayOfMonth =
+                                  DateTime(tempYear, tempMonth + 1, 0).day;
+                              if (tempDay > lastDayOfMonth) {
+                                tempDay = lastDayOfMonth;
+                                dayController.animateToItem(
+                                  tempDay - 1,
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeOut,
+                                );
+                              }
+                              setState(() {});
+                            },
+                            children: years
+                                .asMap()
+                                .entries
+                                .map(
+                                  (entry) => GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      yearController.animateToItem(
+                                        entry.key,
+                                        duration: const Duration(milliseconds: 200),
+                                        curve: Curves.easeOut,
+                                      );
+                                      tempYear = entry.value;
+                                      setState(() {});
+                                    },
+                                    child: Center(
+                                      child: Text('${entry.value}年'),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                        Expanded(
+                          child: CupertinoPicker(
+                            scrollController: monthController,
+                            itemExtent: 32,
+                            onSelectedItemChanged: (index) {
+                              tempMonth = months[index];
+                              // 更新天数范围
+                              final lastDayOfMonth =
+                                  DateTime(tempYear, tempMonth + 1, 0).day;
+                              if (tempDay > lastDayOfMonth) {
+                                tempDay = lastDayOfMonth;
+                                dayController.animateToItem(
+                                  tempDay - 1,
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeOut,
+                                );
+                              }
+                              setState(() {});
+                            },
+                            children: months
+                                .asMap()
+                                .entries
+                                .map(
+                                  (entry) => GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      monthController.animateToItem(
+                                        entry.key,
+                                        duration: const Duration(milliseconds: 200),
+                                        curve: Curves.easeOut,
+                                      );
+                                      tempMonth = entry.value;
+                                      setState(() {});
+                                    },
+                                    child: Center(
+                                      child: Text(entry.value.toString().padLeft(2, '0')),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                        Expanded(
+                          child: Builder(
+                            builder: (context) {
+                              final lastDayOfMonth =
+                                  DateTime(tempYear, tempMonth + 1, 0).day;
+                              final validDays = List<int>.generate(
+                                  lastDayOfMonth, (i) => i + 1);
+                              if (tempDay > lastDayOfMonth) {
+                                tempDay = lastDayOfMonth;
+                              }
+                              final currentDayIndex = validDays.indexOf(tempDay);
+                              if (currentDayIndex >= 0 &&
+                                  currentDayIndex != dayController.selectedItem) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  dayController.animateToItem(
+                                    currentDayIndex,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOut,
+                                  );
+                                });
+                              }
+                              return CupertinoPicker(
+                                scrollController: dayController,
+                                itemExtent: 32,
+                                onSelectedItemChanged: (index) {
+                                  if (index < validDays.length) {
+                                    tempDay = validDays[index];
+                                  }
+                                },
+                                children: validDays
+                                    .asMap()
+                                    .entries
+                                    .map(
+                                      (entry) => GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () {
+                                          dayController.animateToItem(
+                                            entry.key,
+                                            duration: const Duration(milliseconds: 200),
+                                            curve: Curves.easeOut,
+                                          );
+                                          tempDay = entry.value;
+                                        },
+                                        child: Center(
+                                          child: Text(
+                                              entry.value.toString().padLeft(2, '0')),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
-    if (picked != null) {
+    
+    if (result != null) {
       setState(() {
-        _selectedWeek = DateUtilsX.weekRange(picked);
+        _selectedWeek = DateUtilsX.weekRange(result);
         _selectedYear = _selectedWeek.start.year;
         _selectedMonth =
             DateTime(_selectedWeek.start.year, _selectedWeek.start.month, 1);
