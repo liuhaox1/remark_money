@@ -101,7 +101,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
     final distributionEntries =
         _showIncomeCategory ? incomeEntries : expenseEntries;
-    final ranking = List<ChartEntry>.from(expenseEntries)
+    final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
+    final ranking = List<ChartEntry>.from(rankingEntries)
       ..sort((a, b) => b.value.compareTo(a.value));
     final dailyEntries = (_isMonthMode || _isWeekMode)
         ? _buildDailyEntries(recordProvider, bookId, cs)
@@ -117,6 +118,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final activity = _periodActivity(recordProvider, bookId);
     final totalExpenseValue =
         distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
+    final totalRankingValue =
+        rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
     final compareTitle = _isWeekMode
         ? '近 6 周支出对比'
         : AppStrings.recentMonthCompare; // 年度视图：近 6 个月支出对比
@@ -183,6 +186,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   distributionEntries: distributionEntries,
                   totalExpenseValue: totalExpenseValue,
                   ranking: ranking,
+                  totalRankingValue: totalRankingValue,
                   dailyEntries: dailyEntries,
                   compareEntries: compareEntries,
                   compareTitle: compareTitle,
@@ -214,6 +218,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     required List<ChartEntry> distributionEntries,
     required double totalExpenseValue,
     required List<ChartEntry> ranking,
+    required double totalRankingValue,
     required List<ChartEntry> dailyEntries,
     required List<ChartEntry> compareEntries,
     required String compareTitle,
@@ -344,7 +349,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     ),
                     const SizedBox(height: 12),
                     _SectionCard(
-                      title: AppStrings.expenseRanking,
+                      title: _showIncomeCategory
+                          ? '收入排行'
+                          : AppStrings.expenseRanking,
                       child: ranking.isEmpty
                           ? Padding(
                               padding:
@@ -364,7 +371,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                     contentPadding: EdgeInsets.zero,
                                     title: Text(entry.label),
                                     trailing: Text(
-                                      '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
+                                      '${entry.value.toStringAsFixed(2)} (${(totalRankingValue == 0 ? 0 : entry.value / totalRankingValue * 100).toStringAsFixed(1)}%)',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -372,7 +379,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                   ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  AppTextTemplates.chartExpenseRankingDesc,
+                                  _showIncomeCategory
+                                      ? '按金额从高到低列出本期收入排行，方便你找出最大的收入项。'
+                                      : AppTextTemplates.chartExpenseRankingDesc,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: cs.outline,
@@ -529,7 +538,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       );
       final distributionEntries =
           _showIncomeCategory ? incomeEntries : expenseEntries;
-      final ranking = List<ChartEntry>.from(expenseEntries)
+      final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
+      final ranking = List<ChartEntry>.from(rankingEntries)
         ..sort((a, b) => b.value.compareTo(a.value));
       final dailyEntries = (_isMonthMode || _isWeekMode)
           ? _buildDailyEntries(recordProvider, bookId, cs)
@@ -541,6 +551,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       final activity = _periodActivity(recordProvider, bookId);
       final totalExpenseValue =
           distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
+      final totalRankingValue =
+          rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
       final compareTitle = _isWeekMode
           ? '近 6 周支出对比'
           : AppStrings.recentMonthCompare;
@@ -590,6 +602,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             distributionEntries: distributionEntries,
             totalExpenseValue: totalExpenseValue,
             ranking: ranking,
+            totalRankingValue: totalRankingValue,
             dailyEntries: dailyEntries,
             compareEntries: compareEntries,
             compareTitle: compareTitle,
