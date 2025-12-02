@@ -261,38 +261,29 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openFilterSheet() async {
     final categories = context.read<CategoryProvider>().categories;
-    Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys); // 多选分类，默认带入已有
-    final minCtrl = TextEditingController(
-      text: _minAmount != null ? _minAmount!.toString() : '',
-    );
-    final maxCtrl = TextEditingController(
-      text: _maxAmount != null ? _maxAmount!.toString() : '',
-    );
-    // 添加新的控制器和状态变量
+    Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys);
+    final minCtrl = TextEditingController(text: _minAmount?.toString() ?? '');
+    final maxCtrl = TextEditingController(text: _maxAmount?.toString() ?? '');
     bool? tempIncomeExpense = _filterIncomeExpense;
     DateTime? tempStartDate = _startDate;
     DateTime? tempEndDate = _endDate;
-    // 分类搜索
-    final categorySearchCtrl = TextEditingController();
-    // 展开的一级分类状态（需要在 StatefulBuilder 外部维护）
-    final expandedTopCategories = <String>{};
-    bool amountExpanded = false;
-    bool dateExpanded = false;
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) {
         final bottomPadding = MediaQuery.of(ctx).viewInsets.bottom + 16;
-
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
           child: StatefulBuilder(
             builder: (ctx, setModalState) {
-              return ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.9,
-                ),
+              // 根据收支类型过滤分类
+              final filteredCategories = categories.where((c) {
+                if (tempIncomeExpense == null) return true;
+                return tempIncomeExpense == true ? !c.isExpense : c.isExpense;
+              }).toList();
+
+              return SafeArea(
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -316,343 +307,40 @@ class _HomePageState extends State<HomePage> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      // 当前已选条件总结
-                      Builder(
-                        builder: (context) {
-                          final chips = <Widget>[];
-                          // 多分类显示
-                          if (tempCategoryKeys.isNotEmpty) {
-                            for (final key in tempCategoryKeys) {
-                              final cat = categories.firstWhere(
-                                (c) => c.key == key,
-                                orElse: () => Category(
-                                  key: key,
-                                  name: '分类',
-                                  icon: Icons.category_outlined,
-                                  isExpense: true,
-                                ),
-                              );
-                              chips.add(
-                                _buildFilterChip(
-                                  label: cat.name,
-                                  selected: true,
-                                  onSelected: () {
-                                    setModalState(() => tempCategoryKeys.remove(key));
-                                  },
-                                ),
-                              );
-                            }
-                          }
-                          if (tempIncomeExpense != null) {
-                            chips.add(
-                              _buildFilterChip(
-                                label: tempIncomeExpense == true
-                                    ? AppStrings.income
-                                    : AppStrings.expense,
-                                selected: true,
-                                onSelected: () {
-                                  setModalState(
-                                      () => tempIncomeExpense = null);
-                                },
-                              ),
-                            );
-                          }
-                          if (minCtrl.text.trim().isNotEmpty ||
-                              maxCtrl.text.trim().isNotEmpty) {
-                            final min = minCtrl.text.trim().isEmpty
-                                ? '0'
-                                : minCtrl.text.trim();
-                            final max = maxCtrl.text.trim().isEmpty
-                                ? '∞'
-                                : maxCtrl.text.trim();
-                            chips.add(
-                              _buildFilterChip(
-                                label: '金额 $min ~ $max',
-                                selected: true,
-                                onSelected: () {
-                                  setModalState(() {
-                                    minCtrl.clear();
-                                    maxCtrl.clear();
-                                  });
-                                },
-                              ),
-                            );
-                          }
-                          if (tempStartDate != null || tempEndDate != null) {
-                            final start = tempStartDate != null
-                                ? '${tempStartDate!.year}-${tempStartDate!.month.toString().padLeft(2, '0')}-${tempStartDate!.day.toString().padLeft(2, '0')}'
-                                : '不限';
-                            final end = tempEndDate != null
-                                ? '${tempEndDate!.year}-${tempEndDate!.month.toString().padLeft(2, '0')}-${tempEndDate!.day.toString().padLeft(2, '0')}'
-                                : '不限';
-                            chips.add(
-                              _buildFilterChip(
-                                label: '$start ~ $end',
-                                selected: true,
-                                onSelected: () {
-                                  setModalState(() {
-                                    tempStartDate = null;
-                                    tempEndDate = null;
-                                  });
-                                },
-                              ),
-                            );
-                          }
+                      const SizedBox(height: 16),
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (chips.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: chips,
-                                  ),
-                                ),
-                              // 一键清除按钮
-                              if (chips.isNotEmpty ||
-                                  minCtrl.text.trim().isNotEmpty ||
-                                  maxCtrl.text.trim().isNotEmpty ||
-                                  tempStartDate != null ||
-                                  tempEndDate != null)
-                                TextButton.icon(
-                                  onPressed: () {
-                                    setModalState(() {
-                                      tempCategoryKeys.clear();
-                                      tempIncomeExpense = null;
-                                      minCtrl.clear();
-                                      maxCtrl.clear();
-                                      tempStartDate = null;
-                                      tempEndDate = null;
-                                    });
-                                  },
-                                  icon: const Icon(Icons.clear_all, size: 18),
-                                  label: const Text('一键清除'),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Theme.of(context).colorScheme.error,
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 4),
-                      const Divider(height: 16),
+                      // 分类多选
                       const Text(
                         AppStrings.filterByCategory,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
-                      // 分类搜索框
-                      TextField(
-                        controller: categorySearchCtrl,
-                        decoration: InputDecoration(
-                          hintText: '搜索分类...',
-                          prefixIcon: const Icon(Icons.search, size: 20),
-                          suffixIcon: categorySearchCtrl.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 18),
-                                  onPressed: () {
-                                    categorySearchCtrl.clear();
-                                    setModalState(() {});
-                                  },
-                                )
-                              : null,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onChanged: (_) => setModalState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      // 优化后的分类显示：按一级分类分组，只显示二级分类
-                      Builder(
-                        builder: (context) {
-                          // 获取要显示的分类（根据收支类型筛选）
-                          final filteredCategories = categories.where((c) {
-                            if (tempIncomeExpense == null) return true;
-                            if (tempIncomeExpense == true) return !c.isExpense;
-                            return c.isExpense;
-                          }).toList();
-
-                          // 获取搜索关键词
-                          final searchKeyword = categorySearchCtrl.text.trim().toLowerCase();
-
-                          // 筛选分类（如果有搜索关键词）
-                          final searchFiltered = searchKeyword.isEmpty
-                              ? filteredCategories
-                              : filteredCategories.where((c) =>
-                                  c.name.toLowerCase().contains(searchKeyword)).toList();
-
-                          // 只显示二级分类（有 parentKey 的）
-                          final secondLevelCategories = searchFiltered
-                              .where((c) => c.parentKey != null)
-                              .toList();
-
-                          // 如果没有搜索，按一级分类分组
-                          if (searchKeyword.isEmpty) {
-                            // 获取所有一级分类
-                            final topCategories = filteredCategories
-                                .where((c) => c.parentKey == null)
-                                .toList();
-
-                            // 按一级分类分组
-                            final Map<String, List<Category>> grouped = {};
-                            for (final cat in secondLevelCategories) {
-                              final parentKey = cat.parentKey!;
-                              grouped.putIfAbsent(parentKey, () => []).add(cat);
-                            }
-
-                            // 默认展开第一个一级分类
-                            if (expandedTopCategories.isEmpty && topCategories.isNotEmpty) {
-                              expandedTopCategories.add(topCategories.first.key);
-                            }
-
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: topCategories.map((top) {
-                                final children = grouped[top.key] ?? [];
-                                if (children.isEmpty) return const SizedBox.shrink();
-
-                                final isExpanded = expandedTopCategories.contains(top.key);
-
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    InkWell(
-                                      onTap: () {
-                                        setModalState(() {
-                                          if (isExpanded) {
-                                            expandedTopCategories.remove(top.key);
-                                          } else {
-                                            expandedTopCategories.add(top.key);
-                                          }
-                                        });
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 8),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              isExpanded
-                                                  ? Icons.keyboard_arrow_down
-                                                  : Icons.keyboard_arrow_right,
-                                              size: 18,
-                                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Icon(
-                                              top.icon,
-                                              size: 16,
-                                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              top.name,
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: Theme.of(context).colorScheme.onSurface,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              '(${children.length})',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    if (isExpanded) ...[
-                                      const SizedBox(height: 4),
-                                      Wrap(
-                                        spacing: 6,
-                                        runSpacing: 6,
-                                        children: children.map((c) {
-                                          final selected = tempCategoryKeys.contains(c.key);
-                                          return _buildFilterChip(
-                                            label: c.name,
-                                            selected: selected,
-                                            onSelected: () {
-                                              setModalState(() {
-                                                if (selected) {
-                                                  tempCategoryKeys.remove(c.key);
-                                                } else {
-                                                  tempCategoryKeys.add(c.key);
-                                                }
-                                              });
-                                            },
-                                          );
-                                        }).toList(),
-                                      ),
-                                      const SizedBox(height: 8),
-                                    ],
-                                  ],
-                                );
-                              }).toList(),
-                            );
-                          } else {
-                            // 有搜索时，直接显示所有匹配的二级分类
-                            if (secondLevelCategories.isEmpty) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                child: Center(
-                                  child: Text(
-                                    '未找到匹配的分类',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            return Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: secondLevelCategories.map((c) {
-                                final selected = tempCategoryKeys.contains(c.key);
-                                return _buildFilterChip(
-                                  label: c.name,
-                                  selected: selected,
-                                  onSelected: () {
-                                    setModalState(() {
-                                      if (selected) {
-                                        tempCategoryKeys.remove(c.key);
-                                      } else {
-                                        tempCategoryKeys.add(c.key);
-                                      }
-                                    });
-                                  },
-                                );
-                              }).toList(),
-                            );
-                          }
-                        },
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: filteredCategories.map((c) {
+                          final selected = tempCategoryKeys.contains(c.key);
+                          return _buildFilterChip(
+                            label: c.name,
+                            selected: selected,
+                            onSelected: () {
+                              setModalState(() {
+                                if (selected) {
+                                  tempCategoryKeys.remove(c.key);
+                                } else {
+                                  tempCategoryKeys.add(c.key);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
                       ),
                       const SizedBox(height: 16),
+
+                      // 金额范围
                       const Text(
                         AppStrings.filterByAmount,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -660,8 +348,8 @@ class _HomePageState extends State<HomePage> {
                           Expanded(
                             child: TextField(
                               controller: minCtrl,
-                              keyboardType: const TextInputType.numberWithOptions(
-                                  decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(decimal: true),
                               decoration: InputDecoration(
                                 isDense: true,
                                 prefixText: '¥ ',
@@ -676,8 +364,8 @@ class _HomePageState extends State<HomePage> {
                           Expanded(
                             child: TextField(
                               controller: maxCtrl,
-                              keyboardType: const TextInputType.numberWithOptions(
-                                  decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(decimal: true),
                               decoration: InputDecoration(
                                 isDense: true,
                                 prefixText: '¥ ',
@@ -690,79 +378,47 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Builder(
-                        builder: (context) {
-                          final min = minCtrl.text.trim();
-                          final max = maxCtrl.text.trim();
-                          if (min.isEmpty && max.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          final text =
-                              '当前金额范围：${min.isEmpty ? '不限' : min} ~ ${max.isEmpty ? '不限' : max}';
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              text,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withOpacity(0.6),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
                       const SizedBox(height: 16),
-                      // 添加收入/支出筛选
+
+                      // 收支类型
                       const Text(
                         AppStrings.filterByType,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
-                      // 使用自定义组件替换 ChoiceChip 以避免布局抖动
                       Wrap(
                         spacing: 8,
-                        runSpacing: 8,
                         children: [
                           _buildFilterChip(
                             label: AppStrings.all,
                             selected: tempIncomeExpense == null,
-                            onSelected: () {
-                              setModalState(() => tempIncomeExpense = null);
-                            },
+                            onSelected: () =>
+                                setModalState(() => tempIncomeExpense = null),
                           ),
                           _buildFilterChip(
                             label: AppStrings.income,
                             selected: tempIncomeExpense == true,
-                            onSelected: () {
-                              setModalState(() => tempIncomeExpense =
-                                  tempIncomeExpense == true ? null : true);
-                            },
+                            onSelected: () => setModalState(() {
+                              tempIncomeExpense =
+                                  tempIncomeExpense == true ? null : true;
+                            }),
                           ),
                           _buildFilterChip(
                             label: AppStrings.expense,
                             selected: tempIncomeExpense == false,
-                            onSelected: () {
-                              setModalState(() => tempIncomeExpense =
-                                  tempIncomeExpense == false ? null : false);
-                            },
+                            onSelected: () => setModalState(() {
+                              tempIncomeExpense =
+                                  tempIncomeExpense == false ? null : false;
+                            }),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // 添加日期范围筛选
+
+                      // 日期范围
                       const Text(
                         AppStrings.filterByDateRange,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -784,8 +440,9 @@ class _HomePageState extends State<HomePage> {
                                 decoration: const InputDecoration(
                                   isDense: true,
                                   border: OutlineInputBorder(
-                                    borderRadius:
-                                        BorderRadius.all(Radius.circular(10)),
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(10),
+                                    ),
                                   ),
                                   labelText: AppStrings.startDate,
                                 ),
@@ -817,8 +474,9 @@ class _HomePageState extends State<HomePage> {
                                 decoration: const InputDecoration(
                                   isDense: true,
                                   border: OutlineInputBorder(
-                                    borderRadius:
-                                        BorderRadius.all(Radius.circular(10)),
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(10),
+                                    ),
                                   ),
                                   labelText: AppStrings.endDate,
                                 ),
@@ -833,13 +491,13 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                       const SizedBox(height: 16),
+
+                      // 底部按钮
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           TextButton(
-                            onPressed: () {
-                              Navigator.pop(ctx); // 取消，不应用筛选
-                            },
+                            onPressed: () => Navigator.pop(ctx),
                             child: const Text(AppStrings.cancel),
                           ),
                           Row(
@@ -861,7 +519,8 @@ class _HomePageState extends State<HomePage> {
                               FilledButton(
                                 onPressed: () {
                                   Navigator.pop<Map<String, dynamic>>(ctx, {
-                                    'categoryKeys': tempCategoryKeys.toList(), // 多选
+                                    'categoryKeys':
+                                        tempCategoryKeys.toList(), // 多选
                                     'min': minCtrl.text.trim(),
                                     'max': maxCtrl.text.trim(),
                                     'incomeExpense': tempIncomeExpense,
@@ -885,29 +544,24 @@ class _HomePageState extends State<HomePage> {
       },
     );
 
-    if (!mounted) return;
+    if (!mounted || result == null) return;
 
-    if (result != null) {
-      setState(() {
-        // 多分类筛选
-        final categoryKeysList = result['categoryKeys'] as List<dynamic>?;
-        _filterCategoryKeys = categoryKeysList != null
-            ? Set<String>.from(categoryKeysList.cast<String>())
-            : <String>{};
-        
-        _filterIncomeExpense = result['incomeExpense'] as bool?;
+    setState(() {
+      final categoryKeysList = result['categoryKeys'] as List<dynamic>?;
+      _filterCategoryKeys = categoryKeysList != null
+          ? Set<String>.from(categoryKeysList.cast<String>())
+          : <String>{};
 
-        final minText = result['min'] as String;
-        final maxText = result['max'] as String;
+      _filterIncomeExpense = result['incomeExpense'] as bool?;
 
-        _minAmount = minText.isEmpty ? null : double.tryParse(minText);
-        _maxAmount = maxText.isEmpty ? null : double.tryParse(maxText);
+      final minText = result['min'] as String;
+      final maxText = result['max'] as String;
+      _minAmount = minText.isEmpty ? null : double.tryParse(minText);
+      _maxAmount = maxText.isEmpty ? null : double.tryParse(maxText);
 
-        // 更新日期范围状态
-        _startDate = result['startDate'] as DateTime?;
-        _endDate = result['endDate'] as DateTime?;
-      });
-    }
+      _startDate = result['startDate'] as DateTime?;
+      _endDate = result['endDate'] as DateTime?;
+    });
   }
 
   // 自定义 FilterChip 组件，避免 ChoiceChip 的布局抖动问题
