@@ -566,6 +566,7 @@ class _HomePageState extends State<HomePage> {
     Set<String> tempAccountIds = Set<String>.from(_filterAccountIds);
     final minCtrl = TextEditingController(text: _minAmount?.toString() ?? '');
     final maxCtrl = TextEditingController(text: _maxAmount?.toString() ?? '');
+    final categorySearchCtrl = TextEditingController();
     bool? tempIncomeExpense = _filterIncomeExpense;
     DateTime? tempStartDate = _startDate;
     DateTime? tempEndDate = _endDate;
@@ -579,10 +580,19 @@ class _HomePageState extends State<HomePage> {
           padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
           child: StatefulBuilder(
             builder: (ctx, setModalState) {
-              // 根据收支类型过滤分类
+              // 分类搜索与分组
+              final TextEditingController categorySearchCtrl =
+                  TextEditingController();
+              final searchKeyword =
+                  categorySearchCtrl.text.trim().toLowerCase();
+
               final filteredCategories = categories.where((c) {
-                if (tempIncomeExpense == null) return true;
-                return tempIncomeExpense == true ? !c.isExpense : c.isExpense;
+                if (tempIncomeExpense != null) {
+                  if (tempIncomeExpense == true && c.isExpense) return false;
+                  if (tempIncomeExpense == false && !c.isExpense) return false;
+                }
+                if (searchKeyword.isEmpty) return true;
+                return c.name.toLowerCase().contains(searchKeyword);
               }).toList();
 
               return SafeArea(
