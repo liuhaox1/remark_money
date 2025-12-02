@@ -165,9 +165,63 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             child: RepaintBoundary(
               key: _reportContentKey,
               child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                child: Column(
-                  children: [
+                child: _buildReportContent(
+                  context: context,
+                  cs: cs,
+                  isDark: isDark,
+                  bookName: bookName,
+                  range: range,
+                  income: income,
+                  expense: expense,
+                  balance: balance,
+                  expenseDiff: expenseDiff,
+                  comparison: comparison,
+                  hasData: hasData,
+                  weeklySummaryText: weeklySummaryText,
+                  distributionEntries: distributionEntries,
+                  totalExpenseValue: totalExpenseValue,
+                  ranking: ranking,
+                  dailyEntries: dailyEntries,
+                  compareEntries: compareEntries,
+                  compareTitle: compareTitle,
+                  activity: activity,
+                  emptyText: emptyText,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 构建报表内容（用于正常显示和保存图片）
+  Widget _buildReportContent({
+    required BuildContext context,
+    required ColorScheme cs,
+    required bool isDark,
+    required String bookName,
+    required DateTimeRange range,
+    required double income,
+    required double expense,
+    required double balance,
+    required double? expenseDiff,
+    required _PeriodComparison comparison,
+    required bool hasData,
+    String? weeklySummaryText,
+    required List<ChartEntry> distributionEntries,
+    required double totalExpenseValue,
+    required List<ChartEntry> ranking,
+    required List<ChartEntry> dailyEntries,
+    required List<ChartEntry> compareEntries,
+    required String compareTitle,
+    required _PeriodActivity activity,
+    required String emptyText,
+  }) {
+    return Column(
+      children: [
                   _PeriodHeaderCard(
                     cs: cs,
                     isDark: isDark,
@@ -402,13 +456,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                       ),
                     ),
                   ],
-                ],
-              ),
-            ),
-            ),
-          ),
-        ),
-      ),
+      ],
     );
   }
 
@@ -439,12 +487,140 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         );
       }
 
-      // 等待一帧确保渲染完成
-      await Future.delayed(const Duration(milliseconds: 100));
+      // 获取当前状态数据（用于构建全尺寸 widget）
+      final theme = Theme.of(context);
+      final isDark = theme.brightness == Brightness.dark;
+      final cs = theme.colorScheme;
+      final recordProvider = context.read<RecordProvider>();
+      final categoryProvider = context.read<CategoryProvider>();
+      final bookProvider = context.read<BookProvider>();
+      final bookId = widget.bookId;
+      Book? targetBook;
+      for (final book in bookProvider.books) {
+        if (book.id == bookId) {
+          targetBook = book;
+          break;
+        }
+      }
+      targetBook ??= bookProvider.activeBook;
+      final currentBookName = targetBook?.name ?? AppStrings.defaultBook;
+
+      final records = _periodRecords(recordProvider, bookId);
+      final hasData = records.isNotEmpty;
+      final income = _periodIncome(recordProvider, bookId, records);
+      final expense = _periodExpense(recordProvider, bookId, records);
+      final balance = income - expense;
+      final comparison = _previousBalance(recordProvider, bookId);
+      final expenseDiff =
+          comparison.hasData ? expense - comparison.balance : null;
+      final currentRange = _periodRange();
+
+      final expenseEntries = _buildCategoryEntries(
+        records,
+        categoryProvider,
+        cs,
+        isIncome: false,
+      );
+      final incomeEntries = _buildCategoryEntries(
+        records,
+        categoryProvider,
+        cs,
+        isIncome: true,
+      );
+      final distributionEntries =
+          _showIncomeCategory ? incomeEntries : expenseEntries;
+      final ranking = List<ChartEntry>.from(expenseEntries)
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final dailyEntries = (_isMonthMode || _isWeekMode)
+          ? _buildDailyEntries(recordProvider, bookId, cs)
+          : <ChartEntry>[];
+      final compareEntries = (_isWeekMode || _isYearMode)
+          ? _buildRecentPeriodEntries(recordProvider, bookId, cs)
+          : <ChartEntry>[];
+
+      final activity = _periodActivity(recordProvider, bookId);
+      final totalExpenseValue =
+          distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
+      final compareTitle = _isWeekMode
+          ? '近 6 周支出对比'
+          : AppStrings.recentMonthCompare;
+      const emptyText = AppStrings.emptyPeriodRecords;
+      String? weeklySummaryText;
+      if (_isWeekMode && hasData) {
+        final currentExpense = expense;
+        final prevStart = DateUtilsX.startOfWeek(currentRange.start)
+            .subtract(const Duration(days: 7));
+        final prevEnd = prevStart.add(const Duration(days: 6));
+        final prevExpense = recordProvider.periodExpense(
+          bookId: bookId,
+          start: prevStart,
+          end: prevEnd,
+        );
+        final diff = currentExpense - prevExpense;
+        final topCategory =
+            expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
+        weeklySummaryText = AppTextTemplates.weeklySummary(
+          expense: currentExpense,
+          diff: diff,
+          topCategory: topCategory,
+        );
+      }
+
+      // 创建一个临时的全尺寸 widget 用于截图（不使用 SingleChildScrollView）
+      final fullSizeKey = GlobalKey();
+      final fullSizeWidget = RepaintBoundary(
+        key: fullSizeKey,
+        child: Container(
+          width: 430,
+          color: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: _buildReportContent(
+            context: context,
+            cs: cs,
+            isDark: isDark,
+            bookName: currentBookName,
+            range: currentRange,
+            income: income,
+            expense: expense,
+            balance: balance,
+            expenseDiff: expenseDiff,
+            comparison: comparison,
+            hasData: hasData,
+            weeklySummaryText: weeklySummaryText,
+            distributionEntries: distributionEntries,
+            totalExpenseValue: totalExpenseValue,
+            ranking: ranking,
+            dailyEntries: dailyEntries,
+            compareEntries: compareEntries,
+            compareTitle: compareTitle,
+            activity: activity,
+            emptyText: emptyText,
+          ),
+        ),
+      );
+
+      // 使用 Overlay 来渲染全尺寸 widget（放在屏幕外）
+      final overlay = Overlay.of(context);
+      final overlayEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          left: -10000, // 放在屏幕外
+          top: -10000,
+          child: IgnorePointer(
+            child: fullSizeWidget,
+          ),
+        ),
+      );
+      overlay.insert(overlayEntry);
+
+      // 等待渲染完成
+      await Future.delayed(const Duration(milliseconds: 300));
+      await WidgetsBinding.instance.endOfFrame;
 
       // 获取 RenderRepaintBoundary
-      final RenderRepaintBoundary? boundary = _reportContentKey.currentContext
+      final RenderRepaintBoundary? boundary = fullSizeKey.currentContext
           ?.findRenderObject() as RenderRepaintBoundary?;
+
+      overlayEntry.remove();
 
       if (boundary == null) {
         if (context.mounted) {

@@ -113,3 +113,155 @@ RecordsExportBundle parseRecordsJsonPackage(String jsonText) {
 
   return RecordsExportBundle.fromMap(decoded);
 }
+
+/// Parse CSV text and convert to records.
+///
+/// CSV format: 日期,金额,收支方向,分类,账本,账户,备注,是否计入统计
+/// Throws [FormatException] when the content is invalid.
+List<Record> parseCsvToRecords(
+  String csvText, {
+  required Map<String, Category> categoriesByName,
+  required Map<String, Book> booksByName,
+  required Map<String, Account> accountsByName,
+  required String defaultBookId,
+  required String defaultAccountId,
+  required String defaultCategoryKey,
+}) {
+  final lines = csvText.split('\n').where((line) => line.trim().isNotEmpty).toList();
+  if (lines.isEmpty) {
+    throw const FormatException('CSV文件为空');
+  }
+
+  // 跳过表头
+  if (lines.length < 2) {
+    throw const FormatException('CSV文件格式不正确：缺少数据行');
+  }
+
+  final records = <Record>[];
+  final dateFormat = DateFormat('yyyy-MM-dd HH:mm');
+
+  for (var i = 1; i < lines.length; i++) {
+    final line = lines[i].trim();
+    if (line.isEmpty) continue;
+
+    try {
+      // 简单的CSV解析（处理引号和逗号）
+      final fields = _parseCsvLine(line);
+      if (fields.length < 8) {
+        continue; // 跳过不完整的行
+      }
+
+      final dateStr = fields[0].trim();
+      final amountStr = fields[1].trim();
+      final directionStr = fields[2].trim();
+      final categoryName = fields[3].trim();
+      final bookName = fields[4].trim();
+      final accountName = fields[5].trim();
+      final remark = fields[6].trim();
+      final includeStr = fields[7].trim();
+
+      // 解析日期
+      DateTime date;
+      try {
+        date = dateFormat.parse(dateStr);
+      } catch (_) {
+        // 尝试其他格式
+        try {
+          date = DateTime.parse(dateStr);
+        } catch (_) {
+          continue; // 跳过无法解析的行
+        }
+      }
+
+      // 解析金额
+      final amount = double.tryParse(amountStr);
+      if (amount == null || amount <= 0) {
+        continue; // 跳过无效金额
+      }
+
+      // 解析收支方向
+      final isIncome = directionStr == AppStrings.income || directionStr == '收入';
+      final direction = isIncome ? TransactionDirection.income : TransactionDirection.out;
+
+      // 查找分类
+      String categoryKey = defaultCategoryKey;
+      final category = categoriesByName[categoryName];
+      if (category != null) {
+        categoryKey = category.key;
+      }
+
+      // 查找账本
+      String bookId = defaultBookId;
+      final book = booksByName[bookName];
+      if (book != null) {
+        bookId = book.id;
+      }
+
+      // 查找账户
+      String accountId = defaultAccountId;
+      final account = accountsByName[accountName];
+      if (account != null) {
+        accountId = account.id;
+      }
+
+      // 解析是否计入统计
+      final includeInStats = includeStr == '是' || includeStr == 'true' || includeStr == '1';
+
+      // 创建记录
+      final record = Record(
+        id: _generateRecordId(),
+        date: date,
+        amount: amount,
+        categoryKey: categoryKey,
+        bookId: bookId,
+        accountId: accountId,
+        remark: remark,
+        direction: direction,
+        includeInStats: includeInStats,
+      );
+
+      records.add(record);
+    } catch (e) {
+      // 跳过无法解析的行
+      continue;
+    }
+  }
+
+  return records;
+}
+
+/// 简单的CSV行解析（处理引号和逗号）
+List<String> _parseCsvLine(String line) {
+  final fields = <String>[];
+  var current = StringBuffer();
+  var inQuotes = false;
+
+  for (var i = 0; i < line.length; i++) {
+    final char = line[i];
+    if (char == '"') {
+      if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
+        // 转义的引号
+        current.write('"');
+        i++; // 跳过下一个引号
+      } else {
+        // 切换引号状态
+        inQuotes = !inQuotes;
+      }
+    } else if (char == ',' && !inQuotes) {
+      // 字段分隔符
+      fields.add(current.toString());
+      current.clear();
+    } else {
+      current.write(char);
+    }
+  }
+  fields.add(current.toString()); // 最后一个字段
+
+  return fields;
+}
+
+String _generateRecordId() {
+  return DateTime.now().millisecondsSinceEpoch.toString() +
+      '_' +
+      (1000 + (9999 - 1000) * (DateTime.now().microsecond / 1000000)).round().toString();
+}

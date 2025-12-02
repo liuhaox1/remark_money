@@ -225,7 +225,15 @@ class ProfilePage extends StatelessWidget {
         children: [
           const ListTile(
             leading: Icon(Icons.ios_share_outlined),
-            title: Text('数据导出'),
+            title: Text('数据导入/导出'),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.file_upload_outlined),
+            title: const Text('导入数据'),
+            subtitle: const Text('从 CSV 文件导入记账记录'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _importCsv(context),
           ),
           const Divider(height: 1),
           ListTile(
@@ -409,8 +417,10 @@ class ProfilePage extends StatelessWidget {
     );
 
     final dir = await getTemporaryDirectory();
-    final fileName =
-        'remark_records_all_${bookId}_${DateTime.now().toIso8601String()}.csv';
+    final now = DateTime.now();
+    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+    final safeBookId = bookId.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    final fileName = 'remark_records_all_${safeBookId}_$dateStr.csv';
     final file = File('${dir.path}/$fileName');
     await file.writeAsString(csv, encoding: utf8);
 
@@ -544,6 +554,125 @@ class ProfilePage extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('导入失败，请检查文件是否为指尖记账备份')),
+        );
+      }
+    }
+  }
+
+  Future<void> _importCsv(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final path = result.files.single.path;
+    if (path == null) return;
+
+    try {
+      final file = File(path);
+      final content = await file.readAsString(encoding: utf8);
+
+      final recordProvider = context.read<RecordProvider>();
+      final accountProvider = context.read<AccountProvider>();
+      final categoryProvider = context.read<CategoryProvider>();
+      final bookProvider = context.read<BookProvider>();
+
+      await Future.wait([
+        if (!recordProvider.loaded) recordProvider.load(),
+        if (!accountProvider.loaded) accountProvider.load(),
+        if (!categoryProvider.loaded) categoryProvider.load(),
+        if (!bookProvider.loaded) bookProvider.load(),
+      ]);
+
+      // 构建查找映射
+      final categoriesByName = {
+        for (final c in categoryProvider.categories) c.name: c,
+      };
+      final booksByName = {
+        for (final b in bookProvider.books) b.name: b,
+      };
+      final accountsByName = {
+        for (final a in accountProvider.accounts) a.name: a,
+      };
+
+      // 获取默认值
+      final defaultBookId = bookProvider.activeBookId;
+      final defaultAccount = accountProvider.accounts.firstWhere(
+        (a) => a.name == '现金',
+        orElse: () => accountProvider.accounts.first,
+      );
+      final defaultAccountId = defaultAccount.id;
+      final defaultCategory = categoryProvider.categories.firstWhere(
+        (c) => !c.isExpense,
+        orElse: () => categoryProvider.categories.first,
+      );
+      final defaultCategoryKey = defaultCategory.key;
+
+      // 解析CSV
+      final imported = parseCsvToRecords(
+        content,
+        categoriesByName: categoriesByName,
+        booksByName: booksByName,
+        accountsByName: accountsByName,
+        defaultBookId: defaultBookId,
+        defaultAccountId: defaultAccountId,
+        defaultCategoryKey: defaultCategoryKey,
+      );
+
+      if (imported.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('CSV文件中没有有效的记录')),
+          );
+        }
+        return;
+      }
+
+      final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('导入记录'),
+              content: Text('将导入约 ${imported.length} 条记录，可能会与当前数据合并。是否继续？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text(AppStrings.cancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text(AppStrings.ok),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+
+      if (!confirmed) return;
+
+      final ImportResult summary = await recordProvider.importRecords(
+        imported,
+        activeBookId: defaultBookId,
+        accountProvider: accountProvider,
+      );
+
+      if (context.mounted) {
+        final text =
+            '导入完成：成功 ${summary.successCount} 条，失败 ${summary.failureCount} 条';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(text)),
+        );
+      }
+    } on FormatException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('CSV文件格式不正确：${e.message}')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导入失败：${e.toString()}')),
         );
       }
     }

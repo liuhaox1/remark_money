@@ -369,10 +369,6 @@ class _BillPageState extends State<BillPage> {
     );
     final recordCount = records.length;
     
-    // 统计全部记录数量
-    final allRecords = recordProvider.recordsForBook(bookId);
-    final allRecordCount = allRecords.length;
-    
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) {
@@ -425,16 +421,9 @@ class _BillPageState extends State<BillPage> {
                 const SizedBox(height: 8),
                 ListTile(
                   leading: const Icon(Icons.table_chart_outlined),
-                  title: const Text('导出 CSV（当前范围）'),
+                  title: const Text('导出 CSV'),
                   subtitle: Text('用 Excel 打开查看和分析数据（$recordCount 条）'),
                   onTap: () => Navigator.pop(ctx, 'csv'),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.table_chart_outlined),
-                  title: const Text('导出 CSV（全部记录）'),
-                  subtitle: Text('导出当前账本的所有历史记录（$allRecordCount 条）'),
-                  onTap: () => Navigator.pop(ctx, 'csv_all'),
                 ),
                 const SizedBox(height: 4),
               ],
@@ -448,8 +437,6 @@ class _BillPageState extends State<BillPage> {
 
     if (choice == 'csv') {
       await _exportCsv(context, bookId, range);
-    } else if (choice == 'csv_all') {
-      await _exportAllCsv(context, bookId);
     }
   }
 
