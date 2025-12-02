@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -148,7 +149,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     return Scaffold(
       backgroundColor:
-          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+          isDark ? const Color(0xFF111418) : const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: Text(_appBarTitle(range)),
         actions: [
@@ -169,7 +170,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               key: _reportContentKey,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 child: _buildReportContent(
                   context: context,
                   cs: cs,
@@ -183,6 +184,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   comparison: comparison,
                   hasData: hasData,
                   weeklySummaryText: weeklySummaryText,
+                  onViewDetail: () => _openBillDetail(context, range, bookName),
+                  showViewDetailButton: true,
                   distributionEntries: distributionEntries,
                   totalExpenseValue: totalExpenseValue,
                   ranking: ranking,
@@ -215,6 +218,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     required _PeriodComparison comparison,
     required bool hasData,
     String? weeklySummaryText,
+    VoidCallback? onViewDetail,
+    bool showViewDetailButton = true,
     required List<ChartEntry> distributionEntries,
     required double totalExpenseValue,
     required List<ChartEntry> ranking,
@@ -241,10 +246,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     hasComparison: comparison.hasData,
                     hasData: hasData,
                     weeklySummaryText: weeklySummaryText,
-                    onViewDetail: () =>
-                        _openBillDetail(context, range, bookName),
+                    onViewDetail: onViewDetail ?? (() =>
+                        _openBillDetail(context, range, bookName)),
+                    showViewDetailButton: showViewDetailButton,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   if (!hasData)
                     _EmptyPeriodCard(cs: cs)
                   else ...[
@@ -255,46 +261,45 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              SegmentedButton<bool>(
-                                segments: const [
-                                  ButtonSegment(
-                                    value: false,
-                                    label: Text(AppStrings.expense),
-                                  ),
-                                  ButtonSegment(
-                                    value: true,
-                                    label: Text(AppStrings.income),
-                                  ),
-                                ],
-                                selected: {_showIncomeCategory},
-                                onSelectionChanged: (value) {
-                                  setState(() {
-                                    _showIncomeCategory = value.first;
-                                  });
-                                },
+                          SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment(
+                                value: false,
+                                label: Text(AppStrings.expense),
+                              ),
+                              ButtonSegment(
+                                value: true,
+                                label: Text(AppStrings.income),
                               ),
                             ],
+                            selected: {_showIncomeCategory},
+                            onSelectionChanged: (value) {
+                              setState(() {
+                                _showIncomeCategory = value.first;
+                              });
+                            },
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           if (distributionEntries.isEmpty)
                             Padding(
                               padding:
-                                  const EdgeInsets.symmetric(vertical: 20),
+                                  const EdgeInsets.symmetric(vertical: 32),
                               child: Center(
                                 child: Text(
                                   emptyText,
-                                  style: TextStyle(color: cs.outline),
+                                  style: TextStyle(
+                                    color: cs.onSurface.withOpacity(0.4),
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
                             )
                           else ...[
                             SizedBox(
-                              height: 260,
+                              height: 200,
                               child: ChartPie(entries: distributionEntries),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
                             Text(
                               distributionEntries.length == 1
                                   ? AppTextTemplates.singleCategoryFullSummary(
@@ -305,39 +310,49 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                       .chartCategoryDistributionDesc,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: cs.outline,
+                                color: cs.onSurface.withOpacity(0.6),
+                                height: 1.5,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             for (final entry in distributionEntries)
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 6,
-                                ),
+                                padding: const EdgeInsets.only(bottom: 12),
                                 child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Container(
-                                      width: 10,
-                                      height: 10,
+                                      width: 12,
+                                      height: 12,
+                                      margin: const EdgeInsets.only(top: 2),
                                       decoration: BoxDecoration(
                                         color: entry.color,
                                         borderRadius:
-                                            BorderRadius.circular(6),
+                                            BorderRadius.circular(3),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
                                         entry.label,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: cs.onSurface.withOpacity(0.9),
                                         ),
                                       ),
                                     ),
-                                    Text(
-                                      '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
-                                      style: const TextStyle(
+                                    SizedBox(
+                                      width: 130,
+                                      child: Text(
+                                        '${_formatAmount(entry.value)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: cs.onSurface,
+                                          letterSpacing: 0.2,
+                                        ),
+                                        textAlign: TextAlign.right,
                                       ),
                                     ),
                                   ],
@@ -347,80 +362,69 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     _SectionCard(
-                      title: _showIncomeCategory
-                          ? '收入排行'
-                          : AppStrings.expenseRanking,
-                      child: ranking.isEmpty
+                      title: AppStrings.dailyTrend,
+                      child: dailyEntries.isEmpty
                           ? Padding(
                               padding:
-                                  const EdgeInsets.symmetric(vertical: 20),
+                                  const EdgeInsets.symmetric(vertical: 40),
                               child: Center(
-                                child: Text(
-                                  emptyText,
-                                  style: TextStyle(color: cs.outline),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.show_chart_outlined,
+                                      size: 48,
+                                      color: cs.onSurface.withOpacity(0.2),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      '暂无日趋势数据',
+                                      style: TextStyle(
+                                        color: cs.onSurface.withOpacity(0.5),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '当有记账记录时会显示每日支出趋势',
+                                      style: TextStyle(
+                                        color: cs.onSurface.withOpacity(0.4),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             )
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                for (final entry in ranking.take(5))
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(entry.label),
-                                    trailing: Text(
-                                      '${entry.value.toStringAsFixed(2)} (${(totalRankingValue == 0 ? 0 : entry.value / totalRankingValue * 100).toStringAsFixed(1)}%)',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                                SizedBox(
+                                  height: 200,
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: SizedBox(
+                                      width: max(340, dailyEntries.length * 24),
+                                      child: ChartBar(entries: dailyEntries),
                                     ),
                                   ),
-                                const SizedBox(height: 4),
+                                ),
+                                const SizedBox(height: 12),
                                 Text(
-                                  _showIncomeCategory
-                                      ? '按金额从高到低列出本期收入排行，方便你找出最大的收入项。'
-                                      : AppTextTemplates.chartExpenseRankingDesc,
+                                  AppStrings.chartDailyTrendDesc,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: cs.outline,
+                                    color: cs.onSurface.withOpacity(0.6),
+                                    height: 1.5,
                                   ),
                                 ),
                               ],
                             ),
                     ),
-                    if (dailyEntries.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _SectionCard(
-                        title: AppStrings.dailyTrend,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              height: 240,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: SizedBox(
-                                  width: max(340, dailyEntries.length * 24),
-                                  child: ChartBar(entries: dailyEntries),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              AppStrings.chartDailyTrendDesc,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.outline,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                     if (compareEntries.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       _SectionCard(
                         title: compareTitle,
                         child: Column(
@@ -430,19 +434,20 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                               height: 260,
                               child: ChartBar(entries: compareEntries),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
                             Text(
                               AppStrings.chartRecentCompareDesc,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: cs.outline,
+                                color: cs.onSurface.withOpacity(0.6),
+                                height: 1.5,
                               ),
                             ),
                           ],
                         ),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     _SectionCard(
                       title: AppStrings.reportAchievements,
                       child: Column(
@@ -451,12 +456,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                             label: AppStrings.recordCount,
                             value: activity.recordCount.toString(),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 14),
                           _AchievementRow(
                             label: AppStrings.activeDays,
                             value: activity.activeDays.toString(),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 14),
                           _AchievementRow(
                             label: AppStrings.streakDays,
                             value: activity.streak.toString(),
@@ -599,6 +604,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             comparison: comparison,
             hasData: hasData,
             weeklySummaryText: weeklySummaryText,
+            onViewDetail: null,
+            showViewDetailButton: false,
             distributionEntries: distributionEntries,
             totalExpenseValue: totalExpenseValue,
             ranking: ranking,
@@ -1113,6 +1120,18 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 }
 
+// 金额格式化工具（千分位）
+String _formatAmount(double value) {
+  final abs = value.abs();
+  if (abs >= 100000000) {
+    return '${(value / 100000000).toStringAsFixed(1)}${AppStrings.unitYi}';
+  }
+  if (abs >= 10000) {
+    return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
+  }
+  return value.toStringAsFixed(2);
+}
+
 class _PeriodHeaderCard extends StatelessWidget {
   const _PeriodHeaderCard({
     required this.cs,
@@ -1128,7 +1147,8 @@ class _PeriodHeaderCard extends StatelessWidget {
     required this.hasComparison,
     required this.hasData,
     this.weeklySummaryText,
-    required this.onViewDetail,
+    this.onViewDetail,
+    this.showViewDetailButton = true,
   });
 
   final ColorScheme cs;
@@ -1144,7 +1164,8 @@ class _PeriodHeaderCard extends StatelessWidget {
   final bool hasComparison;
     final bool hasData;
     final String? weeklySummaryText;
-    final VoidCallback onViewDetail;
+    final VoidCallback? onViewDetail;
+    final bool showViewDetailButton;
   
     @override
     Widget build(BuildContext context) {
@@ -1154,27 +1175,17 @@ class _PeriodHeaderCard extends StatelessWidget {
       // 鍓爣棰樺彧灞曠ず褰撳墠璐︽湰锛岄伩鍏嶄笌 AppBar 鍜屾爣棰橀噸澶嶅睍绀哄懆鏈熶俊鎭?      final subtitle = AppStrings.currentBookLabel(bookName);
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: isDark
-              ? null
-              : LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    cs.primary.withOpacity(0.18),
-                    Colors.white,
-                  ],
-                ),
-          color: isDark ? cs.surface : null,
-          borderRadius: BorderRadius.circular(24),
+          color: isDark ? cs.surface : Colors.white,
+          borderRadius: BorderRadius.circular(12),
           boxShadow: isDark
               ? null
               : [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.04),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
         ),
@@ -1190,27 +1201,46 @@ class _PeriodHeaderCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface.withOpacity(0.85),
+                        letterSpacing: 0.1,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       AppStrings.currentBookLabel(bookName),
                       style: TextStyle(
                         fontSize: 12,
-                        color: cs.outline,
+                        color: cs.onSurface.withOpacity(0.5),
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
                 ),
               ),
-              TextButton.icon(
-                onPressed: onViewDetail,
-                icon: const Icon(Icons.receipt_long, size: 16),
-                label: const Text(AppTextTemplates.viewBillList),
-              ),
+              if (showViewDetailButton && onViewDetail != null)
+                OutlinedButton(
+                  onPressed: onViewDetail,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    side: BorderSide(color: cs.primary.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    AppTextTemplates.viewBillList,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: cs.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1220,52 +1250,53 @@ class _PeriodHeaderCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       AppStrings.balance,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
+                        color: cs.onSurface.withOpacity(0.6),
+                        letterSpacing: 0.3,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 10),
                     Text(
-                      balance.toStringAsFixed(2),
+                      _formatAmount(balance),
                       style: TextStyle(
                         fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.amount(balance),
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black,
+                        height: 1.0,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
                       useWeeklySummary ? weeklySummaryText! : conclusion,
                       style: TextStyle(
-                        fontSize: 12,
-                        color: cs.outline,
+                        fontSize: 11,
+                        color: cs.onSurface.withOpacity(0.5),
+                        height: 1.4,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 20),
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Expanded(
-                      child: _SummaryMetric(
-                        label: AppStrings.income,
-                        value: income,
-                        color: AppColors.success,
-                      ),
+                    _SummaryMetric(
+                      label: AppStrings.income,
+                      value: income,
+                      color: cs.primary,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SummaryMetric(
-                        label: AppStrings.expense,
-                        value: expense,
-                        color: AppColors.danger,
-                      ),
+                    const SizedBox(height: 18),
+                    _SummaryMetric(
+                      label: AppStrings.expense,
+                      value: expense,
+                      color: cs.error,
                     ),
                   ],
                 ),
@@ -1317,10 +1348,21 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      return Container(
+        margin: EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1328,21 +1370,23 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface.withOpacity(0.9),
+                    letterSpacing: 0.2,
                   ),
                 ),
                 const Spacer(),
                 if (trailing != null) trailing!,
               ],
             ),
-
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             DefaultTextStyle(
               style: TextStyle(
-                color: cs.onSurface,
-                fontSize: 13,
+                color: cs.onSurface.withOpacity(0.85),
+                fontSize: 14,
+                height: 1.5,
               ),
               child: child,
             ),
@@ -1418,23 +1462,28 @@ class _SummaryMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 12,
+          style: TextStyle(
+            fontSize: 11,
             fontWeight: FontWeight.w500,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            letterSpacing: 0.2,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
-          value.toStringAsFixed(2),
+          _formatAmount(value),
           style: TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: color,
+            fontWeight: FontWeight.w500,
+            color: Colors.black,
+            height: 1.2,
+            letterSpacing: -0.3,
           ),
+          textAlign: TextAlign.right,
         ),
       ],
     );
@@ -1458,13 +1507,19 @@ class _AchievementRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(color: cs.onSurface.withOpacity(0.75)),
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.7),
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
           ),
         ),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: cs.onSurface,
           ),
         ),
       ],
