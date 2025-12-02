@@ -214,15 +214,9 @@ class ProfilePage extends StatelessWidget {
           ),
           const Divider(height: 1),
           ListTile(
-            leading: const Icon(Icons.cloud_upload_outlined),
-            title: const Text('导入记录（JSON 数据包）'),
-            subtitle: const Text('从指尖记账导出的 JSON 备份文件导入记账记录'),
-            onTap: () => _importRecords(context),
-          ),
-          ListTile(
             leading: const Icon(Icons.ios_share_outlined),
             title: const Text('导出数据'),
-            subtitle: const Text('导出当前账本的全部记账记录（CSV / JSON）'),
+            subtitle: const Text('导出当前账本的全部记账记录（CSV）'),
             onTap: () => _showExportSheet(context),
           ),
           ListTile(
@@ -353,15 +347,6 @@ class ProfilePage extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(ctx);
                   _exportAllCsv(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.data_object_outlined),
-                title: const Text('导出为 JSON 数据包'),
-                subtitle: const Text('适合备份或迁移到其他设备'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _exportAllJson(context);
                 },
               ),
             ],
