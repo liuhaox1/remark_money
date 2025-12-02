@@ -201,22 +201,118 @@ class _BudgetPageState extends State<BudgetPage> {
   }
 
   Future<void> _onResetBudget(String bookId) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
           context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text(AppStrings.resetBookBudget),
-            content: const Text(AppStrings.resetBookBudgetConfirm),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text(AppStrings.cancel),
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (ctx) {
+            final cs = Theme.of(ctx).colorScheme;
+            final media = MediaQuery.of(ctx);
+            final bottomPadding = media.viewInsets.bottom + media.padding.bottom + 16;
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: cs.error.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.warning_amber_rounded,
+                          size: 24,
+                          color: cs.error,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          AppStrings.resetBookBudget,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    AppStrings.resetBookBudgetConfirm,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: cs.onSurface.withOpacity(0.75),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '该操作只会清空预算设置，不会删除任何记账记录。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            side: BorderSide(
+                              color: cs.outline.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Text(
+                            AppStrings.cancel,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            backgroundColor: cs.error,
+                            foregroundColor: cs.onError,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text(
+                            '确认重置',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text(AppStrings.ok),
-              ),
-            ],
-          ),
+            );
+          },
         ) ??
         false;
 
@@ -230,6 +326,45 @@ class _BudgetPageState extends State<BudgetPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text(AppStrings.budgetSaved)),
     );
+  }
+
+  Future<void> _showBudgetActionsSheet(String bookId) async {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final selected = await showModalBottomSheet<_BudgetMenuAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.refresh,
+                  color: cs.error,
+                ),
+                title: const Text(AppStrings.resetBookBudget),
+                subtitle: Text(
+                  '清空本账本的总预算和所有分类预算',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                onTap: () => Navigator.of(ctx).pop(_BudgetMenuAction.reset),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selected == _BudgetMenuAction.reset) {
+      await _onResetBudget(bookId);
+    }
   }
 
   Future<void> _editCategoryBudget({
@@ -468,18 +603,12 @@ class _BudgetPageState extends State<BudgetPage> {
             ],
           ),
           actions: [
-            PopupMenuButton<_BudgetMenuAction>(
-              onSelected: (value) async {
-                if (value == _BudgetMenuAction.reset) {
-                  await _onResetBudget(bookId);
-                }
+            IconButton(
+              tooltip: AppStrings.resetBookBudget,
+              icon: const Icon(Icons.more_horiz),
+              onPressed: () async {
+                await _showBudgetActionsSheet(bookId);
               },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: _BudgetMenuAction.reset,
-                  child: Text(AppStrings.resetBookBudget),
-                ),
-              ],
             ),
           ],
         ),
