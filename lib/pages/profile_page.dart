@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../l10n/app_strings.dart';
+import '../l10n/profile_strings_local.dart';
 import '../models/import_result.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
@@ -42,15 +43,35 @@ class ProfilePage extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              const SizedBox(height: 8),
+              const Text(
+                ProfileStringsLocal.settings,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                ProfileStringsLocal.profileIntro,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withOpacity(0.6),
+                ),
+              ),
+              const SizedBox(height: 20),
               _buildBookSection(context, bookProvider),
               const SizedBox(height: 16),
               _buildThemeSection(context, themeProvider),
               const SizedBox(height: 16),
-              _buildDataSecuritySection(context),
-              const SizedBox(height: 16),
               _buildBudgetCategorySection(context),
               const SizedBox(height: 16),
               _buildHabitSection(context, reminderProvider),
+              const SizedBox(height: 16),
+              _buildDataSecuritySection(context),
               const SizedBox(height: 16),
               _buildDangerSection(context),
               const SizedBox(height: 16),
@@ -169,56 +190,87 @@ class ProfilePage extends StatelessWidget {
           children: [
             Row(
               children: [
+                const Icon(Icons.menu_book_outlined, size: 20),
+                const SizedBox(width: 8),
                 const Text(
                   AppStrings.book,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const Spacer(),
-                IconButton(
-                  tooltip: AppStrings.addBook,
+                TextButton.icon(
                   onPressed: () => _showAddBookDialog(context),
-                  icon: const Icon(Icons.add),
-                )
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text(
+                    AppStrings.addBook,
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
-            ...provider.books.map(
-              (book) => RadioListTile<String>(
-                value: book.id,
-                groupValue: provider.activeBookId,
-                onChanged: (value) {
-                  if (value != null) {
-                    provider.selectBook(value);
-                  }
-                },
-                title: Text(book.name),
-                secondary: Row(
+            if (provider.books.length == 1)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(provider.books.first.name),
+                subtitle: const Text(ProfileStringsLocal.currentBookSingleHint),
+                trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.edit_outlined),
+                      tooltip: AppStrings.renameBook,
                       onPressed: () => _showRenameBookDialog(
                         context,
-                        book.id,
-                        book.name,
+                        provider.books.first.id,
+                        provider.books.first.name,
                       ),
                     ),
-                    if (provider.books.length > 1)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _confirmDelete(context, book.id),
-                      ),
                   ],
                 ),
+              )
+            else
+              ...provider.books.map(
+                (book) => RadioListTile<String>(
+                  value: book.id,
+                  groupValue: provider.activeBookId,
+                  onChanged: (value) {
+                    if (value != null) {
+                      provider.selectBook(value);
+                    }
+                  },
+                  title: Text(book.name),
+                  secondary: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: AppStrings.renameBook,
+                        onPressed: () => _showRenameBookDialog(
+                          context,
+                          book.id,
+                          book.name,
+                        ),
+                      ),
+                      if (provider.books.length > 1)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: AppStrings.deleteBook,
+                          onPressed: () => _confirmDelete(context, book.id),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDataSecuritySection(BuildContext context) {
+  Widget _buildLegacyDataSecuritySection(BuildContext context) {
     return Card(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -244,6 +296,21 @@ class ProfilePage extends StatelessWidget {
             onTap: () => _showExportSheet(context),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDataSecuritySection(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.privacy_tip_outlined),
+        title: const Text('数据与安全'),
+        subtitle: const Text('导入导出、备份与恢复'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showDataSecuritySheet(context, cs),
       ),
     );
   }
@@ -337,7 +404,7 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildHelpAboutSection(BuildContext context) {
+  Widget _buildHelpAboutSectionLegacy(BuildContext context) {
     return Card(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -354,6 +421,68 @@ class ProfilePage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showDataSecuritySheet(
+    BuildContext context,
+    ColorScheme colorScheme,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.file_upload_outlined),
+                title: const Text('导入 CSV 数据'),
+                subtitle: const Text('从 CSV 文件导入记账记录'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _importCsv(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.table_chart_outlined),
+                title: const Text('导出 CSV 数据'),
+                subtitle: const Text('导出当前账本的全部记账记录'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showExportSheet(context);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.cloud_download_outlined,
+                  color: colorScheme.primary,
+                ),
+                title: const Text('导出 JSON 备份'),
+                subtitle: const Text('完整备份当前账本记录，用于迁移或恢复'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _exportAllJson(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.cloud_upload_outlined,
+                  color: colorScheme.primary,
+                ),
+                title: const Text('导入 JSON 备份'),
+                subtitle: const Text('从之前导出的备份包中恢复记录'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _importRecords(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -860,6 +989,26 @@ class ProfilePage extends StatelessWidget {
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text(AppStrings.delete),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHelpAboutSection(BuildContext context) {
+    return const Card(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text('帮助与关于'),
+          ),
+          Divider(height: 1),
+          ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text(AppStrings.version),
+            subtitle: Text('指尖记账'),
           ),
         ],
       ),

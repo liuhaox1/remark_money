@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/category.dart';
@@ -38,6 +39,14 @@ class _DayStats {
   });
 }
 
+enum HomeTimeRangeType {
+  month,
+  last3Months,
+  year,
+  all,
+  custom,
+}
+
 class _HomePageState extends State<HomePage> {
   DateTime _selectedDay = DateTime.now();
   final ScrollController _monthScrollController = ScrollController();
@@ -47,12 +56,18 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _selectedRecordIds = <String>{};
   List<Record> _currentVisibleRecords = const [];
   final Map<DateTime, GlobalKey> _dayHeaderKeys = {};
-  final String _searchKeyword = '';
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  String _searchKeyword = '';
+  List<String> _searchHistory = <String>[];
+  bool _showSuggestions = false;
+  HomeTimeRangeType _timeRangeType = HomeTimeRangeType.month;
   Set<String> _filterCategoryKeys = {}; // 改为多选
   double? _minAmount;
   double? _maxAmount;
   // 添加新的筛选状态变量
   bool? _filterIncomeExpense; // null: 全部, true: 只看收入, false: 只看支出
+  Set<String> _filterAccountIds = <String>{};
   DateTime? _startDate; // 日期范围开始
   DateTime? _endDate; // 日期范围结束
 
@@ -63,6 +78,13 @@ class _HomePageState extends State<HomePage> {
   Map<DateTime, List<Record>>? _cachedGroups;
   List<DateTime>? _cachedDays;
   List<Record>? _cachedRecords;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(_handleSearchFocusChange);
+    _loadSearchHistory();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,16 +99,17 @@ class _HomePageState extends State<HomePage> {
     final monthExpense = recordProvider.monthExpense(selectedMonth, bookId);
     final monthBalance = monthIncome - monthExpense;
 
-    final monthRecords = recordProvider.recordsForMonth(
+    final timeRange = _currentTimeRange();
+    final allRecords = recordProvider.recordsForPeriod(
       bookId,
-      _selectedDay.year,
-      _selectedDay.month,
+      start: timeRange.start,
+      end: timeRange.end,
     );
-    final hasMonthRecords = monthRecords.isNotEmpty;
+    final hasRecords = allRecords.isNotEmpty;
     final Map<String, Category> categoryMap = {
       for (final c in categoryProvider.categories) c.key: c,
     };
-    final filteredRecords = _applyFilters(monthRecords, categoryMap);
+    final filteredRecords = _applyFilters(allRecords, categoryMap);
     _currentVisibleRecords = filteredRecords;
 
     debugPrint(
@@ -116,6 +139,39 @@ class _HomePageState extends State<HomePage> {
             constraints: const BoxConstraints(maxWidth: 430),
             child: Column(
               children: [
+                _HomeSearchBar(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  keyword: _searchKeyword,
+                  hasActiveFilter: _hasActiveFilterOrSearch,
+                  onChanged: _onSearchKeywordChanged,
+                  onSubmitted: _onSearchSubmitted,
+                  onTapFilter: _openFilterSheet,
+                  onClear: _clearSearchKeyword,
+                ),
+                if (_showSuggestions)
+                  _HomeSearchSuggestionPanel(
+                    keyword: _searchKeyword,
+                    history: _searchHistory,
+                    categories: categoryProvider.categories,
+                    onTapHistory: _applyHistoryKeyword,
+                    onClearHistory: _clearSearchHistory,
+                    onTapCategory: _applyCategorySuggestion,
+                  ),
+                _HomeQuickFiltersBar(
+                  timeRangeType: _timeRangeType,
+                  filterIncomeExpense: _filterIncomeExpense,
+                  minAmount: _minAmount,
+                  onSelectTimeRange: _handleQuickTimeRange,
+                  onToggleIncomeOnly: _handleQuickIncomeOnly,
+                  onToggleExpenseOnly: _handleQuickExpenseOnly,
+                  onToggleHighExpense: _handleQuickHighExpense,
+                ),
+                if (_hasActiveFilterOrSearch)
+                  _HomeFilterSummaryBar(
+                    summaryText: _buildFilterSummaryText(),
+                    onClearAll: _handleClearAllFilters,
+                  ),
                 _BalanceCard(
                   income: monthIncome,
                   expense: monthExpense,
@@ -144,7 +200,7 @@ class _HomePageState extends State<HomePage> {
                           onDeleteSelected: _handleDeleteSelectedBatch,
                         ),
                       Expanded(
-                        child: hasMonthRecords
+                        child: hasRecords
                             ? _buildMonthTimeline(
                                 filteredRecords,
                                 categoryMap,
@@ -164,6 +220,9 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _searchFocusNode.removeListener(_handleSearchFocusChange);
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     _monthScrollController.dispose();
     super.dispose();
   }
@@ -188,6 +247,247 @@ class _HomePageState extends State<HomePage> {
       curve: Curves.easeOutCubic,
       alignment: 0.1,
     );
+  }
+
+  DateTimeRange _currentTimeRange() {
+    final now = DateTime.now();
+    switch (_timeRangeType) {
+      case HomeTimeRangeType.month:
+        final start = DateTime(now.year, now.month, 1);
+        final end = DateTime(now.year, now.month + 1, 0);
+        return DateTimeRange(start: start, end: end);
+      case HomeTimeRangeType.last3Months:
+        final start = DateTime(now.year, now.month - 2, 1);
+        final end = DateTime(now.year, now.month + 1, 0);
+        return DateTimeRange(start: start, end: end);
+      case HomeTimeRangeType.year:
+        final start = DateTime(now.year, 1, 1);
+        final end = DateTime(now.year, 12, 31);
+        return DateTimeRange(start: start, end: end);
+      case HomeTimeRangeType.all:
+        return DateTimeRange(
+          start: DateTime(2000, 1, 1),
+          end: DateTime(2100, 12, 31),
+        );
+      case HomeTimeRangeType.custom:
+        final start = _startDate ?? now;
+        final end = _endDate ?? now;
+        return DateTimeRange(start: start, end: end);
+    }
+  }
+
+  bool get _hasActiveFilterOrSearch {
+    final hasKeyword = _searchKeyword.trim().isNotEmpty;
+    final hasCategory = _filterCategoryKeys.isNotEmpty;
+    final hasAmount = _minAmount != null || _maxAmount != null;
+    final hasType = _filterIncomeExpense != null;
+    final hasAccounts = _filterAccountIds.isNotEmpty;
+    final isDefaultRange =
+        _timeRangeType == HomeTimeRangeType.month && _startDate == null && _endDate == null;
+    return hasKeyword || hasCategory || hasAmount || hasType || hasAccounts || !isDefaultRange;
+  }
+
+  void _handleSearchFocusChange() {
+    if (!_searchFocusNode.hasFocus) {
+      setState(() {
+        _showSuggestions = false;
+      });
+      return;
+    }
+    setState(() {
+      _showSuggestions =
+          _searchKeyword.trim().isNotEmpty || _searchHistory.isNotEmpty;
+    });
+  }
+
+  void _onSearchKeywordChanged(String value) {
+    setState(() {
+      _searchKeyword = value;
+      if (_searchFocusNode.hasFocus) {
+        _showSuggestions =
+            _searchKeyword.trim().isNotEmpty || _searchHistory.isNotEmpty;
+      }
+    });
+  }
+
+  void _onSearchSubmitted(String value) {
+    _saveSearchKeyword(value);
+    setState(() {
+      _searchKeyword = value;
+      _showSuggestions = false;
+    });
+  }
+
+  void _clearSearchKeyword() {
+    setState(() {
+      _searchKeyword = '';
+      _searchController.clear();
+      _showSuggestions =
+          _searchFocusNode.hasFocus && _searchHistory.isNotEmpty;
+    });
+  }
+
+  Future<void> _loadSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('home_search_history') ?? <String>[];
+    if (!mounted) return;
+    setState(() {
+      _searchHistory = list;
+    });
+  }
+
+  Future<void> _saveSearchKeyword(String keyword) async {
+    final trimmed = keyword.trim();
+    if (trimmed.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final history = List<String>.from(_searchHistory);
+    history.remove(trimmed);
+    history.insert(0, trimmed);
+    if (history.length > 10) {
+      history.removeRange(10, history.length);
+    }
+    await prefs.setStringList('home_search_history', history);
+    if (!mounted) return;
+    setState(() {
+      _searchHistory = history;
+    });
+  }
+
+  Future<void> _clearSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('home_search_history');
+    if (!mounted) return;
+    setState(() {
+      _searchHistory = <String>[];
+    });
+  }
+
+  void _applyHistoryKeyword(String keyword) {
+    _searchController.text = keyword;
+    _onSearchKeywordChanged(keyword);
+    _saveSearchKeyword(keyword);
+    setState(() {
+      _showSuggestions = false;
+    });
+  }
+
+  void _applyCategorySuggestion(Category category) {
+    setState(() {
+      _filterCategoryKeys = <String>{category.key};
+      _filterIncomeExpense = category.isExpense ? false : true;
+      _searchKeyword = '';
+      _searchController.clear();
+      _showSuggestions = false;
+    });
+  }
+
+  void _handleQuickTimeRange(HomeTimeRangeType type) {
+    setState(() {
+      _timeRangeType = type;
+      if (type != HomeTimeRangeType.custom) {
+        _startDate = null;
+        _endDate = null;
+      }
+    });
+  }
+
+  void _handleQuickIncomeOnly() {
+    setState(() {
+      _filterIncomeExpense =
+          _filterIncomeExpense == true ? null : true;
+    });
+  }
+
+  void _handleQuickExpenseOnly() {
+    setState(() {
+      _filterIncomeExpense =
+          _filterIncomeExpense == false ? null : false;
+    });
+  }
+
+  void _handleQuickHighExpense() {
+    const threshold = 500.0;
+    setState(() {
+      if (_minAmount != null && _minAmount == threshold) {
+        _minAmount = null;
+      } else {
+        _minAmount = threshold;
+      }
+    });
+  }
+
+  void _handleClearAllFilters() {
+    setState(() {
+      _searchKeyword = '';
+      _searchController.clear();
+      _timeRangeType = HomeTimeRangeType.month;
+      _startDate = null;
+      _endDate = null;
+      _filterCategoryKeys = <String>{};
+      _minAmount = null;
+      _maxAmount = null;
+      _filterIncomeExpense = null;
+      _filterAccountIds = <String>{};
+      _showSuggestions = false;
+    });
+  }
+
+  String _buildFilterSummaryText() {
+    final parts = <String>[];
+    final kw = _searchKeyword.trim();
+    if (kw.isNotEmpty) {
+      parts.add('“$kw”');
+    }
+
+    switch (_timeRangeType) {
+      case HomeTimeRangeType.month:
+        break;
+      case HomeTimeRangeType.last3Months:
+        parts.add('最近3个月');
+        break;
+      case HomeTimeRangeType.year:
+        parts.add('今年');
+        break;
+      case HomeTimeRangeType.all:
+        parts.add('全部时间');
+        break;
+      case HomeTimeRangeType.custom:
+        if (_startDate != null && _endDate != null) {
+          parts.add(
+            '${DateUtilsX.ymd(_startDate!)} ~ ${DateUtilsX.ymd(_endDate!)}',
+          );
+        }
+        break;
+    }
+
+    if (_filterIncomeExpense == true) {
+      parts.add('仅收入');
+    } else if (_filterIncomeExpense == false) {
+      parts.add('仅支出');
+    }
+
+    if (_filterCategoryKeys.isNotEmpty) {
+      parts.add('分类${_filterCategoryKeys.length}个');
+    }
+
+    if (_minAmount != null && _maxAmount != null) {
+      parts.add(
+        '金额 ${_minAmount!.toStringAsFixed(0)}~${_maxAmount!.toStringAsFixed(0)}',
+      );
+    } else if (_minAmount != null) {
+      parts.add('金额≥${_minAmount!.toStringAsFixed(0)}');
+    } else if (_maxAmount != null) {
+      parts.add('金额≤${_maxAmount!.toStringAsFixed(0)}');
+    }
+
+    if (_filterAccountIds.isNotEmpty) {
+      parts.add('账户${_filterAccountIds.length}个');
+    }
+
+    if (parts.isEmpty) {
+      return '';
+    }
+    return '已筛选：${parts.join(' · ')}';
   }
 
   List<Record> _applyFilters(
@@ -217,6 +517,12 @@ class _HomePageState extends State<HomePage> {
           .toList();
     }
 
+    if (_filterAccountIds.isNotEmpty) {
+      filtered = filtered
+          .where((r) => _filterAccountIds.contains(r.accountId))
+          .toList();
+    }
+
     if (_minAmount != null) {
       filtered = filtered.where((r) => r.absAmount >= _minAmount!).toList();
     }
@@ -237,11 +543,11 @@ class _HomePageState extends State<HomePage> {
     }
 
     // 添加日期范围筛选
-    if (_startDate != null) {
+    if (_startDate != null && false) {
       filtered = filtered.where((r) => !r.date.isBefore(_startDate!)).toList();
     }
 
-    if (_endDate != null) {
+    if (_endDate != null && false) {
       filtered = filtered.where((r) => !r.date.isAfter(_endDate!)).toList();
     }
 
@@ -261,7 +567,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openFilterSheet() async {
     final categories = context.read<CategoryProvider>().categories;
+    final accounts = context.read<AccountProvider>().accounts;
     Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys);
+    Set<String> tempAccountIds = Set<String>.from(_filterAccountIds);
     final minCtrl = TextEditingController(text: _minAmount?.toString() ?? '');
     final maxCtrl = TextEditingController(text: _maxAmount?.toString() ?? '');
     bool? tempIncomeExpense = _filterIncomeExpense;
@@ -415,6 +723,34 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 16),
 
+                      // 按账户筛选
+                      const Text(
+                        '按账户筛选',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: accounts.map((a) {
+                          final selected = tempAccountIds.contains(a.id);
+                          return _buildFilterChip(
+                            label: a.name,
+                            selected: selected,
+                            onSelected: () {
+                              setModalState(() {
+                                if (selected) {
+                                  tempAccountIds.remove(a.id);
+                                } else {
+                                  tempAccountIds.add(a.id);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+
                       // 日期范围
                       const Text(
                         AppStrings.filterByDateRange,
@@ -518,6 +854,20 @@ class _HomePageState extends State<HomePage> {
                               const SizedBox(width: 8),
                               FilledButton(
                                 onPressed: () {
+                                  final minText = minCtrl.text.trim();
+                                  final maxText = maxCtrl.text.trim();
+                                  final double? min =
+                                      minText.isEmpty ? null : double.tryParse(minText);
+                                  final double? max =
+                                      maxText.isEmpty ? null : double.tryParse(maxText);
+                                  if (min != null && max != null && min > max) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('最小金额不能大于最大金额'),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   Navigator.pop<Map<String, dynamic>>(ctx, {
                                     'categoryKeys':
                                         tempCategoryKeys.toList(), // 多选
@@ -526,6 +876,7 @@ class _HomePageState extends State<HomePage> {
                                     'incomeExpense': tempIncomeExpense,
                                     'startDate': tempStartDate,
                                     'endDate': tempEndDate,
+                                    'accountIds': tempAccountIds.toList(),
                                   });
                                 },
                                 child: const Text(AppStrings.confirm),
@@ -554,6 +905,11 @@ class _HomePageState extends State<HomePage> {
 
       _filterIncomeExpense = result['incomeExpense'] as bool?;
 
+      final accountIdsList = result['accountIds'] as List<dynamic>?;
+      _filterAccountIds = accountIdsList != null
+          ? Set<String>.from(accountIdsList.cast<String>())
+          : <String>{};
+
       final minText = result['min'] as String;
       final maxText = result['max'] as String;
       _minAmount = minText.isEmpty ? null : double.tryParse(minText);
@@ -561,6 +917,11 @@ class _HomePageState extends State<HomePage> {
 
       _startDate = result['startDate'] as DateTime?;
       _endDate = result['endDate'] as DateTime?;
+      if (_startDate != null || _endDate != null) {
+        _timeRangeType = HomeTimeRangeType.custom;
+      } else {
+        _timeRangeType = HomeTimeRangeType.month;
+      }
     });
   }
 
@@ -912,6 +1273,359 @@ class _HomePageState extends State<HomePage> {
         onDayChanged: (day) {
           setState(() => _selectedDay = day);
         },
+      ),
+    );
+  }
+}
+
+class _HomeSearchBar extends StatelessWidget {
+  const _HomeSearchBar({
+    required this.controller,
+    required this.focusNode,
+    required this.keyword,
+    required this.hasActiveFilter,
+    required this.onChanged,
+    required this.onSubmitted,
+    required this.onTapFilter,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String keyword;
+  final bool hasActiveFilter;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onTapFilter;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasKeyword = keyword.trim().isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: cs.outline.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.search, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  hintText: '搜索备注、分类、金额（支持跨月）',
+                ),
+                onChanged: onChanged,
+                onSubmitted: onSubmitted,
+              ),
+            ),
+            if (hasKeyword)
+              IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: onClear,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              )
+            else
+              IconButton(
+                icon: Icon(
+                  hasActiveFilter
+                      ? Icons.filter_alt
+                      : Icons.filter_alt_outlined,
+                  size: 20,
+                ),
+                onPressed: onTapFilter,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeQuickFiltersBar extends StatelessWidget {
+  const _HomeQuickFiltersBar({
+    required this.timeRangeType,
+    required this.filterIncomeExpense,
+    required this.minAmount,
+    required this.onSelectTimeRange,
+    required this.onToggleIncomeOnly,
+    required this.onToggleExpenseOnly,
+    required this.onToggleHighExpense,
+  });
+
+  final HomeTimeRangeType timeRangeType;
+  final bool? filterIncomeExpense;
+  final double? minAmount;
+  final ValueChanged<HomeTimeRangeType> onSelectTimeRange;
+  final VoidCallback onToggleIncomeOnly;
+  final VoidCallback onToggleExpenseOnly;
+  final VoidCallback onToggleHighExpense;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          _buildChip(
+            context,
+            label: '本月',
+            selected: timeRangeType == HomeTimeRangeType.month,
+            onTap: () => onSelectTimeRange(HomeTimeRangeType.month),
+          ),
+          _buildChip(
+            context,
+            label: '最近3个月',
+            selected: timeRangeType == HomeTimeRangeType.last3Months,
+            onTap: () => onSelectTimeRange(HomeTimeRangeType.last3Months),
+          ),
+          _buildChip(
+            context,
+            label: '今年',
+            selected: timeRangeType == HomeTimeRangeType.year,
+            onTap: () => onSelectTimeRange(HomeTimeRangeType.year),
+          ),
+          _buildChip(
+            context,
+            label: '全部时间',
+            selected: timeRangeType == HomeTimeRangeType.all,
+            onTap: () => onSelectTimeRange(HomeTimeRangeType.all),
+          ),
+          _buildChip(
+            context,
+            label: '仅支出',
+            selected: filterIncomeExpense == false,
+            onTap: onToggleExpenseOnly,
+          ),
+          _buildChip(
+            context,
+            label: '仅收入',
+            selected: filterIncomeExpense == true,
+            onTap: onToggleIncomeOnly,
+          ),
+          _buildChip(
+            context,
+            label: '大额支出',
+            selected: minAmount != null && minAmount! >= 500,
+            onTap: onToggleHighExpense,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChip(
+    BuildContext context, {
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? cs.primary.withOpacity(0.12) : cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? cs.primary : cs.outline.withOpacity(0.3),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: selected ? cs.primary : cs.onSurface.withOpacity(0.8),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeFilterSummaryBar extends StatelessWidget {
+  const _HomeFilterSummaryBar({
+    required this.summaryText,
+    required this.onClearAll,
+  });
+
+  final String summaryText;
+  final VoidCallback onClearAll;
+
+  @override
+  Widget build(BuildContext context) {
+    if (summaryText.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.tune, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                summaryText,
+                style: const TextStyle(fontSize: 11),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton(
+              onPressed: onClearAll,
+              child: const Text(
+                '清空筛选',
+                style: TextStyle(fontSize: 11),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeSearchSuggestionPanel extends StatelessWidget {
+  const _HomeSearchSuggestionPanel({
+    required this.keyword,
+    required this.history,
+    required this.categories,
+    required this.onTapHistory,
+    required this.onClearHistory,
+    required this.onTapCategory,
+  });
+
+  final String keyword;
+  final List<String> history;
+  final List<Category> categories;
+  final ValueChanged<String> onTapHistory;
+  final VoidCallback onClearHistory;
+  final ValueChanged<Category> onTapCategory;
+
+  @override
+  Widget build(BuildContext context) {
+    final kw = keyword.trim().toLowerCase();
+    final hasHistory = history.isNotEmpty;
+    final matchedCategories = kw.isEmpty
+        ? <Category>[]
+        : categories
+            .where(
+              (c) => c.name.toLowerCase().contains(kw),
+            )
+            .take(5)
+            .toList();
+
+    if (!hasHistory && matchedCategories.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasHistory) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '最近搜索',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onClearHistory,
+                    child: const Text(
+                      '清空',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+              ...history.take(5).map(
+                (item) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.history, size: 18),
+                  title: Text(
+                    item,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  onTap: () => onTapHistory(item),
+                ),
+              ),
+              if (matchedCategories.isNotEmpty) const Divider(height: 8),
+            ],
+            if (matchedCategories.isNotEmpty) ...[
+              const Text(
+                '匹配的分类',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              ...matchedCategories.map(
+                (c) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(c.icon, size: 18),
+                  title: Text(
+                    c.name,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  subtitle: Text(
+                    c.isExpense ? '支出' : '收入',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  onTap: () => onTapCategory(c),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -69,20 +69,46 @@ class _BillPageState extends State<BillPage> {
         (widget.initialShowYearMode == true
             ? PeriodType.year
             : PeriodType.month);
-    _selectedMonth = widget.initialMonth ?? DateTime(now.year, now.month, 1);
-    _selectedYear = widget.initialYear ?? _selectedMonth.year;
-    _selectedWeek = widget.initialRange ??
-        DateUtilsX.weekRange(_selectedMonth);
+    
+    // 限制初始月份不能超过当前月份
+    DateTime initialMonth = widget.initialMonth ?? DateTime(now.year, now.month, 1);
+    if (initialMonth.year > now.year || 
+        (initialMonth.year == now.year && initialMonth.month > now.month)) {
+      initialMonth = DateTime(now.year, now.month, 1);
+    }
+    _selectedMonth = initialMonth;
+    
+    // 限制初始年份不能超过当前年份
+    int initialYear = widget.initialYear ?? _selectedMonth.year;
+    if (initialYear > now.year) {
+      initialYear = now.year;
+    }
+    _selectedYear = initialYear;
+    
+    // 限制初始周范围不能超过当前日期
+    DateTimeRange? initialWeek = widget.initialRange;
+    if (initialWeek != null && initialWeek.start.isAfter(now)) {
+      initialWeek = DateUtilsX.weekRange(now);
+    }
+    _selectedWeek = initialWeek ?? DateUtilsX.weekRange(_selectedMonth);
+    
     if (_periodType == PeriodType.week && widget.initialRange != null) {
-      _selectedYear = widget.initialRange!.start.year;
+      if (widget.initialRange!.start.isAfter(now)) {
+        _selectedWeek = DateUtilsX.weekRange(now);
+      }
+      _selectedYear = _selectedWeek.start.year;
       _selectedMonth = DateTime(
-        widget.initialRange!.start.year,
-        widget.initialRange!.start.month,
+        _selectedWeek.start.year,
+        _selectedWeek.start.month,
         1,
       );
     }
     if (_periodType == PeriodType.year && widget.initialYear != null) {
-      _selectedYear = widget.initialYear!;
+      if (widget.initialYear! > now.year) {
+        _selectedYear = now.year;
+      } else {
+        _selectedYear = widget.initialYear!;
+      }
     }
   }
 
@@ -92,7 +118,7 @@ class _BillPageState extends State<BillPage> {
       context: context,
       initialDate: DateTime(_selectedYear, 1, 1),
       firstDate: DateTime(now.year - 10),
-      lastDate: DateTime(now.year + 5),
+      lastDate: DateTime(now.year, 12, 31), // 限制为当前年份
       helpText: AppStrings.pickYear,
     );
     if (picked != null) {
@@ -106,7 +132,7 @@ class _BillPageState extends State<BillPage> {
       context: context,
       initialDate: _selectedMonth,
       firstDate: DateTime(now.year - 10),
-      lastDate: DateTime(now.year + 5),
+      lastDate: DateTime(now.year, now.month, 1), // 限制为当前月份
       helpText: AppStrings.pickMonth,
     );
     if (picked != null) {
@@ -120,7 +146,7 @@ class _BillPageState extends State<BillPage> {
       context: context,
       initialDate: _selectedWeek.start,
       firstDate: DateTime(now.year - 10),
-      lastDate: DateTime(now.year + 5),
+      lastDate: now, // 限制为当前日期
       helpText: AppStrings.pickWeek,
     );
     if (picked != null) {
@@ -155,22 +181,51 @@ class _BillPageState extends State<BillPage> {
     }
   }
 
+  bool _canGoNext() {
+    final now = DateTime.now();
+    if (_periodType == PeriodType.year) {
+      // 如果当前年份已经是今年，不能前进
+      return _selectedYear < now.year;
+    } else if (_periodType == PeriodType.month) {
+      // 如果当前月份已经是本月或未来，不能前进
+      if (_selectedMonth.year > now.year) return false;
+      if (_selectedMonth.year == now.year && _selectedMonth.month >= now.month) {
+        return false;
+      }
+      return true;
+    } else {
+      // 周模式：如果下一周的开始日期超过当前日期，不能前进
+      final nextWeekStart = _selectedWeek.start.add(const Duration(days: 7));
+      return nextWeekStart.isBefore(now) || nextWeekStart.isAtSameMomentAs(now);
+    }
+  }
+
   void _shiftPeriod(int delta) {
+    final now = DateTime.now();
     setState(() {
       if (_periodType == PeriodType.year) {
-        _selectedYear += delta;
-        _selectedMonth = DateTime(_selectedYear, _selectedMonth.month, 1);
+        final newYear = _selectedYear + delta;
+        // 限制不能超过当前年份
+        if (newYear <= now.year) {
+          _selectedYear = newYear;
+          _selectedMonth = DateTime(_selectedYear, _selectedMonth.month, 1);
+        }
       } else if (_periodType == PeriodType.month) {
-        _selectedMonth =
-            DateTime(_selectedMonth.year, _selectedMonth.month + delta, 1);
-        _selectedYear = _selectedMonth.year;
+        final newMonth = DateTime(_selectedMonth.year, _selectedMonth.month + delta, 1);
+        // 限制不能超过当前月份
+        if (newMonth.isBefore(now) || (newMonth.year == now.year && newMonth.month == now.month)) {
+          _selectedMonth = newMonth;
+          _selectedYear = _selectedMonth.year;
+        }
       } else {
-        final newStart =
-            _selectedWeek.start.add(Duration(days: 7 * delta));
-        _selectedWeek = DateUtilsX.weekRange(newStart);
-        _selectedYear = _selectedWeek.start.year;
-        _selectedMonth =
-            DateTime(_selectedWeek.start.year, _selectedWeek.start.month, 1);
+        final newStart = _selectedWeek.start.add(Duration(days: 7 * delta));
+        // 限制不能超过当前日期
+        if (newStart.isBefore(now) || newStart.isAtSameMomentAs(now)) {
+          _selectedWeek = DateUtilsX.weekRange(newStart);
+          _selectedYear = _selectedWeek.start.year;
+          _selectedMonth =
+              DateTime(_selectedWeek.start.year, _selectedWeek.start.month, 1);
+        }
       }
     });
   }
@@ -285,6 +340,7 @@ class _BillPageState extends State<BillPage> {
               onPrev: () => _shiftPeriod(-1),
               onNext: () => _shiftPeriod(1),
               onTap: _pickPeriod,
+              canGoNext: _canGoNext(),
             ),
           ),
 

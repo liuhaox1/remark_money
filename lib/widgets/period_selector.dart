@@ -11,6 +11,7 @@ class PeriodSelector extends StatelessWidget {
     this.onNext,
     this.periodType,
     this.compact = false,
+    this.canGoNext = true,
   });
 
   final String label;
@@ -19,6 +20,7 @@ class PeriodSelector extends StatelessWidget {
   final VoidCallback? onNext;
   final PeriodType? periodType;
   final bool compact;
+  final bool canGoNext; // 是否可以前进到下一个时间段
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +77,8 @@ class PeriodSelector extends StatelessWidget {
         if (onNext != null)
           _IconCircleButton(
             icon: Icons.chevron_right,
-            onTap: onNext,
+            onTap: canGoNext ? onNext : null,
+            enabled: canGoNext,
           ),
       ],
     );
@@ -107,24 +110,34 @@ class _IconCircleButton extends StatelessWidget {
   const _IconCircleButton({
     required this.icon,
     required this.onTap,
+    this.enabled = true,
   });
 
   final IconData icon;
   final VoidCallback? onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkWell(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: cs.primary.withOpacity(0.1),
+          color: enabled 
+              ? cs.primary.withOpacity(0.1)
+              : cs.onSurface.withOpacity(0.05),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, size: 16, color: cs.primary),
+        child: Icon(
+          icon, 
+          size: 16, 
+          color: enabled 
+              ? cs.primary 
+              : cs.onSurface.withOpacity(0.3),
+        ),
       ),
     );
   }
