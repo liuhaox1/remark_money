@@ -10,6 +10,7 @@ import '../utils/date_utils.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
 import 'add_record_page.dart';
+import 'bill_page.dart';
 import 'report_detail_page.dart';
 
 class AnalysisPage extends StatefulWidget {
@@ -175,25 +176,22 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       months: visibleMonths,
                       weeks: weekSummaries,
                       hasYearRecords: hasYearRecords,
-                      onTapMonth: (month) => _openReportDetail(
+                      onTapMonth: (month) => _openBillPage(
                         context,
                         bookId: bookId,
                         year: _selectedYear,
                         month: month,
-                        periodType: PeriodType.month,
                       ),
-                      onTapYear: () => _openReportDetail(
+                      onTapYear: () => _openBillPage(
                         context,
                         bookId: bookId,
                         year: _selectedYear,
-                        periodType: PeriodType.year,
                       ),
-                      onTapWeek: (range) => _openReportDetail(
+                      onTapWeek: (range) => _openBillPage(
                         context,
                         bookId: bookId,
                         year: _selectedYear,
                         weekRange: range,
-                        periodType: PeriodType.week,
                       ),
                     ),
                   ),
@@ -206,22 +204,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  void _openReportDetail(
+  void _openBillPage(
     BuildContext context, {
     required String bookId,
     required int year,
     int? month,
     DateTimeRange? weekRange,
-    required PeriodType periodType,
   }) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ReportDetailPage(
-          bookId: bookId,
-          year: year,
-          month: month,
-          periodType: periodType,
-          weekRange: weekRange,
+        builder: (_) => BillPage(
+          initialYear: year,
+          initialMonth:
+              month != null ? DateTime(year, month, 1) : null,
+          initialRange: weekRange,
+          initialPeriodType: weekRange != null
+              ? PeriodType.week
+              : month != null
+                  ? PeriodType.month
+                  : PeriodType.year,
         ),
       ),
     );

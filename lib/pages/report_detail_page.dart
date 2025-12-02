@@ -57,7 +57,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final recordProvider = context.watch<RecordProvider>();
     final categoryProvider = context.watch<CategoryProvider>();
     final bookProvider = context.watch<BookProvider>();
-    final bookId = bookProvider.activeBookId;
+    final bookId = widget.bookId;
     Book? targetBook;
     for (final book in bookProvider.books) {
       if (book.id == bookId) {

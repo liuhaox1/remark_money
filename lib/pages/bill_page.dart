@@ -21,6 +21,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
+import '../widgets/timeline_item.dart';
+import 'report_detail_page.dart';
 
 class BillPage extends StatefulWidget {
   const BillPage({
@@ -167,12 +169,21 @@ class _BillPageState extends State<BillPage> {
     final cs = Theme.of(context).colorScheme;
     final bookProvider = context.watch<BookProvider>();
     final bookId = bookProvider.activeBookId;
+    final bookName =
+        bookProvider.activeBook?.name ?? AppStrings.defaultBook;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.billTitle),
+        title: Text(_appBarTitle()),
         actions: [
           const BookSelectorButton(compact: true),
+          TextButton(
+            onPressed: () => _openReportDetail(context, bookId),
+            child: const Text(
+              AppStrings.report,
+              style: TextStyle(fontSize: 14),
+            ),
+          ),
           IconButton(
             tooltip: '导出数据',
             icon: const Icon(Icons.ios_share_outlined),
@@ -232,6 +243,22 @@ class _BillPageState extends State<BillPage> {
 
           const SizedBox(height: 12),
 
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '当前账本：$bookName · 导出将包含本账本、当前时间范围内且计入统计的记录',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: cs.outline,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
           Expanded(
             child: _periodType == PeriodType.year
                 ? _buildYearBill(context, cs, bookId)
@@ -242,6 +269,17 @@ class _BillPageState extends State<BillPage> {
         ],
       ),
     );
+  }
+
+  String _appBarTitle() {
+    switch (_periodType) {
+      case PeriodType.week:
+        return AppStrings.weeklyBill;
+      case PeriodType.month:
+        return AppStrings.monthlyBill;
+      case PeriodType.year:
+        return AppStrings.yearlyBill;
+    }
   }
 
   DateTimeRange _currentRange() {
@@ -280,6 +318,21 @@ class _BillPageState extends State<BillPage> {
         final end = DateTime(_selectedYear, 12, 31, 23, 59, 59, 999);
         return DateTimeRange(start: start, end: end);
     }
+  }
+
+  void _openReportDetail(BuildContext context, String bookId) {
+    final range = _currentRange();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReportDetailPage(
+          bookId: bookId,
+          year: _selectedYear,
+          month: _periodType == PeriodType.month ? _selectedMonth.month : null,
+          weekRange: _periodType == PeriodType.week ? range : null,
+          periodType: _periodType,
+        ),
+      ),
+    );
   }
 
   Future<void> _showExportMenu(BuildContext context, String bookId) async {
@@ -510,6 +563,10 @@ class _BillPageState extends State<BillPage> {
 
   Widget _buildWeekBill(BuildContext context, ColorScheme cs, String bookId) {
     final recordProvider = context.watch<RecordProvider>();
+    final categoryProvider = context.watch<CategoryProvider>();
+    final categoryMap = {
+      for (final c in categoryProvider.categories) c.key: c,
+    };
     final days =
         List.generate(7, (i) => _selectedWeek.start.add(Duration(days: i)));
     final today = DateTime.now();
@@ -518,24 +575,29 @@ class _BillPageState extends State<BillPage> {
     double totalExpense = 0;
     int emptyDays = 0;
 
-    final dayItems = <Widget>[];
+    final items = <Widget>[];
 
     for (final d in days) {
       final income = recordProvider.dayIncome(bookId, d);
       final expense = recordProvider.dayExpense(bookId, d);
-
       totalIncome += income;
       totalExpense += expense;
 
-      // 只计算到今天为止的未记账天数，未来的日期不算
       final dayDate = DateTime(d.year, d.month, d.day);
-      if (income == 0 && expense == 0 && !dayDate.isAfter(todayDate)) {
+      final records = recordProvider.recordsForDay(bookId, d);
+
+      // 没有记录的过去日期只计入“空白天数”，不生成明细区块
+      if (records.isEmpty && !dayDate.isAfter(todayDate)) {
         emptyDays += 1;
+        continue;
+      }
+      if (records.isEmpty) {
         continue;
       }
 
       final balance = income - expense;
-      dayItems.add(
+
+      items.add(
         _billCard(
           title: AppStrings.monthDayLabel(d.month, d.day),
           subtitle: DateUtilsX.weekdayShort(d),
@@ -545,6 +607,18 @@ class _BillPageState extends State<BillPage> {
           cs: cs,
         ),
       );
+
+      for (final r in records) {
+        final category = categoryMap[r.categoryKey];
+        items.add(
+          TimelineItem(
+            record: r,
+            leftSide: false,
+            category: category,
+            subtitle: r.remark.isEmpty ? null : r.remark,
+          ),
+        );
+      }
     }
 
     final subtitleParts = <String>[AppStrings.weekRangeLabel(_selectedWeek)];
@@ -552,7 +626,9 @@ class _BillPageState extends State<BillPage> {
       subtitleParts.add(AppTextTemplates.weekEmptyDaysHint(emptyDays));
     }
 
-    final items = <Widget>[
+    // 顶部整周小结卡片
+    items.insert(
+      0,
       _billCard(
         title: DateUtilsX.weekLabel(_weekNumberForWeek(_selectedWeek.start)),
         subtitle: subtitleParts.join(' · '),
@@ -561,9 +637,7 @@ class _BillPageState extends State<BillPage> {
         balance: totalIncome - totalExpense,
         cs: cs,
       ),
-    ];
-
-    items.addAll(dayItems);
+    );
 
     return ListView(
       padding: const EdgeInsets.all(12),
@@ -577,6 +651,10 @@ class _BillPageState extends State<BillPage> {
   Widget _buildMonthBill(BuildContext context, ColorScheme cs, String bookId) {
     final days = DateUtilsX.daysInMonth(_selectedMonth);
     final recordProvider = context.watch<RecordProvider>();
+    final categoryProvider = context.watch<CategoryProvider>();
+    final categoryMap = {
+      for (final c in categoryProvider.categories) c.key: c,
+    };
     double totalIncome = 0;
     double totalExpense = 0;
     double maxDailyExpense = 0;
@@ -630,11 +708,12 @@ class _BillPageState extends State<BillPage> {
       ),
     );
 
-    // 只展示有记账的日期，避免一长串全是 0.00
+    // 只展示有记账的日期，并在每一天下方展示具体明细
     for (final d in nonEmptyDays) {
       final income = recordProvider.dayIncome(bookId, d);
       final expense = recordProvider.dayExpense(bookId, d);
       final balance = income - expense;
+      final records = recordProvider.recordsForDay(bookId, d);
 
       items.add(
         _billCard(
@@ -645,6 +724,18 @@ class _BillPageState extends State<BillPage> {
           cs: cs,
         ),
       );
+
+      for (final r in records) {
+        final category = categoryMap[r.categoryKey];
+        items.add(
+          TimelineItem(
+            record: r,
+            leftSide: false,
+            category: category,
+            subtitle: r.remark.isEmpty ? null : r.remark,
+          ),
+        );
+      }
     }
 
     return ListView(
