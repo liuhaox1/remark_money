@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
-    show debugPaintBaselinesEnabled, debugPaintSizeEnabled;
+    show
+        debugPaintBaselinesEnabled,
+        debugPaintLayerBordersEnabled,
+        debugPaintPointersEnabled,
+        debugPaintSizeEnabled,
+        debugRepaintRainbowEnabled,
+        debugRepaintTextRainbowEnabled;
 import 'package:provider/provider.dart';
 
 import 'providers/book_provider.dart';
@@ -24,9 +30,13 @@ import 'widgets/device_frame.dart';
 
 Future<void> main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
-  // 确保全局关闭调试描边/基线，避免导出的图片出现黄色下划线等调试标记
+  // 确保全局关闭调试描边/基线/重绘彩虹等调试标记，避免导出的图片出现黄色线条
   debugPaintBaselinesEnabled = false;
   debugPaintSizeEnabled = false;
+  debugPaintPointersEnabled = false;
+  debugPaintLayerBordersEnabled = false;
+  debugRepaintRainbowEnabled = false;
+  debugRepaintTextRainbowEnabled = false;
   runApp(const LoadingApp());
 
   await binding.endOfFrame;

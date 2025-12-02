@@ -113,12 +113,31 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   final GlobalKey _reportContentKey = GlobalKey();
 
 
-
   bool get _isYearMode => widget.periodType == PeriodType.year;
 
   bool get _isMonthMode => widget.periodType == PeriodType.month;
 
   bool get _isWeekMode => widget.periodType == PeriodType.week;
+
+  @override
+  void initState() {
+    super.initState();
+    // 防止调试基线/描边在桌面导出时被外部工具开启，初始化时关闭相关调试绘制
+    debugPaintBaselinesEnabled = false;
+    debugPaintSizeEnabled = false;
+    debugPaintPointersEnabled = false;
+    debugPaintLayerBordersEnabled = false;
+    debugRepaintRainbowEnabled = false;
+    debugRepaintTextRainbowEnabled = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      debugPaintBaselinesEnabled = false;
+      debugPaintSizeEnabled = false;
+      debugPaintPointersEnabled = false;
+      debugPaintLayerBordersEnabled = false;
+      debugRepaintRainbowEnabled = false;
+      debugRepaintTextRainbowEnabled = false;
+    });
+  }
 
 
 
@@ -933,28 +952,23 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     String bookName,
     DateTimeRange range,
   ) async {
-    // 关闭调试描边，避免导出图片出现黄色基线/尺寸线（仅 debug 模式有效）
-    bool? prevDebugPaintSizeEnabled;
-    bool? prevDebugPaintBaselinesEnabled;
-    bool? prevDebugPaintPointersEnabled;
-    bool? prevDebugPaintLayerBordersEnabled;
-    bool? prevDebugRepaintRainbowEnabled;
-    bool? prevDebugRepaintTextRainbowEnabled;
-    assert(() {
-      prevDebugPaintSizeEnabled = debugPaintSizeEnabled;
-      prevDebugPaintBaselinesEnabled = debugPaintBaselinesEnabled;
-      prevDebugPaintPointersEnabled = debugPaintPointersEnabled;
-      prevDebugPaintLayerBordersEnabled = debugPaintLayerBordersEnabled;
-      prevDebugRepaintRainbowEnabled = debugRepaintRainbowEnabled;
-      prevDebugRepaintTextRainbowEnabled = debugRepaintTextRainbowEnabled;
-      debugPaintSizeEnabled = false;
-      debugPaintBaselinesEnabled = false;
-      debugPaintPointersEnabled = false;
-      debugPaintLayerBordersEnabled = false;
-      debugRepaintRainbowEnabled = false;
-      debugRepaintTextRainbowEnabled = false;
-      return true;
-    }());
+    // 关闭调试描边，避免导出图片出现黄色基线/尺寸线（无论 debug/运行时是否打开 DevTools 调试，都强制关闭）
+    final prevDebugPaintSizeEnabled = debugPaintSizeEnabled;
+    final prevDebugPaintBaselinesEnabled = debugPaintBaselinesEnabled;
+    final prevDebugPaintPointersEnabled = debugPaintPointersEnabled;
+    final prevDebugPaintLayerBordersEnabled = debugPaintLayerBordersEnabled;
+    final prevDebugRepaintRainbowEnabled = debugRepaintRainbowEnabled;
+    final prevDebugRepaintTextRainbowEnabled = debugRepaintTextRainbowEnabled;
+    debugPaintSizeEnabled = false;
+    debugPaintBaselinesEnabled = false;
+    debugPaintPointersEnabled = false;
+    debugPaintLayerBordersEnabled = false;
+    debugRepaintRainbowEnabled = false;
+    debugRepaintTextRainbowEnabled = false;
+    // 确保关闭后再出一帧，避免上一次调试基线残留在截图里
+    RendererBinding.instance.renderView.markNeedsPaint();
+    await WidgetsBinding.instance.endOfFrame;
+    await Future.delayed(const Duration(milliseconds: 16));
     try {
       // 显示加载提示
 
@@ -1431,28 +1445,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         );
       }
     } finally {
-      assert(() {
-        if (prevDebugPaintSizeEnabled != null) {
-          debugPaintSizeEnabled = prevDebugPaintSizeEnabled!;
-        }
-        if (prevDebugPaintBaselinesEnabled != null) {
-          debugPaintBaselinesEnabled = prevDebugPaintBaselinesEnabled!;
-        }
-        if (prevDebugPaintPointersEnabled != null) {
-          debugPaintPointersEnabled = prevDebugPaintPointersEnabled!;
-        }
-        if (prevDebugPaintLayerBordersEnabled != null) {
-          debugPaintLayerBordersEnabled = prevDebugPaintLayerBordersEnabled!;
-        }
-        if (prevDebugRepaintRainbowEnabled != null) {
-          debugRepaintRainbowEnabled = prevDebugRepaintRainbowEnabled!;
-        }
-        if (prevDebugRepaintTextRainbowEnabled != null) {
-          debugRepaintTextRainbowEnabled =
-              prevDebugRepaintTextRainbowEnabled!;
-        }
-        return true;
-      }());
+      debugPaintSizeEnabled = prevDebugPaintSizeEnabled;
+      debugPaintBaselinesEnabled = prevDebugPaintBaselinesEnabled;
+      debugPaintPointersEnabled = prevDebugPaintPointersEnabled;
+      debugPaintLayerBordersEnabled = prevDebugPaintLayerBordersEnabled;
+      debugRepaintRainbowEnabled = prevDebugRepaintRainbowEnabled;
+      debugRepaintTextRainbowEnabled = prevDebugRepaintTextRainbowEnabled;
     }
   }
 

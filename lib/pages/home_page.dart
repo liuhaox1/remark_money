@@ -638,14 +638,13 @@ class _HomePageState extends State<HomePage> {
     // 计算底部 padding：系统安全区域 + 底部导航栏高度 + 额外安全边距
     final mediaQuery = MediaQuery.of(context);
     final systemBottomPadding = mediaQuery.viewPadding.bottom; // 系统底部安全区域
-    final navigationBarHeight = 80.0; // NavigationBar 高度
-    final extraPadding = 24.0; // 额外安全边距
-    final bottomPadding = systemBottomPadding + navigationBarHeight + extraPadding;
+    const extraPadding = 16.0; // ???????????????????
+    final bottomPadding = systemBottomPadding + extraPadding;
     
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 16), // 增加底部 padding
         controller: _monthScrollController,
         // 使用 AlwaysScrollableScrollPhysics 确保可以滚动到底部
         physics: const AlwaysScrollableScrollPhysics(),
