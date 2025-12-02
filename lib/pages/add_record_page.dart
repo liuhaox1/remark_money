@@ -1406,9 +1406,22 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           tempYear = years[index];
                         },
                         children: years
+                            .asMap()
+                            .entries
                             .map(
-                              (y) => Center(
-                                child: Text('$y年'),
+                              (entry) => GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  yearController.animateToItem(
+                                    entry.key,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOut,
+                                  );
+                                  tempYear = entry.value;
+                                },
+                                child: Center(
+                                  child: Text('${entry.value}年'),
+                                ),
                               ),
                             )
                             .toList(),
@@ -1422,9 +1435,22 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           tempMonth = months[index];
                         },
                         children: months
+                            .asMap()
+                            .entries
                             .map(
-                              (m) => Center(
-                                child: Text(m.toString().padLeft(2, '0')),
+                              (entry) => GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  monthController.animateToItem(
+                                    entry.key,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOut,
+                                  );
+                                  tempMonth = entry.value;
+                                },
+                                child: Center(
+                                  child: Text(entry.value.toString().padLeft(2, '0')),
+                                ),
                               ),
                             )
                             .toList(),
@@ -1438,9 +1464,22 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           tempDay = days[index];
                         },
                         children: days
+                            .asMap()
+                            .entries
                             .map(
-                              (d) => Center(
-                                child: Text(d.toString().padLeft(2, '0')),
+                              (entry) => GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  dayController.animateToItem(
+                                    entry.key,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOut,
+                                  );
+                                  tempDay = entry.value;
+                                },
+                                child: Center(
+                                  child: Text(entry.value.toString().padLeft(2, '0')),
+                                ),
                               ),
                             )
                             .toList(),
