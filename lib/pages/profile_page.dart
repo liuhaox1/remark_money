@@ -34,12 +34,7 @@ class ProfilePage extends StatelessWidget {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        centerTitle: false,
-        titleSpacing: 16,
-        title: const Text(
-          AppStrings.profile,
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
+        toolbarHeight: 0,
       ),
       body: Center(
         child: ConstrainedBox(
@@ -56,6 +51,8 @@ class ProfilePage extends StatelessWidget {
               _buildBudgetCategorySection(context),
               const SizedBox(height: 16),
               _buildHabitSection(context, reminderProvider),
+              const SizedBox(height: 16),
+              _buildDangerSection(context),
               const SizedBox(height: 16),
               _buildHelpAboutSection(context),
             ],
@@ -111,22 +108,40 @@ class ProfilePage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Wrap(
-              spacing: 8,
+              spacing: 12,
               children: seedOptions.map((color) {
                 final selected = provider.seedColor.value == color.value;
                 return GestureDetector(
                   onTap: () => provider.setSeedColor(color),
                   child: Container(
-                    width: 28,
-                    height: 28,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: color,
                       border: Border.all(
-                        color: selected ? Colors.black : Colors.white,
-                        width: selected ? 2 : 1,
+                        color: selected 
+                            ? Theme.of(context).colorScheme.onSurface
+                            : Colors.grey.withOpacity(0.3),
+                        width: selected ? 3 : 2,
                       ),
+                      boxShadow: selected
+                          ? [
+                              BoxShadow(
+                                color: color.withOpacity(0.4),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : null,
                     ),
+                    child: selected
+                        ? const Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 20,
+                          )
+                        : null,
                   ),
                 );
               }).toList(),
@@ -209,20 +224,43 @@ class ProfilePage extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const ListTile(
-            leading: Icon(Icons.security_outlined),
-            title: Text('数据与安全'),
+            leading: Icon(Icons.ios_share_outlined),
+            title: Text('数据导出'),
           ),
           const Divider(height: 1),
           ListTile(
-            leading: const Icon(Icons.ios_share_outlined),
+            leading: const Icon(Icons.table_chart_outlined),
             title: const Text('导出数据'),
             subtitle: const Text('导出当前账本的全部记账记录（CSV）'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showExportSheet(context),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDangerSection(BuildContext context) {
+    return Card(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ListTile(
+            leading: Icon(Icons.warning_amber_outlined, color: Colors.red),
+            title: Text(
+              '危险操作',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          const Divider(height: 1),
           ListTile(
-            leading: const Icon(Icons.delete_forever_outlined),
-            title: const Text('清空全部数据'),
-            subtitle: const Text('清除本地存储的账本、记录、账户等数据'),
+            leading: const Icon(Icons.delete_forever_outlined, color: Colors.red),
+            title: const Text(
+              '清空全部数据',
+              style: TextStyle(color: Colors.red),
+            ),
+            subtitle: const Text('清除本地存储的账本、记录、账户等数据（不可恢复）'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _confirmClearAll(context),
           ),
         ],
@@ -297,34 +335,14 @@ class ProfilePage extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const ListTile(
-            leading: Icon(Icons.help_outline),
-            title: Text('帮助与关于'),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.menu_book_outlined),
-            title: const Text('使用帮助'),
-            onTap: () => _showPlaceholder(context, '使用帮助'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.feedback_outlined),
-            title: const Text('意见反馈'),
-            onTap: () => _showPlaceholder(context, '意见反馈'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('隐私政策'),
-            onTap: () => _showPlaceholder(context, '隐私政策'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.description_outlined),
-            title: const Text('用户协议'),
-            onTap: () => _showPlaceholder(context, '用户协议'),
+            leading: Icon(Icons.info_outline),
+            title: Text('关于'),
           ),
           const Divider(height: 1),
           const ListTile(
             leading: Icon(Icons.info_outline),
             title: Text(AppStrings.version),
+            subtitle: Text('指尖记账'),
           ),
         ],
       ),
@@ -549,14 +567,43 @@ class ProfilePage extends StatelessWidget {
     final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('清空全部数据'),
-            content: const Text('将删除本地存储的全部账本、记录、账户等数据，操作不可撤销。是否继续？'),
+            icon: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+            title: const Text(
+              '清空全部数据',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '此操作将永久删除：',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8),
+                Text('• 所有账本'),
+                Text('• 所有记账记录'),
+                Text('• 所有账户信息'),
+                Text('• 所有分类设置'),
+                SizedBox(height: 12),
+                Text(
+                  '⚠️ 此操作不可撤销，请谨慎操作！',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
                 child: const Text(AppStrings.cancel),
               ),
               FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red,
+                ),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: const Text(AppStrings.delete),
               ),
