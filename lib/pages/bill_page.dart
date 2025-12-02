@@ -185,7 +185,8 @@ class _BillPageState extends State<BillPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_appBarTitle()),
+        // 顶部不显示文字标题，避免与中间的周/月/年切换重复
+        title: const SizedBox.shrink(),
         actions: [
           const BookSelectorButton(compact: true),
           IconButton(
@@ -318,14 +319,9 @@ class _BillPageState extends State<BillPage> {
   }
 
   String _appBarTitle() {
-    switch (_periodType) {
-      case PeriodType.week:
-        return AppStrings.weeklyBill;
-      case PeriodType.month:
-        return AppStrings.monthlyBill;
-      case PeriodType.year:
-        return AppStrings.yearlyBill;
-    }
+    // 顶部标题保持简短，避免被两侧按钮挤压成省略号
+    // 周账单 / 月账单 / 年账单的区分已经由中间的 SegmentedButton 承担
+    return AppStrings.billTitle; // 统一显示「账单」
   }
 
   DateTimeRange _currentRange() {

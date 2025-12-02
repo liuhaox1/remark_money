@@ -190,8 +190,8 @@ class AppStrings {
 
   // Bill page
   static const billTitle = '账单';
-  static const yearlyBill = '年度账单';
-  static const monthlyBill = '月度账单';
+  static const yearlyBill = '年账单';
+  static const monthlyBill = '月账单';
   static const pickYear = '选择年份';
   static const pickMonth = '选择月份';
 

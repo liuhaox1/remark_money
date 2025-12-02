@@ -261,7 +261,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openFilterSheet() async {
     final categories = context.read<CategoryProvider>().categories;
-    Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys); // 多选
+    Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys); // 多选分类，默认带入已有
     final minCtrl = TextEditingController(
       text: _minAmount != null ? _minAmount!.toString() : '',
     );
@@ -276,6 +276,8 @@ class _HomePageState extends State<HomePage> {
     final categorySearchCtrl = TextEditingController();
     // 展开的一级分类状态（需要在 StatefulBuilder 外部维护）
     final expandedTopCategories = <String>{};
+    bool amountExpanded = false;
+    bool dateExpanded = false;
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,

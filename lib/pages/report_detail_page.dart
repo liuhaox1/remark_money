@@ -106,25 +106,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
     final ranking = List<ChartEntry>.from(rankingEntries)
       ..sort((a, b) => b.value.compareTo(a.value));
-    final dailyEntries = (_isMonthMode || _isWeekMode)
-        ? _buildDailyEntries(recordProvider, bookId, cs)
-        : <ChartEntry>[];
-    // 近 6 期对比：
-    // - 周模式：近 6 周支出对比
-    // - 年模式：近 6 个月支出对比
-    // - 月模式：不展示（避免与当前月的日趋势混淆）
-    final compareEntries = (_isWeekMode || _isYearMode)
-        ? _buildRecentPeriodEntries(recordProvider, bookId, cs)
-        : <ChartEntry>[];
+    // 趋势图：月/周模式显示日趋势，年模式显示月趋势
+    final dailyEntries = _buildDailyEntries(recordProvider, bookId, cs);
 
     final activity = _periodActivity(recordProvider, bookId);
     final totalExpenseValue =
         distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
     final totalRankingValue =
         rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
-    final compareTitle = _isWeekMode
-        ? '近 6 周支出对比'
-        : AppStrings.recentMonthCompare; // 年度视图：近 6 个月支出对比
     const emptyText = AppStrings.emptyPeriodRecords;
     String? weeklySummaryText;
     if (_isWeekMode && hasData) {
@@ -193,8 +182,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   totalRankingValue: totalRankingValue,
                   categoryProvider: categoryProvider,
                   dailyEntries: dailyEntries,
-                  compareEntries: compareEntries,
-                  compareTitle: compareTitle,
                   activity: activity,
                   emptyText: emptyText,
                 ),
@@ -228,8 +215,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     required double totalRankingValue,
     required CategoryProvider categoryProvider,
     required List<ChartEntry> dailyEntries,
-    required List<ChartEntry> compareEntries,
-    required String compareTitle,
     required _PeriodActivity activity,
     required String emptyText,
   }) {
@@ -408,7 +393,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                       ),
                     if (ranking.isNotEmpty) const SizedBox(height: 16),
                     _SectionCard(
-                      title: AppStrings.dailyTrend,
+                      title: _isYearMode ? '月趋势' : AppStrings.dailyTrend,
                       child: dailyEntries.isEmpty
                           ? Padding(
                               padding:
@@ -423,7 +408,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
-                                      '暂无日趋势数据',
+                                      _isYearMode ? '暂无月趋势数据' : '暂无日趋势数据',
                                       style: TextStyle(
                                         color: cs.onSurface.withOpacity(0.5),
                                         fontSize: 14,
@@ -432,7 +417,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      '当有记账记录时会显示每日支出趋势',
+                                      _isYearMode 
+                                          ? '当有记账记录时会显示每月支出趋势'
+                                          : '当有记账记录时会显示每日支出趋势',
                                       style: TextStyle(
                                         color: cs.onSurface.withOpacity(0.4),
                                         fontSize: 12,
@@ -448,30 +435,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                               cs: cs,
                             ),
                     ),
-                    if (compareEntries.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _SectionCard(
-                        title: compareTitle,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              height: 260,
-                              child: ChartBar(entries: compareEntries),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              AppStrings.chartRecentCompareDesc,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.onSurface.withOpacity(0.6),
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                     const SizedBox(height: 16),
                     _SectionCard(
                       title: AppStrings.reportAchievements,
@@ -571,21 +534,13 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
       final ranking = List<ChartEntry>.from(rankingEntries)
         ..sort((a, b) => b.value.compareTo(a.value));
-      final dailyEntries = (_isMonthMode || _isWeekMode)
-          ? _buildDailyEntries(recordProvider, bookId, cs)
-          : <ChartEntry>[];
-      final compareEntries = (_isWeekMode || _isYearMode)
-          ? _buildRecentPeriodEntries(recordProvider, bookId, cs)
-          : <ChartEntry>[];
-
+      // 趋势图：月/周模式显示日趋势，年模式显示月趋势
+      final dailyEntries = _buildDailyEntries(recordProvider, bookId, cs);
       final activity = _periodActivity(recordProvider, bookId);
       final totalExpenseValue =
           distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
       final totalRankingValue =
           rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
-      final compareTitle = _isWeekMode
-          ? '近 6 周支出对比'
-          : AppStrings.recentMonthCompare;
       const emptyText = AppStrings.emptyPeriodRecords;
       String? weeklySummaryText;
       if (_isWeekMode && hasData) {
@@ -637,8 +592,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             totalRankingValue: totalRankingValue,
             categoryProvider: categoryProvider,
             dailyEntries: dailyEntries,
-            compareEntries: compareEntries,
-            compareTitle: compareTitle,
             activity: activity,
             emptyText: emptyText,
           ),
@@ -973,6 +926,23 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     String bookId,
     ColorScheme cs,
   ) {
+    if (_isYearMode) {
+      // 年模式：构建12个月的月趋势数据
+      final entries = <ChartEntry>[];
+      for (var month = 1; month <= 12; month++) {
+        final monthDate = DateTime(widget.year, month, 1);
+        final expense = recordProvider.monthExpense(monthDate, bookId);
+        entries.add(
+          ChartEntry(
+            label: '$month月',
+            value: expense,
+            color: cs.primary,
+          ),
+        );
+      }
+      return entries;
+    }
+    
     // 日趋势的横轴应该覆盖完整周期：
     // - 月视图：当月 1 号 ~ 当月最后一天（即使还没到月底，后面的天数也显示为 0）
     // - 周视图：本周 7 天
@@ -1007,47 +977,57 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         .toList();
   }
 
-  // 构建日趋势内容（包含统计摘要和图表）
+  // 构建趋势内容（包含统计摘要和图表）：日趋势或月趋势
   Widget _buildDailyTrendContent({
     required List<ChartEntry> dailyEntries,
     required double totalExpense,
     required ColorScheme cs,
   }) {
-    // 使用和 _buildDailyEntries 相同的逻辑计算范围
-    final baseRange = _periodRange();
-    DateTime start = baseRange.start;
-    DateTime end = baseRange.end;
-
-    if (_isMonthMode) {
-      // 当月从 1 号到最后一天
-      start = DateTime(start.year, start.month, 1);
-      end = DateTime(start.year, start.month + 1, 0);
-    } else if (_isWeekMode) {
-      // 确保是完整的一周（7 天）
-      start = DateUtilsX.startOfWeek(start);
-      end = start.add(const Duration(days: 6));
-    }
-
-    final dayCount = end.difference(start).inDays + 1;
-    final days = List.generate(
-      dayCount,
-      (i) => start.add(Duration(days: i)),
-    );
-
-    // 计算统计数据 - 确保索引匹配
     double maxDailyExpense = 0;
+    int? maxIndex;
     DateTime? maxDate;
-    // dailyEntries 的长度应该和 days 的长度一致
-    final minLength = min(dailyEntries.length, days.length);
-    for (var i = 0; i < minLength; i++) {
-      if (dailyEntries[i].value > maxDailyExpense) {
-        maxDailyExpense = dailyEntries[i].value;
-        maxDate = days[i];
+    
+    if (_isYearMode) {
+      // 年模式：月趋势统计
+      for (var i = 0; i < dailyEntries.length; i++) {
+        if (dailyEntries[i].value > maxDailyExpense) {
+          maxDailyExpense = dailyEntries[i].value;
+          maxIndex = i;
+        }
+      }
+    } else {
+      // 日趋势统计
+      final baseRange = _periodRange();
+      DateTime start = baseRange.start;
+      DateTime end = baseRange.end;
+
+      if (_isMonthMode) {
+        start = DateTime(start.year, start.month, 1);
+        end = DateTime(start.year, start.month + 1, 0);
+      } else if (_isWeekMode) {
+        start = DateUtilsX.startOfWeek(start);
+        end = start.add(const Duration(days: 6));
+      }
+
+      final dayCount = end.difference(start).inDays + 1;
+      final days = List.generate(
+        dayCount,
+        (i) => start.add(Duration(days: i)),
+      );
+
+      // 计算统计数据
+      final minLength = min(dailyEntries.length, days.length);
+      for (var i = 0; i < minLength; i++) {
+        if (dailyEntries[i].value > maxDailyExpense) {
+          maxDailyExpense = dailyEntries[i].value;
+          maxDate = days[i];
+        }
       }
     }
 
-    final avgDailyExpense = dayCount > 0 ? totalExpense / dayCount : 0.0;
-    final periodLabel = _isWeekMode ? '本周' : _isMonthMode ? '本月' : '本期';
+    final periodCount = _isYearMode ? 12 : (_isWeekMode ? 7 : (_isMonthMode ? DateTime(widget.year, widget.month ?? 12, 0).day : 30));
+    final avgExpense = periodCount > 0 ? totalExpense / periodCount : 0.0;
+    final periodLabel = _isYearMode ? '本年' : (_isWeekMode ? '本周' : _isMonthMode ? '本月' : '本期');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1057,17 +1037,20 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           children: [
             Expanded(
               child: _DailyTrendStatItem(
-                label: '单日支出最高',
+                label: _isYearMode ? '单月支出最高' : '单日支出最高',
                 value: maxDailyExpense,
-                date: maxDate,
+                date: _isYearMode 
+                    ? (maxIndex != null ? DateTime(widget.year, maxIndex! + 1, 1) : null)
+                    : maxDate,
+                isYearMode: _isYearMode,
                 cs: cs,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _DailyTrendStatItem(
-                label: '日均支出',
-                value: avgDailyExpense,
+                label: _isYearMode ? '月均支出' : '日均支出',
+                value: avgExpense,
                 cs: cs,
               ),
             ),
@@ -1082,15 +1065,26 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           ],
         ),
         const SizedBox(height: 16),
-        // 图表：直接在卡片宽度内显示所有天数
+        // 图表：年模式不需要横向滚动，月/周模式需要
         SizedBox(
           height: 200,
-          width: double.infinity,
-          child: ChartLine(entries: dailyEntries),
+          child: _isYearMode
+              ? ChartLine(entries: dailyEntries)
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: dailyEntries.isEmpty 
+                        ? 400.0 
+                        : max(400.0, dailyEntries.length * 25.0 + 120.0),
+                    child: ChartLine(entries: dailyEntries),
+                  ),
+                ),
         ),
         const SizedBox(height: 12),
         Text(
-          AppStrings.chartDailyTrendDesc,
+          _isYearMode 
+              ? '展示本年度每月的支出趋势，方便你了解消费高峰和低谷。'
+              : AppStrings.chartDailyTrendDesc,
           style: TextStyle(
             fontSize: 12,
             color: cs.onSurface.withOpacity(0.6),
@@ -1101,49 +1095,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
-  List<ChartEntry> _buildRecentPeriodEntries(
-    RecordProvider recordProvider,
-    String bookId,
-    ColorScheme cs,
-  ) {
-    final entries = <ChartEntry>[];
-
-    if (_isWeekMode) {
-      final base = DateUtilsX.startOfWeek(_periodRange().start);
-      for (var i = 5; i >= 0; i--) {
-        final start = base.subtract(Duration(days: 7 * i));
-        final end = start.add(const Duration(days: 6));
-        final expense = recordProvider.periodExpense(
-          bookId: bookId,
-          start: start,
-          end: end,
-        );
-        entries.add(
-          ChartEntry(
-            label: 'W${_weekIndex(start)}',
-            value: expense,
-            color: cs.primary,
-          ),
-        );
-      }
-    } else if (_isYearMode) {
-      // 年度模式：展示最近 6 个月的总支出对比
-      final baseMonth = DateTime(widget.year, widget.month ?? 12, 1);
-      for (var i = 5; i >= 0; i--) {
-        final month = DateTime(baseMonth.year, baseMonth.month - i, 1);
-        final expense = recordProvider.monthExpense(month, bookId);
-        entries.add(
-          ChartEntry(
-            label:
-                '${month.year % 100}/${month.month.toString().padLeft(2, '0')}',
-            value: expense,
-            color: cs.primary,
-          ),
-        );
-      }
-    }
-    return entries;
-  }
 
   /// 检查字符串是否只包含英文字母、数字、下划线
   bool _isEnglishOnly(String text) {
@@ -1806,12 +1757,14 @@ class _DailyTrendStatItem extends StatelessWidget {
     required this.label,
     required this.value,
     this.date,
+    this.isYearMode = false,
     required this.cs,
   });
 
   final String label;
   final double value;
   final DateTime? date;
+  final bool isYearMode;
   final ColorScheme cs;
 
   String _formatAmount(double value) {
@@ -1850,7 +1803,7 @@ class _DailyTrendStatItem extends StatelessWidget {
         if (date != null) ...[
           const SizedBox(height: 2),
           Text(
-            '${date!.month}月${date!.day}日',
+            isYearMode ? '${date!.month}月' : '${date!.month}月${date!.day}日',
             style: TextStyle(
               fontSize: 10,
               color: cs.onSurface.withOpacity(0.5),
