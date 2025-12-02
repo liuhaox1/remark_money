@@ -512,6 +512,8 @@ class _BillPageState extends State<BillPage> {
     final recordProvider = context.watch<RecordProvider>();
     final days =
         List.generate(7, (i) => _selectedWeek.start.add(Duration(days: i)));
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
     double totalIncome = 0;
     double totalExpense = 0;
     int emptyDays = 0;
@@ -525,7 +527,9 @@ class _BillPageState extends State<BillPage> {
       totalIncome += income;
       totalExpense += expense;
 
-      if (income == 0 && expense == 0) {
+      // 只计算到今天为止的未记账天数，未来的日期不算
+      final dayDate = DateTime(d.year, d.month, d.day);
+      if (income == 0 && expense == 0 && !dayDate.isAfter(todayDate)) {
         emptyDays += 1;
         continue;
       }

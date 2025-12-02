@@ -281,346 +281,353 @@ class _HomePageState extends State<HomePage> {
           padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
           child: StatefulBuilder(
             builder: (ctx, setModalState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade400,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    AppStrings.filter,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    AppStrings.filterByCategory,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // 改进分类筛选：将收入和支出分类分开显示
-                  Column(
+              return ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.9,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 只有当用户没有选择特定的收支类型时，才显示所有分类
-                      if (tempIncomeExpense == null) ...[
-                        const Text(
-                          AppStrings.expenseCategory,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ...categories.where((c) => c.isExpense).map((c) {
-                              final selected = tempCategoryKey == c.key;
-                              return _buildFilterChip(
-                                label: c.name,
-                                selected: selected,
-                                onSelected: () {
-                                  setModalState(() => tempCategoryKey =
-                                      selected ? null : c.key);
-                                },
-                              );
-                            }).toList(),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          AppStrings.incomeCategory,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ...categories.where((c) => !c.isExpense).map((c) {
-                              final selected = tempCategoryKey == c.key;
-                              return _buildFilterChip(
-                                label: c.name,
-                                selected: selected,
-                                onSelected: () {
-                                  setModalState(() => tempCategoryKey =
-                                      selected ? null : c.key);
-                                },
-                              );
-                            }).toList(),
-                          ],
-                        ),
-                      ]
-                      // 当用户选择了特定的收支类型时，只显示对应的分类
-                      else if (tempIncomeExpense == false) ...[
-                        const Text(
-                          AppStrings.incomeCategory,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ...categories.where((c) => !c.isExpense).map((c) {
-                              final selected = tempCategoryKey == c.key;
-                              return _buildFilterChip(
-                                label: c.name,
-                                selected: selected,
-                                onSelected: () {
-                                  setModalState(() => tempCategoryKey =
-                                      selected ? null : c.key);
-                                },
-                              );
-                            }).toList(),
-                          ],
-                        ),
-                      ] else ...[
-                        const Text(
-                          AppStrings.expenseCategory,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ...categories.where((c) => c.isExpense).map((c) {
-                              final selected = tempCategoryKey == c.key;
-                              return _buildFilterChip(
-                                label: c.name,
-                                selected: selected,
-                                onSelected: () {
-                                  setModalState(() => tempCategoryKey =
-                                      selected ? null : c.key);
-                                },
-                              );
-                            }).toList(),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    AppStrings.filterByAmount,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: minCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            prefixText: '¥ ',
-                            hintText: AppStrings.minAmount,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade400,
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: maxCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            prefixText: '¥ ',
-                            hintText: AppStrings.maxAmount,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        AppStrings.filter,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // 添加收入/支出筛选
-                  const Text(
-                    AppStrings.filterByType,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // 使用自定义组件替换 ChoiceChip 以避免布局抖动
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildFilterChip(
-                        label: AppStrings.all,
-                        selected: tempIncomeExpense == null,
-                        onSelected: () {
-                          setModalState(() => tempIncomeExpense = null);
-                        },
+                      const SizedBox(height: 12),
+                      const Text(
+                        AppStrings.filterByCategory,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      _buildFilterChip(
-                        label: AppStrings.income,
-                        selected: tempIncomeExpense == true,
-                        onSelected: () {
-                          setModalState(() => tempIncomeExpense =
-                              tempIncomeExpense == true ? null : true);
-                        },
-                      ),
-                      _buildFilterChip(
-                        label: AppStrings.expense,
-                        selected: tempIncomeExpense == false,
-                        onSelected: () {
-                          setModalState(() => tempIncomeExpense =
-                              tempIncomeExpense == false ? null : false);
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // 添加日期范围筛选
-                  const Text(
-                    AppStrings.filterByDateRange,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            final date = await showDatePicker(
-                              context: ctx,
-                              initialDate: tempStartDate ?? DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2100),
-                            );
-                            if (date != null) {
-                              setModalState(() => tempStartDate = date);
-                            }
-                          },
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              border: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.all(Radius.circular(10)),
+                      const SizedBox(height: 8),
+                      // 改进分类筛选：将收入和支出分类分开显示
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 只有当用户没有选择特定的收支类型时，才显示所有分类
+                          if (tempIncomeExpense == null) ...[
+                            const Text(
+                              AppStrings.expenseCategory,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
                               ),
-                              labelText: AppStrings.startDate,
                             ),
-                            child: Text(
-                              tempStartDate == null
-                                  ? AppStrings.pleaseSelect
-                                  : '${tempStartDate!.year}-${tempStartDate!.month.toString().padLeft(2, '0')}-${tempStartDate!.day.toString().padLeft(2, '0')}',
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ...categories.where((c) => c.isExpense).map((c) {
+                                  final selected = tempCategoryKey == c.key;
+                                  return _buildFilterChip(
+                                    label: c.name,
+                                    selected: selected,
+                                    onSelected: () {
+                                      setModalState(() => tempCategoryKey =
+                                          selected ? null : c.key);
+                                    },
+                                  );
+                                }).toList(),
+                              ],
                             ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text('~'),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            final date = await showDatePicker(
-                              context: ctx,
-                              initialDate: tempEndDate ?? DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2100),
-                            );
-                            if (date != null) {
-                              setModalState(() => tempEndDate = date);
-                            }
-                          },
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              border: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.all(Radius.circular(10)),
+                            const SizedBox(height: 12),
+                            const Text(
+                              AppStrings.incomeCategory,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
                               ),
-                              labelText: AppStrings.endDate,
                             ),
-                            child: Text(
-                              tempEndDate == null
-                                  ? AppStrings.pleaseSelect
-                                  : '${tempEndDate!.year}-${tempEndDate!.month.toString().padLeft(2, '0')}-${tempEndDate!.day.toString().padLeft(2, '0')}',
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ...categories.where((c) => !c.isExpense).map((c) {
+                                  final selected = tempCategoryKey == c.key;
+                                  return _buildFilterChip(
+                                    label: c.name,
+                                    selected: selected,
+                                    onSelected: () {
+                                      setModalState(() => tempCategoryKey =
+                                          selected ? null : c.key);
+                                    },
+                                  );
+                                }).toList(),
+                              ],
                             ),
-                          ),
+                          ]
+                          // 当用户选择了特定的收支类型时，只显示对应的分类
+                          else if (tempIncomeExpense == false) ...[
+                            const Text(
+                              AppStrings.incomeCategory,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ...categories.where((c) => !c.isExpense).map((c) {
+                                  final selected = tempCategoryKey == c.key;
+                                  return _buildFilterChip(
+                                    label: c.name,
+                                    selected: selected,
+                                    onSelected: () {
+                                      setModalState(() => tempCategoryKey =
+                                          selected ? null : c.key);
+                                    },
+                                  );
+                                }).toList(),
+                              ],
+                            ),
+                          ] else ...[
+                            const Text(
+                              AppStrings.expenseCategory,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ...categories.where((c) => c.isExpense).map((c) {
+                                  final selected = tempCategoryKey == c.key;
+                                  return _buildFilterChip(
+                                    label: c.name,
+                                    selected: selected,
+                                    onSelected: () {
+                                      setModalState(() => tempCategoryKey =
+                                          selected ? null : c.key);
+                                    },
+                                  );
+                                }).toList(),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        AppStrings.filterByAmount,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: minCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                prefixText: '¥ ',
+                                hintText: AppStrings.minAmount,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: maxCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                prefixText: '¥ ',
+                                hintText: AppStrings.maxAmount,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // 添加收入/支出筛选
+                      const Text(
+                        AppStrings.filterByType,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // 使用自定义组件替换 ChoiceChip 以避免布局抖动
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildFilterChip(
+                            label: AppStrings.all,
+                            selected: tempIncomeExpense == null,
+                            onSelected: () {
+                              setModalState(() => tempIncomeExpense = null);
+                            },
+                          ),
+                          _buildFilterChip(
+                            label: AppStrings.income,
+                            selected: tempIncomeExpense == true,
+                            onSelected: () {
+                              setModalState(() => tempIncomeExpense =
+                                  tempIncomeExpense == true ? null : true);
+                            },
+                          ),
+                          _buildFilterChip(
+                            label: AppStrings.expense,
+                            selected: tempIncomeExpense == false,
+                            onSelected: () {
+                              setModalState(() => tempIncomeExpense =
+                                  tempIncomeExpense == false ? null : false);
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // 添加日期范围筛选
+                      const Text(
+                        AppStrings.filterByDateRange,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: ctx,
+                                  initialDate: tempStartDate ?? DateTime.now(),
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (date != null) {
+                                  setModalState(() => tempStartDate = date);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(10)),
+                                  ),
+                                  labelText: AppStrings.startDate,
+                                ),
+                                child: Text(
+                                  tempStartDate == null
+                                      ? AppStrings.pleaseSelect
+                                      : '${tempStartDate!.year}-${tempStartDate!.month.toString().padLeft(2, '0')}-${tempStartDate!.day.toString().padLeft(2, '0')}',
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text('~'),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: ctx,
+                                  initialDate: tempEndDate ?? DateTime.now(),
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (date != null) {
+                                  setModalState(() => tempEndDate = date);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(10)),
+                                  ),
+                                  labelText: AppStrings.endDate,
+                                ),
+                                child: Text(
+                                  tempEndDate == null
+                                      ? AppStrings.pleaseSelect
+                                      : '${tempEndDate!.year}-${tempEndDate!.month.toString().padLeft(2, '0')}-${tempEndDate!.day.toString().padLeft(2, '0')}',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              minCtrl.clear();
+                              maxCtrl.clear();
+                              setModalState(() {
+                                tempCategoryKey = null;
+                                tempIncomeExpense = null;
+                                tempStartDate = null;
+                                tempEndDate = null;
+                              });
+                            },
+                            child: const Text(AppStrings.reset),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () {
+                              Navigator.pop<Map<String, dynamic>>(ctx, {
+                                'categoryKey': tempCategoryKey,
+                                'min': minCtrl.text.trim(),
+                                'max': maxCtrl.text.trim(),
+                                'incomeExpense': tempIncomeExpense,
+                                'startDate': tempStartDate,
+                                'endDate': tempEndDate,
+                              });
+                            },
+                            child: const Text(AppStrings.confirm),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          minCtrl.clear();
-                          maxCtrl.clear();
-                          setModalState(() {
-                            tempCategoryKey = null;
-                            tempIncomeExpense = null;
-                            tempStartDate = null;
-                            tempEndDate = null;
-                          });
-                        },
-                        child: const Text(AppStrings.reset),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: () {
-                          Navigator.pop<Map<String, dynamic>>(ctx, {
-                            'categoryKey': tempCategoryKey,
-                            'min': minCtrl.text.trim(),
-                            'max': maxCtrl.text.trim(),
-                            'incomeExpense': tempIncomeExpense,
-                            'startDate': tempStartDate,
-                            'endDate': tempEndDate,
-                          });
-                        },
-                        child: const Text(AppStrings.confirm),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               );
             },
           ),
