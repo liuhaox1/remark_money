@@ -312,7 +312,103 @@ class _HomePageState extends State<HomePage> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
+                      // 当前已选条件总结
+                      Builder(
+                        builder: (context) {
+                          final chips = <Widget>[];
+                          if (tempCategoryKey != null) {
+                            final cat = categories.firstWhere(
+                              (c) => c.key == tempCategoryKey,
+                              orElse: () => Category(
+                                key: tempCategoryKey!,
+                                name: '分类',
+                                icon: Icons.category_outlined,
+                                isExpense: true,
+                              ),
+                            );
+                            chips.add(
+                              _buildFilterChip(
+                                label: cat.name,
+                                selected: true,
+                                onSelected: () {
+                                  setModalState(() => tempCategoryKey = null);
+                                },
+                              ),
+                            );
+                          }
+                          if (tempIncomeExpense != null) {
+                            chips.add(
+                              _buildFilterChip(
+                                label: tempIncomeExpense == true
+                                    ? AppStrings.income
+                                    : AppStrings.expense,
+                                selected: true,
+                                onSelected: () {
+                                  setModalState(
+                                      () => tempIncomeExpense = null);
+                                },
+                              ),
+                            );
+                          }
+                          if (minCtrl.text.trim().isNotEmpty ||
+                              maxCtrl.text.trim().isNotEmpty) {
+                            final min = minCtrl.text.trim().isEmpty
+                                ? '0'
+                                : minCtrl.text.trim();
+                            final max = maxCtrl.text.trim().isEmpty
+                                ? '∞'
+                                : maxCtrl.text.trim();
+                            chips.add(
+                              _buildFilterChip(
+                                label: '金额 $min ~ $max',
+                                selected: true,
+                                onSelected: () {
+                                  setModalState(() {
+                                    minCtrl.clear();
+                                    maxCtrl.clear();
+                                  });
+                                },
+                              ),
+                            );
+                          }
+                          if (tempStartDate != null || tempEndDate != null) {
+                            final start = tempStartDate != null
+                                ? '${tempStartDate!.year}-${tempStartDate!.month.toString().padLeft(2, '0')}-${tempStartDate!.day.toString().padLeft(2, '0')}'
+                                : '不限';
+                            final end = tempEndDate != null
+                                ? '${tempEndDate!.year}-${tempEndDate!.month.toString().padLeft(2, '0')}-${tempEndDate!.day.toString().padLeft(2, '0')}'
+                                : '不限';
+                            chips.add(
+                              _buildFilterChip(
+                                label: '$start ~ $end',
+                                selected: true,
+                                onSelected: () {
+                                  setModalState(() {
+                                    tempStartDate = null;
+                                    tempEndDate = null;
+                                  });
+                                },
+                              ),
+                            );
+                          }
+
+                          if (chips.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: chips,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 4),
+                      const Divider(height: 16),
                       const Text(
                         AppStrings.filterByCategory,
                         style: TextStyle(
@@ -551,6 +647,31 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 4),
+                      Builder(
+                        builder: (context) {
+                          final min = minCtrl.text.trim();
+                          final max = maxCtrl.text.trim();
+                          if (min.isEmpty && max.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          final text =
+                              '当前金额范围：${min.isEmpty ? '不限' : min} ~ ${max.isEmpty ? '不限' : max}';
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              text,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withOpacity(0.6),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 16),
                       // 添加收入/支出筛选
@@ -1306,7 +1427,8 @@ class _BalanceCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    child: Icon(Icons.search, size: 20, color: cs.onSurface),
+                    child: Icon(Icons.filter_alt_outlined,
+                        size: 20, color: cs.onSurface),
                   ),
                 ),
               ],

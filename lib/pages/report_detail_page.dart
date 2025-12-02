@@ -1,8 +1,14 @@
-﻿import 'dart:math';
-import 'dart:ui';
+﻿import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../l10n/app_strings.dart';
 import '../l10n/app_text_templates.dart';
@@ -44,6 +50,9 @@ class ReportDetailPage extends StatefulWidget {
 
 class _ReportDetailPageState extends State<ReportDetailPage> {
   bool _showIncomeCategory = false;
+  
+  // 用于保存图片的 GlobalKey
+  final GlobalKey _reportContentKey = GlobalKey();
 
   bool get _isYearMode => widget.periodType == PeriodType.year;
   bool get _isMonthMode => widget.periodType == PeriodType.month;
@@ -139,19 +148,26 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
       appBar: AppBar(
         title: Text(_appBarTitle(range)),
-        actions: const [
-          BookSelectorButton(compact: true),
-          SizedBox(width: 8),
+        actions: [
+          IconButton(
+            tooltip: '保存图片',
+            icon: const Icon(Icons.image_outlined),
+            onPressed: () => _saveReportAsImage(context, bookName, range),
+          ),
+          const BookSelectorButton(compact: true),
+          const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-              child: Column(
-                children: [
+            child: RepaintBoundary(
+              key: _reportContentKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                child: Column(
+                  children: [
                   _PeriodHeaderCard(
                     cs: cs,
                     isDark: isDark,
@@ -263,9 +279,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                     Text(
                                       '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
                                       style: const TextStyle(
-                                        fontFeatures: [
-                                          FontFeature.tabularFigures()
-                                        ],
                                       ),
                                     ),
                                   ],
@@ -300,9 +313,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                       '${entry.value.toStringAsFixed(2)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        fontFeatures: [
-                                          FontFeature.tabularFigures()
-                                        ],
                                       ),
                                     ),
                                   ),
@@ -395,10 +405,136 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 ],
               ),
             ),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  // 保存报表为图片
+  Future<void> _saveReportAsImage(
+    BuildContext context,
+    String bookName,
+    DateTimeRange range,
+  ) async {
+    try {
+      // 显示加载提示
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text('正在生成图片...'),
+              ],
+            ),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // 等待一帧确保渲染完成
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // 获取 RenderRepaintBoundary
+      final RenderRepaintBoundary? boundary = _reportContentKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
+
+      if (boundary == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('无法生成图片，请稍后重试')),
+          );
+        }
+        return;
+      }
+
+      // 转换为图片
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+
+      if (byteData == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('图片生成失败')),
+          );
+        }
+        return;
+      }
+
+      // 保存到临时文件
+      final dir = await getTemporaryDirectory();
+      final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      final now = DateTime.now();
+      final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final periodLabel = widget.periodType == PeriodType.week
+          ? '周报表'
+          : widget.periodType == PeriodType.month
+              ? '月报表'
+              : '年报表';
+      final fileName = '${safeBookName}_${periodLabel}_$dateStr.png';
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      if (!context.mounted) return;
+
+      // Windows 平台使用文件保存对话框，其他平台使用共享
+      if (Platform.isWindows) {
+        final savedPath = await FilePicker.platform.saveFile(
+          dialogTitle: '保存图片',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['png'],
+        );
+
+        if (savedPath != null) {
+          await file.copy(savedPath);
+          if (context.mounted) {
+            final fileSize = await File(savedPath).length();
+            final sizeStr = fileSize > 1024 * 1024
+                ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
+                : '${(fileSize / 1024).toStringAsFixed(2)} KB';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('图片保存成功！'),
+                    Text(
+                      '文件大小：$sizeStr',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      } else {
+        // 其他平台使用共享
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          subject: '指尖记账报表图片',
+          text: '指尖记账报表截图',
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存图片失败：${e.toString()}')),
+        );
+      }
+    }
   }
 
   String _appBarTitle(DateTimeRange range) {
@@ -909,7 +1045,6 @@ class _PeriodHeaderCard extends StatelessWidget {
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                         color: AppColors.amount(balance),
-                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1110,7 +1245,6 @@ class _SummaryMetric extends StatelessWidget {
             fontSize: 16,
             fontWeight: FontWeight.w800,
             color: color,
-            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
       ],
@@ -1142,7 +1276,6 @@ class _AchievementRow extends StatelessWidget {
           value,
           style: const TextStyle(
             fontWeight: FontWeight.w700,
-            fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),
       ],

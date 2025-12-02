@@ -59,7 +59,7 @@ class AppStrings {
 
   // Navigation
   static const navHome = '首页';
-  static const navStats = '统计';
+  static const navStats = '账单';
   static const navRecord = '记一笔';
   static const navAssets = '资产';
   static const navProfile = '我的';

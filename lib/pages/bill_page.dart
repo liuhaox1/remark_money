@@ -1,4 +1,5 @@
-import 'dart:ui';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +21,7 @@ import '../utils/records_export_bundle.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -208,7 +210,7 @@ class _BillPageState extends State<BillPage> {
       ),
       body: Column(
         children: [
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
           // -----------------------------------
           // 🔘 周 / 月 / 年 Segmented Button
@@ -1354,7 +1356,6 @@ class _BillPageState extends State<BillPage> {
             fontSize: 14,
             fontWeight: FontWeight.w700,
             color: color,
-            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         )
       ],
