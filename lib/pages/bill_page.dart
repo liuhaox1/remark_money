@@ -515,8 +515,10 @@ class _BillPageState extends State<BillPage> {
     final csv = toCsv(rows);
 
     final dir = await getTemporaryDirectory();
-    final fileName =
-        'remark_records_${range.start.toIso8601String()}_${range.end.toIso8601String()}.csv';
+    // Windows 文件名不允许包含特殊字符，使用简洁的日期格式
+    final startStr = '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
+    final endStr = '${range.end.year}-${range.end.month.toString().padLeft(2, '0')}-${range.end.day.toString().padLeft(2, '0')}';
+    final fileName = 'remark_records_${startStr}_$endStr.csv';
     final file = File('${dir.path}/$fileName');
 
     await file.writeAsString(csv, encoding: utf8);
@@ -562,8 +564,10 @@ class _BillPageState extends State<BillPage> {
     );
 
     final dir = await getTemporaryDirectory();
-    final fileName =
-        'remark_records_${range.start.toIso8601String()}_${range.end.toIso8601String()}.json';
+    final startStr =
+        range.start.toIso8601String().replaceAll(':', '-');
+    final endStr = range.end.toIso8601String().replaceAll(':', '-');
+    final fileName = 'remark_records_${startStr}_$endStr.json';
     final file = File('${dir.path}/$fileName');
 
     await file.writeAsString(bundle.toJson(), encoding: utf8);
