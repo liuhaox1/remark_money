@@ -69,8 +69,6 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 16),
               _buildBudgetCategorySection(context),
               const SizedBox(height: 16),
-              _buildHabitSection(context, reminderProvider),
-              const SizedBox(height: 16),
               _buildDataSecuritySection(context),
               const SizedBox(height: 16),
               _buildDangerSection(context),

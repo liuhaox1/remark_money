@@ -137,80 +137,74 @@ class _HomePageState extends State<HomePage> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: Column(
-              children: [
-                _HomeSearchBar(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  keyword: _searchKeyword,
-                  hasActiveFilter: _hasActiveFilterOrSearch,
-                  onChanged: _onSearchKeywordChanged,
-                  onSubmitted: _onSearchSubmitted,
-                  onTapFilter: _openFilterSheet,
-                  onClear: _clearSearchKeyword,
-                ),
-                if (_showSuggestions)
-                  _HomeSearchSuggestionPanel(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _HomeSearchBar(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
                     keyword: _searchKeyword,
-                    history: _searchHistory,
-                    categories: categoryProvider.categories,
-                    onTapHistory: _applyHistoryKeyword,
-                    onClearHistory: _clearSearchHistory,
-                    onTapCategory: _applyCategorySuggestion,
+                    hasActiveFilter: _hasActiveFilterOrSearch,
+                    onChanged: _onSearchKeywordChanged,
+                    onSubmitted: _onSearchSubmitted,
+                    onTapFilter: _openFilterSheet,
+                    onClear: _clearSearchKeyword,
                   ),
-                _HomeQuickFiltersBar(
-                  timeRangeType: _timeRangeType,
-                  filterIncomeExpense: _filterIncomeExpense,
-                  minAmount: _minAmount,
-                  onSelectTimeRange: _handleQuickTimeRange,
-                  onToggleIncomeOnly: _handleQuickIncomeOnly,
-                  onToggleExpenseOnly: _handleQuickExpenseOnly,
-                  onToggleHighExpense: _handleQuickHighExpense,
-                ),
-                if (_hasActiveFilterOrSearch)
-                  _HomeFilterSummaryBar(
-                    summaryText: _buildFilterSummaryText(),
-                    onClearAll: _handleClearAllFilters,
+                  if (_showSuggestions)
+                    _HomeSearchSuggestionPanel(
+                      keyword: _searchKeyword,
+                      history: _searchHistory,
+                      categories: categoryProvider.categories,
+                      onTapHistory: _applyHistoryKeyword,
+                      onClearHistory: _clearSearchHistory,
+                      onTapCategory: _applyCategorySuggestion,
+                    ),
+                  _HomeQuickFiltersBar(
+                    timeRangeType: _timeRangeType,
+                    filterIncomeExpense: _filterIncomeExpense,
+                    minAmount: _minAmount,
+                    onSelectTimeRange: _handleQuickTimeRange,
+                    onToggleIncomeOnly: _handleQuickIncomeOnly,
+                    onToggleExpenseOnly: _handleQuickExpenseOnly,
+                    onToggleHighExpense: _handleQuickHighExpense,
                   ),
-                _BalanceCard(
-                  income: monthIncome,
-                  expense: monthExpense,
-                  balance: monthBalance,
-                  dateLabel: dateLabel,
-                  onTapDate: _pickDate,
-                  onTapSearch: _openFilterSheet,
-                ),
-                const SizedBox(height: 8),
-                WeekStrip(
-                  selectedDay: _selectedDay,
-                  onSelected: _onDaySelected,
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Column(
-                    children: [
-                      const HomeBudgetBar(),
-                      const SizedBox(height: 4),
-                      if (_selectionMode)
-                        _SelectionToolbar(
-                          selectedCount: _selectedRecordIds.length,
-                          totalCount: _currentVisibleRecords.length,
-                          onExit: _exitSelectionMode,
-                          onSelectAll: _handleSelectAll,
-                          onDeleteSelected: _handleDeleteSelectedBatch,
-                        ),
-                      Expanded(
-                        child: hasRecords
-                            ? _buildMonthTimeline(
-                                filteredRecords,
-                                categoryMap,
-                              )
-                            : _buildEmptyState(context),
-                      ),
-                    ],
+                  if (_hasActiveFilterOrSearch)
+                    _HomeFilterSummaryBar(
+                      summaryText: _buildFilterSummaryText(),
+                      onClearAll: _handleClearAllFilters,
+                    ),
+                  _BalanceCard(
+                    income: monthIncome,
+                    expense: monthExpense,
+                    balance: monthBalance,
+                    dateLabel: dateLabel,
+                    onTapDate: _pickDate,
+                    onTapSearch: _openFilterSheet,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  WeekStrip(
+                    selectedDay: _selectedDay,
+                    onSelected: _onDaySelected,
+                  ),
+                  const SizedBox(height: 8),
+                  const HomeBudgetBar(),
+                  const SizedBox(height: 4),
+                  if (_selectionMode)
+                    _SelectionToolbar(
+                      selectedCount: _selectedRecordIds.length,
+                      totalCount: _currentVisibleRecords.length,
+                      onExit: _exitSelectionMode,
+                      onSelectAll: _handleSelectAll,
+                      onDeleteSelected: _handleDeleteSelectedBatch,
+                    ),
+                  hasRecords
+                      ? _buildMonthTimeline(
+                          filteredRecords,
+                          categoryMap,
+                        )
+                      : _buildEmptyState(context),
+                ],
+              ),
             ),
           ),
         ),
@@ -1007,6 +1001,7 @@ class _HomePageState extends State<HomePage> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 16), // 增加底部 padding
         controller: _monthScrollController,
+        shrinkWrap: true,
         // 使用 AlwaysScrollableScrollPhysics 确保可以滚动到底部
         physics: const AlwaysScrollableScrollPhysics(),
         cacheExtent: 1000, // 缓存更多内容以减少重新构建
