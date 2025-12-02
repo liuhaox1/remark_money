@@ -10,7 +10,9 @@ import 'package:remark_money/utils/date_utils.dart';
 
 import '../l10n/app_strings.dart';
 import '../l10n/app_text_templates.dart';
+import '../models/category.dart';
 import '../models/period_type.dart';
+import '../models/record.dart';
 import '../theme/app_tokens.dart';
 import '../utils/csv_utils.dart';
 import '../utils/records_export_bundle.dart';
@@ -22,6 +24,7 @@ import 'package:share_plus/share_plus.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
 import '../widgets/timeline_item.dart';
+import 'add_record_page.dart';
 import 'report_detail_page.dart';
 
 class BillPage extends StatefulWidget {
@@ -49,6 +52,10 @@ class _BillPageState extends State<BillPage> {
   late int _selectedYear;
   late DateTime _selectedMonth;
   late DateTimeRange _selectedWeek;
+
+  // 账单页筛选：按分类 + 收支方向
+  String? _filterCategoryKey;
+  bool? _filterIncomeExpense; // null: 全部, true: 只看收入, false: 只看支出
 
   @override
   void initState() {
@@ -177,6 +184,11 @@ class _BillPageState extends State<BillPage> {
         title: Text(_appBarTitle()),
         actions: [
           const BookSelectorButton(compact: true),
+          IconButton(
+            tooltip: AppStrings.filter,
+            icon: const Icon(Icons.filter_alt_outlined),
+            onPressed: _openFilterSheet,
+          ),
           TextButton(
             onPressed: () => _openReportDetail(context, bookId),
             child: const Text(
@@ -187,7 +199,7 @@ class _BillPageState extends State<BillPage> {
           IconButton(
             tooltip: '导出数据',
             icon: const Icon(Icons.ios_share_outlined),
-            onPressed: () => _showExportMenu(context, bookId),
+            onPressed: () => _showExportMenuV2(context, bookId),
           ),
           const SizedBox(width: 8),
         ],
@@ -248,7 +260,7 @@ class _BillPageState extends State<BillPage> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '当前账本：$bookName · 导出将包含本账本、当前时间范围内且计入统计的记录',
+                '当前账本：$bookName',
                 style: TextStyle(
                   fontSize: 11,
                   color: cs.outline,
@@ -263,7 +275,7 @@ class _BillPageState extends State<BillPage> {
             child: _periodType == PeriodType.year
                 ? _buildYearBill(context, cs, bookId)
                 : _periodType == PeriodType.month
-                    ? _buildMonthBill(context, cs, bookId)
+                    ? _buildMonthBill2(context, cs, bookId)
                     : _buildWeekBill(context, cs, bookId),
           ),
         ],
@@ -333,6 +345,67 @@ class _BillPageState extends State<BillPage> {
         ),
       ),
     );
+  }
+
+  // 新版导出菜单：在弹窗中说明导出范围
+  Future<void> _showExportMenuV2(
+    BuildContext context,
+    String bookId,
+  ) async {
+    final range = _currentRange();
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '导出范围：当前账本 · 当前时间范围 · 仅包含计入统计的记录',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(ctx).colorScheme.outline,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  title: const Text('导出 CSV（用 Excel 查看）'),
+                  onTap: () => Navigator.pop(ctx, 'csv'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  title: const Text('导出 JSON（用于备份 / 迁移）'),
+                  onTap: () => Navigator.pop(ctx, 'json'),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!context.mounted || choice == null) return;
+
+    if (choice == 'csv') {
+      await _exportCsv(context, bookId, range);
+    } else if (choice == 'json') {
+      await _exportJson(context, bookId, range);
+    }
   }
 
   Future<void> _showExportMenu(BuildContext context, String bookId) async {
@@ -527,12 +600,21 @@ class _BillPageState extends State<BillPage> {
       if (income == 0 && expense == 0) continue;
 
       monthItems.add(
-        _billCard(
-          title: AppStrings.monthLabel(m.month),
-          income: income,
-          expense: expense,
-          balance: balance,
-          cs: cs,
+        InkWell(
+          onTap: () {
+            setState(() {
+              _periodType = PeriodType.month;
+              _selectedYear = m.year;
+              _selectedMonth = DateTime(m.year, m.month, 1);
+            });
+          },
+          child: _billCard(
+            title: AppStrings.monthLabel(m.month),
+            income: income,
+            expense: expense,
+            balance: balance,
+            cs: cs,
+          ),
         ),
       );
     }
@@ -578,13 +660,21 @@ class _BillPageState extends State<BillPage> {
     final items = <Widget>[];
 
     for (final d in days) {
-      final income = recordProvider.dayIncome(bookId, d);
-      final expense = recordProvider.dayExpense(bookId, d);
+      final dayDate = DateTime(d.year, d.month, d.day);
+      final allRecords = recordProvider.recordsForDay(bookId, d);
+      final records = _applyFilters(allRecords, categoryMap);
+
+      double income = 0;
+      double expense = 0;
+      for (final r in records) {
+        if (r.isIncome) {
+          income += r.incomeValue;
+        } else {
+          expense += r.expenseValue;
+        }
+      }
       totalIncome += income;
       totalExpense += expense;
-
-      final dayDate = DateTime(d.year, d.month, d.day);
-      final records = recordProvider.recordsForDay(bookId, d);
 
       // 没有记录的过去日期只计入“空白天数”，不生成明细区块
       if (records.isEmpty && !dayDate.isAfter(todayDate)) {
@@ -616,6 +706,8 @@ class _BillPageState extends State<BillPage> {
             leftSide: false,
             category: category,
             subtitle: r.remark.isEmpty ? null : r.remark,
+            onTap: () => _openEditRecord(r),
+            onDelete: () => _confirmAndDeleteRecord(r),
           ),
         );
       }
@@ -646,7 +738,130 @@ class _BillPageState extends State<BillPage> {
   }
 
   // ======================================================
-  // 📕 月度账单（按天显示）
+  // 📕 月度账单（按天 + 明细，支持筛选）
+  // ======================================================
+  Widget _buildMonthBill2(
+    BuildContext context,
+    ColorScheme cs,
+    String bookId,
+  ) {
+    final days = DateUtilsX.daysInMonth(_selectedMonth);
+    final recordProvider = context.watch<RecordProvider>();
+    final categoryProvider = context.watch<CategoryProvider>();
+    final categoryMap = {
+      for (final c in categoryProvider.categories) c.key: c,
+    };
+
+    double totalIncome = 0;
+    double totalExpense = 0;
+    double maxDailyExpense = 0;
+    int recordedDays = 0;
+
+    final nonEmptyDays = <DateTime>[];
+
+    for (final d in days) {
+      final allRecords = recordProvider.recordsForDay(bookId, d);
+      final records = _applyFilters(allRecords, categoryMap);
+
+      double income = 0;
+      double expense = 0;
+      for (final r in records) {
+        if (r.isIncome) {
+          income += r.incomeValue;
+        } else {
+          expense += r.expenseValue;
+        }
+      }
+
+      totalIncome += income;
+      totalExpense += expense;
+
+      if (records.isNotEmpty) {
+        recordedDays += 1;
+        nonEmptyDays.add(d);
+      }
+      if (expense > maxDailyExpense) {
+        maxDailyExpense = expense;
+      }
+    }
+
+    final totalDays = days.length;
+    final avgExpense = totalDays > 0 ? totalExpense / totalDays : 0;
+    final emptyDays = totalDays - recordedDays;
+
+    final items = <Widget>[];
+
+    final subtitleParts = <String>[];
+    subtitleParts.add(
+      '本月支出 ${totalExpense.toStringAsFixed(2)} 元 · 日均 ${avgExpense.toStringAsFixed(2)} 元',
+    );
+    subtitleParts.add('记账 $recordedDays 天');
+    if (emptyDays > 0) {
+      subtitleParts.add(AppTextTemplates.monthEmptyDaysHint(emptyDays));
+    }
+    if (maxDailyExpense > 0) {
+      subtitleParts.add('单日最高支出 ${maxDailyExpense.toStringAsFixed(2)} 元');
+    }
+
+    items.add(
+      _billCard(
+        title: AppStrings.monthListTitle,
+        subtitle: subtitleParts.join(' · '),
+        income: totalIncome,
+        expense: totalExpense,
+        balance: totalIncome - totalExpense,
+        cs: cs,
+      ),
+    );
+
+    for (final d in nonEmptyDays) {
+      final allRecords = recordProvider.recordsForDay(bookId, d);
+      final records = _applyFilters(allRecords, categoryMap);
+
+      double income = 0;
+      double expense = 0;
+      for (final r in records) {
+        if (r.isIncome) {
+          income += r.incomeValue;
+        } else {
+          expense += r.expenseValue;
+        }
+      }
+      final balance = income - expense;
+
+      items.add(
+        _billCard(
+          title: AppStrings.monthDayLabel(d.month, d.day),
+          income: income,
+          expense: expense,
+          balance: balance,
+          cs: cs,
+        ),
+      );
+
+      for (final r in records) {
+        final category = categoryMap[r.categoryKey];
+        items.add(
+          TimelineItem(
+            record: r,
+            leftSide: false,
+            category: category,
+            subtitle: r.remark.isEmpty ? null : r.remark,
+            onTap: () => _openEditRecord(r),
+            onDelete: () => _confirmAndDeleteRecord(r),
+          ),
+        );
+      }
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: items,
+    );
+  }
+
+  // ======================================================
+  // 📕 月度账单（按天显示，旧实现，暂时保留）
   // ======================================================
   Widget _buildMonthBill(BuildContext context, ColorScheme cs, String bookId) {
     final days = DateUtilsX.daysInMonth(_selectedMonth);
@@ -833,6 +1048,406 @@ class _BillPageState extends State<BillPage> {
           ),
         )
       ],
+    );
+  }
+
+  Future<void> _openFilterSheet() async {
+    final categories = context.read<CategoryProvider>().categories;
+    String? tempCategoryKey = _filterCategoryKey;
+    bool? tempIncomeExpense = _filterIncomeExpense;
+    final categorySearchCtrl = TextEditingController();
+    final expandedTopCategories = <String>{};
+
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final bottomPadding = MediaQuery.of(ctx).viewInsets.bottom + 16;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+          child: StatefulBuilder(
+            builder: (ctx, setModalState) {
+              final cs = Theme.of(ctx).colorScheme;
+              return ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.9,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade400,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        AppStrings.filter,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        AppStrings.filterByCategory,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: categorySearchCtrl,
+                        decoration: InputDecoration(
+                          hintText: '搜索分类...',
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          suffixIcon: categorySearchCtrl.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () {
+                                    categorySearchCtrl.clear();
+                                    setModalState(() {});
+                                  },
+                                )
+                              : null,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onChanged: (_) => setModalState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      Builder(
+                        builder: (context) {
+                          final searchKeyword =
+                              categorySearchCtrl.text.trim().toLowerCase();
+
+                          final secondLevelCategories =
+                              categories.where((c) {
+                            if (searchKeyword.isEmpty) return true;
+                            return c.name.toLowerCase().contains(searchKeyword);
+                          }).toList();
+
+                          final expenseTop = Category(
+                            key: 'expense_root',
+                            name: AppStrings.expenseCategory,
+                            icon: Icons.trending_down,
+                            isExpense: true,
+                          );
+                          final incomeTop = Category(
+                            key: 'income_root',
+                            name: AppStrings.incomeCategory,
+                            icon: Icons.trending_up,
+                            isExpense: false,
+                          );
+
+                          final expenseChildren = secondLevelCategories
+                              .where((c) => c.isExpense)
+                              .toList();
+                          final incomeChildren = secondLevelCategories
+                              .where((c) => !c.isExpense)
+                              .toList();
+
+                          List<Widget> buildGroup(
+                            Category top,
+                            List<Category> children,
+                          ) {
+                            if (children.isEmpty) return [];
+                            final isExpanded =
+                                expandedTopCategories.contains(top.key);
+                            return [
+                              GestureDetector(
+                                onTap: () {
+                                  setModalState(() {
+                                    if (isExpanded) {
+                                      expandedTopCategories.remove(top.key);
+                                    } else {
+                                      expandedTopCategories.add(top.key);
+                                    }
+                                  });
+                                },
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        isExpanded
+                                            ? Icons.expand_less
+                                            : Icons.expand_more,
+                                        size: 18,
+                                        color: cs.onSurface.withOpacity(0.7),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        top.icon,
+                                        size: 16,
+                                        color: cs.onSurface.withOpacity(0.7),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        top.name,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: cs.onSurface,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '(${children.length})',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color:
+                                              cs.onSurface.withOpacity(0.5),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (isExpanded) ...[
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: children.map((c) {
+                                    final selected =
+                                        tempCategoryKey == c.key;
+                                    return _buildFilterChip(
+                                      ctx,
+                                      label: c.name,
+                                      selected: selected,
+                                      onSelected: () {
+                                        setModalState(() {
+                                          tempCategoryKey =
+                                              selected ? null : c.key;
+                                        });
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ];
+                          }
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ...buildGroup(expenseTop, expenseChildren),
+                              ...buildGroup(incomeTop, incomeChildren),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        AppStrings.filterByType,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildFilterChip(
+                            ctx,
+                            label: AppStrings.all,
+                            selected: tempIncomeExpense == null,
+                            onSelected: () {
+                              setModalState(() => tempIncomeExpense = null);
+                            },
+                          ),
+                          _buildFilterChip(
+                            ctx,
+                            label: AppStrings.income,
+                            selected: tempIncomeExpense == true,
+                            onSelected: () {
+                              setModalState(() {
+                                tempIncomeExpense =
+                                    tempIncomeExpense == true ? null : true;
+                              });
+                            },
+                          ),
+                          _buildFilterChip(
+                            ctx,
+                            label: AppStrings.expense,
+                            selected: tempIncomeExpense == false,
+                            onSelected: () {
+                              setModalState(() {
+                                tempIncomeExpense =
+                                    tempIncomeExpense == false ? null : false;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              setModalState(() {
+                                tempCategoryKey = null;
+                                tempIncomeExpense = null;
+                              });
+                            },
+                            child: const Text(AppStrings.reset),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () {
+                              Navigator.pop<Map<String, dynamic>>(ctx, {
+                                'categoryKey': tempCategoryKey,
+                                'incomeExpense': tempIncomeExpense,
+                              });
+                            },
+                            child: const Text(AppStrings.confirm),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (result != null) {
+      setState(() {
+        _filterCategoryKey = result['categoryKey'] as String?;
+        _filterIncomeExpense = result['incomeExpense'] as bool?;
+      });
+    }
+  }
+
+  Widget _buildFilterChip(
+    BuildContext ctx, {
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    final cs = Theme.of(ctx).colorScheme;
+
+    return GestureDetector(
+      onTap: onSelected,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? cs.primary.withOpacity(0.2) : cs.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? cs.primary : cs.outline.withOpacity(0.5),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 应用筛选（账单页面暂时不需要复杂筛选，直接返回原列表）
+  List<Record> _applyFilters(
+    List<Record> records,
+    Map<String, Category> categoryMap,
+  ) {
+    var filtered = records;
+
+    // 按分类筛选
+    if (_filterCategoryKey != null) {
+      filtered = filtered.where((r) => r.categoryKey == _filterCategoryKey).toList();
+    }
+
+    // 按收支类型筛选
+    if (_filterIncomeExpense != null) {
+      if (_filterIncomeExpense == true) {
+        // 只看收入
+        filtered = filtered.where((r) => r.isIncome).toList();
+      } else {
+        // 只看支出
+        filtered = filtered.where((r) => r.isExpense).toList();
+      }
+    }
+
+    return filtered;
+  }
+
+  // 打开编辑记录页面
+  void _openEditRecord(Record record) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddRecordPage(
+          initialRecord: record,
+          isExpense: record.isExpense,
+        ),
+      ),
+    );
+  }
+
+  // 确认并删除记录
+  Future<void> _confirmAndDeleteRecord(Record record) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text(AppStrings.delete),
+            content: const Text('确定删除这条记录吗？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(AppStrings.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(AppStrings.delete),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    final recordProvider = context.read<RecordProvider>();
+    final accountProvider = context.read<AccountProvider>();
+
+    await recordProvider.deleteRecord(
+      record.id,
+      accountProvider: accountProvider,
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已删除记录')),
     );
   }
 }

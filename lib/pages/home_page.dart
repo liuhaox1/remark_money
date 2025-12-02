@@ -270,6 +270,10 @@ class _HomePageState extends State<HomePage> {
     bool? tempIncomeExpense = _filterIncomeExpense;
     DateTime? tempStartDate = _startDate;
     DateTime? tempEndDate = _endDate;
+    // 分类搜索
+    final categorySearchCtrl = TextEditingController();
+    // 展开的一级分类状态（需要在 StatefulBuilder 外部维护）
+    final expandedTopCategories = <String>{};
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -317,119 +321,192 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // 改进分类筛选：将收入和支出分类分开显示
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 只有当用户没有选择特定的收支类型时，才显示所有分类
-                          if (tempIncomeExpense == null) ...[
-                            const Text(
-                              AppStrings.expenseCategory,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                ...categories.where((c) => c.isExpense).map((c) {
-                                  final selected = tempCategoryKey == c.key;
-                                  return _buildFilterChip(
-                                    label: c.name,
-                                    selected: selected,
-                                    onSelected: () {
-                                      setModalState(() => tempCategoryKey =
-                                          selected ? null : c.key);
-                                    },
-                                  );
-                                }).toList(),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              AppStrings.incomeCategory,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                ...categories.where((c) => !c.isExpense).map((c) {
-                                  final selected = tempCategoryKey == c.key;
-                                  return _buildFilterChip(
-                                    label: c.name,
-                                    selected: selected,
-                                    onSelected: () {
-                                      setModalState(() => tempCategoryKey =
-                                          selected ? null : c.key);
-                                    },
-                                  );
-                                }).toList(),
-                              ],
-                            ),
-                          ]
-                          // 当用户选择了特定的收支类型时，只显示对应的分类
-                          else if (tempIncomeExpense == false) ...[
-                            const Text(
-                              AppStrings.incomeCategory,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                ...categories.where((c) => !c.isExpense).map((c) {
-                                  final selected = tempCategoryKey == c.key;
-                                  return _buildFilterChip(
-                                    label: c.name,
-                                    selected: selected,
-                                    onSelected: () {
-                                      setModalState(() => tempCategoryKey =
-                                          selected ? null : c.key);
-                                    },
-                                  );
-                                }).toList(),
-                              ],
-                            ),
-                          ] else ...[
-                            const Text(
-                              AppStrings.expenseCategory,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                ...categories.where((c) => c.isExpense).map((c) {
-                                  final selected = tempCategoryKey == c.key;
-                                  return _buildFilterChip(
-                                    label: c.name,
-                                    selected: selected,
-                                    onSelected: () {
-                                      setModalState(() => tempCategoryKey =
-                                          selected ? null : c.key);
-                                    },
-                                  );
-                                }).toList(),
-                              ],
-                            ),
-                          ],
-                        ],
+                      // 分类搜索框
+                      TextField(
+                        controller: categorySearchCtrl,
+                        decoration: InputDecoration(
+                          hintText: '搜索分类...',
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          suffixIcon: categorySearchCtrl.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () {
+                                    categorySearchCtrl.clear();
+                                    setModalState(() {});
+                                  },
+                                )
+                              : null,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onChanged: (_) => setModalState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      // 优化后的分类显示：按一级分类分组，只显示二级分类
+                      Builder(
+                        builder: (context) {
+                          // 获取要显示的分类（根据收支类型筛选）
+                          final filteredCategories = categories.where((c) {
+                            if (tempIncomeExpense == null) return true;
+                            if (tempIncomeExpense == true) return !c.isExpense;
+                            return c.isExpense;
+                          }).toList();
+
+                          // 获取搜索关键词
+                          final searchKeyword = categorySearchCtrl.text.trim().toLowerCase();
+
+                          // 筛选分类（如果有搜索关键词）
+                          final searchFiltered = searchKeyword.isEmpty
+                              ? filteredCategories
+                              : filteredCategories.where((c) =>
+                                  c.name.toLowerCase().contains(searchKeyword)).toList();
+
+                          // 只显示二级分类（有 parentKey 的）
+                          final secondLevelCategories = searchFiltered
+                              .where((c) => c.parentKey != null)
+                              .toList();
+
+                          // 如果没有搜索，按一级分类分组
+                          if (searchKeyword.isEmpty) {
+                            // 获取所有一级分类
+                            final topCategories = filteredCategories
+                                .where((c) => c.parentKey == null)
+                                .toList();
+
+                            // 按一级分类分组
+                            final Map<String, List<Category>> grouped = {};
+                            for (final cat in secondLevelCategories) {
+                              final parentKey = cat.parentKey!;
+                              grouped.putIfAbsent(parentKey, () => []).add(cat);
+                            }
+
+                            // 默认展开第一个一级分类
+                            if (expandedTopCategories.isEmpty && topCategories.isNotEmpty) {
+                              expandedTopCategories.add(topCategories.first.key);
+                            }
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: topCategories.map((top) {
+                                final children = grouped[top.key] ?? [];
+                                if (children.isEmpty) return const SizedBox.shrink();
+
+                                final isExpanded = expandedTopCategories.contains(top.key);
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    InkWell(
+                                      onTap: () {
+                                        setModalState(() {
+                                          if (isExpanded) {
+                                            expandedTopCategories.remove(top.key);
+                                          } else {
+                                            expandedTopCategories.add(top.key);
+                                          }
+                                        });
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              isExpanded
+                                                  ? Icons.keyboard_arrow_down
+                                                  : Icons.keyboard_arrow_right,
+                                              size: 18,
+                                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Icon(
+                                              top.icon,
+                                              size: 16,
+                                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              top.name,
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: Theme.of(context).colorScheme.onSurface,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              '(${children.length})',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    if (isExpanded) ...[
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: children.map((c) {
+                                          final selected = tempCategoryKey == c.key;
+                                          return _buildFilterChip(
+                                            label: c.name,
+                                            selected: selected,
+                                            onSelected: () {
+                                              setModalState(() => tempCategoryKey =
+                                                  selected ? null : c.key);
+                                            },
+                                          );
+                                        }).toList(),
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                  ],
+                                );
+                              }).toList(),
+                            );
+                          } else {
+                            // 有搜索时，直接显示所有匹配的二级分类
+                            if (secondLevelCategories.isEmpty) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: Text(
+                                    '未找到匹配的分类',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            return Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: secondLevelCategories.map((c) {
+                                final selected = tempCategoryKey == c.key;
+                                return _buildFilterChip(
+                                  label: c.name,
+                                  selected: selected,
+                                  onSelected: () {
+                                    setModalState(() => tempCategoryKey =
+                                        selected ? null : c.key);
+                                  },
+                                );
+                              }).toList(),
+                            );
+                          }
+                        },
                       ),
                       const SizedBox(height: 16),
                       const Text(
