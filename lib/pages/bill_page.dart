@@ -15,9 +15,11 @@ import '../models/period_type.dart';
 import '../models/record.dart';
 import '../theme/app_tokens.dart';
 import '../utils/csv_utils.dart';
+import '../utils/data_export_import.dart';
 import '../utils/records_export_bundle.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -353,9 +355,26 @@ class _BillPageState extends State<BillPage> {
     String bookId,
   ) async {
     final range = _currentRange();
+    final recordProvider = context.read<RecordProvider>();
+    final bookProvider = context.read<BookProvider>();
+    final bookName = bookProvider.activeBook?.name ?? AppStrings.defaultBook;
+    
+    // 预先统计记录数量
+    final records = recordProvider.recordsForPeriod(
+      bookId,
+      start: range.start,
+      end: range.end,
+    );
+    final recordCount = records.length;
+    
+    // 统计全部记录数量
+    final allRecords = recordProvider.recordsForBook(bookId);
+    final allRecordCount = allRecords.length;
+    
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -375,21 +394,45 @@ class _BillPageState extends State<BillPage> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  '导出范围：当前账本 · 当前时间范围 · 仅包含计入统计的记录',
+                  '导出范围',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(ctx).colorScheme.outline,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                _buildExportInfoRow(ctx, '账本', bookName),
+                _buildExportInfoRow(
+                  ctx,
+                  '时间范围',
+                  '${DateUtilsX.ymd(range.start)} 至 ${DateUtilsX.ymd(range.end)}',
+                ),
+                _buildExportInfoRow(
+                  ctx,
+                  '记录数量',
+                  recordCount > 0 ? '$recordCount 条' : '暂无记录',
+                ),
+                _buildExportInfoRow(
+                  ctx,
+                  '包含内容',
+                  '仅计入统计的记录',
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
                 ListTile(
-                  title: const Text('导出 CSV（用 Excel 查看）'),
+                  leading: const Icon(Icons.table_chart_outlined),
+                  title: const Text('导出 CSV（当前范围）'),
+                  subtitle: Text('用 Excel 打开查看和分析数据（$recordCount 条）'),
                   onTap: () => Navigator.pop(ctx, 'csv'),
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  title: const Text('导出 JSON（用于备份 / 迁移）'),
-                  onTap: () => Navigator.pop(ctx, 'json'),
+                  leading: const Icon(Icons.table_chart_outlined),
+                  title: const Text('导出 CSV（全部记录）'),
+                  subtitle: Text('导出当前账本的所有历史记录（$allRecordCount 条）'),
+                  onTap: () => Navigator.pop(ctx, 'csv_all'),
                 ),
                 const SizedBox(height: 4),
               ],
@@ -403,9 +446,41 @@ class _BillPageState extends State<BillPage> {
 
     if (choice == 'csv') {
       await _exportCsv(context, bookId, range);
-    } else if (choice == 'json') {
-      await _exportJson(context, bookId, range);
+    } else if (choice == 'csv_all') {
+      await _exportAllCsv(context, bookId);
     }
+  }
+
+  Widget _buildExportInfoRow(BuildContext context, String label, String value) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 70,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.outline,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showExportMenu(BuildContext context, String bookId) async {
@@ -447,6 +522,26 @@ class _BillPageState extends State<BillPage> {
     String bookId,
     DateTimeRange range,
   ) async {
+    // 显示加载提示
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('正在导出...'),
+            ],
+          ),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+
     final recordProvider = context.read<RecordProvider>();
     final categoryProvider = context.read<CategoryProvider>();
     final bookProvider = context.read<BookProvider>();
@@ -515,21 +610,60 @@ class _BillPageState extends State<BillPage> {
     final csv = toCsv(rows);
 
     final dir = await getTemporaryDirectory();
+    final bookName = bookProvider.activeBook?.name ?? '默认账本';
     // Windows 文件名不允许包含特殊字符，使用简洁的日期格式
     final startStr = '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
     final endStr = '${range.end.year}-${range.end.month.toString().padLeft(2, '0')}-${range.end.day.toString().padLeft(2, '0')}';
-    final fileName = 'remark_records_${startStr}_$endStr.csv';
+    // 文件名包含账本名称，更友好
+    final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    final fileName = '${safeBookName}_${startStr}_$endStr.csv';
     final file = File('${dir.path}/$fileName');
 
     await file.writeAsString(csv, encoding: utf8);
 
     if (!context.mounted) return;
 
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      subject: '指尖记账导出 CSV',
-      text: '指尖记账导出记录 CSV，可用 Excel 打开查看。',
-    );
+    // Windows 平台使用文件保存对话框，其他平台使用共享
+    if (Platform.isWindows) {
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: '保存 CSV 文件',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      
+      if (savedPath != null) {
+        await file.copy(savedPath);
+        if (context.mounted) {
+          final fileSize = await File(savedPath).length();
+          final sizeStr = fileSize > 1024 * 1024
+              ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
+              : '${(fileSize / 1024).toStringAsFixed(2)} KB';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('导出成功！共 ${records.length} 条记录'),
+                  Text(
+                    '文件大小：$sizeStr',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } else {
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: '指尖记账导出 CSV',
+        text: '指尖记账导出记录 CSV，可用 Excel 打开查看。',
+      );
+    }
   }
 
   Future<void> _exportJson(
@@ -538,6 +672,26 @@ class _BillPageState extends State<BillPage> {
     DateTimeRange range,
   ) async {
     final recordProvider = context.read<RecordProvider>();
+
+    // 显示加载提示
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('正在导出...'),
+            ],
+          ),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
 
     final records = recordProvider.recordsForPeriod(
       bookId,
@@ -564,21 +718,173 @@ class _BillPageState extends State<BillPage> {
     );
 
     final dir = await getTemporaryDirectory();
-    final startStr =
-        range.start.toIso8601String().replaceAll(':', '-');
-    final endStr = range.end.toIso8601String().replaceAll(':', '-');
-    final fileName = 'remark_records_${startStr}_$endStr.json';
+    final bookProvider = context.read<BookProvider>();
+    final bookName = bookProvider.activeBook?.name ?? '默认账本';
+    // Windows 文件名不允许包含特殊字符，使用简洁的日期格式
+    final startStr = '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
+    final endStr = '${range.end.year}-${range.end.month.toString().padLeft(2, '0')}-${range.end.day.toString().padLeft(2, '0')}';
+    // 文件名包含账本名称，更友好
+    final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    final fileName = '${safeBookName}_${startStr}_$endStr.json';
     final file = File('${dir.path}/$fileName');
 
     await file.writeAsString(bundle.toJson(), encoding: utf8);
 
     if (!context.mounted) return;
 
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      subject: '指尖记账导出 JSON 备份',
-      text: '指尖记账记录 JSON 备份，可用于导入或迁移。',
+    // Windows 平台使用文件保存对话框，其他平台使用共享
+    if (Platform.isWindows) {
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: '保存 JSON 备份文件',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      
+      if (savedPath != null) {
+        await file.copy(savedPath);
+        if (context.mounted) {
+          final fileSize = await File(savedPath).length();
+          final sizeStr = fileSize > 1024 * 1024
+              ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
+              : '${(fileSize / 1024).toStringAsFixed(2)} KB';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('导出成功！共 ${records.length} 条记录'),
+                  Text(
+                    '文件大小：$sizeStr',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } else {
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: '指尖记账导出 JSON 备份',
+        text: '指尖记账记录 JSON 备份，可用于导入或迁移。',
+      );
+    }
+  }
+
+  // 导出全部记录（CSV）
+  Future<void> _exportAllCsv(
+    BuildContext context,
+    String bookId,
+  ) async {
+    // 显示加载提示
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('正在导出全部记录...'),
+            ],
+          ),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+
+    final recordProvider = context.read<RecordProvider>();
+    final bookProvider = context.read<BookProvider>();
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+
+    final records = recordProvider.recordsForBook(bookId);
+    if (records.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('当前账本暂无记录')),
+        );
+      }
+      return;
+    }
+
+    final categoryMap = {
+      for (final c in categoryProvider.categories) c.key: c,
+    };
+    final bookMap = {
+      for (final b in bookProvider.books) b.id: b,
+    };
+    final accountMap = {
+      for (final a in accountProvider.accounts) a.id: a,
+    };
+
+    final csv = buildCsvForRecords(
+      records,
+      categoriesByKey: categoryMap,
+      booksById: bookMap,
+      accountsById: accountMap,
     );
+
+    final dir = await getTemporaryDirectory();
+    final bookName = bookProvider.activeBook?.name ?? '默认账本';
+    final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    final now = DateTime.now();
+    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final fileName = '${safeBookName}_全部记录_$dateStr.csv';
+    final file = File('${dir.path}/$fileName');
+
+    await file.writeAsString(csv, encoding: utf8);
+
+    if (!context.mounted) return;
+
+    // Windows 平台使用文件保存对话框，其他平台使用共享
+    if (Platform.isWindows) {
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: '保存 CSV 文件',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      
+      if (savedPath != null) {
+        await file.copy(savedPath);
+        if (context.mounted) {
+          final fileSize = await File(savedPath).length();
+          final sizeStr = fileSize > 1024 * 1024
+              ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
+              : '${(fileSize / 1024).toStringAsFixed(2)} KB';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('导出成功！共 ${records.length} 条记录'),
+                  Text(
+                    '文件大小：$sizeStr',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } else {
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: '指尖记账导出 CSV',
+        text: '指尖记账导出的全部记录 CSV，可在表格中查看分析。',
+      );
+    }
   }
 
   // ======================================================
