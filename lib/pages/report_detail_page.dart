@@ -933,6 +933,28 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     String bookName,
     DateTimeRange range,
   ) async {
+    // 关闭调试描边，避免导出图片出现黄色基线/尺寸线（仅 debug 模式有效）
+    bool? prevDebugPaintSizeEnabled;
+    bool? prevDebugPaintBaselinesEnabled;
+    bool? prevDebugPaintPointersEnabled;
+    bool? prevDebugPaintLayerBordersEnabled;
+    bool? prevDebugRepaintRainbowEnabled;
+    bool? prevDebugRepaintTextRainbowEnabled;
+    assert(() {
+      prevDebugPaintSizeEnabled = debugPaintSizeEnabled;
+      prevDebugPaintBaselinesEnabled = debugPaintBaselinesEnabled;
+      prevDebugPaintPointersEnabled = debugPaintPointersEnabled;
+      prevDebugPaintLayerBordersEnabled = debugPaintLayerBordersEnabled;
+      prevDebugRepaintRainbowEnabled = debugRepaintRainbowEnabled;
+      prevDebugRepaintTextRainbowEnabled = debugRepaintTextRainbowEnabled;
+      debugPaintSizeEnabled = false;
+      debugPaintBaselinesEnabled = false;
+      debugPaintPointersEnabled = false;
+      debugPaintLayerBordersEnabled = false;
+      debugRepaintRainbowEnabled = false;
+      debugRepaintTextRainbowEnabled = false;
+      return true;
+    }());
     try {
       // 显示加载提示
 
@@ -1408,6 +1430,29 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           SnackBar(content: Text('保存图片失败，请稍后重试')),
         );
       }
+    } finally {
+      assert(() {
+        if (prevDebugPaintSizeEnabled != null) {
+          debugPaintSizeEnabled = prevDebugPaintSizeEnabled!;
+        }
+        if (prevDebugPaintBaselinesEnabled != null) {
+          debugPaintBaselinesEnabled = prevDebugPaintBaselinesEnabled!;
+        }
+        if (prevDebugPaintPointersEnabled != null) {
+          debugPaintPointersEnabled = prevDebugPaintPointersEnabled!;
+        }
+        if (prevDebugPaintLayerBordersEnabled != null) {
+          debugPaintLayerBordersEnabled = prevDebugPaintLayerBordersEnabled!;
+        }
+        if (prevDebugRepaintRainbowEnabled != null) {
+          debugRepaintRainbowEnabled = prevDebugRepaintRainbowEnabled!;
+        }
+        if (prevDebugRepaintTextRainbowEnabled != null) {
+          debugRepaintTextRainbowEnabled =
+              prevDebugRepaintTextRainbowEnabled!;
+        }
+        return true;
+      }());
     }
   }
 
