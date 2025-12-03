@@ -66,7 +66,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
   String? _selectedCategoryKey;
   String? _selectedAccountId;
   bool _includeInStats = true;
-  bool _saveAsTemplate = false;
   bool _isRecurring = false;
   RecurringPeriodType _recurringPeriodType = RecurringPeriodType.monthly;
   String? _activeRecurringPlanId;
@@ -482,16 +481,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
           value: _includeInStats,
           title: Text(statsLabel),
           onChanged: (v) => setState(() => _includeInStats = v),
-        ),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _saveAsTemplate,
-          title: const Text('保存为常用模板'),
-          subtitle: const Text(
-            '保存当前分类、账户和备注，方便下次快速填写',
-            style: TextStyle(fontSize: 12),
-          ),
-          onChanged: (v) => setState(() => _saveAsTemplate = v ?? false),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -1166,16 +1155,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
           title: const Text('计入统计'),
           onChanged: (v) => setState(() => _includeInStats = v),
         ),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _saveAsTemplate,
-          title: const Text('保存为常用模板'),
-          subtitle: const Text(
-            '保存当前分类、账户和备注，方便下次快速填写。',
-            style: TextStyle(fontSize: 12),
-          ),
-          onChanged: (v) => setState(() => _saveAsTemplate = v ?? false),
-        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: _isRecurring,
@@ -1554,7 +1533,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
       _lastAccountId = _selectedAccountId;
       _lastIncludeInStats = _includeInStats;
 
-      await _maybeSaveTemplate(record);
       await _maybeSaveOrUpdateRecurring(record);
     }
 
@@ -1568,20 +1546,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
     );
   }
 
-  Future<void> _maybeSaveTemplate(Record record) async {
-    if (!_saveAsTemplate) return;
-    final template = RecordTemplate(
-      id: record.id,
-      categoryKey: record.categoryKey,
-      accountId: record.accountId,
-      direction: record.direction,
-      includeInStats: record.includeInStats,
-      remark: record.remark,
-      createdAt: DateTime.now(),
-      lastUsedAt: DateTime.now(),
-    );
-    await _templateRepository.upsertTemplate(template);
-  }
 
   Future<void> _maybeSaveOrUpdateRecurring(Record record) async {
     if (!_isRecurring) return;
