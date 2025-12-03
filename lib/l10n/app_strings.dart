@@ -301,28 +301,31 @@ class AppStrings {
   static const netWorth = '净资产';
 
 // Built-in category names (hierarchical)
-  // ????
-  static const catTopIncomeSalary = '????';
-  static const catTopIncomeParttime = '????';
-  static const catTopIncomeInvest = '????';
-  static const catTopIncomeOther = '????';
+  // 收入一级
+  static const catTopIncomeSalary = '工资收入';
+  static const catTopIncomeParttime = '兼职收入';
+  static const catTopIncomeInvest = '投资理财';
+  static const catTopIncomeOther = '其他收入';
 
-  // ???? - ??
-  static const catIncomeBasicSalary = '????';
-  static const catIncomeBonus = '?????';
-  static const catIncomeYearEnd = '???';
+  // 工资收入 - 二级
+  static const catIncomeBasicSalary = '基本工资';
+  static const catIncomeBonus = '奖金/提成';
+  static const catIncomeYearEnd = '年终奖';
 
-  // ???? - ??
-  static const catIncomeParttimeOnline = '????';
-  static const catIncomeParttimeOffline = '????';
+  // 兼职收入 - 二级
+  static const catIncomeParttimeOnline = '线上兼职';
+  static const catIncomeParttimeOffline = '线下兼职';
 
-  // ???? - ??
-  static const catIncomeInvestInterest = '????';
-  static const catIncomeInvestStock = '????';
+  // 投资理财 - 二级
+  static const catIncomeInvestFund = '基金';
+  static const catIncomeInvestStock = '股票';
+  static const catIncomeInvestBond = '债券';
+  static const catIncomeInvestInterest = '理财收益';
+  static const catIncomeRental = '租金收入';
 
-  // ???? - ??
-  static const catIncomeRedPacket = '????';
-  static const catIncomeRefund = '?????';
+  // 其他收入 - 二级
+  static const catIncomeRedPacket = '红包收入';
+  static const catIncomeRefund = '退费/报销';
 
   // ????
   static const unitYi = '亿';
@@ -385,16 +388,17 @@ class AppStrings {
 
   // 分类名称（覆盖防丢失）
   static const catTopFood = '餐饮';
-  static const catFoodMeal = '正餐（午/晚）';
   static const catFoodBreakfast = '早餐';
-  static const catFoodSnack = '零食小吃';
+  static const catFoodLunch = '午餐';
+  static const catFoodDinner = '晚餐';
+  static const catFoodAfternoonTea = '下午茶';
   static const catFoodDrink = '饮品';
-  static const catFoodTakeout = '外卖';
   static const catFoodSupper = '夜宵';
+  static const catFoodTakeout = '外卖';
 
   static const catTopShopping = '购物';
-  static const catShopDaily = '日用百货';
-  static const catShopSupermarket = '食品杂货/超市';
+  static const catShopOnline = '线上购物';
+  static const catShopOffline = '线下购物';
   static const catShopClothes = '服饰鞋包';
   static const catShopDigital = '数码家电';
   static const catShopBeauty = '美妆护肤';
@@ -402,38 +406,59 @@ class AppStrings {
 
   static const catTopTransport = '出行';
   static const catTransCommute = '公共交通';
-  static const catTransTaxi = '打车出行';
-  static const catTransDrive = '自驾养车';
-  static const catTransLongTrip = '长途出行';
+  static const catTransTaxi = '打车';
+  static const catTransRideHailing = '网约车';
   static const catTransShare = '共享出行';
+  static const catTransFuel = '油费';
+  static const catTransCharging = '充电';
+  static const catTransParking = '停车费';
+  static const catTransToll = '过路费';
+  static const catTransMaintenance = '车辆保养';
+  static const catTransLongTrip = '长途出行';
 
   static const catTopLiving = '居住与账单';
   static const catLivingRent = '住房支出';
   static const catLivingProperty = '物业管理费';
   static const catLivingUtility = '水电燃气';
-  static const catLivingInternet = '网络与电视';
-  static const catLivingService = '家政维修服务';
-  static const catLivingDecorate = '装修及家居';
+  static const catLivingInternet = '网络';
+  static const catLivingTv = '电视';
+  static const catLivingCleaning = '家政服务';
+  static const catLivingRepair = '维修服务';
+  static const catLivingDecorate = '装修';
+  static const catLivingFurniture = '家居用品';
 
   static const catTopLeisure = '娱乐休闲';
-  static const catFunOnline = '线上娱乐/影音';
-  static const catFunOffline = '线下娱乐/聚会';
+  static const catFunGame = '游戏';
+  static const catFunMedia = '影音';
+  static const catFunMovie = '电影';
+  static const catFunShow = '演出';
   static const catFunSport = '运动健身';
   static const catFunTravel = '旅游度假';
+  static const catFunParty = '聚会';
+  static const catFunSocial = '社交';
   static const catFunHobby = '兴趣爱好';
 
   static const catTopEducation = '教育成长';
   static const catEduCourse = '课程培训';
-  static const catEduBook = '书籍与电子书';
-  static const catEduExam = '考试与证书';
+  static const catEduBook = '书籍';
+  static const catEduEbook = '电子书';
+  static const catEduExam = '考试';
+  static const catEduCertificate = '证书';
   static const catEduLanguage = '语言学习';
-  static const catEduOnline = '学习订阅会员';
+  static const catEduOnline = '在线课程';
+  static const catEduTuition = '学费';
+  static const catEduMisc = '学杂费';
 
   static const catTopHealth = '健康医疗';
-  static const catHealthClinic = '门诊及手术';
+  static const catHealthClinic = '门诊';
+  static const catHealthRegistration = '挂号';
+  static const catHealthCheck = '检查';
+  static const catHealthPhysical = '体检';
   static const catHealthMedicine = '药品';
-  static const catHealthCheck = '体检';
-  static const catHealthDental = '牙科及视力';
+  static const catHealthSurgery = '手术';
+  static const catHealthTreatment = '治疗';
+  static const catHealthDental = '牙科';
+  static const catHealthVision = '视力';
   static const catHealthInsurance = '健康保险';
 
   static const catTopFamily = '家庭与人情';
@@ -441,12 +466,15 @@ class AppStrings {
   static const catFamilyElder = '长辈孝敬';
   static const catFamilyMeal = '家庭聚餐';
   static const catFamilyGift = '人情礼金';
-  static const catFamilySocial = '社交应酬';
+  static const catFamilyFriends = '朋友聚会';
   static const catFamilyPet = '宠物';
 
   static const catTopFinance = '金融与其他';
-  static const catFinRepay = '借贷与卡费还款';
-  static const catFinFee = '利息与手续费';
+  static const catFinLoan = '借贷还款';
+  static const catFinCredit = '信用卡还款';
+  static const catFinInterest = '利息';
+  static const catFinFee = '手续费';
+  static const catFinTransferFee = '转账手续费';
   static const catFinInvestLoss = '投资亏损';
   static const catFinAdjust = '资金调账';
 }

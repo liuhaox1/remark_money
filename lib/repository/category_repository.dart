@@ -15,14 +15,7 @@ class CategoryRepository {
       icon: Icons.restaurant_outlined,
       isExpense: true,
     ),
-    // 餐饮 - 二级
-    Category(
-      key: 'food_meal',
-      name: AppStrings.catFoodMeal,
-      icon: Icons.restaurant_outlined,
-      isExpense: true,
-      parentKey: 'top_food',
-    ),
+    // 餐饮 - 二级（统一按场景维度）
     Category(
       key: 'food_breakfast',
       name: AppStrings.catFoodBreakfast,
@@ -31,23 +24,30 @@ class CategoryRepository {
       parentKey: 'top_food',
     ),
     Category(
-      key: 'food_snack',
-      name: AppStrings.catFoodSnack,
-      icon: Icons.cookie_outlined,
+      key: 'food_lunch',
+      name: AppStrings.catFoodLunch,
+      icon: Icons.lunch_dining_outlined,
+      isExpense: true,
+      parentKey: 'top_food',
+    ),
+    Category(
+      key: 'food_dinner',
+      name: AppStrings.catFoodDinner,
+      icon: Icons.dinner_dining_outlined,
+      isExpense: true,
+      parentKey: 'top_food',
+    ),
+    Category(
+      key: 'food_afternoon_tea',
+      name: AppStrings.catFoodAfternoonTea,
+      icon: Icons.local_cafe_outlined,
       isExpense: true,
       parentKey: 'top_food',
     ),
     Category(
       key: 'food_drink',
       name: AppStrings.catFoodDrink,
-      icon: Icons.local_cafe_outlined,
-      isExpense: true,
-      parentKey: 'top_food',
-    ),
-    Category(
-      key: 'food_takeout',
-      name: AppStrings.catFoodTakeout,
-      icon: Icons.delivery_dining_outlined,
+      icon: Icons.local_drink_outlined,
       isExpense: true,
       parentKey: 'top_food',
     ),
@@ -55,6 +55,13 @@ class CategoryRepository {
       key: 'food_supper',
       name: AppStrings.catFoodSupper,
       icon: Icons.nightlife_outlined,
+      isExpense: true,
+      parentKey: 'top_food',
+    ),
+    Category(
+      key: 'food_takeout',
+      name: AppStrings.catFoodTakeout,
+      icon: Icons.delivery_dining_outlined,
       isExpense: true,
       parentKey: 'top_food',
     ),
@@ -66,17 +73,18 @@ class CategoryRepository {
       icon: Icons.local_mall_outlined,
       isExpense: true,
     ),
+    // 购物 - 二级（区分线上线下，优化粒度）
     Category(
-      key: 'shop_daily',
-      name: AppStrings.catShopDaily,
-      icon: Icons.inventory_2_outlined,
+      key: 'shop_online',
+      name: AppStrings.catShopOnline,
+      icon: Icons.shopping_cart_outlined,
       isExpense: true,
       parentKey: 'top_shopping',
     ),
     Category(
-      key: 'shop_supermarket',
-      name: AppStrings.catShopSupermarket,
-      icon: Icons.local_grocery_store_outlined,
+      key: 'shop_offline',
+      name: AppStrings.catShopOffline,
+      icon: Icons.store_outlined,
       isExpense: true,
       parentKey: 'top_shopping',
     ),
@@ -116,6 +124,7 @@ class CategoryRepository {
       icon: Icons.directions_bus_outlined,
       isExpense: true,
     ),
+    // 出行 - 二级（统一按交通方式，拆分自驾养车）
     Category(
       key: 'trans_commute',
       name: AppStrings.catTransCommute,
@@ -131,16 +140,9 @@ class CategoryRepository {
       parentKey: 'top_transport',
     ),
     Category(
-      key: 'trans_drive',
-      name: AppStrings.catTransDrive,
-      icon: Icons.local_gas_station_outlined,
-      isExpense: true,
-      parentKey: 'top_transport',
-    ),
-    Category(
-      key: 'trans_longtrip',
-      name: AppStrings.catTransLongTrip,
-      icon: Icons.flight_takeoff_outlined,
+      key: 'trans_ride_hailing',
+      name: AppStrings.catTransRideHailing,
+      icon: Icons.directions_car_outlined,
       isExpense: true,
       parentKey: 'top_transport',
     ),
@@ -148,6 +150,48 @@ class CategoryRepository {
       key: 'trans_share',
       name: AppStrings.catTransShare,
       icon: Icons.directions_bike_outlined,
+      isExpense: true,
+      parentKey: 'top_transport',
+    ),
+    Category(
+      key: 'trans_fuel',
+      name: AppStrings.catTransFuel,
+      icon: Icons.local_gas_station_outlined,
+      isExpense: true,
+      parentKey: 'top_transport',
+    ),
+    Category(
+      key: 'trans_charging',
+      name: AppStrings.catTransCharging,
+      icon: Icons.ev_station_outlined,
+      isExpense: true,
+      parentKey: 'top_transport',
+    ),
+    Category(
+      key: 'trans_parking',
+      name: AppStrings.catTransParking,
+      icon: Icons.local_parking_outlined,
+      isExpense: true,
+      parentKey: 'top_transport',
+    ),
+    Category(
+      key: 'trans_toll',
+      name: AppStrings.catTransToll,
+      icon: Icons.toll_outlined,
+      isExpense: true,
+      parentKey: 'top_transport',
+    ),
+    Category(
+      key: 'trans_maintenance',
+      name: AppStrings.catTransMaintenance,
+      icon: Icons.build_outlined,
+      isExpense: true,
+      parentKey: 'top_transport',
+    ),
+    Category(
+      key: 'trans_longtrip',
+      name: AppStrings.catTransLongTrip,
+      icon: Icons.flight_takeoff_outlined,
       isExpense: true,
       parentKey: 'top_transport',
     ),
@@ -159,6 +203,7 @@ class CategoryRepository {
       icon: Icons.house_outlined,
       isExpense: true,
     ),
+    // 居住与账单 - 二级（统一命名，优化粒度）
     Category(
       key: 'living_rent',
       name: AppStrings.catLivingRent,
@@ -188,9 +233,23 @@ class CategoryRepository {
       parentKey: 'top_living',
     ),
     Category(
-      key: 'living_service',
-      name: AppStrings.catLivingService,
+      key: 'living_tv',
+      name: AppStrings.catLivingTv,
+      icon: Icons.tv_outlined,
+      isExpense: true,
+      parentKey: 'top_living',
+    ),
+    Category(
+      key: 'living_cleaning',
+      name: AppStrings.catLivingCleaning,
       icon: Icons.cleaning_services_outlined,
+      isExpense: true,
+      parentKey: 'top_living',
+    ),
+    Category(
+      key: 'living_repair',
+      name: AppStrings.catLivingRepair,
+      icon: Icons.build_outlined,
       isExpense: true,
       parentKey: 'top_living',
     ),
@@ -198,6 +257,13 @@ class CategoryRepository {
       key: 'living_decorate',
       name: AppStrings.catLivingDecorate,
       icon: Icons.chair_outlined,
+      isExpense: true,
+      parentKey: 'top_living',
+    ),
+    Category(
+      key: 'living_furniture',
+      name: AppStrings.catLivingFurniture,
+      icon: Icons.weekend_outlined,
       isExpense: true,
       parentKey: 'top_living',
     ),
@@ -209,17 +275,32 @@ class CategoryRepository {
       icon: Icons.sports_esports_outlined,
       isExpense: true,
     ),
+    // 娱乐休闲 - 二级（统一维度，补充具体活动）
     Category(
-      key: 'fun_online',
-      name: AppStrings.catFunOnline,
+      key: 'fun_game',
+      name: AppStrings.catFunGame,
+      icon: Icons.sports_esports_outlined,
+      isExpense: true,
+      parentKey: 'top_leisure',
+    ),
+    Category(
+      key: 'fun_media',
+      name: AppStrings.catFunMedia,
       icon: Icons.live_tv_outlined,
       isExpense: true,
       parentKey: 'top_leisure',
     ),
     Category(
-      key: 'fun_offline',
-      name: AppStrings.catFunOffline,
+      key: 'fun_movie',
+      name: AppStrings.catFunMovie,
       icon: Icons.movie_outlined,
+      isExpense: true,
+      parentKey: 'top_leisure',
+    ),
+    Category(
+      key: 'fun_show',
+      name: AppStrings.catFunShow,
+      icon: Icons.theater_comedy_outlined,
       isExpense: true,
       parentKey: 'top_leisure',
     ),
@@ -238,6 +319,20 @@ class CategoryRepository {
       parentKey: 'top_leisure',
     ),
     Category(
+      key: 'fun_party',
+      name: AppStrings.catFunParty,
+      icon: Icons.celebration_outlined,
+      isExpense: true,
+      parentKey: 'top_leisure',
+    ),
+    Category(
+      key: 'fun_social',
+      name: AppStrings.catFunSocial,
+      icon: Icons.diversity_3_outlined,
+      isExpense: true,
+      parentKey: 'top_leisure',
+    ),
+    Category(
       key: 'fun_hobby',
       name: AppStrings.catFunHobby,
       icon: Icons.color_lens_outlined,
@@ -252,6 +347,7 @@ class CategoryRepository {
       icon: Icons.school_outlined,
       isExpense: true,
     ),
+    // 教育成长 - 二级（优化粒度，补充细分）
     Category(
       key: 'edu_course',
       name: AppStrings.catEduCourse,
@@ -267,9 +363,23 @@ class CategoryRepository {
       parentKey: 'top_education',
     ),
     Category(
+      key: 'edu_ebook',
+      name: AppStrings.catEduEbook,
+      icon: Icons.menu_book_outlined,
+      isExpense: true,
+      parentKey: 'top_education',
+    ),
+    Category(
       key: 'edu_exam',
       name: AppStrings.catEduExam,
       icon: Icons.fact_check_outlined,
+      isExpense: true,
+      parentKey: 'top_education',
+    ),
+    Category(
+      key: 'edu_certificate',
+      name: AppStrings.catEduCertificate,
+      icon: Icons.workspace_premium_outlined,
       isExpense: true,
       parentKey: 'top_education',
     ),
@@ -287,6 +397,20 @@ class CategoryRepository {
       isExpense: true,
       parentKey: 'top_education',
     ),
+    Category(
+      key: 'edu_tuition',
+      name: AppStrings.catEduTuition,
+      icon: Icons.school_outlined,
+      isExpense: true,
+      parentKey: 'top_education',
+    ),
+    Category(
+      key: 'edu_misc',
+      name: AppStrings.catEduMisc,
+      icon: Icons.receipt_outlined,
+      isExpense: true,
+      parentKey: 'top_education',
+    ),
 
     // 一级：健康医疗
     Category(
@@ -295,6 +419,7 @@ class CategoryRepository {
       icon: Icons.medical_services_outlined,
       isExpense: true,
     ),
+    // 健康医疗 - 二级（统一维度，补充细分）
     Category(
       key: 'health_clinic',
       name: AppStrings.catHealthClinic,
@@ -303,9 +428,9 @@ class CategoryRepository {
       parentKey: 'top_health',
     ),
     Category(
-      key: 'health_medicine',
-      name: AppStrings.catHealthMedicine,
-      icon: Icons.vaccines_outlined,
+      key: 'health_registration',
+      name: AppStrings.catHealthRegistration,
+      icon: Icons.assignment_outlined,
       isExpense: true,
       parentKey: 'top_health',
     ),
@@ -317,9 +442,44 @@ class CategoryRepository {
       parentKey: 'top_health',
     ),
     Category(
+      key: 'health_physical',
+      name: AppStrings.catHealthPhysical,
+      icon: Icons.favorite_outlined,
+      isExpense: true,
+      parentKey: 'top_health',
+    ),
+    Category(
+      key: 'health_medicine',
+      name: AppStrings.catHealthMedicine,
+      icon: Icons.vaccines_outlined,
+      isExpense: true,
+      parentKey: 'top_health',
+    ),
+    Category(
+      key: 'health_surgery',
+      name: AppStrings.catHealthSurgery,
+      icon: Icons.medical_services_outlined,
+      isExpense: true,
+      parentKey: 'top_health',
+    ),
+    Category(
+      key: 'health_treatment',
+      name: AppStrings.catHealthTreatment,
+      icon: Icons.healing_outlined,
+      isExpense: true,
+      parentKey: 'top_health',
+    ),
+    Category(
       key: 'health_dental',
       name: AppStrings.catHealthDental,
       icon: Icons.medication_outlined,
+      isExpense: true,
+      parentKey: 'top_health',
+    ),
+    Category(
+      key: 'health_vision',
+      name: AppStrings.catHealthVision,
+      icon: Icons.remove_red_eye_outlined,
       isExpense: true,
       parentKey: 'top_health',
     ),
@@ -338,6 +498,7 @@ class CategoryRepository {
       icon: Icons.family_restroom_outlined,
       isExpense: true,
     ),
+    // 家庭与人情 - 二级（统一维度，补充具体事件）
     Category(
       key: 'family_child',
       name: AppStrings.catFamilyChild,
@@ -367,9 +528,9 @@ class CategoryRepository {
       parentKey: 'top_family',
     ),
     Category(
-      key: 'family_social',
-      name: AppStrings.catFamilySocial,
-      icon: Icons.diversity_3_outlined,
+      key: 'family_friends',
+      name: AppStrings.catFamilyFriends,
+      icon: Icons.people_outlined,
       isExpense: true,
       parentKey: 'top_family',
     ),
@@ -384,34 +545,56 @@ class CategoryRepository {
     // 一级：金融与其他
     Category(
       key: 'top_finance',
-      name: '金融',
+      name: AppStrings.catTopFinance,
       icon: Icons.account_balance_wallet_outlined,
       isExpense: true,
     ),
+    // 金融与其他 - 二级（优化粒度，补充细分）
     Category(
-      key: 'fin_repay',
-      name: '还贷/卡费',
+      key: 'fin_loan',
+      name: AppStrings.catFinLoan,
+      icon: Icons.account_balance_outlined,
+      isExpense: true,
+      parentKey: 'top_finance',
+    ),
+    Category(
+      key: 'fin_credit',
+      name: AppStrings.catFinCredit,
       icon: Icons.credit_card_outlined,
       isExpense: true,
       parentKey: 'top_finance',
     ),
     Category(
+      key: 'fin_interest',
+      name: AppStrings.catFinInterest,
+      icon: Icons.trending_up_outlined,
+      isExpense: true,
+      parentKey: 'top_finance',
+    ),
+    Category(
       key: 'fin_fee',
-      name: '利息手续费',
+      name: AppStrings.catFinFee,
       icon: Icons.receipt_outlined,
       isExpense: true,
       parentKey: 'top_finance',
     ),
     Category(
+      key: 'fin_transfer_fee',
+      name: AppStrings.catFinTransferFee,
+      icon: Icons.swap_horiz_outlined,
+      isExpense: true,
+      parentKey: 'top_finance',
+    ),
+    Category(
       key: 'fin_invest_loss',
-      name: '投资亏损',
+      name: AppStrings.catFinInvestLoss,
       icon: Icons.show_chart_outlined,
       isExpense: true,
       parentKey: 'top_finance',
     ),
     Category(
       key: 'fin_adjust',
-      name: '调账',
+      name: AppStrings.catFinAdjust,
       icon: Icons.tune_outlined,
       isExpense: true,
       parentKey: 'top_finance',
@@ -443,7 +626,7 @@ class CategoryRepository {
       isExpense: false,
     ),
 
-    // 收入 - 二级
+    // 收入 - 二级（补充常见投资类型）
     Category(
       key: 'income_basic_salary',
       name: AppStrings.catIncomeBasicSalary,
@@ -480,9 +663,9 @@ class CategoryRepository {
       parentKey: 'top_income_parttime',
     ),
     Category(
-      key: 'income_invest_interest',
-      name: AppStrings.catIncomeInvestInterest,
-      icon: Icons.savings_outlined,
+      key: 'income_invest_fund',
+      name: AppStrings.catIncomeInvestFund,
+      icon: Icons.trending_up_outlined,
       isExpense: false,
       parentKey: 'top_income_invest',
     ),
@@ -490,6 +673,27 @@ class CategoryRepository {
       key: 'income_invest_stock',
       name: AppStrings.catIncomeInvestStock,
       icon: Icons.show_chart_outlined,
+      isExpense: false,
+      parentKey: 'top_income_invest',
+    ),
+    Category(
+      key: 'income_invest_bond',
+      name: AppStrings.catIncomeInvestBond,
+      icon: Icons.account_balance_outlined,
+      isExpense: false,
+      parentKey: 'top_income_invest',
+    ),
+    Category(
+      key: 'income_invest_interest',
+      name: AppStrings.catIncomeInvestInterest,
+      icon: Icons.savings_outlined,
+      isExpense: false,
+      parentKey: 'top_income_invest',
+    ),
+    Category(
+      key: 'income_rental',
+      name: AppStrings.catIncomeRental,
+      icon: Icons.home_outlined,
       isExpense: false,
       parentKey: 'top_income_invest',
     ),
@@ -519,7 +723,128 @@ class CategoryRepository {
       return List<Category>.from(defaultCategories);
     }
 
-    return raw.map((value) => Category.fromJson(value)).toList();
+    final categories = raw.map((value) => Category.fromJson(value)).toList();
+    
+    // 迁移旧分类：更新分类名称，删除已废弃的分类
+    final migratedCategories = _migrateCategories(categories);
+    
+    // 如果迁移后有变化，保存更新后的分类
+    if (migratedCategories.length != categories.length || 
+        migratedCategories.any((c) => _needsMigration(c))) {
+      await saveCategories(migratedCategories);
+    }
+    
+    return migratedCategories;
+  }
+
+  /// 迁移旧分类到新分类结构
+  /// 删除已废弃的分类，更新分类名称
+  List<Category> _migrateCategories(List<Category> categories) {
+    final migrated = <Category>[];
+    final oldKeyToNewKey = <String, String>{
+      // 已删除的分类key映射到新的分类key
+      'food_meal': 'food_lunch', // 正餐 -> 午餐
+      'food_snack': 'food_afternoon_tea', // 零食小吃 -> 下午茶
+    };
+    
+    // 旧分类名称到新分类名称的映射
+    final oldNameToNewName = <String, String>{
+      '正餐（午/晚）': AppStrings.catFoodLunch,
+      '正餐/工作餐': AppStrings.catFoodLunch,
+      '零食小吃': AppStrings.catFoodAfternoonTea,
+      '饮品': AppStrings.catFoodDrink,
+      '打车/网约车': AppStrings.catTransTaxi,
+      '油费/充电': AppStrings.catTransFuel,
+      '自驾养车': AppStrings.catTransFuel,
+      '网络/电视': AppStrings.catLivingInternet,
+      '网络与电视': AppStrings.catLivingInternet,
+      '家政/维修': AppStrings.catLivingCleaning,
+      '家政维修服务': AppStrings.catLivingCleaning,
+      '装修/家居': AppStrings.catLivingDecorate,
+      '装修及家居': AppStrings.catLivingDecorate,
+      '游戏/影音': AppStrings.catFunGame,
+      '电影/演出': AppStrings.catFunMovie,
+      '聚会/社交': AppStrings.catFunParty,
+      '书籍/电子书': AppStrings.catEduBook,
+      '考试/证书': AppStrings.catEduExam,
+      '学费/学杂费': AppStrings.catEduTuition,
+      '门诊/挂号': AppStrings.catHealthClinic,
+      '检查/体检': AppStrings.catHealthCheck,
+      '手术/治疗': AppStrings.catHealthSurgery,
+      '牙科/视力': AppStrings.catHealthDental,
+      '利息/手续费': AppStrings.catFinInterest,
+      '还贷/卡费': AppStrings.catFinLoan,
+      '借贷与卡费还款': AppStrings.catFinLoan,
+    };
+    
+    for (final category in categories) {
+      // 如果这个分类key已经被废弃，尝试映射到新key
+      if (oldKeyToNewKey.containsKey(category.key)) {
+        final newKey = oldKeyToNewKey[category.key]!;
+        // 检查新key的分类是否已存在
+        if (!categories.any((c) => c.key == newKey)) {
+          // 如果不存在，创建新分类
+          final newCategory = Category(
+            key: newKey,
+            name: _getNewCategoryName(newKey),
+            icon: category.icon,
+            isExpense: category.isExpense,
+            parentKey: category.parentKey,
+          );
+          migrated.add(newCategory);
+        }
+        // 跳过旧分类，不添加到migrated列表
+        continue;
+      }
+      
+      // 如果分类名称包含"/"或旧的命名，更新名称
+      String newName = category.name;
+      if (oldNameToNewName.containsKey(category.name)) {
+        newName = oldNameToNewName[category.name]!;
+      } else if (category.name.contains('/') || category.name.contains('（') || category.name.contains('与')) {
+        // 如果名称包含"/"、"（"或"与"，尝试从默认分类中获取正确名称
+        final defaultCat = defaultCategories.firstWhere(
+          (c) => c.key == category.key,
+          orElse: () => category,
+        );
+        newName = defaultCat.name;
+      }
+      
+      // 创建迁移后的分类
+      final migratedCategory = Category(
+        key: category.key,
+        name: newName,
+        icon: category.icon,
+        isExpense: category.isExpense,
+        parentKey: category.parentKey,
+      );
+      migrated.add(migratedCategory);
+    }
+    
+    return migrated;
+  }
+
+  /// 检查分类是否需要迁移
+  bool _needsMigration(Category category) {
+    return category.name.contains('/') || 
+           category.name.contains('（') || 
+           category.name.contains('与') ||
+           category.key == 'food_meal' ||
+           category.key == 'food_snack';
+  }
+
+  /// 根据分类key获取新的分类名称
+  String _getNewCategoryName(String key) {
+    final defaultCat = defaultCategories.firstWhere(
+      (c) => c.key == key,
+      orElse: () => Category(
+        key: key,
+        name: '未分类',
+        icon: Icons.category_outlined,
+        isExpense: true,
+      ),
+    );
+    return defaultCat.name;
   }
 
   Future<void> saveCategories(List<Category> categories) async {
@@ -552,53 +877,10 @@ class CategoryRepository {
     return list;
   }
 
-  /// 将分类名称标准化，移除不贴近日常表达的「/」等符号
+  /// 将分类名称标准化
   static String sanitizeCategoryName(String key, String name) {
-    switch (key) {
-      case 'food_meal':
-        return '正餐（午/晚）';
-      case 'food_drink':
-        return '饮品';
-      case 'food_takeout':
-        return '外卖';
-      case 'trans_taxi':
-        return '打车出行';
-      case 'trans_drive':
-        return '自驾养车';
-      case 'trans_commute':
-        return '公共交通';
-      case 'trans_longtrip':
-        return '长途出行';
-      case 'living_rent':
-        return '住房支出';
-      case 'living_internet':
-        return '网络与电视';
-      case 'living_service':
-        return '家政维修服务';
-      case 'living_decorate':
-        return '装修及家居';
-      case 'edu_book':
-        return '书籍与电子书';
-      case 'edu_exam':
-        return '考试与证书';
-      case 'health_clinic':
-        return '门诊及手术';
-      case 'health_dental':
-        return '牙科及视力';
-      case 'family_gift':
-        return '人情礼金';
-      case 'fin_repay':
-        return '借贷与卡费还款';
-      case 'fin_fee':
-        return '利息与手续费';
-      case 'fin_adjust':
-        return '资金调账';
-      case 'income_bonus':
-        return '奖金与提成';
-      case 'income_refund':
-        return '退费与报销';
-      default:
-        return name;
-    }
+    // 所有分类名称已经标准化，不再需要特殊处理
+    // 保留此方法以防将来需要特殊处理某些分类名称
+    return name;
   }
 }

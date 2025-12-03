@@ -47,6 +47,7 @@ import '../repository/category_repository.dart';
 import '../theme/app_tokens.dart';
 
 import '../utils/date_utils.dart';
+import '../utils/category_name_helper.dart';
 
 import '../widgets/chart_bar.dart';
 
@@ -1810,7 +1811,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
           key: entry.key,
 
-          name: '未分类', // 如果找不到分类，使用中文默认名称
+          name: CategoryNameHelper.unknownCategoryName, // 如果找不到分类，使用中文默认名称
 
           icon: Icons.category_outlined,
 
@@ -2239,107 +2240,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   /// 将常见的英文分类 key 映射到中文名称
 
   String _mapEnglishKeyToChinese(String key) {
-
-    // 常见英文分类 key 到中文名称的映射
-
-    final Map<String, String> keyMap = {
-
-      'food': '餐饮',
-
-      'shopping': '购物',
-
-      'transport': '出行',
-
-      'living': '居住与账单',
-
-      'leisure': '娱乐休闲',
-
-      'education': '教育成长',
-
-      'health': '健康医疗',
-
-      'family': '家庭与人情',
-
-      'finance': '金融与其他',
-
-      'meal': '正餐/工作餐',
-
-      'breakfast': '早餐',
-
-      'snack': '零食小吃',
-
-      'drink': '饮料/奶茶/咖啡',
-
-      'takeout': '外卖',
-
-      'supper': '夜宵',
-
-      'daily': '日用百货',
-
-      'supermarket': '超市采购',
-
-      'clothes': '服饰鞋包',
-
-      'digital': '数码家电',
-
-      'beauty': '美妆护肤',
-
-      'commute': '通勤交通',
-
-      'taxi': '打车/网约车',
-
-      'drive': '自驾油费/停车',
-
-      'rent': '房租/房贷',
-
-      'utility': '水电燃气',
-
-      'internet': '网费/电视/宽带',
-
-      'sport': '运动健身',
-
-      'travel': '旅游度假',
-
-      'course': '课程培训',
-
-      'book': '书籍/电子书',
-
-      'medicine': '药品',
-
-      'gift': '礼金/红包',
-
-    };
-
-    
-
-    // 如果 key 完全匹配，直接返回
-
-    if (keyMap.containsKey(key)) {
-
-      return keyMap[key]!;
-
-    }
-
-    
-
-    // 如果 key 包含常见前缀，尝试匹配
-
-    for (final entry in keyMap.entries) {
-
-      if (key.contains(entry.key) || entry.key.contains(key)) {
-
-        return entry.value;
-
-      }
-
-    }
-
-    
-
-    // 如果都找不到，返回"未分类"
-
-    return '未分类';
-
+    return CategoryNameHelper.mapEnglishKeyToChinese(key);
   }
 
 
