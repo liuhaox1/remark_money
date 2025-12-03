@@ -22,6 +22,7 @@ import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
 import 'providers/reminder_provider.dart';
 import 'repository/repository_factory.dart';
+import 'database/database_helper.dart';
 import 'l10n/app_strings.dart';
 
 import 'pages/root_shell.dart';
@@ -51,7 +52,10 @@ Future<void> main() async {
     sqflite.databaseFactory = databaseFactoryFfi;
   }
 
-  // 初始化 RepositoryFactory（这会触发数据库迁移）
+  // 先打开数据库：如有需要会自动从 SharedPreferences 迁移到加密 SQLite
+  await DatabaseHelper().database;
+
+  // 然后初始化 RepositoryFactory（根据迁移标记决定是否使用数据库版仓库）
   await RepositoryFactory.initialize();
 
   final bookProvider = BookProvider();
