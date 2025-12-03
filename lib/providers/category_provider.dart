@@ -11,6 +11,9 @@ class CategoryProvider extends ChangeNotifier {
   bool _loaded = false;
   bool get loaded => _loaded;
 
+  Category _sanitize(Category c) =>
+      c.copyWith(name: CategoryRepository.sanitizeCategoryName(c.key, c.name));
+
   /// 加载所有分类
   Future<void> load() async {
     if (_loaded) return;
@@ -18,7 +21,7 @@ class CategoryProvider extends ChangeNotifier {
     final list = await _repo.loadCategories();
     _categories
       ..clear()
-      ..addAll(list);
+      ..addAll(list.map(_sanitize));
     _loaded = true;
     notifyListeners();
   }
@@ -28,7 +31,7 @@ class CategoryProvider extends ChangeNotifier {
     final list = await _repo.add(c);
     _categories
       ..clear()
-      ..addAll(list);
+      ..addAll(list.map(_sanitize));
     notifyListeners();
   }
 
@@ -37,7 +40,7 @@ class CategoryProvider extends ChangeNotifier {
     final list = await _repo.delete(key);
     _categories
       ..clear()
-      ..addAll(list);
+      ..addAll(list.map(_sanitize));
     notifyListeners();
   }
 
@@ -46,7 +49,7 @@ class CategoryProvider extends ChangeNotifier {
     final list = await _repo.update(category);
     _categories
       ..clear()
-      ..addAll(list);
+      ..addAll(list.map(_sanitize));
     notifyListeners();
   }
 }

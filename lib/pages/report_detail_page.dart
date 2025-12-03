@@ -2222,17 +2222,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     try {
 
       final defaultCategory = defaultCategories.firstWhere(
-
         (c) => c.key == key,
-
       );
-
-      return defaultCategory.name;
-
+      return CategoryRepository.sanitizeCategoryName(
+        defaultCategory.key,
+        defaultCategory.name,
+      );
     } catch (e) {
-
       return null;
-
     }
 
   }

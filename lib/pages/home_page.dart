@@ -691,6 +691,19 @@ class _HomePageState extends State<HomePage> {
       for (final c in categories) c.key: c,
     };
 
+    // 根据当前时间范围内的使用情况，粗略计算常用分类（用于首屏快捷选择）
+    final Map<String, int> categoryUsage = <String, int>{};
+    for (final record in allRecords) {
+      final key = record.categoryKey;
+      if (key.isEmpty) continue;
+      categoryUsage.update(key, (value) => value + 1, ifAbsent: () => 1);
+    }
+    final List<Category> recommendedCategories = List<Category>.from(categories)
+      ..sort(
+        (a, b) =>
+            (categoryUsage[b.key] ?? 0).compareTo(categoryUsage[a.key] ?? 0),
+      );
+
     Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys);
     Set<String> tempAccountIds = Set<String>.from(_filterAccountIds);
     final minCtrl = TextEditingController(text: _minAmount?.toString() ?? '');
@@ -701,6 +714,7 @@ class _HomePageState extends State<HomePage> {
     DateTime? tempEndDate = _endDate;
     String? tempQuickAmount;
     String? tempQuickDate;
+    String? activeTopCategoryKey;
 
     // 计算初始筛选结果数量
     int calculateCount() {
@@ -790,14 +804,24 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    AppStrings.filter,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    children: [
+                      const Text(
+                        AppStrings.filter,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
                   ),
-                      const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                       // 已选条件汇总和结果预览
                       if (tempCategoryKeys.isNotEmpty ||
@@ -970,26 +994,271 @@ class _HomePageState extends State<HomePage> {
                               onChanged: (_) => setModalState(() {}),
                             ),
                             const SizedBox(height: 12),
-                            // 分类列表（分组折叠）
-                            ...filteredTopCategories.map((top) {
-                              final children = getFilteredCategories(top.key);
-                              if (children.isEmpty) return const SizedBox.shrink();
-                              return _buildCategoryGroup(
-                                top,
-                                children,
-                                tempCategoryKeys,
-                                (key) {
-                                  setModalState(() {
-                                    if (tempCategoryKeys.contains(key)) {
-                                      tempCategoryKeys.remove(key);
-                                    } else {
-                                      tempCategoryKeys.add(key);
-                                    }
-                                  });
+                            if (searchKeyword.isNotEmpty)
+                              // 搜索结果：一屏展示有限条目，支持多选
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 8.0),
+                                    child: Text(
+                                      AppStrings.matchedCategories,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: cs.onSurface.withOpacity(0.7),
+                                      ),
+                                    ),
+                                  ),
+                                  Builder(
+                                    builder: (context) {
+                                      final searchResults = categories
+                                          .where((c) {
+                                            if (tempIncomeExpense != null) {
+                                              if (tempIncomeExpense == true &&
+                                                  c.isExpense) {
+                                                return false;
+                                              }
+                                              if (tempIncomeExpense == false &&
+                                                  !c.isExpense) {
+                                                return false;
+                                              }
+                                            }
+                                            if (searchKeyword.isEmpty) {
+                                              return true;
+                                            }
+                                            return c.name
+                                                .toLowerCase()
+                                                .contains(searchKeyword);
+                                          })
+                                          .take(8)
+                                          .toList();
+
+                                      if (searchResults.isEmpty) {
+                                        return Text(
+                                          '没有匹配的分类',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color:
+                                                cs.onSurface.withOpacity(0.5),
+                                          ),
+                                        );
+                                      }
+
+                                      return Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: searchResults.map((c) {
+                                          final selected =
+                                              tempCategoryKeys.contains(c.key);
+                                          return _buildFilterChip(
+                                            label: c.name,
+                                            selected: selected,
+                                            onSelected: () {
+                                              setModalState(() {
+                                                if (selected) {
+                                                  tempCategoryKeys.remove(c.key);
+                                                } else {
+                                                  tempCategoryKeys.add(c.key);
+                                                }
+                                              });
+                                            },
+                                          );
+                                        }).toList(),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              )
+                            else ...[
+                              // 常用分类：首屏一行横向滚动，优先解决 80% 需求
+                              Builder(
+                                builder: (context) {
+                                  final recentCategories =
+                                      recommendedCategories
+                                          .where((c) {
+                                            if (tempIncomeExpense != null) {
+                                              if (tempIncomeExpense == true &&
+                                                  c.isExpense) {
+                                                return false;
+                                              }
+                                              if (tempIncomeExpense == false &&
+                                                  !c.isExpense) {
+                                                return false;
+                                              }
+                                            }
+                                            return true;
+                                          })
+                                          .take(8)
+                                          .toList();
+
+                                  if (recentCategories.isEmpty) {
+                                    return const SizedBox.shrink();
+                                  }
+
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8.0,
+                                        ),
+                                        child: Text(
+                                          '常用分类',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: cs.onSurface
+                                                .withOpacity(0.7),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        height: 36,
+                                        child: ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          itemBuilder: (context, index) {
+                                            final c = recentCategories[index];
+                                            final selected =
+                                                tempCategoryKeys
+                                                    .contains(c.key);
+                                            return _buildFilterChip(
+                                              label: c.name,
+                                              selected: selected,
+                                              onSelected: () {
+                                                setModalState(() {
+                                                  if (selected) {
+                                                    tempCategoryKeys
+                                                        .remove(c.key);
+                                                  } else {
+                                                    tempCategoryKeys.add(
+                                                      c.key,
+                                                    );
+                                                  }
+                                                });
+                                              },
+                                            );
+                                          },
+                                          separatorBuilder: (_, __) =>
+                                              const SizedBox(width: 6),
+                                          itemCount: recentCategories.length,
+                                        ),
+                                      ),
+                                    ],
+                                  );
                                 },
-                                cs,
-                              );
-                            }),
+                              ),
+                              const SizedBox(height: 12),
+                              // 一级分类 Tab（只展示一个大类的子分类）
+                              if (filteredTopCategories.isNotEmpty) ...[
+                                Builder(
+                                  builder: (context) {
+                                    activeTopCategoryKey ??=
+                                        filteredTopCategories.first.key;
+
+                                    return SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Row(
+                                        children: filteredTopCategories
+                                            .map((top) {
+                                          final isActive =
+                                              top.key == activeTopCategoryKey;
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              right: 6,
+                                            ),
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                setModalState(() {
+                                                  activeTopCategoryKey =
+                                                      top.key;
+                                                });
+                                              },
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 6,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: isActive
+                                                      ? cs.primary
+                                                          .withOpacity(0.12)
+                                                      : cs.surfaceVariant,
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                  border: Border.all(
+                                                    color: isActive
+                                                        ? cs.primary
+                                                        : cs.outline
+                                                            .withOpacity(0.3),
+                                                    width: isActive ? 1.5 : 1,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  top.name,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: isActive
+                                                        ? FontWeight.w600
+                                                        : FontWeight.w500,
+                                                    color: isActive
+                                                        ? cs.primary
+                                                        : cs.onSurface
+                                                            .withOpacity(0.8),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                Builder(
+                                  builder: (context) {
+                                    final activeKey = activeTopCategoryKey;
+                                    final children = activeKey == null
+                                        ? <Category>[]
+                                        : getFilteredCategories(activeKey);
+
+                                    if (children.isEmpty) {
+                                      return Text(
+                                        '该分类下暂无子分类',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: cs.onSurface.withOpacity(0.5),
+                                        ),
+                                      );
+                                    }
+
+                                    return Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: children.map((c) {
+                                        final selected = tempCategoryKeys
+                                            .contains(c.key);
+                                        return _buildFilterChip(
+                                          label: c.name,
+                                          selected: selected,
+                                          onSelected: () {
+                                            setModalState(() {
+                                              if (selected) {
+                                                tempCategoryKeys.remove(c.key);
+                                              } else {
+                                                tempCategoryKeys.add(c.key);
+                                              }
+                                            });
+                                          },
+                                        );
+                                      }).toList(),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ],
                           ],
                         ),
                       ),
@@ -2067,7 +2336,7 @@ class _HomePageState extends State<HomePage> {
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                               ),
                               child: Text(
-                                AppStrings.confirm,
+                                '${AppStrings.confirm} ($filteredCount)',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -2150,6 +2419,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // 分类分组组件
+  // ignore: unused_element
   Widget _buildCategoryGroup(
     Category topCategory,
     List<Category> children,

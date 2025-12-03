@@ -551,4 +551,48 @@ class CategoryRepository {
     }
     return list;
   }
+
+  /// 将分类名称标准化，移除不贴近日常表达的「/」等符号
+  static String sanitizeCategoryName(String key, String name) {
+    switch (key) {
+      case 'food_meal':
+        return '正餐';
+      case 'food_drink':
+        return '奶茶咖啡饮品';
+      case 'trans_taxi':
+        return '打车出行';
+      case 'trans_drive':
+        return '自驾养车费用';
+      case 'living_rent':
+        return '住房支出';
+      case 'living_internet':
+        return '网络与电视';
+      case 'living_service':
+        return '家政维修服务';
+      case 'living_decorate':
+        return '装修及家居';
+      case 'edu_book':
+        return '书籍与电子书';
+      case 'edu_exam':
+        return '考试与证书';
+      case 'health_clinic':
+        return '门诊及手术';
+      case 'health_dental':
+        return '牙科及视力';
+      case 'family_gift':
+        return '人情礼金';
+      case 'fin_repay':
+        return '借贷与卡费还款';
+      case 'fin_fee':
+        return '利息与手续费';
+      case 'fin_adjust':
+        return '资金调账';
+      case 'income_bonus':
+        return '奖金与提成';
+      case 'income_refund':
+        return '退费与报销';
+      default:
+        return name;
+    }
+  }
 }
