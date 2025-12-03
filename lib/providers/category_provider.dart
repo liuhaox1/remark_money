@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../repository/category_repository.dart';
+import '../repository/repository_factory.dart';
 
 class CategoryProvider extends ChangeNotifier {
-  final CategoryRepository _repo = CategoryRepository();
+  // SharedPreferences 版和数据库版方法签名一致，这里用 dynamic 接收
+  final dynamic _repo = RepositoryFactory.createCategoryRepository();
   final List<Category> _categories = [];
 
   List<Category> get categories => List.unmodifiable(_categories);
@@ -18,7 +20,8 @@ class CategoryProvider extends ChangeNotifier {
   Future<void> load() async {
     if (_loaded) return;
 
-    final list = await _repo.loadCategories();
+    final List<Category> list =
+        (await _repo.loadCategories()).cast<Category>();
     _categories
       ..clear()
       ..addAll(list.map(_sanitize));
@@ -28,7 +31,7 @@ class CategoryProvider extends ChangeNotifier {
 
   /// 新增分类
   Future<void> addCategory(Category c) async {
-    final list = await _repo.add(c);
+    final List<Category> list = (await _repo.add(c)).cast<Category>();
     _categories
       ..clear()
       ..addAll(list.map(_sanitize));
@@ -37,7 +40,7 @@ class CategoryProvider extends ChangeNotifier {
 
   /// 删除分类
   Future<void> deleteCategory(String key) async {
-    final list = await _repo.delete(key);
+    final List<Category> list = (await _repo.delete(key)).cast<Category>();
     _categories
       ..clear()
       ..addAll(list.map(_sanitize));
@@ -46,7 +49,8 @@ class CategoryProvider extends ChangeNotifier {
 
   /// 更新分类（名称 / 图标 / 类型）
   Future<void> updateCategory(Category category) async {
-    final list = await _repo.update(category);
+    final List<Category> list =
+        (await _repo.update(category)).cast<Category>();
     _categories
       ..clear()
       ..addAll(list.map(_sanitize));

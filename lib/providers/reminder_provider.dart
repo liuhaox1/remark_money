@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/reminder_settings.dart';
-import '../repository/reminder_repository.dart';
+import '../repository/repository_factory.dart';
 
 /// Stores reminder preferences for daily bookkeeping.
 ///
@@ -10,7 +10,8 @@ import '../repository/reminder_repository.dart';
 class ReminderProvider extends ChangeNotifier {
   ReminderProvider();
 
-  final ReminderRepository _repository = ReminderRepository();
+  // SharedPreferences / 数据库 两种实现共用相同方法签名
+  final dynamic _repository = RepositoryFactory.createReminderRepository();
 
   ReminderSettings _settings = ReminderSettings.defaults;
   ReminderSettings get settings => _settings;

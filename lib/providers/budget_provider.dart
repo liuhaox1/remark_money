@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../models/budget.dart';
-import '../repository/budget_repository.dart';
+import '../repository/repository_factory.dart';
 
 class BudgetProvider extends ChangeNotifier {
   BudgetProvider();
 
-  final BudgetRepository _repository = BudgetRepository();
+  // SharedPreferences / 数据库 两种实现共用相同方法签名
+  final dynamic _repository = RepositoryFactory.createBudgetRepository();
 
   Budget _budgetStore = Budget.empty();
   Budget get store => _budgetStore;

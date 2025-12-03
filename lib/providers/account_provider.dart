@@ -3,12 +3,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/account.dart';
-import '../repository/account_repository.dart';
+import '../repository/repository_factory.dart';
 
 class AccountProvider extends ChangeNotifier {
   AccountProvider();
 
-  final AccountRepository _repository = AccountRepository();
+  // 两种实现方法签名一致，使用 dynamic
+  final dynamic _repository = RepositoryFactory.createAccountRepository();
   final Random _random = Random();
 
   final List<Account> _accounts = [];

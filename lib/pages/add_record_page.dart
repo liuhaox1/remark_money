@@ -16,6 +16,7 @@ import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../repository/record_template_repository.dart';
+import '../repository/repository_factory.dart';
 import 'add_account_type_page.dart';
 
 class AddRecordPage extends StatefulWidget {
@@ -58,8 +59,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
   bool _showRemarkInput = false;
   String _amountExpression = '';
 
-  final RecordTemplateRepository _templateRepository =
-      RecordTemplateRepository();
+  // SharedPreferences / 数据库 两种实现共用相同方法签名
+  final dynamic _templateRepository =
+      RepositoryFactory.createRecordTemplateRepository();
 
   List<RecordTemplate> _templates = const [];
 

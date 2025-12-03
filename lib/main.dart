@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show
@@ -7,7 +9,10 @@ import 'package:flutter/rendering.dart'
         debugPaintSizeEnabled,
         debugRepaintRainbowEnabled,
         debugRepaintTextRainbowEnabled;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
+import 'package:sqflite/sqflite.dart' as sqflite;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'providers/book_provider.dart';
 import 'providers/record_provider.dart';
@@ -16,6 +21,7 @@ import 'providers/budget_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
 import 'providers/reminder_provider.dart';
+import 'repository/repository_factory.dart';
 import 'l10n/app_strings.dart';
 
 import 'pages/root_shell.dart';
@@ -25,11 +31,10 @@ import 'pages/bill_page.dart';
 import 'pages/budget_page.dart';
 import 'pages/category_manager_page.dart';
 import 'pages/finger_accounting_page.dart';
-import 'pages/loading_page.dart';
 import 'widgets/device_frame.dart';
 
 Future<void> main() async {
-  final binding = WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
   // 确保全局关闭调试描边/基线/重绘彩虹等调试标记，避免导出的图片出现黄色线条
   debugPaintBaselinesEnabled = false;
   debugPaintSizeEnabled = false;
@@ -37,10 +42,17 @@ Future<void> main() async {
   debugPaintLayerBordersEnabled = false;
   debugRepaintRainbowEnabled = false;
   debugRepaintTextRainbowEnabled = false;
-  runApp(const LoadingApp());
-
-  await binding.endOfFrame;
   debugPrint('main start: ${DateTime.now().toIso8601String()}');
+
+  // Windows / Linux / macOS 上初始化 sqflite FFI
+  if (!kIsWeb &&
+      (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    sqfliteFfiInit();
+    sqflite.databaseFactory = databaseFactoryFfi;
+  }
+
+  // 初始化 RepositoryFactory（这会触发数据库迁移）
+  await RepositoryFactory.initialize();
 
   final bookProvider = BookProvider();
   final recordProvider = RecordProvider();
@@ -72,23 +84,6 @@ Future<void> main() async {
       reminderProvider: reminderProvider,
     ),
   );
-}
-
-class LoadingApp extends StatelessWidget {
-  const LoadingApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.teal,
-        brightness: Brightness.light,
-      ),
-      home: const LoadingPage(),
-    );
-  }
 }
 
 class RemarkMoneyApp extends StatelessWidget {

@@ -3,12 +3,14 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
-import '../repository/book_repository.dart';
+import '../repository/repository_factory.dart';
 
 class BookProvider extends ChangeNotifier {
   BookProvider();
 
-  final BookRepository _repository = BookRepository();
+  // 这里返回的可能是 SharedPreferences 版本，也可能是数据库版本
+  // 两者都实现了相同的方法签名，使用 dynamic 即可
+  final dynamic _repository = RepositoryFactory.createBookRepository();
   final Random _random = Random();
 
   final List<Book> _books = [];

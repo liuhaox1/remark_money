@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 
 import '../models/record.dart';
 import '../models/import_result.dart';
-import '../repository/record_repository.dart';
+import '../repository/repository_factory.dart';
 import '../utils/date_utils.dart';
 import 'account_provider.dart';
 
 class RecordProvider extends ChangeNotifier {
   RecordProvider();
 
-  final RecordRepository _repository = RecordRepository();
+  // SharedPreferences 版本和数据库版本都实现了同样的方法签名，这里用 dynamic 接受
+  final dynamic _repository = RepositoryFactory.createRecordRepository();
   final List<Record> _records = [];
   final Map<String, List<Record>> _recordsByBook = {};
 
