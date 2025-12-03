@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -139,8 +140,8 @@ class _HomePageState extends State<HomePage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
             child: SingleChildScrollView(
-              child: Column(
-                children: [
+            child: Column(
+              children: [
                   _HomeSearchBar(
                     controller: _searchController,
                     focusNode: _searchFocusNode,
@@ -174,38 +175,38 @@ class _HomePageState extends State<HomePage> {
                       summaryText: _buildFilterSummaryText(),
                       onClearAll: _handleClearAllFilters,
                     ),
-                  _BalanceCard(
-                    income: monthIncome,
-                    expense: monthExpense,
-                    balance: monthBalance,
-                    dateLabel: dateLabel,
-                    onTapDate: _pickDate,
-                    onTapSearch: _openFilterSheet,
-                  ),
-                  const SizedBox(height: 8),
-                  WeekStrip(
-                    selectedDay: _selectedDay,
-                    onSelected: _onDaySelected,
-                  ),
-                  const SizedBox(height: 8),
-                  const HomeBudgetBar(),
-                  const SizedBox(height: 4),
-                  if (_selectionMode)
-                    _SelectionToolbar(
-                      selectedCount: _selectedRecordIds.length,
-                      totalCount: _currentVisibleRecords.length,
-                      onExit: _exitSelectionMode,
-                      onSelectAll: _handleSelectAll,
-                      onDeleteSelected: _handleDeleteSelectedBatch,
-                    ),
+                _BalanceCard(
+                  income: monthIncome,
+                  expense: monthExpense,
+                  balance: monthBalance,
+                  dateLabel: dateLabel,
+                  onTapDate: _pickDate,
+                  onTapSearch: _openFilterSheet,
+                ),
+                const SizedBox(height: 8),
+                WeekStrip(
+                  selectedDay: _selectedDay,
+                  onSelected: _onDaySelected,
+                ),
+                const SizedBox(height: 8),
+                      const HomeBudgetBar(),
+                      const SizedBox(height: 4),
+                      if (_selectionMode)
+                        _SelectionToolbar(
+                          selectedCount: _selectedRecordIds.length,
+                          totalCount: _currentVisibleRecords.length,
+                          onExit: _exitSelectionMode,
+                          onSelectAll: _handleSelectAll,
+                          onDeleteSelected: _handleDeleteSelectedBatch,
+                        ),
                   hasRecords
-                      ? _buildMonthTimeline(
-                          filteredRecords,
-                          categoryMap,
-                        )
-                      : _buildEmptyState(context),
-                ],
-              ),
+                            ? _buildMonthTimeline(
+                                filteredRecords,
+                                categoryMap,
+                              )
+                            : _buildEmptyState(context),
+                    ],
+                  ),
             ),
           ),
         ),
@@ -542,11 +543,11 @@ class _HomePageState extends State<HomePage> {
     }
 
     // 添加日期范围筛选
-    if (_startDate != null && false) {
+    if (_startDate != null) {
       filtered = filtered.where((r) => !r.date.isBefore(_startDate!)).toList();
     }
 
-    if (_endDate != null && false) {
+    if (_endDate != null) {
       filtered = filtered.where((r) => !r.date.isAfter(_endDate!)).toList();
     }
 
@@ -564,9 +565,132 @@ class _HomePageState extends State<HomePage> {
     _dayStatsCache.clear();
   }
 
+  // 快捷金额选项的辅助方法
+  double? _getQuickAmountMin(String option) {
+    switch (option) {
+      case '<100':
+        return 0.0;
+      case '100-500':
+        return 100.0;
+      case '500-1000':
+        return 500.0;
+      case '>1000':
+        return 1000.0;
+      default:
+        return null;
+    }
+  }
+
+  double? _getQuickAmountMax(String option) {
+    switch (option) {
+      case '<100':
+        return 100.0;
+      case '100-500':
+        return 500.0;
+      case '500-1000':
+        return 1000.0;
+      case '>1000':
+        return null;
+      default:
+        return null;
+    }
+  }
+
+  // 快捷日期选项的辅助方法
+  DateTimeRange? _getQuickDateRange(String option) {
+    final now = DateTime.now();
+    switch (option) {
+      case 'today':
+        return DateTimeRange(start: now, end: now);
+      case 'thisWeek':
+        final start = now.subtract(Duration(days: now.weekday - 1));
+        return DateTimeRange(start: start, end: now);
+      case 'thisMonth':
+        final start = DateTime(now.year, now.month, 1);
+        final end = DateTime(now.year, now.month + 1, 0);
+        return DateTimeRange(start: start, end: end);
+      case 'lastMonth':
+        final start = DateTime(now.year, now.month - 1, 1);
+        final end = DateTime(now.year, now.month, 0);
+        return DateTimeRange(start: start, end: end);
+      case 'thisYear':
+        final start = DateTime(now.year, 1, 1);
+        final end = DateTime(now.year, 12, 31);
+        return DateTimeRange(start: start, end: end);
+      default:
+        return null;
+    }
+  }
+
+  // 计算筛选结果数量的辅助方法
+  int _calculateFilteredCount({
+    required List<Record> allRecords,
+    required Map<String, Category> categoryMap,
+    required Set<String> categoryKeys,
+    required Set<String> accountIds,
+    required double? minAmount,
+    required double? maxAmount,
+    required bool? incomeExpense,
+    required DateTime? startDate,
+    required DateTime? endDate,
+  }) {
+    var filtered = allRecords;
+
+    if (categoryKeys.isNotEmpty) {
+      filtered = filtered
+          .where((r) => categoryKeys.contains(r.categoryKey))
+          .toList();
+    }
+
+    if (accountIds.isNotEmpty) {
+      filtered = filtered
+          .where((r) => accountIds.contains(r.accountId))
+          .toList();
+    }
+
+    if (minAmount != null) {
+      filtered = filtered.where((r) => r.absAmount >= minAmount).toList();
+    }
+
+    if (maxAmount != null) {
+      filtered = filtered.where((r) => r.absAmount <= maxAmount).toList();
+    }
+
+    if (incomeExpense != null) {
+      if (incomeExpense == true) {
+        filtered = filtered.where((r) => r.isIncome).toList();
+      } else {
+        filtered = filtered.where((r) => r.isExpense).toList();
+      }
+    }
+
+    if (startDate != null) {
+      filtered = filtered.where((r) => !r.date.isBefore(startDate)).toList();
+    }
+
+    if (endDate != null) {
+      filtered = filtered.where((r) => !r.date.isAfter(endDate)).toList();
+    }
+
+    return filtered.length;
+  }
+
   Future<void> _openFilterSheet() async {
     final categories = context.read<CategoryProvider>().categories;
     final accounts = context.read<AccountProvider>().accounts;
+    final recordProvider = context.read<RecordProvider>();
+    final bookProvider = context.read<BookProvider>();
+    final bookId = bookProvider.activeBookId;
+    final timeRange = _currentTimeRange();
+    final allRecords = recordProvider.recordsForPeriod(
+      bookId,
+      start: timeRange.start,
+      end: timeRange.end,
+    );
+    final categoryMap = {
+      for (final c in categories) c.key: c,
+    };
+
     Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys);
     Set<String> tempAccountIds = Set<String>.from(_filterAccountIds);
     final minCtrl = TextEditingController(text: _minAmount?.toString() ?? '');
@@ -575,328 +699,1387 @@ class _HomePageState extends State<HomePage> {
     bool? tempIncomeExpense = _filterIncomeExpense;
     DateTime? tempStartDate = _startDate;
     DateTime? tempEndDate = _endDate;
+    String? tempQuickAmount;
+    String? tempQuickDate;
+
+    // 计算初始筛选结果数量
+    int calculateCount() {
+      double? tempMin = tempQuickAmount == null
+          ? (minCtrl.text.trim().isEmpty
+              ? null
+              : double.tryParse(minCtrl.text.trim()))
+          : _getQuickAmountMin(tempQuickAmount!);
+      double? tempMax = tempQuickAmount == null
+          ? (maxCtrl.text.trim().isEmpty
+              ? null
+              : double.tryParse(maxCtrl.text.trim()))
+          : _getQuickAmountMax(tempQuickAmount!);
+
+      return _calculateFilteredCount(
+        allRecords: allRecords,
+        categoryMap: categoryMap,
+        categoryKeys: tempCategoryKeys,
+        accountIds: tempAccountIds,
+        minAmount: tempMin,
+        maxAmount: tempMax,
+        incomeExpense: tempIncomeExpense,
+        startDate: tempStartDate,
+        endDate: tempEndDate,
+      );
+    }
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) {
         final bottomPadding = MediaQuery.of(ctx).viewInsets.bottom + 16;
+        final cs = Theme.of(ctx).colorScheme;
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
           child: StatefulBuilder(
             builder: (ctx, setModalState) {
-              // 分类搜索与分组
-              final TextEditingController categorySearchCtrl =
-                  TextEditingController();
               final searchKeyword =
                   categorySearchCtrl.text.trim().toLowerCase();
 
-              final filteredCategories = categories.where((c) {
-                if (tempIncomeExpense != null) {
-                  if (tempIncomeExpense == true && c.isExpense) return false;
-                  if (tempIncomeExpense == false && !c.isExpense) return false;
+              // 分类分组
+              final topCategories =
+                  categories.where((c) => c.parentKey == null).toList();
+              final childrenMap = <String, List<Category>>{};
+              for (final c in categories) {
+                final parent = c.parentKey;
+                if (parent != null) {
+                  childrenMap.putIfAbsent(parent, () => []).add(c);
                 }
-                if (searchKeyword.isEmpty) return true;
-                return c.name.toLowerCase().contains(searchKeyword);
-              }).toList();
+              }
 
-              return SafeArea(
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
+              // 过滤分类（根据搜索关键词和收支类型）
+              List<Category> getFilteredCategories(String? parentKey) {
+                final children = parentKey == null
+                    ? topCategories
+                    : (childrenMap[parentKey] ?? []);
+                return children.where((c) {
+                  if (tempIncomeExpense != null) {
+                    if (tempIncomeExpense == true && c.isExpense) return false;
+                    if (tempIncomeExpense == false && !c.isExpense) return false;
+                  }
+                  if (searchKeyword.isEmpty) return true;
+                  return c.name.toLowerCase().contains(searchKeyword);
+                }).toList();
+              }
+
+              final filteredTopCategories = getFilteredCategories(null);
+              final filteredCount = calculateCount();
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    AppStrings.filter,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                      const SizedBox(height: 16),
+
+                      // 已选条件汇总和结果预览
+                      if (tempCategoryKeys.isNotEmpty ||
+                          tempAccountIds.isNotEmpty ||
+                          tempIncomeExpense != null ||
+                          tempStartDate != null ||
+                          tempEndDate != null ||
+                          minCtrl.text.trim().isNotEmpty ||
+                          maxCtrl.text.trim().isNotEmpty ||
+                          tempQuickAmount != null ||
+                          tempQuickDate != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade400,
-                            borderRadius: BorderRadius.circular(2),
+                            color: cs.surfaceVariant,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        AppStrings.filter,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 分类多选
-                      const Text(
-                        AppStrings.filterByCategory,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: filteredCategories.map((c) {
-                          final selected = tempCategoryKeys.contains(c.key);
-                          return _buildFilterChip(
-                            label: c.name,
-                            selected: selected,
-                            onSelected: () {
-                              setModalState(() {
-                                if (selected) {
-                                  tempCategoryKeys.remove(c.key);
-                                } else {
-                                  tempCategoryKeys.add(c.key);
-                                }
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 金额范围
-                      const Text(
-                        AppStrings.filterByAmount,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: minCtrl,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(decimal: true),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                prefixText: '¥ ',
-                                hintText: AppStrings.minAmount,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: maxCtrl,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(decimal: true),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                prefixText: '¥ ',
-                                hintText: AppStrings.maxAmount,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 收支类型
-                      const Text(
-                        AppStrings.filterByType,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          _buildFilterChip(
-                            label: AppStrings.all,
-                            selected: tempIncomeExpense == null,
-                            onSelected: () =>
-                                setModalState(() => tempIncomeExpense = null),
-                          ),
-                          _buildFilterChip(
-                            label: AppStrings.income,
-                            selected: tempIncomeExpense == true,
-                            onSelected: () => setModalState(() {
-                              tempIncomeExpense =
-                                  tempIncomeExpense == true ? null : true;
-                            }),
-                          ),
-                          _buildFilterChip(
-                            label: AppStrings.expense,
-                            selected: tempIncomeExpense == false,
-                            onSelected: () => setModalState(() {
-                              tempIncomeExpense =
-                                  tempIncomeExpense == false ? null : false;
-                            }),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 按账户筛选
-                      const Text(
-                        '按账户筛选',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: accounts.map((a) {
-                          final selected = tempAccountIds.contains(a.id);
-                          return _buildFilterChip(
-                            label: a.name,
-                            selected: selected,
-                            onSelected: () {
-                              setModalState(() {
-                                if (selected) {
-                                  tempAccountIds.remove(a.id);
-                                } else {
-                                  tempAccountIds.add(a.id);
-                                }
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 日期范围
-                      const Text(
-                        AppStrings.filterByDateRange,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final date = await showDatePicker(
-                                  context: ctx,
-                                  initialDate: tempStartDate ?? DateTime.now(),
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (date != null) {
-                                  setModalState(() => tempStartDate = date);
-                                }
-                              },
-                              child: InputDecorator(
-                                decoration: const InputDecoration(
-                                  isDense: true,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.all(
-                                      Radius.circular(10),
-                                    ),
-                                  ),
-                                  labelText: AppStrings.startDate,
-                                ),
-                                child: Text(
-                                  tempStartDate == null
-                                      ? AppStrings.pleaseSelect
-                                      : '${tempStartDate!.year}-${tempStartDate!.month.toString().padLeft(2, '0')}-${tempStartDate!.day.toString().padLeft(2, '0')}',
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text('~'),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final date = await showDatePicker(
-                                  context: ctx,
-                                  initialDate: tempEndDate ?? DateTime.now(),
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (date != null) {
-                                  setModalState(() => tempEndDate = date);
-                                }
-                              },
-                              child: InputDecorator(
-                                decoration: const InputDecoration(
-                                  isDense: true,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.all(
-                                      Radius.circular(10),
-                                    ),
-                                  ),
-                                  labelText: AppStrings.endDate,
-                                ),
-                                child: Text(
-                                  tempEndDate == null
-                                      ? AppStrings.pleaseSelect
-                                      : '${tempEndDate!.year}-${tempEndDate!.month.toString().padLeft(2, '0')}-${tempEndDate!.day.toString().padLeft(2, '0')}',
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 底部按钮
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text(AppStrings.cancel),
-                          ),
-                          Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              TextButton(
-                                onPressed: () {
-                                  minCtrl.clear();
-                                  maxCtrl.clear();
-                                  setModalState(() {
-                                    tempCategoryKeys.clear();
-                                    tempIncomeExpense = null;
-                                    tempStartDate = null;
-                                    tempEndDate = null;
-                                  });
-                                },
-                                child: const Text(AppStrings.reset),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    AppStrings.selectedConditions,
+                    style: TextStyle(
+                                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                                      color: cs.onSurface.withOpacity(0.8),
+                                    ),
+                                  ),
+                                  Text(
+                                    AppStrings.foundRecords.replaceAll(
+                                      '{count}',
+                                      filteredCount.toString(),
+                                    ),
+                          style: TextStyle(
+                            fontSize: 12,
+                                      color: cs.primary,
+                                      fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                                ],
                               ),
-                              const SizedBox(width: 8),
-                              FilledButton(
-                                onPressed: () {
-                                  final minText = minCtrl.text.trim();
-                                  final maxText = maxCtrl.text.trim();
-                                  final double? min =
-                                      minText.isEmpty ? null : double.tryParse(minText);
-                                  final double? max =
-                                      maxText.isEmpty ? null : double.tryParse(maxText);
-                                  if (min != null && max != null && min > max) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('最小金额不能大于最大金额'),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  Navigator.pop<Map<String, dynamic>>(ctx, {
-                                    'categoryKeys':
-                                        tempCategoryKeys.toList(), // 多选
-                                    'min': minCtrl.text.trim(),
-                                    'max': maxCtrl.text.trim(),
-                                    'incomeExpense': tempIncomeExpense,
-                                    'startDate': tempStartDate,
-                                    'endDate': tempEndDate,
-                                    'accountIds': tempAccountIds.toList(),
-                                  });
-                                },
-                                child: const Text(AppStrings.confirm),
+                              const SizedBox(height: 8),
+                        Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                          children: [
+                                  if (tempCategoryKeys.isNotEmpty)
+                                    _buildSelectedTag(
+                                      '分类 ${tempCategoryKeys.length}',
+                                      () => setModalState(() => tempCategoryKeys.clear()),
+                                      cs,
+                                    ),
+                                  if (tempAccountIds.isNotEmpty)
+                                    _buildSelectedTag(
+                                      '账户 ${tempAccountIds.length}',
+                                      () => setModalState(() => tempAccountIds.clear()),
+                                      cs,
+                                    ),
+                                  if (tempIncomeExpense != null)
+                                    _buildSelectedTag(
+                                      tempIncomeExpense == true
+                                          ? AppStrings.income
+                                          : AppStrings.expense,
+                                      () => setModalState(() => tempIncomeExpense = null),
+                                      cs,
+                                    ),
+                                  if (tempQuickAmount != null)
+                                    _buildSelectedTag(
+                                      tempQuickAmount!,
+                                      () => setModalState(() {
+                                        tempQuickAmount = null;
+                                        minCtrl.clear();
+                                        maxCtrl.clear();
+                                      }),
+                                      cs,
+                                    ),
+                                  if (tempStartDate != null || tempEndDate != null)
+                                    _buildSelectedTag(
+                                      '${tempStartDate != null ? DateUtilsX.ymd(tempStartDate!) : ''} ~ ${tempEndDate != null ? DateUtilsX.ymd(tempEndDate!) : ''}',
+                                      () => setModalState(() {
+                                        tempStartDate = null;
+                                        tempEndDate = null;
+                                        tempQuickDate = null;
+                                      }),
+                                      cs,
+                                    ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
+
+                      // 分类多选（卡片化）
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: cs.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: cs.outline.withOpacity(0.12),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.category_outlined,
+                                  size: 18,
+                                  color: cs.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  AppStrings.filterByCategory,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: cs.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // 分类搜索框
+                            TextField(
+                              controller: categorySearchCtrl,
+                              decoration: InputDecoration(
+                                hintText: AppStrings.searchCategory,
+                                prefixIcon: const Icon(Icons.search, size: 20),
+                                suffixIcon: categorySearchCtrl.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          categorySearchCtrl.clear();
+                                          setModalState(() {});
+                                        },
+                                      )
+                                    : null,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(
+                                    color: cs.outline.withOpacity(0.3),
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(
+                                    color: cs.outline.withOpacity(0.3),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(
+                                    color: cs.primary,
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                              onChanged: (_) => setModalState(() {}),
+                            ),
+                            const SizedBox(height: 12),
+                            // 分类列表（分组折叠）
+                            ...filteredTopCategories.map((top) {
+                              final children = getFilteredCategories(top.key);
+                              if (children.isEmpty) return const SizedBox.shrink();
+                              return _buildCategoryGroup(
+                                top,
+                                children,
+                                tempCategoryKeys,
+                                (key) {
+                                  setModalState(() {
+                                    if (tempCategoryKeys.contains(key)) {
+                                      tempCategoryKeys.remove(key);
+                                    } else {
+                                      tempCategoryKeys.add(key);
+                                    }
+                                  });
+                                },
+                                cs,
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+
+
+                      // 金额范围（卡片化）
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: cs.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: cs.outline.withOpacity(0.12),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.attach_money_outlined,
+                                  size: 18,
+                                  color: cs.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  AppStrings.filterByAmount,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: cs.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // 快捷金额选项
+                            Text(
+                              AppStrings.quickAmountOptions,
+                          style: TextStyle(
+                            fontSize: 12,
+                                color: cs.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                            const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                                '<100',
+                                '100-500',
+                                '500-1000',
+                                '>1000',
+                              ].map((option) {
+                                final selected = tempQuickAmount == option;
+                                return GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      if (selected) {
+                                        tempQuickAmount = null;
+                                        minCtrl.clear();
+                                        maxCtrl.clear();
+                                      } else {
+                                        tempQuickAmount = option;
+                                        final min = _getQuickAmountMin(option);
+                                        final max = _getQuickAmountMax(option);
+                                        minCtrl.text = min?.toString() ?? '';
+                                        maxCtrl.text = max?.toString() ?? '';
+                                      }
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? cs.primaryContainer
+                                          : cs.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: selected
+                                            ? cs.primary
+                                            : cs.outline.withOpacity(0.3),
+                                        width: selected ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      option,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: selected
+                                            ? cs.onPrimaryContainer
+                                            : cs.onSurface,
+                                        fontWeight: selected
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                              );
+                            }).toList(),
+                            ),
+                            const SizedBox(height: 12),
+                            // 自定义金额输入
+                            Text(
+                              AppStrings.customAmount,
+                    style: TextStyle(
+                                fontSize: 12,
+                                color: cs.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: minCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                    onChanged: (_) {
+                                      if (minCtrl.text.isNotEmpty ||
+                                          maxCtrl.text.isNotEmpty) {
+                                        setModalState(() => tempQuickAmount = null);
+                                      }
+                                      setModalState(() {});
+                                    },
+                          decoration: InputDecoration(
+                            isDense: true,
+                            prefixText: '¥ ',
+                            hintText: AppStrings.minAmount,
+                            border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: cs.outline.withOpacity(0.3),
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: cs.primary,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: maxCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                    onChanged: (_) {
+                                      if (minCtrl.text.isNotEmpty ||
+                                          maxCtrl.text.isNotEmpty) {
+                                        setModalState(() => tempQuickAmount = null);
+                                      }
+                                      setModalState(() {});
+                                    },
+                          decoration: InputDecoration(
+                            isDense: true,
+                            prefixText: '¥ ',
+                            hintText: AppStrings.maxAmount,
+                            border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: cs.outline.withOpacity(0.3),
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: cs.primary,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ),
+                          ],
+                        ),
+                      ),
+
+                      // 收支类型（卡片化）
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: cs.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: cs.outline.withOpacity(0.12),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.swap_horiz_outlined,
+                                  size: 18,
+                                  color: cs.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                    AppStrings.filterByType,
+                    style: TextStyle(
+                                    fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                                    color: cs.onSurface,
+                    ),
+                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildFilterChip(
+                        label: AppStrings.all,
+                        selected: tempIncomeExpense == null,
+                                  onSelected: () =>
+                                      setModalState(() => tempIncomeExpense = null),
+                      ),
+                      _buildFilterChip(
+                        label: AppStrings.income,
+                        selected: tempIncomeExpense == true,
+                                  onSelected: () => setModalState(() {
+                                    tempIncomeExpense =
+                                        tempIncomeExpense == true ? null : true;
+                                  }),
+                      ),
+                      _buildFilterChip(
+                        label: AppStrings.expense,
+                        selected: tempIncomeExpense == false,
+                                  onSelected: () => setModalState(() {
+                                    tempIncomeExpense =
+                                        tempIncomeExpense == false ? null : false;
+                                  }),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // 按账户筛选（卡片化）
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: cs.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: cs.outline.withOpacity(0.12),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.account_balance_wallet_outlined,
+                                  size: 18,
+                                  color: cs.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  AppStrings.filterByAccount,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: cs.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (accounts.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  AppStrings.noAccounts,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: cs.onSurface.withOpacity(0.5),
+                                  ),
+                                ),
+                              )
+                            else
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: accounts.map((a) {
+                                  final selected = tempAccountIds.contains(a.id);
+                                  return _buildFilterChip(
+                                    label: a.name,
+                                    selected: selected,
+                        onSelected: () {
+                                      setModalState(() {
+                                        if (selected) {
+                                          tempAccountIds.remove(a.id);
+                                        } else {
+                                          tempAccountIds.add(a.id);
+                                        }
+                                      });
+                                    },
+                                  );
+                                }).toList(),
+                      ),
+                    ],
+                  ),
+                      ),
+
+                      // 日期范围（卡片化）
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: cs.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: cs.outline.withOpacity(0.12),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today_outlined,
+                                  size: 18,
+                                  color: cs.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                    AppStrings.filterByDateRange,
+                    style: TextStyle(
+                                    fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                                    color: cs.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // 快捷日期选项
+                            Text(
+                              AppStrings.quickDateOptions,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.onSurface.withOpacity(0.6),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                (AppStrings.dateToday, 'today'),
+                                (AppStrings.dateThisWeek, 'thisWeek'),
+                                (AppStrings.dateThisMonth, 'thisMonth'),
+                                (AppStrings.dateLastMonth, 'lastMonth'),
+                                (AppStrings.dateThisYear, 'thisYear'),
+                              ].map((item) {
+                                final (label, value) = item;
+                                final selected = tempQuickDate == value;
+                                return GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      if (selected) {
+                                        tempQuickDate = null;
+                                        tempStartDate = null;
+                                        tempEndDate = null;
+                                      } else {
+                                        tempQuickDate = value;
+                                        final range = _getQuickDateRange(value);
+                                        if (range != null) {
+                                          tempStartDate = range.start;
+                                          tempEndDate = range.end;
+                                        }
+                                      }
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? cs.primaryContainer
+                                          : cs.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: selected
+                                            ? cs.primary
+                                            : cs.outline.withOpacity(0.3),
+                                        width: selected ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      label,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: selected
+                                            ? cs.onPrimaryContainer
+                                            : cs.onSurface,
+                                        fontWeight: selected
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 12),
+                            // 自定义日期输入
+                            Text(
+                              AppStrings.customDate,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                                      final now = DateTime.now();
+                                      final startYear = now.year - 10;
+                                      final endYear = now.year;
+                                      
+                                      int tempYear = (tempStartDate?.year ?? now.year)
+                                          .clamp(startYear, endYear);
+                                      int tempMonth = tempStartDate?.month ?? now.month;
+                                      int tempDay = tempStartDate?.day ?? now.day;
+                                      
+                                      final years = List<int>.generate(
+                                          endYear - startYear + 1, (i) => startYear + i);
+                                      final months = List<int>.generate(12, (i) => i + 1);
+                                      final days = List<int>.generate(
+                                          DateTime(tempYear, tempMonth + 1, 0).day,
+                                          (i) => i + 1);
+                                      
+                                      int yearIndex = years.indexOf(tempYear);
+                                      int monthIndex = tempMonth - 1;
+                                      int dayIndex = tempDay - 1;
+                                      
+                                      final yearController = FixedExtentScrollController(
+                                          initialItem: yearIndex);
+                                      final monthController = FixedExtentScrollController(
+                                          initialItem: monthIndex);
+                                      final dayController = FixedExtentScrollController(
+                                          initialItem: dayIndex);
+                                      
+                                      await showModalBottomSheet<void>(
+                              context: ctx,
+                                        backgroundColor: cs.surface,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(
+                                              top: Radius.circular(16)),
+                                        ),
+                                        builder: (context) {
+                                          return SizedBox(
+                                            height: 260,
+                                            child: Column(
+                                              children: [
+                                                SizedBox(
+                                                  height: 44,
+                                                  child: Row(
+                                                    children: [
+                                                      TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(context),
+                                                        child: const Text(AppStrings.cancel),
+                                                      ),
+                                                      const Spacer(),
+                                                      TextButton(
+                                                        onPressed: () {
+                                                          setModalState(() {
+                                                            tempStartDate = DateTime(
+                                                                tempYear, tempMonth, tempDay);
+                                                            tempQuickDate = null;
+                                                          });
+                                                          Navigator.pop(context);
+                                                        },
+                                                        child: const Text(AppStrings.confirm),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: CupertinoPicker(
+                                                          scrollController: yearController,
+                                                          itemExtent: 32,
+                                                          onSelectedItemChanged: (index) {
+                                                            tempYear = years[index];
+                                                            final lastDay = DateTime(
+                                                                    tempYear, tempMonth + 1, 0)
+                                                                .day;
+                                                            if (tempDay > lastDay) {
+                                                              tempDay = lastDay;
+                                                              dayController.animateToItem(
+                                                                  tempDay - 1,
+                                                                  duration: const Duration(
+                                                                      milliseconds: 200),
+                                                                  curve: Curves.easeOut);
+                                                            }
+                                                          },
+                                                          children: years
+                                                              .asMap()
+                                                              .entries
+                                                              .map((entry) =>
+                                                                  GestureDetector(
+                                                                    behavior:
+                                                                        HitTestBehavior.opaque,
+                                                                    onTap: () {
+                                                                      yearController
+                                                                          .animateToItem(
+                                                                              entry.key,
+                                                                              duration:
+                                                                                  const Duration(
+                                                                                      milliseconds:
+                                                                                          200),
+                                                                              curve:
+                                                                                  Curves.easeOut);
+                                                                      tempYear = entry.value;
+                                                                    },
+                                                                    child: Center(
+                                                                      child: Text(
+                                                                          '${entry.value}年'),
+                                                                    ),
+                                                                  ))
+                                                              .toList(),
+                                                        ),
+                                                      ),
+                                                      Expanded(
+                                                        child: CupertinoPicker(
+                                                          scrollController: monthController,
+                                                          itemExtent: 32,
+                                                          onSelectedItemChanged: (index) {
+                                                            tempMonth = months[index];
+                                                            final lastDay = DateTime(
+                                                                    tempYear, tempMonth + 1, 0)
+                                                                .day;
+                                                            if (tempDay > lastDay) {
+                                                              tempDay = lastDay;
+                                                              dayController.animateToItem(
+                                                                  tempDay - 1,
+                                                                  duration: const Duration(
+                                                                      milliseconds: 200),
+                                                                  curve: Curves.easeOut);
+                                                            }
+                                                          },
+                                                          children: months
+                                                              .asMap()
+                                                              .entries
+                                                              .map((entry) =>
+                                                                  GestureDetector(
+                                                                    behavior:
+                                                                        HitTestBehavior.opaque,
+                                                                    onTap: () {
+                                                                      monthController
+                                                                          .animateToItem(
+                                                                              entry.key,
+                                                                              duration:
+                                                                                  const Duration(
+                                                                                      milliseconds:
+                                                                                          200),
+                                                                              curve:
+                                                                                  Curves.easeOut);
+                                                                      tempMonth = entry.value;
+                                                                    },
+                                                                    child: Center(
+                                                                      child: Text(entry.value
+                                                                          .toString()
+                                                                          .padLeft(2, '0')),
+                                                                    ),
+                                                                  ))
+                                                              .toList(),
+                                                        ),
+                                                      ),
+                                                      Expanded(
+                                                        child: CupertinoPicker(
+                                                          scrollController: dayController,
+                                                          itemExtent: 32,
+                                                          onSelectedItemChanged: (index) {
+                                                            tempDay = days[index];
+                                                          },
+                                                          children: List.generate(
+                                                                  DateTime(tempYear,
+                                                                          tempMonth + 1, 0)
+                                                                      .day,
+                                                                  (i) => i + 1)
+                                                              .asMap()
+                                                              .entries
+                                                              .map((entry) =>
+                                                                  GestureDetector(
+                                                                    behavior:
+                                                                        HitTestBehavior.opaque,
+                                                                    onTap: () {
+                                                                      dayController
+                                                                          .animateToItem(
+                                                                              entry.key,
+                                                                              duration:
+                                                                                  const Duration(
+                                                                                      milliseconds:
+                                                                                          200),
+                                                                              curve:
+                                                                                  Curves.easeOut);
+                                                                      tempDay = entry.value;
+                                                                    },
+                                                                    child: Center(
+                                                                      child: Text(entry.value
+                                                                          .toString()
+                                                                          .padLeft(2, '0')),
+                                                                    ),
+                                                                  ))
+                                                              .toList(),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                          },
+                          child: InputDecorator(
+                                      decoration: InputDecoration(
+                              isDense: true,
+                              border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide(
+                                            color: cs.outline.withOpacity(0.3),
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide(
+                                            color: cs.primary,
+                                            width: 1.5,
+                                          ),
+                              ),
+                              labelText: AppStrings.startDate,
+                            ),
+                            child: Text(
+                              tempStartDate == null
+                                  ? AppStrings.pleaseSelect
+                                            : DateUtilsX.ymd(tempStartDate!),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                                Text(
+                                  '~',
+                                  style: TextStyle(
+                                    color: cs.onSurface.withOpacity(0.5),
+                                  ),
+                                ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                                      final now = DateTime.now();
+                                      final startYear = now.year - 10;
+                                      final endYear = now.year;
+                                      
+                                      int tempYear = (tempEndDate?.year ?? now.year)
+                                          .clamp(startYear, endYear);
+                                      int tempMonth = tempEndDate?.month ?? now.month;
+                                      int tempDay = tempEndDate?.day ?? now.day;
+                                      
+                                      final years = List<int>.generate(
+                                          endYear - startYear + 1, (i) => startYear + i);
+                                      final months = List<int>.generate(12, (i) => i + 1);
+                                      final days = List<int>.generate(
+                                          DateTime(tempYear, tempMonth + 1, 0).day,
+                                          (i) => i + 1);
+                                      
+                                      int yearIndex = years.indexOf(tempYear);
+                                      int monthIndex = tempMonth - 1;
+                                      int dayIndex = tempDay - 1;
+                                      
+                                      final yearController = FixedExtentScrollController(
+                                          initialItem: yearIndex);
+                                      final monthController = FixedExtentScrollController(
+                                          initialItem: monthIndex);
+                                      final dayController = FixedExtentScrollController(
+                                          initialItem: dayIndex);
+                                      
+                                      await showModalBottomSheet<void>(
+                              context: ctx,
+                                        backgroundColor: cs.surface,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(
+                                              top: Radius.circular(16)),
+                                        ),
+                                        builder: (context) {
+                                          return SizedBox(
+                                            height: 260,
+                                            child: Column(
+                                              children: [
+                                                SizedBox(
+                                                  height: 44,
+                                                  child: Row(
+                                                    children: [
+                                                      TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(context),
+                                                        child: const Text(AppStrings.cancel),
+                                                      ),
+                                                      const Spacer(),
+                                                      TextButton(
+                                                        onPressed: () {
+                                                          setModalState(() {
+                                                            tempEndDate = DateTime(
+                                                                tempYear, tempMonth, tempDay);
+                                                            tempQuickDate = null;
+                                                          });
+                                                          Navigator.pop(context);
+                                                        },
+                                                        child: const Text(AppStrings.confirm),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: CupertinoPicker(
+                                                          scrollController: yearController,
+                                                          itemExtent: 32,
+                                                          onSelectedItemChanged: (index) {
+                                                            tempYear = years[index];
+                                                            final lastDay = DateTime(
+                                                                    tempYear, tempMonth + 1, 0)
+                                                                .day;
+                                                            if (tempDay > lastDay) {
+                                                              tempDay = lastDay;
+                                                              dayController.animateToItem(
+                                                                  tempDay - 1,
+                                                                  duration: const Duration(
+                                                                      milliseconds: 200),
+                                                                  curve: Curves.easeOut);
+                                                            }
+                                                          },
+                                                          children: years
+                                                              .asMap()
+                                                              .entries
+                                                              .map((entry) =>
+                                                                  GestureDetector(
+                                                                    behavior:
+                                                                        HitTestBehavior.opaque,
+                                                                    onTap: () {
+                                                                      yearController
+                                                                          .animateToItem(
+                                                                              entry.key,
+                                                                              duration:
+                                                                                  const Duration(
+                                                                                      milliseconds:
+                                                                                          200),
+                                                                              curve:
+                                                                                  Curves.easeOut);
+                                                                      tempYear = entry.value;
+                                                                    },
+                                                                    child: Center(
+                                                                      child: Text(
+                                                                          '${entry.value}年'),
+                                                                    ),
+                                                                  ))
+                                                              .toList(),
+                                                        ),
+                                                      ),
+                                                      Expanded(
+                                                        child: CupertinoPicker(
+                                                          scrollController: monthController,
+                                                          itemExtent: 32,
+                                                          onSelectedItemChanged: (index) {
+                                                            tempMonth = months[index];
+                                                            final lastDay = DateTime(
+                                                                    tempYear, tempMonth + 1, 0)
+                                                                .day;
+                                                            if (tempDay > lastDay) {
+                                                              tempDay = lastDay;
+                                                              dayController.animateToItem(
+                                                                  tempDay - 1,
+                                                                  duration: const Duration(
+                                                                      milliseconds: 200),
+                                                                  curve: Curves.easeOut);
+                                                            }
+                                                          },
+                                                          children: months
+                                                              .asMap()
+                                                              .entries
+                                                              .map((entry) =>
+                                                                  GestureDetector(
+                                                                    behavior:
+                                                                        HitTestBehavior.opaque,
+                                                                    onTap: () {
+                                                                      monthController
+                                                                          .animateToItem(
+                                                                              entry.key,
+                                                                              duration:
+                                                                                  const Duration(
+                                                                                      milliseconds:
+                                                                                          200),
+                                                                              curve:
+                                                                                  Curves.easeOut);
+                                                                      tempMonth = entry.value;
+                                                                    },
+                                                                    child: Center(
+                                                                      child: Text(entry.value
+                                                                          .toString()
+                                                                          .padLeft(2, '0')),
+                                                                    ),
+                                                                  ))
+                                                              .toList(),
+                                                        ),
+                                                      ),
+                                                      Expanded(
+                                                        child: CupertinoPicker(
+                                                          scrollController: dayController,
+                                                          itemExtent: 32,
+                                                          onSelectedItemChanged: (index) {
+                                                            tempDay = days[index];
+                                                          },
+                                                          children: List.generate(
+                                                                  DateTime(tempYear,
+                                                                          tempMonth + 1, 0)
+                                                                      .day,
+                                                                  (i) => i + 1)
+                                                              .asMap()
+                                                              .entries
+                                                              .map((entry) =>
+                                                                  GestureDetector(
+                                                                    behavior:
+                                                                        HitTestBehavior.opaque,
+                                                                    onTap: () {
+                                                                      dayController
+                                                                          .animateToItem(
+                                                                              entry.key,
+                                                                              duration:
+                                                                                  const Duration(
+                                                                                      milliseconds:
+                                                                                          200),
+                                                                              curve:
+                                                                                  Curves.easeOut);
+                                                                      tempDay = entry.value;
+                                                                    },
+                                                                    child: Center(
+                                                                      child: Text(entry.value
+                                                                          .toString()
+                                                                          .padLeft(2, '0')),
+                                                                    ),
+                                                                  ))
+                                                              .toList(),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                          },
+                          child: InputDecorator(
+                                      decoration: InputDecoration(
+                              isDense: true,
+                              border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide(
+                                            color: cs.outline.withOpacity(0.3),
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide(
+                                            color: cs.primary,
+                                            width: 1.5,
+                                          ),
+                              ),
+                              labelText: AppStrings.endDate,
+                            ),
+                            child: Text(
+                              tempEndDate == null
+                                  ? AppStrings.pleaseSelect
+                                            : DateUtilsX.ymd(tempEndDate!),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 底部固定操作栏
+                  Container(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+                    decoration: BoxDecoration(
+                      color: cs.surface,
+                      border: Border(
+                        top: BorderSide(
+                          color: cs.outline.withOpacity(0.12),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: BorderSide(
+                                  color: cs.outline.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Text(
+                                AppStrings.cancel,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                minCtrl.clear();
+                                maxCtrl.clear();
+                                categorySearchCtrl.clear();
+                                setModalState(() {
+                                  tempCategoryKeys.clear();
+                                  tempAccountIds.clear();
+                                  tempIncomeExpense = null;
+                                  tempStartDate = null;
+                                  tempEndDate = null;
+                                  tempQuickAmount = null;
+                                  tempQuickDate = null;
+                                });
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: BorderSide(
+                                  color: cs.outline.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.refresh,
+                                    size: 16,
+                                    color: cs.onSurface.withOpacity(0.7),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    AppStrings.reset,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton(
+                              onPressed: () {
+                                // 验证日期范围
+                                if (tempStartDate != null &&
+                                    tempEndDate != null &&
+                                    tempStartDate!.isAfter(tempEndDate!)) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                      content: Text(AppStrings.startDateGreaterThanEnd),
+                                      backgroundColor: cs.error,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                // 处理金额
+                                double? min;
+                                double? max;
+                                if (tempQuickAmount != null) {
+                                  min = _getQuickAmountMin(tempQuickAmount!);
+                                  max = _getQuickAmountMax(tempQuickAmount!);
+                                } else {
+                                  final minText = minCtrl.text.trim();
+                                  final maxText = maxCtrl.text.trim();
+                                  min = minText.isEmpty
+                                      ? null
+                                      : double.tryParse(minText);
+                                  max = maxText.isEmpty
+                                      ? null
+                                      : double.tryParse(maxText);
+                                }
+
+                                // 验证金额范围
+                                if (min != null && max != null && min > max) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                      content: Text(AppStrings.minAmountGreaterThanMax),
+                                      backgroundColor: cs.error,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                Navigator.pop<Map<String, dynamic>>(ctx, {
+                                  'categoryKeys': tempCategoryKeys.toList(),
+                                  'min': min?.toString() ?? '',
+                                  'max': max?.toString() ?? '',
+                                  'incomeExpense': tempIncomeExpense,
+                                  'startDate': tempStartDate,
+                                  'endDate': tempEndDate,
+                                  'accountIds': tempAccountIds.toList(),
+                                });
+                              },
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              child: Text(
+                                AppStrings.confirm,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -906,32 +2089,134 @@ class _HomePageState extends State<HomePage> {
 
     if (!mounted || result == null) return;
 
-    setState(() {
+      setState(() {
       final categoryKeysList = result['categoryKeys'] as List<dynamic>?;
       _filterCategoryKeys = categoryKeysList != null
           ? Set<String>.from(categoryKeysList.cast<String>())
           : <String>{};
 
-      _filterIncomeExpense = result['incomeExpense'] as bool?;
+        _filterIncomeExpense = result['incomeExpense'] as bool?;
 
       final accountIdsList = result['accountIds'] as List<dynamic>?;
       _filterAccountIds = accountIdsList != null
           ? Set<String>.from(accountIdsList.cast<String>())
           : <String>{};
 
-      final minText = result['min'] as String;
-      final maxText = result['max'] as String;
-      _minAmount = minText.isEmpty ? null : double.tryParse(minText);
-      _maxAmount = maxText.isEmpty ? null : double.tryParse(maxText);
+        final minText = result['min'] as String;
+        final maxText = result['max'] as String;
+        _minAmount = minText.isEmpty ? null : double.tryParse(minText);
+        _maxAmount = maxText.isEmpty ? null : double.tryParse(maxText);
 
-      _startDate = result['startDate'] as DateTime?;
-      _endDate = result['endDate'] as DateTime?;
+        _startDate = result['startDate'] as DateTime?;
+        _endDate = result['endDate'] as DateTime?;
       if (_startDate != null || _endDate != null) {
         _timeRangeType = HomeTimeRangeType.custom;
       } else {
         _timeRangeType = HomeTimeRangeType.month;
       }
     });
+  }
+
+  // 已选条件标签
+  Widget _buildSelectedTag(String label, VoidCallback onRemove, ColorScheme cs) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: cs.onPrimaryContainer,
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(
+              Icons.close,
+              size: 14,
+              color: cs.onPrimaryContainer,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 分类分组组件
+  Widget _buildCategoryGroup(
+    Category topCategory,
+    List<Category> children,
+    Set<String> selectedKeys,
+    ValueChanged<String> onToggle,
+    ColorScheme cs,
+  ) {
+    final isExpanded = true; // 默认展开，后续可以添加折叠功能
+    final selectedCount = children.where((c) => selectedKeys.contains(c.key)).length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(
+              topCategory.icon,
+              size: 16,
+              color: cs.primary,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                topCategory.name,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+            if (selectedCount > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: cs.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$selectedCount',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: cs.onPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (isExpanded) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: children.map((c) {
+              final selected = selectedKeys.contains(c.key);
+              return _buildFilterChip(
+                label: c.name,
+                selected: selected,
+                onSelected: () => onToggle(c.key),
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
   }
 
   // 自定义 FilterChip 组件，避免 ChoiceChip 的布局抖动问题
@@ -1334,10 +2619,10 @@ class _HomeSearchBar extends StatelessWidget {
               child: TextField(
                 controller: controller,
                 focusNode: focusNode,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
-                  hintText: '搜索备注、分类、金额（支持跨月）',
+                  hintText: AppStrings.searchHint,
                 ),
                 onChanged: onChanged,
                 onSubmitted: onSubmitted,
@@ -1541,6 +2826,7 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final kw = keyword.trim().toLowerCase();
     final hasHistory = history.isNotEmpty;
     final matchedCategories = kw.isEmpty
@@ -1549,7 +2835,7 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
             .where(
               (c) => c.name.toLowerCase().contains(kw),
             )
-            .take(5)
+            .take(8)
             .toList();
 
     if (!hasHistory && matchedCategories.isEmpty) {
@@ -1557,17 +2843,20 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Container(
-        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: cs.outline.withOpacity(0.12),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -1576,64 +2865,220 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (hasHistory) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.history_outlined,
+                          size: 16,
+                          color: cs.onSurface.withOpacity(0.6),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          AppStrings.recentSearches,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface.withOpacity(0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    TextButton(
+                      onPressed: onClearHistory,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        AppStrings.clearHistory,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ...history.take(5).map(
+                (item) => _buildHistoryItem(context, item, cs),
+              ),
+              if (matchedCategories.isNotEmpty)
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  indent: 16,
+                  endIndent: 16,
+                  color: cs.outline.withOpacity(0.1),
+                ),
+            ],
+            if (matchedCategories.isNotEmpty) ...[
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  hasHistory ? 12 : 12,
+                  16,
+                  8,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.category_outlined,
+                      size: 16,
+                      color: cs.onSurface.withOpacity(0.6),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      AppStrings.matchedCategories,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ...matchedCategories.map(
+                (c) => _buildCategoryItem(context, c, kw, cs),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryItem(BuildContext context, String item, ColorScheme cs) {
+    return InkWell(
+      onTap: () => onTapHistory(item),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              Icons.history,
+              size: 18,
+              color: cs.onSurface.withOpacity(0.5),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                item,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: cs.onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 12,
+              color: cs.onSurface.withOpacity(0.3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryItem(
+    BuildContext context,
+    Category category,
+    String keyword,
+    ColorScheme cs,
+  ) {
+    final name = category.name;
+    final lowerName = name.toLowerCase();
+    final lowerKeyword = keyword.toLowerCase();
+    final index = lowerName.indexOf(lowerKeyword);
+
+    Widget titleWidget;
+    if (index == -1 || keyword.isEmpty) {
+      titleWidget = Text(
+        name,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: cs.onSurface,
+        ),
+      );
+    } else {
+      final before = name.substring(0, index);
+      final match = name.substring(index, index + keyword.length);
+      final after = name.substring(index + keyword.length);
+
+      titleWidget = RichText(
+        text: TextSpan(
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: cs.onSurface,
+          ),
+          children: [
+            TextSpan(text: before),
+            TextSpan(
+              text: match,
+              style: TextStyle(
+                color: cs.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            TextSpan(text: after),
+          ],
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: () => onTapCategory(category),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: cs.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                category.icon,
+                size: 18,
+                color: cs.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '最近搜索',
+                  titleWidget,
+                  const SizedBox(height: 2),
+                  Text(
+                    category.isExpense ? AppStrings.expense : AppStrings.income,
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: onClearHistory,
-                    child: const Text(
-                      '清空',
-                      style: TextStyle(fontSize: 11),
+                      color: cs.onSurface.withOpacity(0.5),
                     ),
                   ),
                 ],
               ),
-              ...history.take(5).map(
-                (item) => ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.history, size: 18),
-                  title: Text(
-                    item,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  onTap: () => onTapHistory(item),
-                ),
-              ),
-              if (matchedCategories.isNotEmpty) const Divider(height: 8),
-            ],
-            if (matchedCategories.isNotEmpty) ...[
-              const Text(
-                '匹配的分类',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              ...matchedCategories.map(
-                (c) => ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(c.icon, size: 18),
-                  title: Text(
-                    c.name,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  subtitle: Text(
-                    c.isExpense ? '支出' : '收入',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  onTap: () => onTapCategory(c),
-                ),
-              ),
-            ],
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 12,
+              color: cs.onSurface.withOpacity(0.3),
+            ),
           ],
         ),
       ),

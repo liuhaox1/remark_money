@@ -88,6 +88,41 @@ class AppStrings {
   static const quickAdd = '快速记一笔';
   static const quickAddPrimary = '记一笔';
   static const pickDate = '选择日期';
+  
+  // Search
+  static const searchHint = '搜索备注、分类、金额（支持跨月）';
+  static const recentSearches = '最近搜索';
+  static const clearHistory = '清空';
+  static const matchedCategories = '匹配的分类';
+  
+  // Filter
+  static const filterByAccount = '按账户筛选';
+  static const selectedConditions = '已选条件';
+  static const foundRecords = '找到 {count} 条记录';
+  static const searchCategory = '搜索分类';
+  static const quickAmountOptions = '快捷金额';
+  static const customAmount = '自定义金额';
+  static const quickDateOptions = '快捷日期';
+  static const customDate = '自定义日期';
+  static const minAmountGreaterThanMax = '最小金额不能大于最大金额';
+  static const startDateGreaterThanEnd = '开始日期不能大于结束日期';
+  static const amountLessThan100 = '< 100';
+  static const amount100To500 = '100 - 500';
+  static const amount500To1000 = '500 - 1000';
+  static const amountGreaterThan1000 = '> 1000';
+  static const dateToday = '今天';
+  static const dateThisWeek = '本周';
+  static const dateThisMonth = '本月';
+  static const dateLastMonth = '上月';
+  static const dateThisYear = '今年';
+  static const clearAllFilters = '清空筛选';
+  static const expand = '展开';
+  static const collapse = '收起';
+  static const selectAll = '全选';
+  static const deselectAll = '全不选';
+  static const noAccounts = '暂无账户';
+  static const noSearchResults = '暂无搜索结果';
+  static const searchHistoryEmpty = '暂无搜索历史';
 
   // Charts / stats
   static const stats = '统计';
