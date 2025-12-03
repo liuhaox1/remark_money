@@ -5880,6 +5880,7 @@ class _HomePageState extends State<HomePage> {
                               side: BorderSide(
                                 color: cs.outline.withOpacity(0.6),
                               ),
+                              splashFactory: NoSplash.splashFactory,
                             ),
                             child: const Text('重置'),
                           ),
@@ -5893,6 +5894,7 @@ class _HomePageState extends State<HomePage> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
+                              splashFactory: NoSplash.splashFactory,
                             ),
                             onPressed: () {
                               final min =
@@ -6307,15 +6309,18 @@ class _HomePageState extends State<HomePage> {
                         child: Row(
                           children: [
                             Text(
-                              '已選 ${selected.length} 個',
+                              '已选 ${selected.length} 个',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             const Spacer(),
                             FilledButton(
+                              style: FilledButton.styleFrom(
+                                splashFactory: NoSplash.splashFactory,
+                              ),
                               onPressed: () => Navigator.pop(ctx, selected),
-                              child: const Text('確認'),
+                              child: const Text('确认'),
                             ),
                           ],
                         ),
@@ -6330,8 +6335,7 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
-
-  Future<Set<String>?> _openAccountMultiSelector({
+Future<Set<String>?> _openAccountMultiSelector({
     required BuildContext context,
     required List<Account> accounts,
     required Set<String> initialSelected,
@@ -6420,15 +6424,18 @@ class _HomePageState extends State<HomePage> {
                       child: Row(
                         children: [
                           Text(
-                            '已選 ${selected.isEmpty ? '全部' : selected.length.toString()}',
+                            '已选 ${selected.isEmpty ? '全部' : selected.length.toString()}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           const Spacer(),
                           FilledButton(
+                            style: FilledButton.styleFrom(
+                              splashFactory: NoSplash.splashFactory,
+                            ),
                             onPressed: () => Navigator.pop(ctx, selected),
-                            child: const Text('確認'),
+                            child: const Text('确认'),
                           ),
                         ],
                       ),
