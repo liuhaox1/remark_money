@@ -556,13 +556,19 @@ class CategoryRepository {
   static String sanitizeCategoryName(String key, String name) {
     switch (key) {
       case 'food_meal':
-        return '正餐';
+        return '正餐（午/晚）';
       case 'food_drink':
-        return '奶茶咖啡饮品';
+        return '饮品';
+      case 'food_takeout':
+        return '外卖';
       case 'trans_taxi':
         return '打车出行';
       case 'trans_drive':
-        return '自驾养车费用';
+        return '自驾养车';
+      case 'trans_commute':
+        return '公共交通';
+      case 'trans_longtrip':
+        return '长途出行';
       case 'living_rent':
         return '住房支出';
       case 'living_internet':

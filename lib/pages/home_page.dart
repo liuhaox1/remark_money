@@ -5546,7 +5546,7 @@ class _HomePageState extends State<HomePage> {
                     Row(
                       children: [
                         const Text(
-                          '高級篩選',
+                          '高级筛选',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -5585,7 +5585,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '預計找到 ${filteredCount()} 條記錄',
+                                    '预计找到 ${filteredCount()} 条记录',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
@@ -5611,7 +5611,7 @@ class _HomePageState extends State<HomePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            buildSectionTitle('日期範圍'),
+                            buildSectionTitle('日期范围'),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -5647,7 +5647,7 @@ class _HomePageState extends State<HomePage> {
                               ),
                               child: Text(
                                 tempStartDate == null || tempEndDate == null
-                                    ? '自定義日期'
+                                    ? '自定义日期'
                                     : '${DateUtilsX.ymd(tempStartDate!)} ~ ${DateUtilsX.ymd(tempEndDate!)}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
@@ -5656,7 +5656,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 16),
 
-                            buildSectionTitle('收支類型'),
+                            buildSectionTitle('收支类型'),
                             Wrap(
                               spacing: 8,
                               children: [
@@ -5682,7 +5682,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 16),
 
-                            buildSectionTitle('分類'),
+                            buildSectionTitle('分类'),
                             if (commonCategories.isNotEmpty)
                               Wrap(
                                 spacing: 8,
@@ -5726,8 +5726,8 @@ class _HomePageState extends State<HomePage> {
                                 children: [
                                   Text(
                                     tempCategoryKeys.isEmpty
-                                        ? '全部分類'
-                                        : '已選 ${tempCategoryKeys.length} 個分類',
+                                        ? '全部分类'
+                                        : '已选 ${tempCategoryKeys.length} 个分类',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -5738,7 +5738,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 16),
 
-                            buildSectionTitle('按金額'),
+                            buildSectionTitle('按金额'),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -5779,7 +5779,7 @@ class _HomePageState extends State<HomePage> {
                                     decoration: InputDecoration(
                                       isDense: true,
                                       prefixText: '￥ ',
-                                      hintText: '最小金額',
+                                      hintText: '最小金额',
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(10),
                                       ),
@@ -5807,7 +5807,7 @@ class _HomePageState extends State<HomePage> {
                                     decoration: InputDecoration(
                                       isDense: true,
                                       prefixText: '￥ ',
-                                      hintText: '最大金額',
+                                      hintText: '最大金额',
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(10),
                                       ),
@@ -5825,7 +5825,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 16),
 
-                            buildSectionTitle('賬戶'),
+                            buildSectionTitle('账户'),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -5845,7 +5845,7 @@ class _HomePageState extends State<HomePage> {
                                     },
                                   ),
                                 buildChoiceChip(
-                                  label: '全部賬戶${tempAccountIds.isEmpty ? '' : '（已選）'}',
+                                  label: '全部账户${tempAccountIds.isEmpty ? '' : '（已选）'}',
                                   selected: tempAccountIds.isEmpty,
                                   onTap: () => setModalState(
                                     () => tempAccountIds.clear(),
@@ -5904,7 +5904,7 @@ class _HomePageState extends State<HomePage> {
                               if (min != null && max != null && min > max) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('最小金額不能大於最大金額'),
+                                    content: Text('最小金额不能大于最大金额'),
                                   ),
                                 );
                                 return;
@@ -5914,7 +5914,7 @@ class _HomePageState extends State<HomePage> {
                                   tempStartDate!.isAfter(tempEndDate!)) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('開始日期不能大於結束日期'),
+                                    content: Text('开始日期不能大于结束日期'),
                                   ),
                                 );
                                 return;
@@ -5935,7 +5935,7 @@ class _HomePageState extends State<HomePage> {
                               });
                               Navigator.pop(ctx);
                             },
-                            child: Text('查看 ${filteredCount()} 條結果'),
+                            child: Text('查看 ${filteredCount()} 条结果'),
                           ),
                         ),
                       ],
@@ -5969,21 +5969,21 @@ class _HomePageState extends State<HomePage> {
       parts.add(incomeExpense ? '收入' : '支出');
     }
     if (categoryCount > 0) {
-      parts.add('分類 $categoryCount');
+      parts.add('分类 $categoryCount');
     }
     if (amountMin != null || amountMax != null) {
       if (amountMin != null && amountMax != null) {
-        parts.add('金額 ${amountMin.toStringAsFixed(0)}-${amountMax.toStringAsFixed(0)}');
+        parts.add('金额 ${amountMin.toStringAsFixed(0)}-${amountMax.toStringAsFixed(0)}');
       } else if (amountMin != null) {
-        parts.add('金額 ≥${amountMin.toStringAsFixed(0)}');
+        parts.add('金额 ≥${amountMin.toStringAsFixed(0)}');
       } else if (amountMax != null) {
-        parts.add('金額 ≤${amountMax.toStringAsFixed(0)}');
+        parts.add('金额 ≤${amountMax.toStringAsFixed(0)}');
       }
     }
     if (accountCount > 0) {
-      parts.add('賬戶 $accountCount');
+      parts.add('账户 $accountCount');
     }
-    return parts.isEmpty ? '' : '已選：${parts.join(' · ')}';
+    return parts.isEmpty ? '' : '已选：${parts.join(' · ')}';
   }
 
   double? _currentMin(String? quickKey, String textValue) {
@@ -6258,7 +6258,7 @@ class _HomePageState extends State<HomePage> {
                         child: Row(
                           children: [
                             const Text(
-                              '選擇分類',
+                              '选择分类',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
@@ -6281,7 +6281,7 @@ class _HomePageState extends State<HomePage> {
                           controller: searchCtrl,
                           decoration: InputDecoration(
                             prefixIcon: const Icon(Icons.search),
-                            hintText: '搜索分類',
+                            hintText: '搜索分类',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -6371,7 +6371,7 @@ Future<Set<String>?> _openAccountMultiSelector({
                       child: Row(
                         children: [
                           const Text(
-                            '選擇賬戶',
+                            '选择账户',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,

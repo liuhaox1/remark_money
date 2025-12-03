@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/date_utils.dart';
 
 /// Centralized app strings for localization and reuse.
 class AppStrings {
@@ -299,192 +300,153 @@ class AppStrings {
   static const totalDebts = '总负债';
   static const netWorth = '净资产';
 
-  // Built-in category names (hierarchical)
-  // 一级：支出
-  static const catTopFood = '餐饮';
-  static const catTopShopping = '购物';
-  static const catTopTransport = '出行';
-  static const catTopLiving = '居住与账单';
-  static const catTopLeisure = '娱乐休闲';
-  static const catTopEducation = '教育成长';
-  static const catTopHealth = '健康医疗';
-  static const catTopFamily = '家庭与人情';
-  static const catTopFinance = '金融与其他';
+// Built-in category names (hierarchical)
+  // ????
+  static const catTopIncomeSalary = '????';
+  static const catTopIncomeParttime = '????';
+  static const catTopIncomeInvest = '????';
+  static const catTopIncomeOther = '????';
 
-  // 餐饮 - 二级
-  static const catFoodMeal = '正餐/工作餐';
+  // ???? - ??
+  static const catIncomeBasicSalary = '????';
+  static const catIncomeBonus = '?????';
+  static const catIncomeYearEnd = '???';
+
+  // ???? - ??
+  static const catIncomeParttimeOnline = '????';
+  static const catIncomeParttimeOffline = '????';
+
+  // ???? - ??
+  static const catIncomeInvestInterest = '????';
+  static const catIncomeInvestStock = '????';
+
+  // ???? - ??
+  static const catIncomeRedPacket = '????';
+  static const catIncomeRefund = '?????';
+
+  // ????
+  static const unitYi = '亿';
+  static const unitWan = '万';
+
+  // 动态文案 / 标签
+  static String yearLabel(int year) => '${year}年';
+  static String monthLabel(int month) => '${month}月';
+  static String yearMonthLabel(int year, int month) => '${year}年${month}月';
+  static String monthDayLabel(dynamic value, [int? day]) {
+    if (value is DateTime) {
+      return '${value.month}月${value.day}日';
+    }
+    if (value is int && day != null) {
+      return '${value}月${day}日';
+    }
+    return value.toString();
+  }
+  static String weekRangeLabel(DateTimeRange range) =>
+      '${DateUtilsX.ymd(range.start)} ~ ${DateUtilsX.ymd(range.end)}';
+  static String selectMonthLabel(DateTime month) =>
+      '${month.year}年${month.month}月';
+  static String monthRangeTitle(int index, int startDay, int endDay) =>
+      '第${index + 1}周（${startDay}日-${endDay}日）';
+  static String monthDayWithCount(int month, int day, String weekday, int count) =>
+      '${month}月${day}日 ${weekday} · ${count}笔';
+  static String monthExpenseWithCount(double expense, int count) =>
+      '本月支出 ¥${expense.toStringAsFixed(2)} · ${count}笔';
+  static String homeBudgetUsedAndTotal(double used, double total) =>
+      '已用 ¥${used.toStringAsFixed(2)} / 预算 ¥${total.toStringAsFixed(2)}';
+  static String homeBudgetUsageVsTime(double usedPercent, double timePercent) =>
+      '用掉 ${usedPercent.toStringAsFixed(0)}% · 进度 ${timePercent.toStringAsFixed(0)}%';
+  static String homeBudgetTodaySuggestion(int daysLeft, double allowance) =>
+      '??${daysLeft}????????? ?${allowance.toStringAsFixed(2)}';
+
+  // 通用提示文案
+  static const weekReport = '周报';
+  static const weeklyBill = '周账单';
+  static const pickWeek = '选择周';
+  static const monthSummary = '月度汇总';
+  static const annualSummary = '年度汇总';
+  static const currentMonthEmpty = '本月暂无数据';
+  static const emptyYearRecords = '该年份暂无记录';
+  static const emptyPeriodRecords = '当前周期暂无记录';
+  static const previousPeriodNoData = '上一周期暂无数据';
+  static const goRecord = '去记一笔';
+  static String currentBookLabel(String bookName) => '当前账本：$bookName';
+  static const monthDayLabelTitle = '日账单';
+  static String bookYearBudgetTitle(int year) => '$year 年度预算';
+  static String bookMonthBudgetTitle(DateTime month) =>
+      '${month.year}年${month.month}月预算';
+  static String budgetRemainingLabel(double remaining, bool overspend) =>
+      overspend
+          ? '已超支 ¥${remaining.abs().toStringAsFixed(2)}'
+          : '剩余额度 ¥${remaining.toStringAsFixed(2)}';
+  static String budgetUsedLabel(double used, double? total) =>
+      total == null ? '?? ?${used.toStringAsFixed(2)}' : '?? ?${used.toStringAsFixed(2)} / ?? ?${total.toStringAsFixed(2)}';
+  static const selectMonthLabelTitle = '选择月份';
+  static const selectMonthLabelText = '选择月份';
+
+  // 分类名称（覆盖防丢失）
+  static const catTopFood = '餐饮';
+  static const catFoodMeal = '正餐（午/晚）';
   static const catFoodBreakfast = '早餐';
   static const catFoodSnack = '零食小吃';
-  static const catFoodDrink = '饮料/奶茶/咖啡';
+  static const catFoodDrink = '饮品';
   static const catFoodTakeout = '外卖';
   static const catFoodSupper = '夜宵';
 
-  // 购物 - 二级
+  static const catTopShopping = '购物';
   static const catShopDaily = '日用百货';
-  static const catShopSupermarket = '超市采购';
+  static const catShopSupermarket = '食品杂货/超市';
   static const catShopClothes = '服饰鞋包';
   static const catShopDigital = '数码家电';
   static const catShopBeauty = '美妆护肤';
   static const catShopOther = '其他购物';
 
-  // 出行 - 二级
-  static const catTransCommute = '通勤交通';
-  static const catTransTaxi = '打车/网约车';
-  static const catTransDrive = '自驾油费/停车';
-  static const catTransLongTrip = '长途交通';
+  static const catTopTransport = '出行';
+  static const catTransCommute = '公共交通';
+  static const catTransTaxi = '打车出行';
+  static const catTransDrive = '自驾养车';
+  static const catTransLongTrip = '长途出行';
   static const catTransShare = '共享出行';
 
-  // 居住与账单 - 二级
-  static const catLivingRent = '房租/房贷';
+  static const catTopLiving = '居住与账单';
+  static const catLivingRent = '住房支出';
   static const catLivingProperty = '物业管理费';
   static const catLivingUtility = '水电燃气';
-  static const catLivingInternet = '网费/电视/宽带';
-  static const catLivingService = '家政/维修';
-  static const catLivingDecorate = '装修/家居';
+  static const catLivingInternet = '网络与电视';
+  static const catLivingService = '家政维修服务';
+  static const catLivingDecorate = '装修及家居';
 
-  // 娱乐休闲 - 二级
-  static const catFunOnline = '线上娱乐';
-  static const catFunOffline = '线下娱乐';
+  static const catTopLeisure = '娱乐休闲';
+  static const catFunOnline = '线上娱乐/影音';
+  static const catFunOffline = '线下娱乐/聚会';
   static const catFunSport = '运动健身';
   static const catFunTravel = '旅游度假';
   static const catFunHobby = '兴趣爱好';
 
-  // 教育成长 - 二级
+  static const catTopEducation = '教育成长';
   static const catEduCourse = '课程培训';
-  static const catEduBook = '书籍/电子书';
-  static const catEduExam = '考试/证书';
+  static const catEduBook = '书籍与电子书';
+  static const catEduExam = '考试与证书';
   static const catEduLanguage = '语言学习';
-  static const catEduOnline = '线上学习会员';
+  static const catEduOnline = '学习订阅会员';
 
-  // 健康医疗 - 二级
-  static const catHealthClinic = '门诊/手术';
+  static const catTopHealth = '健康医疗';
+  static const catHealthClinic = '门诊及手术';
   static const catHealthMedicine = '药品';
   static const catHealthCheck = '体检';
-  static const catHealthDental = '牙科/视力';
+  static const catHealthDental = '牙科及视力';
   static const catHealthInsurance = '健康保险';
 
-  // 家庭与人情 - 二级
+  static const catTopFamily = '家庭与人情';
   static const catFamilyChild = '孩子相关';
   static const catFamilyElder = '长辈孝敬';
   static const catFamilyMeal = '家庭聚餐';
-  static const catFamilyGift = '礼金/红包';
+  static const catFamilyGift = '人情礼金';
   static const catFamilySocial = '社交应酬';
   static const catFamilyPet = '宠物';
 
-  // 金融与其他 - 二级
-  static const catFinRepay = '还贷/还信用卡';
-  static const catFinFee = '利息/手续费';
+  static const catTopFinance = '金融与其他';
+  static const catFinRepay = '借贷与卡费还款';
+  static const catFinFee = '利息与手续费';
   static const catFinInvestLoss = '投资亏损';
-  static const catFinAdjust = '其他调账';
-
-  // 一级：收入
-  static const catTopIncomeSalary = '工资收入';
-  static const catTopIncomeParttime = '兼职副业';
-  static const catTopIncomeInvest = '投资理财';
-  static const catTopIncomeOther = '其他收入';
-
-  // 收入 - 二级
-  static const catIncomeBasicSalary = '基本工资';
-  static const catIncomeBonus = '奖金/提成';
-  static const catIncomeYearEnd = '年终奖';
-  static const catIncomeParttimeOnline = '线上副业';
-  static const catIncomeParttimeOffline = '线下兼职';
-  static const catIncomeInvestInterest = '利息收入';
-  static const catIncomeInvestStock = '股基收益';
-  static const catIncomeRedPacket = '红包礼金';
-  static const catIncomeRefund = '退款/报销';
-
-  // Home page date panel / summary
-  static const summaryMonth = '月度小结';
-  static const summaryYear = '年度小结';
-  static const monthSummary = summaryMonth;
-  static const annualSummary = summaryYear;
-
-  // Misc formatting helpers
-  static String currentBookLabel(String name) => '当前账本：$name';
-
-  static String monthExpenseWithCount(double amount, int count) =>
-      '本月支出 ¥${amount.toStringAsFixed(0)} · $count 笔';
-
-  static String yearLabel(int year) => '$year年';
-
-  static String monthLabel(int month) => '$month月';
-
-  static String monthDayLabel(int month, int day) => '$month月$day日';
-
-  static String yearMonthLabel(int year, int month) =>
-      '$year年${month.toString().padLeft(2, '0')}月';
-
-  static String yearExpenseTotal(int year, double total) =>
-      '$year年支出合计：¥${total.toStringAsFixed(0)}';
-
-  static String monthExpenseTotal(int year, int month, double total) =>
-      '$year年${month.toString().padLeft(2, '0')}月支出合计：¥${total.toStringAsFixed(0)}';
-
-  static String bookMonthBudgetTitle(DateTime month) =>
-      '${month.year}年${month.month}月预算';
-
-  static String bookYearBudgetTitle(int year) => '$year 年度预算';
-
-  static String budgetRemainingLabel(double value, bool exceeded) => exceeded
-      ? '已超支 ¥${value.abs().toStringAsFixed(0)}'
-      : '剩余 ¥${value.toStringAsFixed(0)}';
-
-  static String budgetUsedLabel(double spent, double? budget) =>
-      '已用 ¥${spent.toStringAsFixed(0)} / 预算 '
-      '${budget != null ? '¥${budget.toStringAsFixed(0)}' : '未设置'}';
-
-  static String homeBudgetUsedAndTotal(double spent, double total) =>
-      '已用 ¥${spent.toStringAsFixed(0)} · 预算 ¥${total.toStringAsFixed(0)}';
-
-  static String homeBudgetTodaySuggestion(int daysLeft, double dailyLimit) =>
-      '剩余 $daysLeft 天 · 今日建议 ≤ ¥${dailyLimit.toStringAsFixed(0)}';
-
-  static String homeBudgetUsageVsTime(
-    double usedPercent,
-    double timePercent,
-  ) =>
-      '已用 ${usedPercent.toStringAsFixed(0)}% · 时间进度 ${timePercent.toStringAsFixed(0)}%';
-
-  static String categoryMonthlyDetail(String name) => '$name 月度明细';
-
-  static String monthDayWithCount(
-    int month,
-    int day,
-    String weekday,
-    int count,
-  ) =>
-      '$month月$day日 · $weekday · $count 笔';
-
-  static String hoursInDays(int days) => '$days 天';
-
-  static String selectMonthLabel(DateTime date) =>
-      '${date.year}年${date.month}月';
-
-  static String monthRangeTitle(int index, int startDay, int endDay) =>
-      '第${index + 1}个周期：$startDay-$endDay 日';
-
-  static String monthDayWithWeek(int month, int day, String week) =>
-      '$month月$day日 $week';
-
-  static String billTitleWithMonth(int month) => '$month 月账单';
-
-  // Added for weekly / empty states
-  static const weeklyBill = '周账单';
-  static const weekReport = '周账单';
-  static const pickWeek = '选择周次';
-  static const previousPeriodNoData = '暂无对比数据';
-  static const emptyYearRecords = '本年还没有记账记录，先去首页记一笔吧';
-  static const emptyPeriodRecords = '这个周期还没有记账记录';
-  static const goRecord = '去记一笔';
-  static const currentMonthEmpty = '本月尚未记账';
-  static const weekLabelShort = '周';
-  static String weekRangeLabel(DateTimeRange range) =>
-      '${_ymd(range.start)} - ${_ymd(range.end)}';
-
-  static String _ymd(DateTime date) =>
-      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-  static const unitYi = '亿';
-  static const unitWan = '万';
+  static const catFinAdjust = '资金调账';
 }
