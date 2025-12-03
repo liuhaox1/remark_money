@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../models/account.dart';
 import '../repository/repository_factory.dart';
+import '../utils/validation_utils.dart';
+import '../utils/error_handler.dart';
 
 class AccountProvider extends ChangeNotifier {
   AccountProvider();
@@ -22,17 +24,28 @@ class AccountProvider extends ChangeNotifier {
 
   Future<void> load() async {
     if (_loaded) return;
-    final list = await _repository.loadAccounts();
-    _accounts
-      ..clear()
-      ..addAll(list);
-    _loaded = true;
-    notifyListeners();
+    try {
+      final list = await _repository.loadAccounts();
+      _accounts
+        ..clear()
+        ..addAll(list);
+      _loaded = true;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('AccountProvider.load', e, stackTrace);
+      _loaded = false;
+      rethrow;
+    }
   }
 
   Future<void> _persist() async {
-    await _repository.saveAccounts(_accounts);
-    notifyListeners();
+    try {
+      await _repository.saveAccounts(_accounts);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('AccountProvider._persist', e, stackTrace);
+      rethrow;
+    }
   }
 
   Account? byId(String id) {

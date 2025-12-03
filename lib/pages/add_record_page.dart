@@ -14,6 +14,8 @@ import '../providers/account_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
+import '../utils/validators.dart';
+import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../repository/repository_factory.dart';
 import 'add_account_type_page.dart';
@@ -1337,17 +1339,38 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Future<void> _handleSubmit() async {
-    final amount = double.tryParse(_amountCtrl.text.trim());
-    if (amount == null || amount <= 0) {
-      _showMessage(AppStrings.amountError);
+    // 数据验证
+    final amountStr = _amountCtrl.text.trim();
+    final amountError = Validators.validateAmountString(amountStr);
+    if (amountError != null) {
+      ErrorHandler.showError(context, amountError);
       return;
     }
-    if (_selectedCategoryKey == null) {
-      _showMessage(AppStrings.selectCategoryError);
+
+    final amount = double.parse(amountStr.startsWith('.') ? '0$amountStr' : amountStr);
+
+    final categoryError = Validators.validateCategory(_selectedCategoryKey);
+    if (categoryError != null) {
+      ErrorHandler.showError(context, categoryError);
       return;
     }
-    if (_selectedAccountId == null) {
-      _showMessage('请选择账户');
+
+    final accountError = Validators.validateAccount(_selectedAccountId);
+    if (accountError != null) {
+      ErrorHandler.showError(context, accountError);
+      return;
+    }
+
+    final remark = _remarkCtrl.text.trim();
+    final remarkError = Validators.validateRemark(remark);
+    if (remarkError != null) {
+      ErrorHandler.showError(context, remarkError);
+      return;
+    }
+
+    final dateError = Validators.validateDate(_selectedDate);
+    if (dateError != null) {
+      ErrorHandler.showError(context, dateError);
       return;
     }
 
@@ -1355,45 +1378,59 @@ class _AddRecordPageState extends State<AddRecordPage> {
         _isExpense ? TransactionDirection.out : TransactionDirection.income;
     final bookId = context.read<BookProvider>().activeBookId;
     final accountProvider = context.read<AccountProvider>();
-
     final recordProvider = context.read<RecordProvider>();
 
-    if (widget.initialRecord != null) {
-      // 编辑已有记录
-      final updated = widget.initialRecord!.copyWith(
-        amount: amount.abs(),
-        remark: _remarkCtrl.text.trim(),
-        date: _selectedDate,
-        categoryKey: _selectedCategoryKey!,
-        accountId: _selectedAccountId!,
-        direction: direction,
-        includeInStats: _includeInStats,
-      );
+    try {
+      if (widget.initialRecord != null) {
+        // 编辑已有记录
+        final updated = widget.initialRecord!.copyWith(
+          amount: amount.abs(),
+          remark: remark,
+          date: _selectedDate,
+          categoryKey: _selectedCategoryKey!,
+          accountId: _selectedAccountId!,
+          direction: direction,
+          includeInStats: _includeInStats,
+        );
 
-      await recordProvider.updateRecord(
-        updated,
-        accountProvider: accountProvider,
-      );
-    } else {
-      // 新增记录
-      final record = await recordProvider.addRecord(
-        amount: amount,
-        remark: _remarkCtrl.text.trim(),
-        date: _selectedDate,
-        categoryKey: _selectedCategoryKey!,
-        bookId: bookId,
-        accountId: _selectedAccountId!,
-        direction: direction,
-        includeInStats: _includeInStats,
-        accountProvider: accountProvider,
-      );
+        await recordProvider.updateRecord(
+          updated,
+          accountProvider: accountProvider,
+        );
 
-      _lastAccountId = _selectedAccountId;
-      _lastIncludeInStats = _includeInStats;
+        if (!mounted) return;
+        ErrorHandler.showSuccess(context, '记录已更新');
+      } else {
+        // 新增记录
+        final record = await recordProvider.addRecord(
+          amount: amount,
+          remark: remark,
+          date: _selectedDate,
+          categoryKey: _selectedCategoryKey!,
+          bookId: bookId,
+          accountId: _selectedAccountId!,
+          direction: direction,
+          includeInStats: _includeInStats,
+          accountProvider: accountProvider,
+        );
+
+        _lastAccountId = _selectedAccountId;
+        _lastIncludeInStats = _includeInStats;
+
+        if (!mounted) return;
+        ErrorHandler.showSuccess(context, '记录已保存');
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(
+        context,
+        e,
+        onRetry: () => _handleSubmit(),
+      );
     }
-
-    if (!mounted) return;
-    Navigator.pop(context);
   }
 
   void _showMessage(String text) {

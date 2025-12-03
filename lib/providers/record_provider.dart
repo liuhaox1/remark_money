@@ -6,6 +6,8 @@ import '../models/record.dart';
 import '../models/import_result.dart';
 import '../repository/repository_factory.dart';
 import '../utils/date_utils.dart';
+import '../utils/validation_utils.dart';
+import '../utils/error_handler.dart';
 import 'account_provider.dart';
 
 class RecordProvider extends ChangeNotifier {
@@ -28,13 +30,20 @@ class RecordProvider extends ChangeNotifier {
 
   Future<void> load() async {
     if (_loaded) return;
-    final list = await _repository.loadRecords();
-    _records
-      ..clear()
-      ..addAll(list);
-    _rebuildBookCache();
-    _loaded = true;
-    notifyListeners();
+    try {
+      final list = await _repository.loadRecords();
+      _records
+        ..clear()
+        ..addAll(list);
+      _rebuildBookCache();
+      _loaded = true;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.load', e, stackTrace);
+      // 保持 _loaded = false，允许重试
+      _loaded = false;
+      rethrow;
+    }
   }
 
   Future<Record> addRecord({
@@ -49,75 +58,135 @@ class RecordProvider extends ChangeNotifier {
     String? pairId,
     AccountProvider? accountProvider,
   }) async {
-    final record = Record(
-      id: _generateId(),
-      amount: amount.abs(),
-      remark: remark,
-      date: date,
-      categoryKey: categoryKey,
-      bookId: bookId,
-      accountId: accountId,
-      direction: direction,
-      includeInStats: includeInStats,
-      pairId: pairId,
-    );
+    // 数据验证
+    final amountError = ValidationUtils.validateAmount(amount);
+    if (amountError != null) {
+      throw ArgumentError(amountError);
+    }
 
-    final list = await _repository.insert(record);
-    _records
-      ..clear()
-      ..addAll(list);
-    _rebuildBookCache();
-    _clearCache();
+    final remarkError = ValidationUtils.validateRemark(remark);
+    if (remarkError != null) {
+      throw ArgumentError(remarkError);
+    }
 
-    await _applyAccountDelta(accountProvider, record);
+    final dateError = ValidationUtils.validateDate(date);
+    if (dateError != null) {
+      throw ArgumentError(dateError);
+    }
 
-    notifyListeners();
-    return record;
+    if (categoryKey.isEmpty) {
+      throw ArgumentError('分类不能为空');
+    }
+
+    if (accountId.isEmpty) {
+      throw ArgumentError('账户不能为空');
+    }
+
+    try {
+      final record = Record(
+        id: _generateId(),
+        amount: amount.abs(),
+        remark: remark,
+        date: date,
+        categoryKey: categoryKey,
+        bookId: bookId,
+        accountId: accountId,
+        direction: direction,
+        includeInStats: includeInStats,
+        pairId: pairId,
+      );
+
+      final list = await _repository.insert(record);
+      _records
+        ..clear()
+        ..addAll(list);
+      _rebuildBookCache();
+      _clearCache();
+
+      await _applyAccountDelta(accountProvider, record);
+
+      notifyListeners();
+      return record;
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.addRecord', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> updateRecord(
     Record updated, {
     AccountProvider? accountProvider,
   }) async {
-    final old = _records.firstWhere(
-      (r) => r.id == updated.id,
-      orElse: () => updated,
-    );
-    final list = await _repository.update(updated);
-    _records
-      ..clear()
-      ..addAll(list);
-    _rebuildBookCache();
-    _clearCache();
+    // 数据验证
+    final amountError = ValidationUtils.validateAmount(updated.amount);
+    if (amountError != null) {
+      throw ArgumentError(amountError);
+    }
 
-    await _applyAccountDelta(accountProvider, old, reverse: true);
-    await _applyAccountDelta(accountProvider, updated);
+    final remarkError = ValidationUtils.validateRemark(updated.remark);
+    if (remarkError != null) {
+      throw ArgumentError(remarkError);
+    }
 
-    notifyListeners();
+    final dateError = ValidationUtils.validateDate(updated.date);
+    if (dateError != null) {
+      throw ArgumentError(dateError);
+    }
+
+    try {
+      final old = _records.firstWhere(
+        (r) => r.id == updated.id,
+        orElse: () => updated,
+      );
+      final list = await _repository.update(updated);
+      _records
+        ..clear()
+        ..addAll(list);
+      _rebuildBookCache();
+      _clearCache();
+
+      await _applyAccountDelta(accountProvider, old, reverse: true);
+      await _applyAccountDelta(accountProvider, updated);
+
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.updateRecord', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> deleteRecord(
     String id, {
     AccountProvider? accountProvider,
   }) async {
-    Record? old;
+    if (id.isEmpty) {
+      throw ArgumentError('记录ID不能为空');
+    }
+
     try {
-      old = _records.firstWhere((r) => r.id == id);
-    } catch (_) {
-      old = null;
-    }
-    final list = await _repository.remove(id);
-    _records
-      ..clear()
-      ..addAll(list);
-    _rebuildBookCache();
-    _clearCache();
+      Record? old;
+      try {
+        old = _records.firstWhere((r) => r.id == id);
+      } catch (_) {
+        old = null;
+      }
 
-    if (old != null) {
-      await _applyAccountDelta(accountProvider, old, reverse: true);
-    }
+      final list = await _repository.remove(id);
+      _records
+        ..clear()
+        ..addAll(list);
+      _rebuildBookCache();
+      _clearCache();
 
-    notifyListeners();
+      if (old != null) {
+        await _applyAccountDelta(accountProvider, old, reverse: true);
+      }
+
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.deleteRecord', e, stackTrace);
+      rethrow;
+    }
   }
 
   List<Record> recordsForBook(String bookId) {
@@ -209,49 +278,94 @@ class RecordProvider extends ChangeNotifier {
       return const ImportResult(successCount: 0, failureCount: 0);
     }
 
-    final existingIds = _records.map((r) => r.id).toSet();
-    final accounts = accountProvider.accounts;
-    final defaultAccount =
-        accounts.firstWhere((a) => a.name == '现金', orElse: () => accounts.first);
-
-    final newRecords = <Record>[];
-    var failure = 0;
-
-    for (final r in imported) {
-      try {
-        var record = r;
-        // Map to current active book.
-        record = record.copyWith(bookId: activeBookId);
-
-        // Fix missing / unknown account.
-        final hasAccount =
-            accounts.any((a) => a.id == record.accountId);
-        if (!hasAccount) {
-          record = record.copyWith(accountId: defaultAccount.id);
-        }
-
-        // Ensure id uniqueness.
-        if (existingIds.contains(record.id)) {
-          record = record.copyWith(id: _generateId());
-        }
-
-        newRecords.add(record);
-      } catch (_) {
-        failure += 1;
+    try {
+      final existingIds = _records.map((r) => r.id).toSet();
+      final accounts = accountProvider.accounts;
+      
+      if (accounts.isEmpty) {
+        throw StateError('没有可用账户，请先添加账户');
       }
+
+      final defaultAccount =
+          accounts.firstWhere((a) => a.name == '现金', orElse: () => accounts.first);
+
+      final newRecords = <Record>[];
+      var failure = 0;
+
+      for (final r in imported) {
+        try {
+          var record = r;
+          
+          // 数据验证
+          final amountError = ValidationUtils.validateAmount(record.amount);
+          if (amountError != null) {
+            failure += 1;
+            continue;
+          }
+
+          final dateError = ValidationUtils.validateDate(record.date);
+          if (dateError != null) {
+            failure += 1;
+            continue;
+          }
+
+          // Map to current active book.
+          record = record.copyWith(bookId: activeBookId);
+
+          // Fix missing / unknown account.
+          final hasAccount =
+              accounts.any((a) => a.id == record.accountId);
+          if (!hasAccount) {
+            record = record.copyWith(accountId: defaultAccount.id);
+          }
+
+          // Ensure id uniqueness.
+          if (existingIds.contains(record.id)) {
+            record = record.copyWith(id: _generateId());
+          }
+
+          newRecords.add(record);
+        } catch (e) {
+          ErrorHandler.logError('RecordProvider.importRecords (single record)', e);
+          failure += 1;
+        }
+      }
+
+      if (newRecords.isNotEmpty) {
+        _records.addAll(newRecords);
+        _records.sort((a, b) => b.date.compareTo(a.date));
+        
+        // 使用 saveRecords 保存所有记录（兼容 SharedPreferences 和 Database）
+        try {
+          // 尝试调用 saveRecords（两种 Repository 都有这个方法）
+          await (_repository as dynamic).saveRecords(_records);
+        } catch (e) {
+          // 如果失败，使用批量插入（仅 Database 版本）
+          if (_repository.toString().contains('RecordRepositoryDb')) {
+            await (_repository as dynamic).batchInsert(newRecords);
+            // 重新加载所有记录
+            final list = await _repository.loadRecords();
+            _records
+              ..clear()
+              ..addAll(list);
+          } else {
+            rethrow;
+          }
+        }
+        
+        _rebuildBookCache();
+        _clearCache();
+        notifyListeners();
+      }
+
+      return ImportResult(
+        successCount: newRecords.length,
+        failureCount: failure,
+      );
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.importRecords', e, stackTrace);
+      rethrow;
     }
-
-    _records.addAll(newRecords);
-    _records.sort((a, b) => b.date.compareTo(a.date));
-    await _repository.saveRecords(_records);
-    _rebuildBookCache();
-    _clearCache();
-
-    notifyListeners();
-    return ImportResult(
-      successCount: newRecords.length,
-      failureCount: failure,
-    );
   }
 
   Future<Record> transfer({
@@ -264,43 +378,42 @@ class RecordProvider extends ChangeNotifier {
     DateTime? date,
     String? remark,
   }) async {
-    final pairId = _generateId();
-    final now = date ?? DateTime.now();
-    final baseRemark = remark ?? '';
-    final mainRemark = baseRemark.isEmpty ? '转账' : baseRemark;
+    // 数据验证
+    final amountError = ValidationUtils.validateAmount(amount);
+    if (amountError != null) {
+      throw ArgumentError(amountError);
+    }
 
-    await addRecord(
-      amount: amount,
-      remark: mainRemark,
-      date: now,
-      categoryKey: 'transfer-out',
-      bookId: bookId,
-      accountId: fromAccountId,
-      direction: TransactionDirection.out,
-      includeInStats: false,
-      pairId: pairId,
-      accountProvider: accountProvider,
-    );
-
-    await addRecord(
-      amount: amount,
-      remark: mainRemark,
-      date: now,
-      categoryKey: 'transfer-in',
-      bookId: bookId,
-      accountId: toAccountId,
-      direction: TransactionDirection.income,
-      includeInStats: false,
-      pairId: pairId,
-      accountProvider: accountProvider,
-    );
+    if (fee < 0) {
+      throw ArgumentError('手续费不能为负数');
+    }
 
     if (fee > 0) {
+      final feeError = ValidationUtils.validateAmount(fee);
+      if (feeError != null) {
+        throw ArgumentError('手续费：$feeError');
+      }
+    }
+
+    if (fromAccountId.isEmpty || toAccountId.isEmpty) {
+      throw ArgumentError('转出账户和转入账户不能为空');
+    }
+
+    if (fromAccountId == toAccountId) {
+      throw ArgumentError('转出账户和转入账户不能相同');
+    }
+
+    try {
+      final pairId = _generateId();
+      final now = date ?? DateTime.now();
+      final baseRemark = remark ?? '';
+      final mainRemark = baseRemark.isEmpty ? '转账' : baseRemark;
+
       await addRecord(
-        amount: fee,
-        remark: '手续费',
+        amount: amount,
+        remark: mainRemark,
         date: now,
-        categoryKey: 'transfer-fee',
+        categoryKey: 'transfer-out',
         bookId: bookId,
         accountId: fromAccountId,
         direction: TransactionDirection.out,
@@ -308,9 +421,40 @@ class RecordProvider extends ChangeNotifier {
         pairId: pairId,
         accountProvider: accountProvider,
       );
-    }
 
-    return _records.firstWhere((r) => r.pairId == pairId);
+      await addRecord(
+        amount: amount,
+        remark: mainRemark,
+        date: now,
+        categoryKey: 'transfer-in',
+        bookId: bookId,
+        accountId: toAccountId,
+        direction: TransactionDirection.income,
+        includeInStats: false,
+        pairId: pairId,
+        accountProvider: accountProvider,
+      );
+
+      if (fee > 0) {
+        await addRecord(
+          amount: fee,
+          remark: '手续费',
+          date: now,
+          categoryKey: 'transfer-fee',
+          bookId: bookId,
+          accountId: fromAccountId,
+          direction: TransactionDirection.out,
+          includeInStats: false,
+          pairId: pairId,
+          accountProvider: accountProvider,
+        );
+      }
+
+      return _records.firstWhere((r) => r.pairId == pairId);
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.transfer', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> borrow({
