@@ -5510,24 +5510,32 @@ class _HomePageState extends State<HomePage> {
                   required bool selected,
                   required VoidCallback onTap,
                 }) {
-                  return ChoiceChip(
-                    label: Text(label),
-                    selected: selected,
-                    onSelected: (_) => onTap(),
-                    selectedColor: cs.primary.withOpacity(0.12),
-                    labelStyle: TextStyle(
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      color: selected ? cs.primary : cs.onSurface,
+                  return GestureDetector(
+                    onTap: onTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? cs.primary.withOpacity(0.12)
+                            : cs.surfaceVariant.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: selected
+                              ? cs.primary
+                              : cs.outline.withOpacity(0.4),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          color: selected ? cs.primary : cs.onSurface,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
-                    side: BorderSide(
-                      color:
-                          selected ? cs.primary : cs.outline.withOpacity(0.4),
-                    ),
-                    backgroundColor: cs.surfaceVariant.withOpacity(0.3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   );
                 }
 
@@ -5851,16 +5859,28 @@ class _HomePageState extends State<HomePage> {
                                     () => tempAccountIds.clear(),
                                   ),
                                 ),
-                                ActionChip(
-                                  label: const Text('更多'),
-                                  onPressed: openAccountSelector,
-                                  labelStyle: TextStyle(
-                                    color: cs.primary,
-                                    fontWeight: FontWeight.w700,
+                                GestureDetector(
+                                  onTap: openAccountSelector,
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: cs.surfaceVariant.withOpacity(0.4),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: cs.primary,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '更多',
+                                      style: TextStyle(
+                                        color: cs.primary,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
                                   ),
-                                  side: BorderSide(color: cs.primary),
-                                  backgroundColor:
-                                      cs.surfaceVariant.withOpacity(0.4),
                                 ),
                               ],
                             ),
@@ -6210,10 +6230,8 @@ class _HomePageState extends State<HomePage> {
                         children: filtered.map((c) {
                           final leafs = _leafKeysUnder(c.key, categoryMap);
                           final selectedAll = selected.containsAll(leafs);
-                          return FilterChip(
-                            label: Text(c.name),
-                            selected: selectedAll,
-                            onSelected: (_) {
+                          return GestureDetector(
+                            onTap: () {
                               setSheetState(() {
                                 if (selectedAll) {
                                   selected.removeAll(leafs);
@@ -6222,19 +6240,33 @@ class _HomePageState extends State<HomePage> {
                                 }
                               });
                             },
-                            selectedColor: cs.primary.withOpacity(0.15),
-                            side: BorderSide(
-                              color: selectedAll
-                                  ? cs.primary
-                                  : cs.outline.withOpacity(0.4),
-                            ),
-                            labelStyle: TextStyle(
-                              fontWeight: selectedAll
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: selectedAll
-                                  ? cs.primary
-                                  : cs.onSurface,
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: selectedAll
+                                    ? cs.primary.withOpacity(0.15)
+                                    : cs.surfaceVariant.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: selectedAll
+                                      ? cs.primary
+                                      : cs.outline.withOpacity(0.4),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                c.name,
+                                style: TextStyle(
+                                  fontWeight: selectedAll
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: selectedAll
+                                      ? cs.primary
+                                      : cs.onSurface,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ),
                           );
                         }).toList(),
