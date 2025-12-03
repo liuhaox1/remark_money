@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -17,7 +15,6 @@ import '../models/account.dart';
 import '../models/category.dart';
 import '../models/period_type.dart';
 import '../models/record.dart';
-import '../theme/app_tokens.dart';
 import '../utils/csv_utils.dart';
 import '../utils/data_export_import.dart';
 import '../utils/records_export_bundle.dart';
@@ -1470,118 +1467,6 @@ class _BillPageState extends State<BillPage> {
     }
   }
 
-  // 导出全部记录（CSV）
-  Future<void> _exportAllCsv(
-    BuildContext context,
-    String bookId,
-  ) async {
-    // 显示加载提示
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              SizedBox(width: 12),
-              Text('正在导出全部记录...'),
-            ],
-          ),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    }
-
-    final recordProvider = context.read<RecordProvider>();
-    final bookProvider = context.read<BookProvider>();
-    final categoryProvider = context.read<CategoryProvider>();
-    final accountProvider = context.read<AccountProvider>();
-
-    final records = recordProvider.recordsForBook(bookId);
-    if (records.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('当前账本暂无记录')),
-        );
-      }
-      return;
-    }
-
-    final categoryMap = {
-      for (final c in categoryProvider.categories) c.key: c,
-    };
-    final bookMap = {
-      for (final b in bookProvider.books) b.id: b,
-    };
-    final accountMap = {
-      for (final a in accountProvider.accounts) a.id: a,
-    };
-
-    final csv = buildCsvForRecords(
-      records,
-      categoriesByKey: categoryMap,
-      booksById: bookMap,
-      accountsById: accountMap,
-    );
-
-    final dir = await getTemporaryDirectory();
-    final bookName = bookProvider.activeBook?.name ?? '默认账本';
-    final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-    final now = DateTime.now();
-    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final fileName = '${safeBookName}_全部记录_$dateStr.csv';
-    final file = File('${dir.path}/$fileName');
-
-    await file.writeAsString(csv, encoding: utf8);
-
-    if (!context.mounted) return;
-
-    // Windows 平台使用文件保存对话框，其他平台使用共享
-    if (Platform.isWindows) {
-      final savedPath = await FilePicker.platform.saveFile(
-        dialogTitle: '保存 CSV 文件',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
-      );
-      
-      if (savedPath != null) {
-        await file.copy(savedPath);
-        if (context.mounted) {
-          final fileSize = await File(savedPath).length();
-          final sizeStr = fileSize > 1024 * 1024
-              ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
-              : '${(fileSize / 1024).toStringAsFixed(2)} KB';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('导出成功！共 ${records.length} 条记录'),
-                  Text(
-                    '文件大小：$sizeStr',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } else {
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        subject: '指尖记账导出 CSV',
-        text: '指尖记账导出的全部记录 CSV，可在表格中查看分析。',
-      );
-    }
-  }
-
   // ======================================================
   // 📘 年度账单（展示 12 个月收入/支出/结余）
   // ======================================================
@@ -1866,105 +1751,6 @@ class _BillPageState extends State<BillPage> {
   }
 
   // ======================================================
-  // 📕 月度账单（按天显示，旧实现，暂时保留）
-  // ======================================================
-  Widget _buildMonthBill(BuildContext context, ColorScheme cs, String bookId) {
-    final days = DateUtilsX.daysInMonth(_selectedMonth);
-    final recordProvider = context.watch<RecordProvider>();
-    final categoryProvider = context.watch<CategoryProvider>();
-    final categoryMap = {
-      for (final c in categoryProvider.categories) c.key: c,
-    };
-    double totalIncome = 0;
-    double totalExpense = 0;
-    double maxDailyExpense = 0;
-    int recordedDays = 0;
-
-    // 先统计整月概况，并记录哪些日期有记账
-    final nonEmptyDays = <DateTime>[];
-    for (final d in days) {
-      final income = recordProvider.dayIncome(bookId, d);
-      final expense = recordProvider.dayExpense(bookId, d);
-
-      totalIncome += income;
-      totalExpense += expense;
-
-      if (income != 0 || expense != 0) {
-        recordedDays += 1;
-        nonEmptyDays.add(d);
-      }
-      if (expense > maxDailyExpense) {
-        maxDailyExpense = expense;
-      }
-    }
-
-    final totalDays = days.length;
-    final avgExpense = totalDays > 0 ? totalExpense / totalDays : 0;
-    final emptyDays = totalDays - recordedDays;
-
-    final items = <Widget>[];
-
-    // 顶部本月小结
-    final subtitleParts = <String>[];
-    subtitleParts.add(
-        '本月支出 ${totalExpense.toStringAsFixed(2)} 元 · 日均 ${avgExpense.toStringAsFixed(2)} 元');
-    subtitleParts.add('记账 $recordedDays 天');
-    if (emptyDays > 0) {
-      subtitleParts.add(AppTextTemplates.monthEmptyDaysHint(emptyDays));
-    }
-    if (maxDailyExpense > 0) {
-      subtitleParts
-          .add('单日最高支出 ${maxDailyExpense.toStringAsFixed(2)} 元');
-    }
-
-    items.add(
-      _billCard(
-        title: AppStrings.monthListTitle,
-        subtitle: subtitleParts.join(' · '),
-        income: totalIncome,
-        expense: totalExpense,
-        balance: totalIncome - totalExpense,
-        cs: cs,
-      ),
-    );
-
-    // 只展示有记账的日期，并在每一天下方展示具体明细
-    for (final d in nonEmptyDays) {
-      final income = recordProvider.dayIncome(bookId, d);
-      final expense = recordProvider.dayExpense(bookId, d);
-      final balance = income - expense;
-      final records = recordProvider.recordsForDay(bookId, d);
-
-      items.add(
-        _billCard(
-          title: AppStrings.monthDayLabel(d.month, d.day),
-          income: income,
-          expense: expense,
-          balance: balance,
-          cs: cs,
-        ),
-      );
-
-      for (final r in records) {
-        final category = categoryMap[r.categoryKey];
-        items.add(
-          TimelineItem(
-            record: r,
-            leftSide: false,
-            category: category,
-            subtitle: r.remark.isEmpty ? null : r.remark,
-          ),
-        );
-      }
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: items,
-    );
-  }
-
-  // ======================================================
   // 📦 通用账单卡片
   // ======================================================
   Widget _billCard({
@@ -2031,28 +1817,6 @@ class _BillPageState extends State<BillPage> {
     final first = DateUtilsX.startOfWeek(DateTime(start.year, 1, 1));
     final diff = start.difference(first).inDays;
     return (diff ~/ 7) + 1;
-  }
-
-  Widget _line(String label, double value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            )),
-        const SizedBox(height: 4),
-        Text(
-          value.toStringAsFixed(2),
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        )
-      ],
-    );
   }
 
   // 辅助方法和类

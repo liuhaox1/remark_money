@@ -11,7 +11,6 @@ import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
 import 'add_record_page.dart';
 import 'bill_page.dart';
-import 'report_detail_page.dart';
 
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});

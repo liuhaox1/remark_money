@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../constants/bank_brands.dart';
 import '../models/account.dart';
+import '../constants/bank_brands.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
-import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
-import 'account_form_page.dart';
 
 class AccountDetailPage extends StatelessWidget {
   const AccountDetailPage({super.key, required this.accountId});
@@ -159,48 +157,6 @@ class AccountDetailPage extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  List<Widget> _buildActions(BuildContext context, Account account) {
-    final cs = Theme.of(context).colorScheme;
-    final buttons = <Widget>[];
-
-    Widget actionButton(String label, VoidCallback onTap) {
-      return OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          side: BorderSide(color: cs.primary),
-        ),
-        child: Text(label),
-      );
-    }
-
-    if (account.kind == AccountKind.asset) {
-      buttons.add(
-        actionButton('转账', () => _openTransferSheet(context, account)),
-      );
-    }
-
-    if (account.kind == AccountKind.liability) {
-      buttons.add(
-        actionButton('新增借款', () => _openBorrowSheet(context, account)),
-      );
-      buttons.add(
-        actionButton('还款', () => _openRepaySheet(context, account)),
-      );
-    }
-
-    if (account.kind == AccountKind.lend) {
-      buttons.add(
-        actionButton('借给对方', () => _openLendSheet(context, account)),
-      );
-      buttons.add(
-        actionButton('收回借款', () => _openReceiveSheet(context, account)),
-      );
-    }
-
-    return buttons;
   }
 
   void _openTransferSheet(BuildContext context, Account account) {

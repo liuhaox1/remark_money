@@ -15,7 +15,6 @@ import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
 import '../widgets/account_select_bottom_sheet.dart';
-import '../repository/record_template_repository.dart';
 import '../repository/repository_factory.dart';
 import 'add_account_type_page.dart';
 
