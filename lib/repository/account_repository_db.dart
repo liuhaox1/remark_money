@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../database/database_helper.dart';
 import '../models/account.dart';
 
@@ -7,67 +9,97 @@ class AccountRepositoryDb {
 
   /// 加载所有账户
   Future<List<Account>> loadAccounts() async {
-    final db = await _dbHelper.database;
-    final maps = await db.query(
-      Tables.accounts,
-      orderBy: 'sort_order ASC, created_at ASC',
-    );
+    try {
+      final db = await _dbHelper.database;
+      final maps = await db.query(
+        Tables.accounts,
+        orderBy: 'sort_order ASC, created_at ASC',
+      );
 
-    return maps.map((map) => _mapToAccount(map)).toList();
+      return maps.map((map) => _mapToAccount(map)).toList();
+    } catch (e, stackTrace) {
+      debugPrint('[AccountRepositoryDb] loadAccounts failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 保存账户列表
   Future<void> saveAccounts(List<Account> accounts) async {
-    final db = await _dbHelper.database;
-    final batch = db.batch();
+    try {
+      final db = await _dbHelper.database;
+      final batch = db.batch();
 
-    // 先删除所有账户
-    batch.delete(Tables.accounts);
+      // 先删除所有账户
+      batch.delete(Tables.accounts);
 
-    // 插入新账户
-    for (final account in accounts) {
-      batch.insert(
-        Tables.accounts,
-        _accountToMap(account),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      // 插入新账户
+      for (final account in accounts) {
+        batch.insert(
+          Tables.accounts,
+          _accountToMap(account),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      await batch.commit(noResult: true);
+    } catch (e, stackTrace) {
+      debugPrint('[AccountRepositoryDb] saveAccounts failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
     }
-
-    await batch.commit(noResult: true);
   }
 
   /// 添加账户
   Future<List<Account>> add(Account account) async {
-    final db = await _dbHelper.database;
-    await db.insert(
-      Tables.accounts,
-      _accountToMap(account),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    return await loadAccounts();
+    try {
+      final db = await _dbHelper.database;
+      await db.insert(
+        Tables.accounts,
+        _accountToMap(account),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      return await loadAccounts();
+    } catch (e, stackTrace) {
+      debugPrint('[AccountRepositoryDb] add failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 更新账户
   Future<List<Account>> update(Account account) async {
-    final db = await _dbHelper.database;
-    await db.update(
-      Tables.accounts,
-      _accountToMap(account),
-      where: 'id = ?',
-      whereArgs: [account.id],
-    );
-    return await loadAccounts();
+    try {
+      final db = await _dbHelper.database;
+      await db.update(
+        Tables.accounts,
+        _accountToMap(account),
+        where: 'id = ?',
+        whereArgs: [account.id],
+      );
+      return await loadAccounts();
+    } catch (e, stackTrace) {
+      debugPrint('[AccountRepositoryDb] update failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 删除账户
   Future<List<Account>> delete(String id) async {
-    final db = await _dbHelper.database;
-    await db.delete(
-      Tables.accounts,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    return await loadAccounts();
+    try {
+      final db = await _dbHelper.database;
+      await db.delete(
+        Tables.accounts,
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return await loadAccounts();
+    } catch (e, stackTrace) {
+      debugPrint('[AccountRepositoryDb] delete failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 将 Account 转换为数据库映射

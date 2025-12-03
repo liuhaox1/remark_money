@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../repository/category_repository.dart';
 import '../repository/repository_factory.dart';
+import '../utils/error_handler.dart';
 
 class CategoryProvider extends ChangeNotifier {
   // SharedPreferences 版和数据库版方法签名一致，这里用 dynamic 接收
@@ -20,40 +21,61 @@ class CategoryProvider extends ChangeNotifier {
   Future<void> load() async {
     if (_loaded) return;
 
-    final List<Category> list =
-        (await _repo.loadCategories()).cast<Category>();
-    _categories
-      ..clear()
-      ..addAll(list.map(_sanitize));
-    _loaded = true;
-    notifyListeners();
+    try {
+      final List<Category> list =
+          (await _repo.loadCategories()).cast<Category>();
+      _categories
+        ..clear()
+        ..addAll(list.map(_sanitize));
+      _loaded = true;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('CategoryProvider.load', e, stackTrace);
+      _loaded = false;
+      rethrow;
+    }
   }
 
   /// 新增分类
   Future<void> addCategory(Category c) async {
-    final List<Category> list = (await _repo.add(c)).cast<Category>();
-    _categories
-      ..clear()
-      ..addAll(list.map(_sanitize));
-    notifyListeners();
+    try {
+      final List<Category> list = (await _repo.add(c)).cast<Category>();
+      _categories
+        ..clear()
+        ..addAll(list.map(_sanitize));
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('CategoryProvider.addCategory', e, stackTrace);
+      rethrow;
+    }
   }
 
   /// 删除分类
   Future<void> deleteCategory(String key) async {
-    final List<Category> list = (await _repo.delete(key)).cast<Category>();
-    _categories
-      ..clear()
-      ..addAll(list.map(_sanitize));
-    notifyListeners();
+    try {
+      final List<Category> list = (await _repo.delete(key)).cast<Category>();
+      _categories
+        ..clear()
+        ..addAll(list.map(_sanitize));
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('CategoryProvider.deleteCategory', e, stackTrace);
+      rethrow;
+    }
   }
 
   /// 更新分类（名称 / 图标 / 类型）
   Future<void> updateCategory(Category category) async {
-    final List<Category> list =
-        (await _repo.update(category)).cast<Category>();
-    _categories
-      ..clear()
-      ..addAll(list.map(_sanitize));
-    notifyListeners();
+    try {
+      final List<Category> list =
+          (await _repo.update(category)).cast<Category>();
+      _categories
+        ..clear()
+        ..addAll(list.map(_sanitize));
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('CategoryProvider.updateCategory', e, stackTrace);
+      rethrow;
+    }
   }
 }

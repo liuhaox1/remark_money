@@ -17,6 +17,7 @@ import '../providers/record_provider.dart';
 import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
 import '../utils/data_export_import.dart';
+import '../utils/error_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -463,54 +464,62 @@ class ProfilePage extends StatelessWidget {
   }
 
   Future<void> _exportAllCsv(BuildContext context) async {
-    final recordProvider = context.read<RecordProvider>();
-    final bookProvider = context.read<BookProvider>();
-    final categoryProvider = context.read<CategoryProvider>();
-    final accountProvider = context.read<AccountProvider>();
+    try {
+      final recordProvider = context.read<RecordProvider>();
+      final bookProvider = context.read<BookProvider>();
+      final categoryProvider = context.read<CategoryProvider>();
+      final accountProvider = context.read<AccountProvider>();
 
-    final bookId = bookProvider.activeBookId;
-    final records = recordProvider.recordsForBook(bookId);
-    if (records.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('当前账本暂无记录')),
-        );
+      final bookId = bookProvider.activeBookId;
+      final records = recordProvider.recordsForBook(bookId);
+      if (records.isEmpty) {
+        if (context.mounted) {
+          ErrorHandler.showWarning(context, '当前账本暂无记录');
+        }
+        return;
       }
-      return;
+
+      final categoryMap = {
+        for (final c in categoryProvider.categories) c.key: c,
+      };
+      final bookMap = {
+        for (final b in bookProvider.books) b.id: b,
+      };
+      final accountMap = {
+        for (final a in accountProvider.accounts) a.id: a,
+      };
+
+      final csv = buildCsvForRecords(
+        records,
+        categoriesByKey: categoryMap,
+        booksById: bookMap,
+        accountsById: accountMap,
+      );
+
+      final dir = await getTemporaryDirectory();
+      final now = DateTime.now();
+      final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+      final safeBookId = bookId.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      final fileName = 'remark_records_all_${safeBookId}_$dateStr.csv';
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsString(csv, encoding: utf8);
+
+      if (!context.mounted) return;
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: '指尖记账导出 CSV',
+        text: '指尖记账导出的全部记录 CSV，可在表格中查看分析。',
+      );
+
+      if (context.mounted) {
+        ErrorHandler.showSuccess(context, 'CSV 导出成功');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ErrorHandler.handleAsyncError(context, e);
+      }
     }
-
-    final categoryMap = {
-      for (final c in categoryProvider.categories) c.key: c,
-    };
-    final bookMap = {
-      for (final b in bookProvider.books) b.id: b,
-    };
-    final accountMap = {
-      for (final a in accountProvider.accounts) a.id: a,
-    };
-
-    final csv = buildCsvForRecords(
-      records,
-      categoriesByKey: categoryMap,
-      booksById: bookMap,
-      accountsById: accountMap,
-    );
-
-    final dir = await getTemporaryDirectory();
-    final now = DateTime.now();
-    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
-    final safeBookId = bookId.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-    final fileName = 'remark_records_all_${safeBookId}_$dateStr.csv';
-    final file = File('${dir.path}/$fileName');
-    await file.writeAsString(csv, encoding: utf8);
-
-    if (!context.mounted) return;
-
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      subject: '指尖记账导出 CSV',
-      text: '指尖记账导出的全部记录 CSV，可在表格中查看分析。',
-    );
   }
 
   Future<void> _importCsv(BuildContext context) async {
@@ -576,9 +585,7 @@ class ProfilePage extends StatelessWidget {
 
       if (imported.isEmpty) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('CSV文件中没有有效的记录')),
-          );
+          ErrorHandler.showWarning(context, 'CSV文件中没有有效的记录');
         }
         return;
       }
@@ -611,23 +618,25 @@ class ProfilePage extends StatelessWidget {
       );
 
       if (context.mounted) {
-        final text =
-            '导入完成：成功 ${summary.successCount} 条，失败 ${summary.failureCount} 条';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(text)),
-        );
+        if (summary.failureCount > 0) {
+          ErrorHandler.showWarning(
+            context,
+            '导入完成：成功 ${summary.successCount} 条，失败 ${summary.failureCount} 条',
+          );
+        } else {
+          ErrorHandler.showSuccess(
+            context,
+            '导入成功：已导入 ${summary.successCount} 条记录',
+          );
+        }
       }
     } on FormatException catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('CSV文件格式不正确：${e.message}')),
-        );
+        ErrorHandler.showError(context, 'CSV文件格式不正确：${e.message}');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('导入失败：${e.toString()}')),
-        );
+        ErrorHandler.handleAsyncError(context, e);
       }
     }
   }

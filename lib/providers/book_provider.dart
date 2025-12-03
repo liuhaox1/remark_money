@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/book.dart';
 import '../repository/repository_factory.dart';
+import '../utils/error_handler.dart';
 
 class BookProvider extends ChangeNotifier {
   BookProvider();
@@ -33,47 +34,73 @@ class BookProvider extends ChangeNotifier {
 
   Future<void> load() async {
     if (_loaded) return;
-    final list = await _repository.loadBooks();
-    _books
-      ..clear()
-      ..addAll(list);
-    _activeBookId = await _repository.loadActiveBookId();
-    _loaded = true;
-    notifyListeners();
+    try {
+      final list = await _repository.loadBooks();
+      _books
+        ..clear()
+        ..addAll(list);
+      _activeBookId = await _repository.loadActiveBookId();
+      _loaded = true;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BookProvider.load', e, stackTrace);
+      _loaded = false;
+      rethrow;
+    }
   }
 
   Future<void> selectBook(String id) async {
     if (_activeBookId == id) return;
-    _activeBookId = id;
-    await _repository.saveActiveBookId(id);
-    notifyListeners();
+    try {
+      _activeBookId = id;
+      await _repository.saveActiveBookId(id);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BookProvider.selectBook', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> addBook(String name) async {
-    final id = _generateId();
-    final book = Book(id: id, name: name);
-    _books.add(book);
-    await _repository.saveBooks(_books);
-    await selectBook(id);
+    try {
+      final id = _generateId();
+      final book = Book(id: id, name: name);
+      _books.add(book);
+      await _repository.saveBooks(_books);
+      await selectBook(id);
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BookProvider.addBook', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> renameBook(String id, String name) async {
     final index = _books.indexWhere((b) => b.id == id);
     if (index == -1) return;
-    _books[index] = _books[index].copyWith(name: name);
-    await _repository.saveBooks(_books);
-    notifyListeners();
+    try {
+      _books[index] = _books[index].copyWith(name: name);
+      await _repository.saveBooks(_books);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BookProvider.renameBook', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> deleteBook(String id) async {
     if (_books.length <= 1) return;
-    _books.removeWhere((book) => book.id == id);
-    if (_activeBookId == id) {
-      _activeBookId = _books.first.id;
-      await _repository.saveActiveBookId(_activeBookId!);
+    try {
+      _books.removeWhere((book) => book.id == id);
+      if (_activeBookId == id) {
+        _activeBookId = _books.first.id;
+        await _repository.saveActiveBookId(_activeBookId!);
+      }
+      await _repository.saveBooks(_books);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BookProvider.deleteBook', e, stackTrace);
+      rethrow;
     }
-    await _repository.saveBooks(_books);
-    notifyListeners();
   }
 
   String _generateId() {

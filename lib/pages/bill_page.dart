@@ -18,6 +18,7 @@ import '../models/record.dart';
 import '../utils/csv_utils.dart';
 import '../utils/data_export_import.dart';
 import '../utils/records_export_bundle.dart';
+import '../utils/error_handler.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -1214,147 +1215,142 @@ class _BillPageState extends State<BillPage> {
     String bookId,
     DateTimeRange range,
   ) async {
-    // 显示加载提示
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              SizedBox(width: 12),
-              Text('正在导出...'),
-            ],
-          ),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    }
-
-    final recordProvider = context.read<RecordProvider>();
-    final categoryProvider = context.read<CategoryProvider>();
-    final bookProvider = context.read<BookProvider>();
-    final accountProvider = context.read<AccountProvider>();
-
-    final records = recordProvider.recordsForPeriod(
-      bookId,
-      start: range.start,
-      end: range.end,
-    );
-    if (records.isEmpty) {
+    try {
+      // 显示加载提示
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('当前时间范围内暂无记录')),
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text('正在导出...'),
+              ],
+            ),
+            duration: Duration(seconds: 1),
+          ),
         );
       }
-      return;
-    }
 
-    final categoriesByKey = {
-      for (final c in categoryProvider.categories) c.key: c.name,
-    };
-    final booksById = {
-      for (final b in bookProvider.books) b.id: b.name,
-    };
+      final recordProvider = context.read<RecordProvider>();
+      final categoryProvider = context.read<CategoryProvider>();
+      final bookProvider = context.read<BookProvider>();
+      final accountProvider = context.read<AccountProvider>();
 
-    final formatter = DateFormat('yyyy-MM-dd HH:mm');
-
-    final rows = <List<String>>[];
-    rows.add([
-      '日期',
-      '金额',
-      '收支方向',
-      '分类',
-      '账本',
-      '账户',
-      '备注',
-      '是否计入统计',
-    ]);
-
-    for (final r in records) {
-      final dateStr = formatter.format(r.date);
-      final amountStr = r.amount.toStringAsFixed(2);
-      final directionStr = r.isIncome ? '收入' : '支出';
-      final categoryName =
-          categoriesByKey[r.categoryKey] ?? r.categoryKey;
-      final bookName = booksById[r.bookId] ?? bookProvider.activeBook?.name ??
-          '默认账本';
-      final accountName =
-          accountProvider.byId(r.accountId)?.name ?? '未知账户';
-      final remark = r.remark;
-      final includeStr = r.includeInStats ? '是' : '否';
-
-      rows.add([
-        dateStr,
-        amountStr,
-        directionStr,
-        categoryName,
-        bookName,
-        accountName,
-        remark,
-        includeStr,
-      ]);
-    }
-
-    final csv = toCsv(rows);
-
-    final dir = await getTemporaryDirectory();
-    final bookName = bookProvider.activeBook?.name ?? '默认账本';
-    // Windows 文件名不允许包含特殊字符，使用简洁的日期格式
-    final startStr = '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
-    final endStr = '${range.end.year}-${range.end.month.toString().padLeft(2, '0')}-${range.end.day.toString().padLeft(2, '0')}';
-    // 文件名包含账本名称，更友好
-    final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-    final fileName = '${safeBookName}_${startStr}_$endStr.csv';
-    final file = File('${dir.path}/$fileName');
-
-    await file.writeAsString(csv, encoding: utf8);
-
-    if (!context.mounted) return;
-
-    // Windows 平台使用文件保存对话框，其他平台使用共享
-    if (Platform.isWindows) {
-      final savedPath = await FilePicker.platform.saveFile(
-        dialogTitle: '保存 CSV 文件',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
+      final records = recordProvider.recordsForPeriod(
+        bookId,
+        start: range.start,
+        end: range.end,
       );
-      
-      if (savedPath != null) {
-        await file.copy(savedPath);
+      if (records.isEmpty) {
         if (context.mounted) {
-          final fileSize = await File(savedPath).length();
-          final sizeStr = fileSize > 1024 * 1024
-              ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
-              : '${(fileSize / 1024).toStringAsFixed(2)} KB';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('导出成功！共 ${records.length} 条记录'),
-                  Text(
-                    '文件大小：$sizeStr',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          ErrorHandler.showWarning(context, '当前时间范围内暂无记录');
+        }
+        return;
+      }
+
+      final categoriesByKey = {
+        for (final c in categoryProvider.categories) c.key: c.name,
+      };
+      final booksById = {
+        for (final b in bookProvider.books) b.id: b.name,
+      };
+
+      final formatter = DateFormat('yyyy-MM-dd HH:mm');
+
+      final rows = <List<String>>[];
+      rows.add([
+        '日期',
+        '金额',
+        '收支方向',
+        '分类',
+        '账本',
+        '账户',
+        '备注',
+        '是否计入统计',
+      ]);
+
+      for (final r in records) {
+        final dateStr = formatter.format(r.date);
+        final amountStr = r.amount.toStringAsFixed(2);
+        final directionStr = r.isIncome ? '收入' : '支出';
+        final categoryName =
+            categoriesByKey[r.categoryKey] ?? r.categoryKey;
+        final bookName = booksById[r.bookId] ?? bookProvider.activeBook?.name ??
+            '默认账本';
+        final accountName =
+            accountProvider.byId(r.accountId)?.name ?? '未知账户';
+        final remark = r.remark;
+        final includeStr = r.includeInStats ? '是' : '否';
+
+        rows.add([
+          dateStr,
+          amountStr,
+          directionStr,
+          categoryName,
+          bookName,
+          accountName,
+          remark,
+          includeStr,
+        ]);
+      }
+
+      final csv = toCsv(rows);
+
+      final dir = await getTemporaryDirectory();
+      final bookName = bookProvider.activeBook?.name ?? '默认账本';
+      // Windows 文件名不允许包含特殊字符，使用简洁的日期格式
+      final startStr = '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
+      final endStr = '${range.end.year}-${range.end.month.toString().padLeft(2, '0')}-${range.end.day.toString().padLeft(2, '0')}';
+      // 文件名包含账本名称，更友好
+      final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      final fileName = '${safeBookName}_${startStr}_$endStr.csv';
+      final file = File('${dir.path}/$fileName');
+
+      await file.writeAsString(csv, encoding: utf8);
+
+      if (!context.mounted) return;
+
+      // Windows 平台使用文件保存对话框，其他平台使用共享
+      if (Platform.isWindows) {
+        final savedPath = await FilePicker.platform.saveFile(
+          dialogTitle: '保存 CSV 文件',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['csv'],
+        );
+        
+        if (savedPath != null) {
+          await file.copy(savedPath);
+          if (context.mounted) {
+            final fileSize = await File(savedPath).length();
+            final sizeStr = fileSize > 1024 * 1024
+                ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
+                : '${(fileSize / 1024).toStringAsFixed(2)} KB';
+            ErrorHandler.showSuccess(
+              context,
+              '导出成功！共 ${records.length} 条记录，文件大小：$sizeStr',
+            );
+          }
+        }
+      } else {
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          subject: '指尖记账导出 CSV',
+          text: '指尖记账导出记录 CSV，可用 Excel 打开查看。',
+        );
+        if (context.mounted) {
+          ErrorHandler.showSuccess(context, '导出成功！共 ${records.length} 条记录');
         }
       }
-    } else {
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      subject: '指尖记账导出 CSV',
-      text: '指尖记账导出记录 CSV，可用 Excel 打开查看。',
-    );
+    } catch (e) {
+      if (context.mounted) {
+        ErrorHandler.handleAsyncError(context, e);
+      }
     }
   }
 

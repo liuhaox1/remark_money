@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../database/database_helper.dart';
 import '../models/record_template.dart';
 import '../models/record.dart';
@@ -9,75 +11,99 @@ class RecordTemplateRepositoryDb {
 
   /// 加载所有模板
   Future<List<RecordTemplate>> loadTemplates() async {
-    final db = await _dbHelper.database;
-    final maps = await db.query(
-      Tables.recordTemplates,
-      orderBy: 'last_used_at DESC, created_at DESC',
-      limit: _maxTemplates,
-    );
+    try {
+      final db = await _dbHelper.database;
+      final maps = await db.query(
+        Tables.recordTemplates,
+        orderBy: 'last_used_at DESC, created_at DESC',
+        limit: _maxTemplates,
+      );
 
-    return maps.map((map) => _mapToTemplate(map)).toList();
+      return maps.map((map) => _mapToTemplate(map)).toList();
+    } catch (e, stackTrace) {
+      debugPrint('[RecordTemplateRepositoryDb] loadTemplates failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 保存模板列表
   Future<void> saveTemplates(List<RecordTemplate> templates) async {
-    final db = await _dbHelper.database;
-    final batch = db.batch();
+    try {
+      final db = await _dbHelper.database;
+      final batch = db.batch();
 
-    // 先删除所有模板
-    batch.delete(Tables.recordTemplates);
+      // 先删除所有模板
+      batch.delete(Tables.recordTemplates);
 
-    // 插入新模板（限制数量）
-    final limitedTemplates = templates.take(_maxTemplates).toList();
-    for (final template in limitedTemplates) {
-      batch.insert(
-        Tables.recordTemplates,
-        _templateToMap(template),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      // 插入新模板（限制数量）
+      final limitedTemplates = templates.take(_maxTemplates).toList();
+      for (final template in limitedTemplates) {
+        batch.insert(
+          Tables.recordTemplates,
+          _templateToMap(template),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      await batch.commit(noResult: true);
+    } catch (e, stackTrace) {
+      debugPrint('[RecordTemplateRepositoryDb] saveTemplates failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
     }
-
-    await batch.commit(noResult: true);
   }
 
   /// 插入或更新模板
   Future<List<RecordTemplate>> upsertTemplate(RecordTemplate template) async {
-    final db = await _dbHelper.database;
-    await db.insert(
-      Tables.recordTemplates,
-      _templateToMap(template),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    try {
+      final db = await _dbHelper.database;
+      await db.insert(
+        Tables.recordTemplates,
+        _templateToMap(template),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
 
-    // 如果超过最大数量，删除最旧的
-    final allTemplates = await loadTemplates();
-    if (allTemplates.length > _maxTemplates) {
-      final toDelete = allTemplates.skip(_maxTemplates).toList();
-      for (final t in toDelete) {
-        await db.delete(
-          Tables.recordTemplates,
-          where: 'id = ?',
-          whereArgs: [t.id],
-        );
+      // 如果超过最大数量，删除最旧的
+      final allTemplates = await loadTemplates();
+      if (allTemplates.length > _maxTemplates) {
+        final toDelete = allTemplates.skip(_maxTemplates).toList();
+        for (final t in toDelete) {
+          await db.delete(
+            Tables.recordTemplates,
+            where: 'id = ?',
+            whereArgs: [t.id],
+          );
+        }
       }
-    }
 
-    return await loadTemplates();
+      return await loadTemplates();
+    } catch (e, stackTrace) {
+      debugPrint('[RecordTemplateRepositoryDb] upsertTemplate failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 标记模板为已使用
   Future<List<RecordTemplate>> markUsed(String id) async {
-    final db = await _dbHelper.database;
-    await db.update(
-      Tables.recordTemplates,
-      {
-        'last_used_at': DateTime.now().millisecondsSinceEpoch,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    return await loadTemplates();
+    try {
+      final db = await _dbHelper.database;
+      await db.update(
+        Tables.recordTemplates,
+        {
+          'last_used_at': DateTime.now().millisecondsSinceEpoch,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return await loadTemplates();
+    } catch (e, stackTrace) {
+      debugPrint('[RecordTemplateRepositoryDb] markUsed failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 将模板转换为数据库映射

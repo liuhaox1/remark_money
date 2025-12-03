@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../database/database_helper.dart';
 import '../models/recurring_record.dart';
 import '../models/record.dart';
@@ -8,55 +10,79 @@ class RecurringRecordRepositoryDb {
 
   /// 加载所有循环记账计划
   Future<List<RecurringRecordPlan>> loadPlans() async {
-    final db = await _dbHelper.database;
-    final maps = await db.query(
-      Tables.recurringRecords,
-      orderBy: 'next_due_date ASC',
-    );
+    try {
+      final db = await _dbHelper.database;
+      final maps = await db.query(
+        Tables.recurringRecords,
+        orderBy: 'next_due_date ASC',
+      );
 
-    return maps.map((map) => _mapToPlan(map)).toList();
+      return maps.map((map) => _mapToPlan(map)).toList();
+    } catch (e, stackTrace) {
+      debugPrint('[RecurringRecordRepositoryDb] loadPlans failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 保存计划列表
   Future<void> savePlans(List<RecurringRecordPlan> plans) async {
-    final db = await _dbHelper.database;
-    final batch = db.batch();
+    try {
+      final db = await _dbHelper.database;
+      final batch = db.batch();
 
-    // 先删除所有计划
-    batch.delete(Tables.recurringRecords);
+      // 先删除所有计划
+      batch.delete(Tables.recurringRecords);
 
-    // 插入新计划
-    for (final plan in plans) {
-      batch.insert(
-        Tables.recurringRecords,
-        _planToMap(plan),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      // 插入新计划
+      for (final plan in plans) {
+        batch.insert(
+          Tables.recurringRecords,
+          _planToMap(plan),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      await batch.commit(noResult: true);
+    } catch (e, stackTrace) {
+      debugPrint('[RecurringRecordRepositoryDb] savePlans failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
     }
-
-    await batch.commit(noResult: true);
   }
 
   /// 插入或更新计划
   Future<List<RecurringRecordPlan>> upsert(RecurringRecordPlan plan) async {
-    final db = await _dbHelper.database;
-    await db.insert(
-      Tables.recurringRecords,
-      _planToMap(plan),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    return await loadPlans();
+    try {
+      final db = await _dbHelper.database;
+      await db.insert(
+        Tables.recurringRecords,
+        _planToMap(plan),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      return await loadPlans();
+    } catch (e, stackTrace) {
+      debugPrint('[RecurringRecordRepositoryDb] upsert failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 删除计划
   Future<List<RecurringRecordPlan>> remove(String id) async {
-    final db = await _dbHelper.database;
-    await db.delete(
-      Tables.recurringRecords,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    return await loadPlans();
+    try {
+      final db = await _dbHelper.database;
+      await db.delete(
+        Tables.recurringRecords,
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return await loadPlans();
+    } catch (e, stackTrace) {
+      debugPrint('[RecurringRecordRepositoryDb] remove failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 将计划转换为数据库映射

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/reminder_settings.dart';
 import '../repository/repository_factory.dart';
+import '../utils/error_handler.dart';
 
 /// Stores reminder preferences for daily bookkeeping.
 ///
@@ -24,23 +25,39 @@ class ReminderProvider extends ChangeNotifier {
 
   Future<void> load() async {
     if (_loaded) return;
-    _settings = await _repository.load();
-    _loaded = true;
-    notifyListeners();
+    try {
+      _settings = await _repository.load();
+      _loaded = true;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('ReminderProvider.load', e, stackTrace);
+      _loaded = false;
+      rethrow;
+    }
   }
 
   Future<void> setEnabled(bool value) async {
-    _settings = _settings.copyWith(enabled: value);
-    await _repository.save(_settings);
-    notifyListeners();
-    // TODO: integrate scheduling / cancelling local notifications.
+    try {
+      _settings = _settings.copyWith(enabled: value);
+      await _repository.save(_settings);
+      notifyListeners();
+      // TODO: integrate scheduling / cancelling local notifications.
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('ReminderProvider.setEnabled', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> setTime(TimeOfDay value) async {
-    _settings = _settings.copyWith(timeOfDay: value);
-    await _repository.save(_settings);
-    notifyListeners();
-    // TODO: reschedule local notifications when integrated.
+    try {
+      _settings = _settings.copyWith(timeOfDay: value);
+      await _repository.save(_settings);
+      notifyListeners();
+      // TODO: reschedule local notifications when integrated.
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('ReminderProvider.setTime', e, stackTrace);
+      rethrow;
+    }
   }
 }
 

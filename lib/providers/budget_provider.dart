@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/budget.dart';
 import '../repository/repository_factory.dart';
+import '../utils/error_handler.dart';
 
 class BudgetProvider extends ChangeNotifier {
   BudgetProvider();
@@ -17,9 +18,15 @@ class BudgetProvider extends ChangeNotifier {
 
   Future<void> load() async {
     if (_loaded) return;
-    _budgetStore = await _repository.loadBudget();
-    _loaded = true;
-    notifyListeners();
+    try {
+      _budgetStore = await _repository.loadBudget();
+      _loaded = true;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BudgetProvider.load', e, stackTrace);
+      _loaded = false;
+      rethrow;
+    }
   }
 
   BudgetEntry budgetForBook(String bookId) {
@@ -34,19 +41,24 @@ class BudgetProvider extends ChangeNotifier {
     Map<String, double>? annualCategoryBudgets,
     int? periodStartDay,
   }) async {
-    final current = _budgetStore.entries[bookId];
-    final entry = BudgetEntry(
-      total: totalBudget,
-      categoryBudgets: Map<String, double>.from(categoryBudgets),
-      periodStartDay: periodStartDay ?? current?.periodStartDay ?? 1,
-      annualTotal: annualBudget ?? current?.annualTotal ?? 0,
-      annualCategoryBudgets: Map<String, double>.from(
-        annualCategoryBudgets ?? current?.annualCategoryBudgets ?? const {},
-      ),
-    );
-    _budgetStore = _budgetStore.replaceEntry(bookId, entry);
-    await _repository.saveBudget(_budgetStore);
-    notifyListeners();
+    try {
+      final current = _budgetStore.entries[bookId];
+      final entry = BudgetEntry(
+        total: totalBudget,
+        categoryBudgets: Map<String, double>.from(categoryBudgets),
+        periodStartDay: periodStartDay ?? current?.periodStartDay ?? 1,
+        annualTotal: annualBudget ?? current?.annualTotal ?? 0,
+        annualCategoryBudgets: Map<String, double>.from(
+          annualCategoryBudgets ?? current?.annualCategoryBudgets ?? const {},
+        ),
+      );
+      _budgetStore = _budgetStore.replaceEntry(bookId, entry);
+      await _repository.saveBudget(_budgetStore);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BudgetProvider.updateBudgetForBook', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> setTotal(String bookId, double value) async {
@@ -137,17 +149,22 @@ class BudgetProvider extends ChangeNotifier {
   }
 
   Future<void> resetBudgetForBook(String bookId) async {
-    final current = budgetForBook(bookId);
-    final entry = BudgetEntry(
-      total: 0,
-      categoryBudgets: const {},
-      periodStartDay: current.periodStartDay,
-      annualTotal: 0,
-      annualCategoryBudgets: const {},
-    );
-    _budgetStore = _budgetStore.replaceEntry(bookId, entry);
-    await _repository.saveBudget(_budgetStore);
-    notifyListeners();
+    try {
+      final current = budgetForBook(bookId);
+      final entry = BudgetEntry(
+        total: 0,
+        categoryBudgets: const {},
+        periodStartDay: current.periodStartDay,
+        annualTotal: 0,
+        annualCategoryBudgets: const {},
+      );
+      _budgetStore = _budgetStore.replaceEntry(bookId, entry);
+      await _repository.saveBudget(_budgetStore);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BudgetProvider.resetBudgetForBook', e, stackTrace);
+      rethrow;
+    }
   }
 
   /// 当前账本在指定日期下的预算周期（起止日）
