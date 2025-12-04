@@ -56,6 +56,7 @@ class AssetCharts extends StatelessWidget {
     BuildContext context,
     List<Account> accounts,
   ) {
+    final cs = Theme.of(context).colorScheme;
     // 只计算正余额的账户
     final positiveAccounts = accounts
         .where((a) => a.currentBalance > 0)
@@ -126,10 +127,10 @@ class AssetCharts extends StatelessWidget {
                                 title: percentage > 5 ? '${percentage.toStringAsFixed(1)}%' : '',
                                 color: colors[e.key % colors.length],
                                 radius: 40,
-                                titleStyle: const TextStyle(
+                                titleStyle: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                                  color: cs.onPrimary,
                                 ),
                               );
                             }),
@@ -137,12 +138,12 @@ class AssetCharts extends StatelessWidget {
                               PieChartSectionData(
                                 value: othersAmount,
                                 title: (othersAmount / totalAssets * 100) > 5 ? '其他' : '',
-                                color: Colors.grey,
+                                color: cs.outlineVariant,
                                 radius: 40,
-                                titleStyle: const TextStyle(
+                                titleStyle: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                                  color: cs.onPrimary,
                                 ),
                               ),
                           ],
@@ -273,8 +274,8 @@ class AssetCharts extends StatelessWidget {
                                 width: 12,
                                 height: 12,
                                 margin: const EdgeInsets.only(top: 4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.grey,
+                                decoration: BoxDecoration(
+                                  color: cs.outlineVariant,
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -591,7 +592,7 @@ class _TrendChartWidgetState extends State<_TrendChartWidget> {
                             radius: 5,
                             color: AppColors.success,
                             strokeWidth: 2,
-                            strokeColor: Colors.white,
+                            strokeColor: Theme.of(context).colorScheme.surface,
                           );
                         },
                       ),

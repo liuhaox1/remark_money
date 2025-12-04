@@ -24,6 +24,7 @@ class BrandLogoAvatar extends StatelessWidget {
     if (brandKey == null || brand == null || brand.key == 'custom') {
       return _buildFallbackAvatar();
     }
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       width: size,
@@ -35,10 +36,10 @@ class BrandLogoAvatar extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         brand.shortName,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: Colors.white,
+          color: cs.onPrimary,
         ),
       ),
     );

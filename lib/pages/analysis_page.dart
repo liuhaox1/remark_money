@@ -265,7 +265,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade400,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withOpacity(0.9),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -383,23 +386,21 @@ class _HeaderCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          gradient: isDark
-              ? null
-              : LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    cs.primary.withOpacity(0.18),
-                    Colors.white,
-                  ],
-                ),
-          color: isDark ? cs.surface : null,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              cs.primary.withOpacity(0.18),
+              cs.surface,
+            ],
+          ),
+          color: cs.surface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: isDark
               ? null
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: cs.shadow.withOpacity(0.08),
                     blurRadius: 18,
                     offset: const Offset(0, 8),
                   ),
@@ -410,12 +411,13 @@ class _HeaderCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text(
+                Text(
                   AppStrings.reportOverview,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
                 ),
                 const Spacer(),
                 const BookSelectorButton(compact: true),
@@ -426,7 +428,7 @@ class _HeaderCard extends StatelessWidget {
               _periodLabel(),
               style: TextStyle(
                 fontSize: 13,
-                color: cs.outline,
+                color: cs.onSurface.withOpacity(0.65),
               ),
             ),
             const SizedBox(height: 8),
@@ -452,9 +454,10 @@ class _HeaderCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               AppStrings.currentBookLabel(bookName),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
+                color: cs.onSurface.withOpacity(0.8),
               ),
             ),
           ],
@@ -544,14 +547,15 @@ class _PeriodList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             flex: 3,
             child: Text(
               '月份 / 周次',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface.withOpacity(0.75),
+                  ),
             ),
           ),
           Expanded(
@@ -559,6 +563,7 @@ class _PeriodList extends StatelessWidget {
               AppStrings.income,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.75),
               ),
             ),
           ),
@@ -567,6 +572,7 @@ class _PeriodList extends StatelessWidget {
               AppStrings.expense,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.75),
               ),
             ),
           ),
@@ -575,6 +581,7 @@ class _PeriodList extends StatelessWidget {
               AppStrings.balance,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.75),
               ),
             ),
           ),

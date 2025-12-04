@@ -26,7 +26,6 @@ class PeriodSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
     final padding = compact
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
@@ -63,11 +62,16 @@ class PeriodSelector extends StatelessWidget {
                       style: TextStyle(
                         fontSize: compact ? 12 : 13,
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.expand_more, size: 16),
+                  Icon(
+                    Icons.expand_more,
+                    size: 16,
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
                 ],
               ),
             ),
@@ -86,7 +90,7 @@ class PeriodSelector extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: isDark ? cs.surface : Colors.white,
+        color: cs.surface,
         border: Border.all(color: cs.primary.withOpacity(0.18)),
       ),
       child: child,

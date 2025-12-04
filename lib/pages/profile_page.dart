@@ -28,11 +28,11 @@ class ProfilePage extends StatelessWidget {
     final bookProvider = context.watch<BookProvider>();
     final themeProvider = context.watch<ThemeProvider>();
     final reminderProvider = context.watch<ReminderProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+      backgroundColor: cs.surface,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -47,16 +47,15 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 ProfileStringsLocal.settings,
-                style: Theme.of(context).textTheme.titleLarge,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: cs.onSurface,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 ProfileStringsLocal.profileIntro,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.78),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurface.withOpacity(0.78),
                     ),
               ),
               const SizedBox(height: 20),
@@ -89,6 +88,7 @@ class ProfilePage extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Card(
+      color: cs.surface,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -96,7 +96,10 @@ class ProfilePage extends StatelessWidget {
           children: [
             Text(
               AppStrings.theme,
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(color: cs.onSurface),
             ),
             const SizedBox(height: 12),
             SegmentedButton<ThemeMode>(
@@ -119,7 +122,10 @@ class ProfilePage extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               AppStrings.themeSeed,
-              style: Theme.of(context).textTheme.titleSmall,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(color: cs.onSurface),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -151,9 +157,9 @@ class ProfilePage extends StatelessWidget {
                           : null,
                     ),
                     child: selected
-                        ? const Icon(
+                        ? Icon(
                             Icons.check,
-                            color: Colors.white,
+                            color: cs.onPrimary,
                             size: 20,
                           )
                         : null,
@@ -168,6 +174,7 @@ class ProfilePage extends StatelessWidget {
   }
 
   Widget _buildBookSection(BuildContext context, BookProvider provider) {
+    final cs = Theme.of(context).colorScheme;
     if (provider.books.isEmpty) {
       return const Card(
         child: Padding(
@@ -177,6 +184,7 @@ class ProfilePage extends StatelessWidget {
       );
     }
     return Card(
+      color: cs.surface,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -184,19 +192,25 @@ class ProfilePage extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.menu_book_outlined, size: 20),
+                Icon(Icons.menu_book_outlined, size: 20, color: cs.onSurface),
                 const SizedBox(width: 8),
                 Text(
                   AppStrings.book,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(color: cs.onSurface),
                 ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => _showAddBookDialog(context),
-                  icon: const Icon(Icons.add, size: 18),
+                  icon: Icon(Icons.add, size: 18, color: cs.primary),
                   label: Text(
                     AppStrings.addBook,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: cs.primary),
                   ),
                 ),
               ],
@@ -207,17 +221,23 @@ class ProfilePage extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 title: Text(
                   provider.books.first.name,
-                  style: Theme.of(context).textTheme.titleSmall,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(color: cs.onSurface),
                 ),
                 subtitle: Text(
                   ProfileStringsLocal.currentBookSingleHint,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit_outlined),
+                      icon: Icon(Icons.edit_outlined, color: cs.onSurface),
                       tooltip: AppStrings.renameBook,
                       onPressed: () => _showRenameBookDialog(
                         context,
@@ -233,6 +253,7 @@ class ProfilePage extends StatelessWidget {
                 (book) => RadioListTile<String>(
                   value: book.id,
                   groupValue: provider.activeBookId,
+                  activeColor: cs.primary,
                   onChanged: (value) {
                     if (value != null) {
                       provider.selectBook(value);
@@ -240,13 +261,16 @@ class ProfilePage extends StatelessWidget {
                   },
                   title: Text(
                     book.name,
-                    style: Theme.of(context).textTheme.titleSmall,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(color: cs.onSurface),
                   ),
                   secondary: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.edit_outlined),
+                        icon: Icon(Icons.edit_outlined, color: cs.onSurface),
                         tooltip: AppStrings.renameBook,
                         onPressed: () => _showRenameBookDialog(
                           context,
@@ -256,7 +280,7 @@ class ProfilePage extends StatelessWidget {
                       ),
                       if (provider.books.length > 1)
                         IconButton(
-                          icon: const Icon(Icons.delete_outline),
+                          icon: Icon(Icons.delete_outline, color: cs.onSurface),
                           tooltip: AppStrings.deleteBook,
                           onPressed: () => _confirmDelete(context, book.id),
                         ),
@@ -305,39 +329,56 @@ class ProfilePage extends StatelessWidget {
     final cs = theme.colorScheme;
 
     return Card(
+      color: cs.surface,
       child: ListTile(
-        leading: const Icon(Icons.privacy_tip_outlined),
-        title: const Text('数据与安全'),
-        subtitle: const Text('导入导出、备份与恢复'),
-        trailing: const Icon(Icons.chevron_right),
+        leading: Icon(Icons.privacy_tip_outlined,
+            color: cs.onSurface.withOpacity(0.8)),
+        title: Text(
+          '数据与安全',
+          style: Theme.of(context)
+              .textTheme
+              .titleSmall
+              ?.copyWith(color: cs.onSurface),
+        ),
+        subtitle: Text(
+          '导入导出、备份与恢复',
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
+        ),
+        trailing:
+            Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
         onTap: () => _showDataSecuritySheet(context, cs),
       ),
     );
   }
 
+
   Widget _buildDangerSection(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.warning_amber_outlined, color: Colors.red),
+            leading: Icon(Icons.warning_amber_outlined, color: cs.error),
             title: Text(
               '危险操作',
               style: Theme.of(context)
                   .textTheme
                   .titleSmall
-                  ?.copyWith(color: Colors.red),
+                  ?.copyWith(color: cs.error),
             ),
           ),
           const Divider(height: 1),
           ListTile(
-            leading: const Icon(Icons.delete_forever_outlined, color: Colors.red),
+            leading: Icon(Icons.delete_forever_outlined, color: cs.error),
             title: Text(
               '清空全部数据',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.red,
-              ),
+                    color: cs.error,
+                  ),
             ),
             subtitle: const Text('清除本地存储的账本、记录、账户等数据（不可恢复）'),
             trailing: const Icon(Icons.chevron_right),
@@ -349,25 +390,50 @@ class ProfilePage extends StatelessWidget {
   }
 
   Widget _buildBudgetCategorySection(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
+      color: cs.surface,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const ListTile(
-            leading: Icon(Icons.account_balance_wallet_outlined),
-            title: Text('预算与分类'),
+          ListTile(
+            leading: Icon(Icons.account_balance_wallet_outlined,
+                color: cs.onSurface.withOpacity(0.8)),
+            title: Text(
+              '预算与分类',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(color: cs.onSurface),
+            ),
           ),
           const Divider(height: 1),
           ListTile(
-            leading: const Icon(Icons.trending_down_outlined),
-            title: const Text(AppStrings.budget),
-            trailing: const Icon(Icons.chevron_right),
+            leading: Icon(Icons.trending_down_outlined,
+                color: cs.onSurface.withOpacity(0.8)),
+            title: Text(
+              AppStrings.budget,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(color: cs.onSurface),
+            ),
+            trailing: Icon(Icons.chevron_right,
+                color: cs.onSurface.withOpacity(0.6)),
             onTap: () => Navigator.pushNamed(context, '/budget'),
           ),
           ListTile(
-            leading: const Icon(Icons.category_outlined),
-            title: const Text(AppStrings.categoryManager),
-            trailing: const Icon(Icons.chevron_right),
+            leading:
+                Icon(Icons.category_outlined, color: cs.onSurface.withOpacity(0.8)),
+            title: Text(
+              AppStrings.categoryManager,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(color: cs.onSurface),
+            ),
+            trailing:
+                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
             onTap: () => Navigator.pushNamed(context, '/category-manager'),
           ),
         ],
@@ -663,17 +729,19 @@ class ProfilePage extends StatelessWidget {
     }
   }
 
+
   Future<void> _confirmClearAll(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
     final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            icon: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+            icon: Icon(Icons.warning_amber_rounded, color: cs.error, size: 48),
             title: Text(
               '清空全部数据',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
+                    color: cs.error,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -682,21 +750,21 @@ class ProfilePage extends StatelessWidget {
                 Text(
                   '此操作将永久删除：',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 const SizedBox(height: 8),
-                const Text('• 所有账本'),
-                const Text('• 所有记账记录'),
-                const Text('• 所有账户信息'),
-                const Text('• 所有分类设置'),
+                const Text('- 所有账本'),
+                const Text('- 所有记账记录'),
+                const Text('- 所有账户信息'),
+                const Text('- 所有分类设置'),
                 const SizedBox(height: 12),
                 Text(
-                  '⚠️ 此操作不可撤销，请谨慎操作！',
+                  '警告：此操作不可撤销，请谨慎操作',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
+                        color: cs.error,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ],
             ),
@@ -707,7 +775,8 @@ class ProfilePage extends StatelessWidget {
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: cs.error,
+                  foregroundColor: cs.onError,
                 ),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: const Text(AppStrings.delete),
@@ -723,9 +792,11 @@ class ProfilePage extends StatelessWidget {
     try {
       await prefs.clear();
 
-      // 简单提示用户重启应用以重新加载默认数据。
       if (context.mounted) {
-        ErrorHandler.showSuccess(context, '数据已清空，重新打开应用后将生效');
+        ErrorHandler.showSuccess(
+          context,
+          '数据已清空，重新打开应用后将生效',
+        );
       }
     } catch (e) {
       if (context.mounted) {

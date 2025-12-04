@@ -2358,7 +2358,7 @@ class _PeriodHeaderCard extends StatelessWidget {
 
         decoration: BoxDecoration(
 
-          color: isDark ? cs.surface : Colors.white,
+          color: cs.surface,
 
           borderRadius: BorderRadius.circular(12),
 
@@ -2370,7 +2370,7 @@ class _PeriodHeaderCard extends StatelessWidget {
 
                   BoxShadow(
 
-                    color: Colors.black.withOpacity(0.04),
+                    color: cs.shadow.withOpacity(0.08),
 
                     blurRadius: 8,
 
@@ -2526,7 +2526,7 @@ class _PeriodHeaderCard extends StatelessWidget {
 
                         fontWeight: FontWeight.w500,
 
-                        color: Colors.black,
+                        color: Theme.of(context).colorScheme.onSurface,
 
                         height: 1.0,
 
@@ -2706,7 +2706,7 @@ class _SectionCard extends StatelessWidget {
 
             BoxShadow(
 
-              color: Colors.black.withOpacity(0.03),
+              color: cs.shadow.withOpacity(0.08),
 
               blurRadius: 8,
 
@@ -2935,7 +2935,7 @@ class _SummaryMetric extends StatelessWidget {
 
             fontWeight: FontWeight.w500,
 
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onSurface,
 
             height: 1.2,
 
@@ -3279,7 +3279,7 @@ class _RankingItem extends StatelessWidget {
 
             fontWeight: FontWeight.w600,
 
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onSurface,
 
           ),
 
@@ -3381,7 +3381,7 @@ class _DailyTrendStatItem extends StatelessWidget {
 
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onSurface,
 
             fontWeight: FontWeight.w600,
 

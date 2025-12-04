@@ -58,15 +58,17 @@ class TimelineItem extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected ? primaryColor : AppColors.divider,
+                  color: selected
+                      ? primaryColor
+                      : cs.outlineVariant.withOpacity(0.6),
                 ),
                 color: selected ? primaryColor : Colors.transparent,
               ),
               child: selected
-                  ? const Icon(
+                  ? Icon(
                       Icons.check,
                       size: 14,
-                      color: Colors.white,
+                      color: cs.onPrimary,
                     )
                   : null,
             ),
@@ -84,9 +86,9 @@ class TimelineItem extends StatelessWidget {
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 13),
+                ],
+              ),
+            child: Icon(icon, color: cs.onPrimary, size: 13),
           ),
         const SizedBox(width: 6),
         Expanded(
@@ -174,7 +176,7 @@ class TimelineItem extends StatelessWidget {
             SlidableAction(
               onPressed: (_) => onDelete?.call(),
               backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
+              foregroundColor: cs.onError,
               label: AppStrings.delete,
             ),
           ],

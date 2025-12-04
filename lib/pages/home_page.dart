@@ -3458,7 +3458,11 @@ class _HomeSearchBar extends StatelessWidget {
 
           children: [
 
-            const Icon(Icons.search, size: 20),
+            Icon(
+              Icons.search,
+              size: 20,
+              color: cs.onSurface.withOpacity(0.7),
+            ),
 
             const SizedBox(width: 8),
 
@@ -3477,8 +3481,12 @@ class _HomeSearchBar extends StatelessWidget {
                   border: InputBorder.none,
 
                   hintText: AppStrings.searchHint,
+                  hintStyle: TextStyle(
+                    color: cs.onSurface.withOpacity(0.5),
+                  ),
 
                 ),
+                style: TextStyle(color: cs.onSurface),
 
                 onChanged: onChanged,
 
@@ -3492,7 +3500,7 @@ class _HomeSearchBar extends StatelessWidget {
 
               IconButton(
 
-                icon: const Icon(Icons.clear, size: 18),
+                icon: Icon(Icons.clear, size: 18, color: cs.onSurface.withOpacity(0.7)),
 
                 onPressed: onClear,
 
@@ -3515,6 +3523,9 @@ class _HomeSearchBar extends StatelessWidget {
                       : Icons.filter_alt_outlined,
 
                   size: 20,
+                  color: hasActiveFilter
+                      ? cs.primary
+                      : cs.onSurface.withOpacity(0.7),
 
                 ),
 
@@ -3798,7 +3809,7 @@ class _HomeFilterSummaryBar extends StatelessWidget {
 
           children: [
 
-            const Icon(Icons.tune, size: 16),
+            Icon(Icons.tune, size: 16, color: cs.onSurface.withOpacity(0.75)),
 
             const SizedBox(width: 8),
 
@@ -3808,7 +3819,10 @@ class _HomeFilterSummaryBar extends StatelessWidget {
 
                 summaryText,
 
-                style: const TextStyle(fontSize: 11),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: cs.onSurface.withOpacity(0.78),
+                ),
 
                 maxLines: 2,
 
@@ -3822,11 +3836,14 @@ class _HomeFilterSummaryBar extends StatelessWidget {
 
               onPressed: onClearAll,
 
-              child: const Text(
+              child: Text(
 
                 '清空筛选',
 
-                style: TextStyle(fontSize: 11),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: cs.primary,
+                ),
 
               ),
 
@@ -3884,7 +3901,9 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
   Widget build(BuildContext context) {
 
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final shadowColor = theme.shadowColor.withOpacity(0.06);
 
     final kw = keyword.trim().toLowerCase();
 
@@ -3940,7 +3959,7 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
             BoxShadow(
 
-              color: Colors.black.withOpacity(0.04),
+              color: shadowColor,
 
               blurRadius: 12,
 
@@ -4565,7 +4584,7 @@ class _DayHeader extends StatelessWidget {
 
     final net = (balance ?? (income - expense));
 
-    final labelColor = cs.onSurface.withOpacity(0.7);
+    final labelColor = cs.onSurface.withOpacity(0.75);
 
 
 
@@ -4623,11 +4642,13 @@ class _DayHeader extends StatelessWidget {
 
             dateLabel,
 
-            style: const TextStyle(
+            style: TextStyle(
 
               fontSize: 13,
 
               fontWeight: FontWeight.w600,
+
+              color: cs.onSurface,
 
             ),
 
@@ -4806,7 +4827,7 @@ class _BalanceCard extends StatelessWidget {
 
                     cs.primary.withOpacity(0.18),
 
-                    Colors.white,
+                    cs.surface,
 
                   ],
 
@@ -4824,7 +4845,7 @@ class _BalanceCard extends StatelessWidget {
 
                   BoxShadow(
 
-                    color: Colors.black.withOpacity(0.04),
+                    color: theme.shadowColor.withOpacity(0.08),
 
                     blurRadius: 18,
 

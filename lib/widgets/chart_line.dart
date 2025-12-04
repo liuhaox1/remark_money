@@ -143,7 +143,7 @@ class ChartLine extends StatelessWidget {
                     radius: 3.5,
                     color: color,
                     strokeWidth: 2,
-                    strokeColor: Colors.white,
+                    strokeColor: cs.surface,
                   );
                 },
               ),

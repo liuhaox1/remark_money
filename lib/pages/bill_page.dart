@@ -1105,7 +1105,7 @@ class _BillPageState extends State<BillPage> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
+                      color: cs.outlineVariant.withOpacity(0.8),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -3279,7 +3279,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: cs.shadow.withOpacity(0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),

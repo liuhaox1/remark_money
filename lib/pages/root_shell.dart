@@ -112,7 +112,7 @@ class _AssetsPageBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final cs = theme.colorScheme;
     final accountProvider = context.watch<AccountProvider>();
 
     final accounts = accountProvider.accounts;
@@ -122,8 +122,7 @@ class _AssetsPageBody extends StatelessWidget {
     final grouped = _groupAccounts(accounts);
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+      backgroundColor: cs.surface,
       appBar: AppBar(
         elevation: 0,
         toolbarHeight: 0,
@@ -218,17 +217,15 @@ class _AssetsPageBody extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: isDark ? theme.colorScheme.surface : Colors.white,
+                            color: cs.surface,
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: isDark
-                                ? null
-                                : [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.02),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
+                            boxShadow: [
+                              BoxShadow(
+                                color: cs.shadow.withOpacity(0.06),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(8),
@@ -343,7 +340,6 @@ class _AssetSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
     final netColor = AppColors.amount(netWorth);
 
     return Padding(
@@ -351,27 +347,23 @@ class _AssetSummaryCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          gradient: isDark
-              ? null
-              : LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    cs.primary.withOpacity(0.18),
-                    Colors.white,
-                  ],
-                ),
-          color: isDark ? cs.surface : null,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              cs.primary.withOpacity(0.18),
+              cs.surface,
+            ],
+          ),
+          color: cs.surface,
           borderRadius: BorderRadius.circular(24),
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withOpacity(0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -477,15 +469,13 @@ class _AccountGroupPanel extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: isDark ? cs.surface : Colors.white,
+            color: cs.surface,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: isDark
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+            boxShadow: [
+              BoxShadow(
+                color: cs.shadow.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -557,9 +547,9 @@ class _AccountTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isDebt = account.kind == AccountKind.liability;
     final hasIssue = _hasBalanceIssue(account);
-    final amountColor = hasIssue 
-        ? AppColors.danger 
-        : (isDebt ? Colors.orange : AppColors.amount(account.currentBalance));
+    final amountColor = hasIssue
+        ? AppColors.danger
+        : (isDebt ? cs.tertiary : AppColors.amount(account.currentBalance));
     final icon = _iconForAccount(account);
 
     final tileContent = InkWell(
@@ -599,9 +589,9 @@ class _AccountTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         _subtitleForAccount(account),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Colors.grey,
+                          color: cs.onSurface.withOpacity(0.65),
                         ),
                       ),
                     ],
@@ -674,7 +664,7 @@ class _AccountTile extends StatelessWidget {
           SlidableAction(
             onPressed: (_) => _handleDelete(context),
             backgroundColor: AppColors.danger,
-            foregroundColor: Colors.white,
+            foregroundColor: cs.onError,
             label: '删除',
             icon: Icons.delete_outline,
           ),

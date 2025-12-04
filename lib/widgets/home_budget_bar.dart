@@ -127,11 +127,12 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
           children: [
             Row(
               children: [
-                const Text(
+                Text(
                   AppStrings.homeBudgetTitle,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -158,7 +159,10 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () => _openBudgetPage(context, _view),
-                child: const Text(AppStrings.homeBudgetDetail),
+                child: Text(
+                  AppStrings.homeBudgetDetail,
+                  style: TextStyle(color: cs.primary),
+                ),
               ),
             ),
             const SizedBox(height: 8),

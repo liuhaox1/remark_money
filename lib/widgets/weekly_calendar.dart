@@ -23,7 +23,7 @@ class WeeklyCalendar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Column(
         children: [
-          _buildWeekLabels(),
+          _buildWeekLabels(context),
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -46,8 +46,9 @@ class WeeklyCalendar extends StatelessWidget {
     );
   }
 
-  Widget _buildWeekLabels() {
+  Widget _buildWeekLabels(BuildContext context) {
     const labels = AppStrings.weekdayShort;
+    final cs = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: labels
@@ -57,10 +58,10 @@ class WeeklyCalendar extends StatelessWidget {
               child: Center(
                 child: Text(
                   e,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
+                    color: cs.onSurface.withOpacity(0.65),
                   ),
                 ),
               ),
@@ -85,7 +86,7 @@ class WeeklyCalendar extends StatelessWidget {
         ? colorScheme.primary
         : today
             ? AppColors.primary(context)
-            : AppColors.textMain;
+            : colorScheme.onSurface;
 
     return SizedBox(
       width: 44,
