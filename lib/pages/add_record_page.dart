@@ -45,7 +45,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
   static const BorderRadius _kCategoryBorderRadius =
       BorderRadius.all(Radius.circular(16));
 
-
   static bool _lastIsExpense = true;
   static String? _lastAccountId;
   static bool _lastIncludeInStats = true;
@@ -232,7 +231,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
             const SizedBox(height: 2),
             Text(
               label,
-              style: const TextStyle(fontSize: 11),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
@@ -300,9 +299,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
     return TextField(
       controller: _amountCtrl,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      style: const TextStyle(
+      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
         fontSize: 30,
-        fontWeight: FontWeight.w700,
         color: AppColors.textMain,
       ),
       textAlign: TextAlign.right,
@@ -319,15 +317,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
     return SegmentedButton<bool>(
       showSelectedIcon: false,
       style: ButtonStyle(
-        padding: MaterialStateProperty.all(
+        padding: WidgetStateProperty.all(
           const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         ),
         visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
-        textStyle: MaterialStateProperty.all(
-          const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
+        textStyle: WidgetStateProperty.all(
+          Theme.of(context).textTheme.bodyLarge,
         ),
       ),
       segments: const [
@@ -338,7 +333,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
       onSelectionChanged: (set) {
         setState(() {
           _isExpense = set.first;
-          _lastIsExpense = _isExpense;
         });
       },
     );
@@ -357,16 +351,17 @@ class _AddRecordPageState extends State<AddRecordPage> {
     if (categories.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           Text(
             AppStrings.category,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
             AppStrings.emptyCategoryForRecord,
-            style: TextStyle(
-              fontSize: 13,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
@@ -377,9 +372,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           AppStrings.category,
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 4),
         Wrap(
@@ -406,7 +403,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           .withOpacity(0.08)
                       : Theme.of(context)
                           .colorScheme
-                          .surfaceVariant
+                          .surfaceContainerHighest
                           .withOpacity(0.4),
                 ),
                 child: Column(
@@ -426,8 +423,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight:
                             selected ? FontWeight.w600 : FontWeight.w400,
                       ),
@@ -449,14 +445,16 @@ class _AddRecordPageState extends State<AddRecordPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
+        Text(
           '更多设置',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           '记账习惯和统计',
-          style: TextStyle(fontSize: 12),
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 12),
         SwitchListTile(
@@ -529,9 +527,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final cs = theme.colorScheme;
 
     final List<Widget> children = [
-      const Text(
+      Text(
         AppStrings.category,
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
       ),
       const SizedBox(height: 4),
     ];
@@ -632,7 +632,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
             padding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             decoration: BoxDecoration(
-              color: cs.surfaceVariant.withOpacity(0.3),
+              color: cs.surfaceContainerHighest.withOpacity(0.3),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Wrap(
@@ -719,9 +719,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '账户',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 6),
         InkWell(
@@ -742,7 +744,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
-              color: colorScheme.surfaceVariant.withOpacity(0.4),
+              color: colorScheme.surfaceContainerHighest.withOpacity(0.4),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -788,9 +790,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           AppStrings.selectDate,
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 6),
         InkWell(
@@ -803,7 +807,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
               borderRadius: BorderRadius.circular(10),
               color: Theme.of(context)
                   .colorScheme
-                  .surfaceVariant
+                  .surfaceContainerHighest
                   .withOpacity(0.4),
             ),
             child: Row(
@@ -811,7 +815,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
               children: [
                 Text(
                   DateUtilsX.ymd(_selectedDate),
-                  style: const TextStyle(fontSize: 15),
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const Icon(Icons.calendar_today_outlined, size: 18),
               ],
@@ -870,7 +874,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Widget _buildNumberPad() {
     final bottom = MediaQuery.of(context).padding.bottom;
     final cs = Theme.of(context).colorScheme;
-    final keyBackground = cs.surfaceVariant.withOpacity(0.25);
+    final keyBackground = cs.surfaceContainerHighest.withOpacity(0.25);
 
     Widget buildKey({
       required String label,
@@ -1083,9 +1087,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
         '更多设置',
         style: TextStyle(fontWeight: FontWeight.w600),
       ),
-      subtitle: const Text(
+      subtitle: Text(
         '记账习惯和统计',
-        style: TextStyle(fontSize: 12),
+        style: Theme.of(context).textTheme.bodyMedium,
       ),
       childrenPadding: const EdgeInsets.only(top: 4),
       children: [
@@ -1103,9 +1107,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '常用模板',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 8),
         Wrap(

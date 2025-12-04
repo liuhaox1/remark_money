@@ -332,9 +332,11 @@ class ProfilePage extends StatelessWidget {
           const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.delete_forever_outlined, color: Colors.red),
-            title: const Text(
+            title: Text(
               '清空全部数据',
-              style: TextStyle(color: Colors.red),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Colors.red,
+              ),
             ),
             subtitle: const Text('清除本地存储的账本、记录、账户等数据（不可恢复）'),
             trailing: const Icon(Icons.chevron_right),
@@ -665,27 +667,32 @@ class ProfilePage extends StatelessWidget {
           context: context,
           builder: (ctx) => AlertDialog(
             icon: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
-            title: const Text(
+            title: Text(
               '清空全部数据',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            content: const Column(
+            content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '此操作将永久删除：',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                SizedBox(height: 8),
-                Text('• 所有账本'),
-                Text('• 所有记账记录'),
-                Text('• 所有账户信息'),
-                Text('• 所有分类设置'),
-                SizedBox(height: 12),
+                const SizedBox(height: 8),
+                const Text('• 所有账本'),
+                const Text('• 所有记账记录'),
+                const Text('• 所有账户信息'),
+                const Text('• 所有分类设置'),
+                const SizedBox(height: 12),
                 Text(
                   '⚠️ 此操作不可撤销，请谨慎操作！',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Colors.red,
                     fontWeight: FontWeight.w600,
                   ),

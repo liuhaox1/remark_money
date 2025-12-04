@@ -583,11 +583,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
                                   emptyText,
 
-                                  style: TextStyle(
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
                                     color: cs.onSurface.withOpacity(0.4),
-
-                                    fontSize: 13,
 
                                   ),
 
@@ -671,11 +669,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
                                                   entry.label,
 
-                                                  style: TextStyle(
-
-                                                    fontSize: 14,
-
-                                                    fontWeight: FontWeight.w500,
+                                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
                                                     color: cs.onSurface.withOpacity(0.9),
 
@@ -693,9 +687,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
                                                   '${_formatAmount(entry.value)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
 
-                                                  style: TextStyle(
-
-                                                    fontSize: 14,
+                                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
                                                     fontWeight: FontWeight.w600,
 
@@ -745,9 +737,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
                                       .chartCategoryDistributionDesc,
 
-                              style: TextStyle(
-
-                                fontSize: 12,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
                                 color: cs.onSurface.withOpacity(0.6),
 
@@ -851,13 +841,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
                                       _isYearMode ? '暂无月趋势数据' : '暂无日趋势数据',
 
-                                      style: TextStyle(
+                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
                                         color: cs.onSurface.withOpacity(0.5),
-
-                                        fontSize: 14,
-
-                                        fontWeight: FontWeight.w500,
 
                                       ),
 
@@ -873,11 +859,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
                                           : '当有记账记录时会显示每日支出趋势',
 
-                                      style: TextStyle(
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
                                         color: cs.onSurface.withOpacity(0.4),
-
-                                        fontSize: 12,
 
                                       ),
 
@@ -2422,9 +2406,7 @@ class _PeriodHeaderCard extends StatelessWidget {
 
                       title,
 
-                      style: TextStyle(
-
-                        fontSize: 15,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
 
                         fontWeight: FontWeight.w600,
 
@@ -2442,9 +2424,7 @@ class _PeriodHeaderCard extends StatelessWidget {
 
                       AppStrings.currentBookLabel(bookName),
 
-                      style: TextStyle(
-
-                        fontSize: 12,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
                         color: cs.onSurface.withOpacity(0.5),
 
@@ -2488,9 +2468,7 @@ class _PeriodHeaderCard extends StatelessWidget {
 
                     AppTextTemplates.viewBillList,
 
-                    style: TextStyle(
-
-                      fontSize: 13,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
                       color: cs.primary,
 
@@ -2544,9 +2522,7 @@ class _PeriodHeaderCard extends StatelessWidget {
 
                       _formatAmount(balance),
 
-                      style: TextStyle(
-
-                        fontSize: 24,
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
 
                         fontWeight: FontWeight.w500,
 
@@ -2760,9 +2736,7 @@ class _SectionCard extends StatelessWidget {
 
                   title,
 
-                  style: TextStyle(
-
-                    fontSize: 15,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
 
                     fontWeight: FontWeight.w600,
 
@@ -2785,19 +2759,11 @@ class _SectionCard extends StatelessWidget {
             const SizedBox(height: 18),
 
             DefaultTextStyle(
-
-              style: TextStyle(
-
+              style: (Theme.of(context).textTheme.bodyLarge ?? const TextStyle()).copyWith(
                 color: cs.onSurface.withOpacity(0.85),
-
-                fontSize: 14,
-
                 height: 1.5,
-
               ),
-
               child: child,
-
             ),
 
           ],
@@ -2864,18 +2830,11 @@ class _EmptyPeriodCard extends StatelessWidget {
 
         children: [
 
-          const Text(
-
+          Text(
             AppStrings.emptyPeriodRecords,
-
-            style: TextStyle(
-
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.w700,
-
-              fontSize: 14,
-
             ),
-
           ),
 
           const SizedBox(height: 10),
@@ -2952,9 +2911,7 @@ class _SummaryMetric extends StatelessWidget {
 
           label,
 
-          style: TextStyle(
-
-            fontSize: 11,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
 
             fontWeight: FontWeight.w500,
 
@@ -3034,11 +2991,9 @@ class _AchievementRow extends StatelessWidget {
 
             label,
 
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
               color: cs.onSurface.withOpacity(0.7),
-
-              fontSize: 14,
 
               fontWeight: FontWeight.w400,
 
@@ -3052,11 +3007,9 @@ class _AchievementRow extends StatelessWidget {
 
           value,
 
-          style: TextStyle(
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
 
             fontWeight: FontWeight.w700,
-
-            fontSize: 15,
 
             color: cs.onSurface,
 
@@ -3250,9 +3203,7 @@ class _RankingItem extends StatelessWidget {
 
               rank.toString(),
 
-              style: TextStyle(
-
-                fontSize: 12,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
                 fontWeight: FontWeight.w600,
 
@@ -3306,9 +3257,7 @@ class _RankingItem extends StatelessWidget {
 
             entry.label,
 
-            style: TextStyle(
-
-              fontSize: 14,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
               fontWeight: FontWeight.w500,
 
@@ -3326,9 +3275,7 @@ class _RankingItem extends StatelessWidget {
 
           _formatAmount(entry.value),
 
-          style: TextStyle(
-
-            fontSize: 14,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
             fontWeight: FontWeight.w600,
 
@@ -3416,9 +3363,7 @@ class _DailyTrendStatItem extends StatelessWidget {
 
           label,
 
-          style: TextStyle(
-
-            fontSize: 11,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
 
             color: cs.onSurface.withOpacity(0.6),
 
@@ -3434,9 +3379,7 @@ class _DailyTrendStatItem extends StatelessWidget {
 
           _formatAmount(value),
 
-          style: TextStyle(
-
-            fontSize: 14,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
             color: Colors.black,
 
@@ -3454,9 +3397,7 @@ class _DailyTrendStatItem extends StatelessWidget {
 
             isYearMode ? '${date!.month}月' : '${date!.month}月${date!.day}日',
 
-            style: TextStyle(
-
-              fontSize: 10,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
 
               color: cs.onSurface.withOpacity(0.5),
 

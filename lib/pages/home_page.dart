@@ -1390,9 +1390,7 @@ class _HomePageState extends State<HomePage> {
 
             label,
 
-            style: TextStyle(
-
-              fontSize: 12,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
               color: cs.onPrimaryContainer,
 
@@ -1479,9 +1477,7 @@ class _HomePageState extends State<HomePage> {
 
                 topCategory.name,
 
-                style: TextStyle(
-
-                  fontSize: 13,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
 
                   fontWeight: FontWeight.w600,
 
@@ -1511,9 +1507,7 @@ class _HomePageState extends State<HomePage> {
 
                   '$selectedCount',
 
-                  style: TextStyle(
-
-                    fontSize: 11,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
 
                     color: cs.onPrimary,
 
@@ -1606,9 +1600,7 @@ class _HomePageState extends State<HomePage> {
 
           label,
 
-          style: const TextStyle(
-
-            fontSize: 12,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
             fontWeight: FontWeight.normal,
 
@@ -1918,12 +1910,11 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 12),
 
-              const Text(
-
+              Text(
                 AppStrings.emptyToday,
-
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
 
               const SizedBox(height: 8),
@@ -2383,8 +2374,7 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
                       label,
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -2415,10 +2405,9 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: Text(
                         label,
-                        style: TextStyle(
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                           color: selected ? cs.primary : cs.onSurface,
-                          fontSize: 13,
                         ),
                       ),
                     ),

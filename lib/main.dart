@@ -135,8 +135,10 @@ class RemarkMoneyApp extends StatelessWidget {
             colorSchemeSeed: theme.seedColor,
             brightness: Brightness.dark,
           );
-          final textThemeLight = GoogleFonts.notoSansScTextTheme(
-            baseLight.textTheme,
+          // 统一字体样式配置 - 使用 Noto Sans SC 字体
+          final notoSansScFontFamily = GoogleFonts.notoSansSc().fontFamily;
+          final textThemeLight = baseLight.textTheme.apply(
+            fontFamily: notoSansScFontFamily,
           ).copyWith(
             headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
             headlineMedium: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
@@ -149,8 +151,8 @@ class RemarkMoneyApp extends StatelessWidget {
             labelLarge: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             labelMedium: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
           );
-          final textThemeDark = GoogleFonts.notoSansScTextTheme(
-            baseDark.textTheme,
+          final textThemeDark = baseDark.textTheme.apply(
+            fontFamily: notoSansScFontFamily,
           ).copyWith(
             headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
             headlineMedium: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
@@ -164,12 +166,54 @@ class RemarkMoneyApp extends StatelessWidget {
             labelMedium: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
           );
 
+          final listTileTheme = ListTileThemeData(
+            titleTextStyle: textThemeLight.titleMedium,
+            subtitleTextStyle: textThemeLight.bodyMedium?.copyWith(
+              color: baseLight.colorScheme.onSurface.withOpacity(0.7),
+            ),
+          );
+
+          final navBarTheme = NavigationBarThemeData(
+            labelTextStyle: WidgetStateProperty.all(
+              textThemeLight.bodyMedium,
+            ),
+          );
+
+          final textButtonThemeLight = TextButtonThemeData(
+            style: TextButton.styleFrom(
+              textStyle: textThemeLight.bodyMedium,
+            ),
+          );
+          final textButtonThemeDark = TextButtonThemeData(
+            style: TextButton.styleFrom(
+              textStyle: textThemeDark.bodyMedium,
+            ),
+          );
+
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: AppStrings.appTitle,
             themeMode: theme.mode,
-            theme: baseLight.copyWith(textTheme: textThemeLight),
-            darkTheme: baseDark.copyWith(textTheme: textThemeDark),
+            theme: baseLight.copyWith(
+              textTheme: textThemeLight,
+              listTileTheme: listTileTheme,
+              navigationBarTheme: navBarTheme,
+              textButtonTheme: textButtonThemeLight,
+            ),
+            darkTheme: baseDark.copyWith(
+              textTheme: textThemeDark,
+              listTileTheme: listTileTheme.copyWith(
+                subtitleTextStyle: textThemeDark.bodyMedium?.copyWith(
+                  color: baseDark.colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+              navigationBarTheme: navBarTheme.copyWith(
+                labelTextStyle: WidgetStateProperty.all(
+                  textThemeDark.bodyMedium,
+                ),
+              ),
+              textButtonTheme: textButtonThemeDark,
+            ),
             builder: (context, child) =>
                 DeviceFrame(child: child ?? const SizedBox.shrink()),
             home: const RootShell(),

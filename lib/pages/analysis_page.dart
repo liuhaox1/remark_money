@@ -543,8 +543,8 @@ class _PeriodList extends StatelessWidget {
     final header = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
-        children: const [
-          Expanded(
+        children: [
+          const Expanded(
             flex: 3,
             child: Text(
               '月份 / 周次',
@@ -557,19 +557,25 @@ class _PeriodList extends StatelessWidget {
           Expanded(
             child: Text(
               AppStrings.income,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           Expanded(
             child: Text(
               AppStrings.expense,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           Expanded(
             child: Text(
               AppStrings.balance,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

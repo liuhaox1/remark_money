@@ -19,6 +19,7 @@ import '../utils/csv_utils.dart';
 import '../utils/data_export_import.dart';
 import '../utils/records_export_bundle.dart';
 import '../utils/error_handler.dart';
+import '../utils/text_style_extensions.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -1236,72 +1237,72 @@ class _BillPageState extends State<BillPage> {
         ErrorHandler.showInfo(context, '正在导出...');
       }
 
-      final recordProvider = context.read<RecordProvider>();
-      final categoryProvider = context.read<CategoryProvider>();
-      final bookProvider = context.read<BookProvider>();
-      final accountProvider = context.read<AccountProvider>();
+    final recordProvider = context.read<RecordProvider>();
+    final categoryProvider = context.read<CategoryProvider>();
+    final bookProvider = context.read<BookProvider>();
+    final accountProvider = context.read<AccountProvider>();
 
-      final records = recordProvider.recordsForPeriod(
-        bookId,
-        start: range.start,
-        end: range.end,
-      );
-      if (records.isEmpty) {
-        if (context.mounted) {
+    final records = recordProvider.recordsForPeriod(
+      bookId,
+      start: range.start,
+      end: range.end,
+    );
+    if (records.isEmpty) {
+      if (context.mounted) {
           ErrorHandler.showWarning(context, '当前时间范围内暂无记录');
-        }
-        return;
       }
+      return;
+    }
 
-      final categoriesByKey = {
-        for (final c in categoryProvider.categories) c.key: c.name,
-      };
-      final booksById = {
-        for (final b in bookProvider.books) b.id: b.name,
-      };
+    final categoriesByKey = {
+      for (final c in categoryProvider.categories) c.key: c.name,
+    };
+    final booksById = {
+      for (final b in bookProvider.books) b.id: b.name,
+    };
 
-      final formatter = DateFormat('yyyy-MM-dd HH:mm');
+    final formatter = DateFormat('yyyy-MM-dd HH:mm');
 
-      final rows = <List<String>>[];
+    final rows = <List<String>>[];
+    rows.add([
+      '日期',
+      '金额',
+      '收支方向',
+      '分类',
+      '账本',
+      '账户',
+      '备注',
+      '是否计入统计',
+    ]);
+
+    for (final r in records) {
+      final dateStr = formatter.format(r.date);
+      final amountStr = r.amount.toStringAsFixed(2);
+      final directionStr = r.isIncome ? '收入' : '支出';
+      final categoryName =
+          categoriesByKey[r.categoryKey] ?? r.categoryKey;
+      final bookName = booksById[r.bookId] ?? bookProvider.activeBook?.name ??
+          '默认账本';
+      final accountName =
+          accountProvider.byId(r.accountId)?.name ?? '未知账户';
+      final remark = r.remark;
+      final includeStr = r.includeInStats ? '是' : '否';
+
       rows.add([
-        '日期',
-        '金额',
-        '收支方向',
-        '分类',
-        '账本',
-        '账户',
-        '备注',
-        '是否计入统计',
+        dateStr,
+        amountStr,
+        directionStr,
+        categoryName,
+        bookName,
+        accountName,
+        remark,
+        includeStr,
       ]);
+    }
 
-      for (final r in records) {
-        final dateStr = formatter.format(r.date);
-        final amountStr = r.amount.toStringAsFixed(2);
-        final directionStr = r.isIncome ? '收入' : '支出';
-        final categoryName =
-            categoriesByKey[r.categoryKey] ?? r.categoryKey;
-        final bookName = booksById[r.bookId] ?? bookProvider.activeBook?.name ??
-            '默认账本';
-        final accountName =
-            accountProvider.byId(r.accountId)?.name ?? '未知账户';
-        final remark = r.remark;
-        final includeStr = r.includeInStats ? '是' : '否';
+    final csv = toCsv(rows);
 
-        rows.add([
-          dateStr,
-          amountStr,
-          directionStr,
-          categoryName,
-          bookName,
-          accountName,
-          remark,
-          includeStr,
-        ]);
-      }
-
-      final csv = toCsv(rows);
-
-      final dir = await getTemporaryDirectory();
+    final dir = await getTemporaryDirectory();
       final bookName = bookProvider.activeBook?.name ?? '默认账本';
       // Windows 文件名不允许包含特殊字符，使用简洁的日期格式
       final startStr = '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
@@ -1309,11 +1310,11 @@ class _BillPageState extends State<BillPage> {
       // 文件名包含账本名称，更友好
       final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
       final fileName = '${safeBookName}_${startStr}_$endStr.csv';
-      final file = File('${dir.path}/$fileName');
+    final file = File('${dir.path}/$fileName');
 
-      await file.writeAsString(csv, encoding: utf8);
+    await file.writeAsString(csv, encoding: utf8);
 
-      if (!context.mounted) return;
+    if (!context.mounted) return;
 
       // Windows 平台使用文件保存对话框，其他平台使用共享
       if (Platform.isWindows) {
@@ -1338,11 +1339,11 @@ class _BillPageState extends State<BillPage> {
           }
         }
       } else {
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          subject: '指尖记账导出 CSV',
-          text: '指尖记账导出记录 CSV，可用 Excel 打开查看。',
-        );
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: '指尖记账导出 CSV',
+      text: '指尖记账导出记录 CSV，可用 Excel 打开查看。',
+    );
         if (context.mounted) {
           ErrorHandler.showSuccess(context, '导出成功！共 ${records.length} 条记录');
         }
@@ -2298,9 +2299,9 @@ class _BillPageState extends State<BillPage> {
                   );
                 }
 
-                return Column(
+    return Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
+      children: [
                     Container(
                       width: 40,
                       height: 4,
@@ -2346,16 +2347,16 @@ class _BillPageState extends State<BillPage> {
                                   Text(
                                     summaryText,
                                     style: TextStyle(
-                                      fontSize: 12,
+              fontSize: 12,
                                       color: cs.onSurface.withOpacity(0.8),
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
+        const SizedBox(height: 4),
+        Text(
                                     '预计找到 ${filteredCount()} 条记录',
-                                    style: TextStyle(
+          style: TextStyle(
                                       fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w700,
                                       color: cs.primary,
                                     ),
                                   ),
@@ -3543,16 +3544,16 @@ class _BillFilterSummaryBar extends StatelessWidget {
             Expanded(
               child: Text(
                 summaryText,
-                style: const TextStyle(fontSize: 11),
+                style: Theme.of(context).textTheme.bodySmall,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             TextButton(
               onPressed: onClearAll,
-              child: const Text(
+              child: Text(
                 '清空筛选',
-                style: TextStyle(fontSize: 11),
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
           ],

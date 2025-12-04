@@ -9,6 +9,7 @@ import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
+import '../utils/text_style_extensions.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 
 class AccountDetailPage extends StatelessWidget {
@@ -49,10 +50,7 @@ class AccountDetailPage extends StatelessWidget {
                         Expanded(
                           child: Text(
                             account.name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ),
                         if (account.brandKey != null)
@@ -70,9 +68,7 @@ class AccountDetailPage extends StatelessWidget {
                       children: [
                         Text(
                           account.currentBalance.toStringAsFixed(2),
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
+                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                             color: _getBalanceColor(account, cs),
                           ),
                         ),
@@ -95,8 +91,7 @@ class AccountDetailPage extends StatelessWidget {
                                 const SizedBox(width: 4),
                                 Text(
                                   _getBalanceIssueText(account),
-                                  style: TextStyle(
-                                    fontSize: 11,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: AppColors.danger,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -130,10 +125,9 @@ class AccountDetailPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '账户管理',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -183,9 +177,9 @@ class AccountDetailPage extends StatelessWidget {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     '账户间转账',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 16),
                   // 转入账户选择
@@ -194,9 +188,7 @@ class AccountDetailPage extends StatelessWidget {
                     children: [
                       Text(
                         '转入账户',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
@@ -229,8 +221,7 @@ class AccountDetailPage extends StatelessWidget {
                                   toAccountId != null
                                       ? accounts.firstWhere((a) => a.id == toAccountId).name
                                       : '请选择转入账户',
-                                  style: TextStyle(
-                                    fontSize: 15,
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     color: toAccountId != null
                                         ? Theme.of(context).colorScheme.onSurface
                                         : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
@@ -310,9 +301,9 @@ class AccountDetailPage extends StatelessWidget {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     '新增借款',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -393,9 +384,9 @@ class AccountDetailPage extends StatelessWidget {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     '还款',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -487,9 +478,9 @@ class AccountDetailPage extends StatelessWidget {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     '借给对方',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -568,9 +559,9 @@ class AccountDetailPage extends StatelessWidget {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     '收回借款',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -686,15 +677,14 @@ class AccountDetailPage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '调整账户余额',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               Text(
                 '如果账户余额与实际不符，可以直接调整余额。',
-                style: TextStyle(
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
@@ -786,8 +776,7 @@ class _BrandBadge extends StatelessWidget {
       ),
       child: Text(
         brand.shortName,
-        style: TextStyle(
-          fontSize: 12,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w600,
           color: brand.color,
         ),

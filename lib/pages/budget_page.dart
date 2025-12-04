@@ -13,6 +13,7 @@ import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
+import '../utils/text_style_extensions.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/budget_progress.dart';
 
@@ -133,18 +134,14 @@ class _BudgetPageState extends State<BudgetPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 AppStrings.budgetPeriodSettingTitle,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 AppStrings.budgetPeriodSettingDesc,
-                style: TextStyle(
-                  fontSize: 13,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
               ),
@@ -259,9 +256,7 @@ class _BudgetPageState extends State<BudgetPage> {
                       Expanded(
                         child: Text(
                           AppStrings.resetBookBudget,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: cs.onSurface,
                           ),
                         ),
@@ -271,8 +266,7 @@ class _BudgetPageState extends State<BudgetPage> {
                   const SizedBox(height: 12),
                   Text(
                     AppStrings.resetBookBudgetConfirm,
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       height: 1.5,
                       color: cs.onSurface.withOpacity(0.75),
                     ),
@@ -280,8 +274,7 @@ class _BudgetPageState extends State<BudgetPage> {
                   const SizedBox(height: 8),
                   Text(
                     '该操作只会清空预算设置，不会删除任何记账记录。',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: cs.onSurface.withOpacity(0.6),
                     ),
                   ),
@@ -522,9 +515,11 @@ class _BudgetPageState extends State<BudgetPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '优先为本期花得多的分类设置预算，有助于更好地控制支出。',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 12),
               Flexible(
@@ -1374,7 +1369,9 @@ class _SectionHeader extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           subtitle,
-          style: TextStyle(fontSize: 12, color: cs.outline),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: cs.outline,
+          ),
         ),
       ],
     );
@@ -1442,7 +1439,7 @@ class _CategoryBudgetTile extends StatelessWidget {
                   budget != null && budget! > 0
                       ? AppStrings.edit
                       : AppStrings.setBudget,
-                  style: const TextStyle(fontSize: 12),
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               )
             ],
