@@ -14,8 +14,6 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter/rendering.dart';
 
-import 'package:intl/intl.dart';
-
 import 'package:path_provider/path_provider.dart';
 
 import 'package:provider/provider.dart';
@@ -44,10 +42,9 @@ import '../providers/record_provider.dart';
 
 import '../repository/category_repository.dart';
 
-import '../theme/app_tokens.dart';
-
 import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
+import '../utils/error_handler.dart';
 
 import '../widgets/chart_bar.dart';
 
@@ -157,6 +154,20 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final categoryProvider = context.watch<CategoryProvider>();
 
     final bookProvider = context.watch<BookProvider>();
+
+    // 检查加载状态
+    if (!recordProvider.loaded || !categoryProvider.loaded || !bookProvider.loaded) {
+      return Scaffold(
+        backgroundColor: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+        appBar: AppBar(
+          title: const Text('报表详情'),
+          backgroundColor: Colors.transparent,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
     final bookId = widget.bookId;
 
@@ -967,62 +978,39 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     debugRepaintRainbowEnabled = false;
     debugRepaintTextRainbowEnabled = false;
     // 确保关闭后再出一帧，避免上一次调试基线残留在截图里
-    RendererBinding.instance.renderView.markNeedsPaint();
+    for (final view in RendererBinding.instance.renderViews) {
+      view.markNeedsPaint();
+    }
     await WidgetsBinding.instance.endOfFrame;
     await Future.delayed(const Duration(milliseconds: 16));
+    
+    if (!context.mounted) return;
+    
     try {
       // 显示加载提示
-
-      if (context.mounted) {
-
-        ScaffoldMessenger.of(context).showSnackBar(
-
-          const SnackBar(
-
-            content: Row(
-
-              children: [
-
-                SizedBox(
-
-                  width: 16,
-
-                  height: 16,
-
-                  child: CircularProgressIndicator(strokeWidth: 2),
-
-                ),
-
-                SizedBox(width: 12),
-
-                Text('正在生成图片...'),
-
-              ],
-
-            ),
-
-            duration: Duration(seconds: 1),
-
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('正在生成图片...'),
+            ],
           ),
-
-        );
-
-      }
-
-
+          duration: Duration(seconds: 1),
+        ),
+      );
 
       // 获取当前状态数据（用于构建全尺寸 widget）
-
       final theme = Theme.of(context);
-
       final isDark = theme.brightness == Brightness.dark;
-
       final cs = theme.colorScheme;
-
       final recordProvider = context.read<RecordProvider>();
-
       final categoryProvider = context.read<CategoryProvider>();
-
       final bookProvider = context.read<BookProvider>();
 
       final bookId = widget.bookId;
@@ -1256,39 +1244,27 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
       // 等待渲染完成
-
       await Future.delayed(const Duration(milliseconds: 300));
-
       await WidgetsBinding.instance.endOfFrame;
 
-
+      if (!context.mounted) {
+        overlayEntry.remove();
+        return;
+      }
 
       // 获取 RenderRepaintBoundary
-
       final RenderRepaintBoundary? boundary = fullSizeKey.currentContext
-
           ?.findRenderObject() as RenderRepaintBoundary?;
-
-
 
       overlayEntry.remove();
 
 
 
       if (boundary == null) {
-
         if (context.mounted) {
-
-          ScaffoldMessenger.of(context).showSnackBar(
-
-            const SnackBar(content: Text('无法生成图片，请稍后重试')),
-
-          );
-
+          ErrorHandler.showError(context, '无法生成图片，请稍后重试');
         }
-
         return;
-
       }
 
 
@@ -1309,11 +1285,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
         if (context.mounted) {
 
-          ScaffoldMessenger.of(context).showSnackBar(
-
-            const SnackBar(content: Text('图片生成失败')),
-
-          );
+          ErrorHandler.showError(context, '图片生成失败');
 
         }
 
@@ -1378,47 +1350,18 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           await file.copy(savedPath);
 
           if (context.mounted) {
-
             final fileSize = await File(savedPath).length();
-
+            
+            if (!context.mounted) return;
+            
             final sizeStr = fileSize > 1024 * 1024
-
                 ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
-
                 : '${(fileSize / 1024).toStringAsFixed(2)} KB';
 
-            ScaffoldMessenger.of(context).showSnackBar(
-
-              SnackBar(
-
-                content: Column(
-
-                  mainAxisSize: MainAxisSize.min,
-
-                  crossAxisAlignment: CrossAxisAlignment.start,
-
-                  children: [
-
-                    const Text('图片保存成功！'),
-
-                    Text(
-
-                      '文件大小：$sizeStr',
-
-                      style: const TextStyle(fontSize: 12),
-
-                    ),
-
-                  ],
-
-                ),
-
-                duration: const Duration(seconds: 3),
-
-              ),
-
+            ErrorHandler.showSuccess(
+              context,
+              '图片保存成功！文件大小：$sizeStr',
             );
-
           }
 
         }
@@ -1441,9 +1384,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存图片失败，请稍后重试')),
-        );
+        ErrorHandler.handleAsyncError(context, e);
       }
     } finally {
       debugPaintSizeEnabled = prevDebugPaintSizeEnabled;
@@ -2112,9 +2053,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 value: maxDailyExpense,
 
                 date: _isYearMode 
-
-                    ? (maxIndex != null ? DateTime(widget.year, maxIndex! + 1, 1) : null)
-
+                    ? (maxIndex != null ? DateTime(widget.year, maxIndex + 1, 1) : null)
                     : maxDate,
 
                 isYearMode: _isYearMode,

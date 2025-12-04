@@ -5,6 +5,8 @@ import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../providers/category_provider.dart';
 import '../theme/app_tokens.dart';
+import '../utils/validators.dart';
+import '../utils/error_handler.dart';
 
 class CategoryManagerPage extends StatefulWidget {
   const CategoryManagerPage({super.key});
@@ -220,13 +222,22 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
   }
 
   Future<void> _showAddSubCategoryDialog(Category parent) async {
-    final created = await _showCategoryDialog(
-      parentKey: parent.key,
-      initialIsExpense: parent.isExpense,
-    );
-    if (created != null && mounted) {
-      await context.read<CategoryProvider>().addCategory(created);
-      setState(() => _expandedTopKeys.add(parent.key));
+    try {
+      final created = await _showCategoryDialog(
+        parentKey: parent.key,
+        initialIsExpense: parent.isExpense,
+      );
+      if (created != null && mounted) {
+        await context.read<CategoryProvider>().addCategory(created);
+        if (mounted) {
+          setState(() => _expandedTopKeys.add(parent.key));
+          ErrorHandler.showSuccess(context, '分类已添加');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ErrorHandler.handleAsyncError(context, e);
+      }
     }
   }
 
@@ -252,21 +263,48 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
     );
 
     if (ok == true && mounted) {
-      await context.read<CategoryProvider>().deleteCategory(category.key);
+      try {
+        await context.read<CategoryProvider>().deleteCategory(category.key);
+        if (mounted) {
+          ErrorHandler.showSuccess(context, '分类已删除');
+        }
+      } catch (e) {
+        if (mounted) {
+          ErrorHandler.handleAsyncError(context, e);
+        }
+      }
     }
   }
 
   Future<void> _showAddCategoryDialog() async {
-    final result = await _showCategoryDialog();
-    if (result != null && mounted) {
-      await context.read<CategoryProvider>().addCategory(result);
+    try {
+      final result = await _showCategoryDialog();
+      if (result != null && mounted) {
+        await context.read<CategoryProvider>().addCategory(result);
+        if (mounted) {
+          ErrorHandler.showSuccess(context, '分类已添加');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ErrorHandler.handleAsyncError(context, e);
+      }
     }
   }
 
   Future<void> _showEditCategoryDialog(Category original) async {
-    final updated = await _showCategoryDialog(original: original);
-    if (updated != null && mounted) {
-      await context.read<CategoryProvider>().updateCategory(updated);
+    try {
+      final updated = await _showCategoryDialog(original: original);
+      if (updated != null && mounted) {
+        await context.read<CategoryProvider>().updateCategory(updated);
+        if (mounted) {
+          ErrorHandler.showSuccess(context, '分类已更新');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ErrorHandler.handleAsyncError(context, e);
+      }
     }
   }
 
@@ -365,24 +403,25 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                 ),
                 FilledButton(
                   onPressed: () {
-                    final name = nameCtrl.text.trim();
-                    if (name.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(AppStrings.categoryNameRequired),
-                        ),
+                    try {
+                      final name = nameCtrl.text.trim();
+                      final nameError = Validators.validateCategoryName(name);
+                      if (nameError != null) {
+                        ErrorHandler.showError(context, nameError);
+                        return;
+                      }
+                      final category = Category(
+                        key: original?.key ??
+                            'custom_${DateTime.now().millisecondsSinceEpoch}',
+                        name: name,
+                        icon: selectedIcon,
+                        isExpense: isExpense,
+                        parentKey: effectiveParentKey,
                       );
-                      return;
+                      Navigator.pop(context, category);
+                    } catch (e) {
+                      ErrorHandler.handleAsyncError(context, e);
                     }
-                    final category = Category(
-                      key: original?.key ??
-                          'custom_${DateTime.now().millisecondsSinceEpoch}',
-                      name: name,
-                      icon: selectedIcon,
-                      isExpense: isExpense,
-                      parentKey: effectiveParentKey,
-                    );
-                    Navigator.pop(context, category);
                   },
                   child: const Text(AppStrings.save),
                 ),

@@ -7,6 +7,8 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
+import '../utils/validators.dart';
+import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 
 class AccountDetailPage extends StatelessWidget {
@@ -720,26 +722,39 @@ class AccountDetailPage extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       onPressed: () async {
-                        final newBalance = double.tryParse(balanceCtrl.text.trim());
-                        
-                        if (newBalance == null) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            const SnackBar(content: Text('请输入有效的金额')),
-                          );
-                          return;
-                        }
+                        try {
+                          final balanceStr = balanceCtrl.text.trim();
+                          final newBalance = double.tryParse(balanceStr);
+                          
+                          // 验证金额
+                          final amountError = Validators.validateAmount(newBalance);
+                          if (amountError != null) {
+                            ErrorHandler.showError(ctx, amountError);
+                            return;
+                          }
 
-                        final accountProvider = context.read<AccountProvider>();
-                        final currentAccount = accountProvider.byId(account.id);
-                        if (currentAccount == null) return;
-                        
-                        // 直接调整余额到目标值
-                        final balanceDelta = newBalance - account.currentBalance;
-                        if (balanceDelta.abs() > 0.01) {
-                          await accountProvider.adjustBalance(account.id, balanceDelta);
-                        }
+                          final accountProvider = context.read<AccountProvider>();
+                          final currentAccount = accountProvider.byId(account.id);
+                          if (currentAccount == null) {
+                            ErrorHandler.showError(ctx, '账户不存在');
+                            return;
+                          }
+                          
+                          // 直接调整余额到目标值
+                          final balanceDelta = newBalance! - account.currentBalance;
+                          if (balanceDelta.abs() > 0.01) {
+                            await accountProvider.adjustBalance(account.id, balanceDelta);
+                          }
 
-                        if (context.mounted) Navigator.pop(context);
+                          if (context.mounted) {
+                            ErrorHandler.showSuccess(context, '余额已更新');
+                            Navigator.pop(context);
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ErrorHandler.handleAsyncError(context, e);
+                          }
+                        }
                       },
                       child: const Text('保存'),
                     ),

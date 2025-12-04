@@ -1233,22 +1233,7 @@ class _BillPageState extends State<BillPage> {
     try {
       // 显示加载提示
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 12),
-                Text('正在导出...'),
-              ],
-            ),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        ErrorHandler.showInfo(context, '正在导出...');
       }
 
       final recordProvider = context.read<RecordProvider>();
@@ -1378,22 +1363,7 @@ class _BillPageState extends State<BillPage> {
 
     // 显示加载提示
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              SizedBox(width: 12),
-              Text('正在导出...'),
-            ],
-          ),
-          duration: Duration(seconds: 1),
-        ),
-      );
+      ErrorHandler.showInfo(context, '正在导出...');
     }
 
     final records = recordProvider.recordsForPeriod(
@@ -1403,9 +1373,7 @@ class _BillPageState extends State<BillPage> {
     );
     if (records.isEmpty) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('当前时间范围内暂无记录')),
-        );
+        ErrorHandler.showWarning(context, '当前时间范围内暂无记录');
       }
       return;
     }
@@ -1451,22 +1419,7 @@ class _BillPageState extends State<BillPage> {
           final sizeStr = fileSize > 1024 * 1024
               ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
               : '${(fileSize / 1024).toStringAsFixed(2)} KB';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('导出成功！共 ${records.length} 条记录'),
-                  Text(
-                    '文件大小：$sizeStr',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          ErrorHandler.showSuccess(context, '导出成功！共 ${records.length} 条记录，文件大小：$sizeStr');
         }
       }
     } else {
@@ -2728,21 +2681,13 @@ class _BillPageState extends State<BillPage> {
                               final max =
                                   _currentMax(quickAmountKey, maxCtrl.text);
                               if (min != null && max != null && min > max) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('最小金额不能大于最大金额'),
-                                  ),
-                                );
+                                ErrorHandler.showError(context, '最小金额不能大于最大金额');
                                 return;
                               }
                               if (tempStartDate != null &&
                                   tempEndDate != null &&
                                   tempStartDate!.isAfter(tempEndDate!)) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('开始日期不能大于结束日期'),
-                                  ),
-                                );
+                                ErrorHandler.showError(context, '开始日期不能大于结束日期');
                                 return;
                               }
                               setState(() {
@@ -3187,18 +3132,21 @@ class _BillPageState extends State<BillPage> {
 
     if (!confirmed) return;
 
-    final recordProvider = context.read<RecordProvider>();
-    final accountProvider = context.read<AccountProvider>();
+    try {
+      final recordProvider = context.read<RecordProvider>();
+      final accountProvider = context.read<AccountProvider>();
 
-    await recordProvider.deleteRecord(
-      record.id,
-      accountProvider: accountProvider,
-    );
+      await recordProvider.deleteRecord(
+        record.id,
+        accountProvider: accountProvider,
+      );
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已删除记录')),
-    );
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, '记录已删除');
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
+    }
   }
 }
 

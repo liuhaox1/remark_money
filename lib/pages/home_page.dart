@@ -22,6 +22,7 @@ import '../providers/record_provider.dart';
 import '../providers/account_provider.dart';
 
 import '../utils/date_utils.dart';
+import '../utils/error_handler.dart';
 
 import '../models/period_type.dart';
 
@@ -2137,31 +2138,21 @@ class _HomePageState extends State<HomePage> {
 
     final ids = List<String>.from(_selectedRecordIds);
 
-    for (final id in ids) {
+    try {
+      for (final id in ids) {
+        await recordProvider.deleteRecord(
+          id,
+          accountProvider: accountProvider,
+        );
+      }
 
-      await recordProvider.deleteRecord(
-
-        id,
-
-        accountProvider: accountProvider,
-
-      );
-
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, '已删除 ${ids.length} 条记录');
+      _exitSelectionMode();
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
     }
-
-
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-
-      SnackBar(content: Text('已删除 ${ids.length} 条记录')),
-
-    );
-
-
-
-    _exitSelectionMode();
 
   }
 
@@ -2209,31 +2200,21 @@ class _HomePageState extends State<HomePage> {
 
     if (!confirmed) return;
 
+    try {
+      final recordProvider = context.read<RecordProvider>();
+      final accountProvider = context.read<AccountProvider>();
 
+      await recordProvider.deleteRecord(
+        record.id,
+        accountProvider: accountProvider,
+      );
 
-    final recordProvider = context.read<RecordProvider>();
-
-    final accountProvider = context.read<AccountProvider>();
-
-
-
-    await recordProvider.deleteRecord(
-
-      record.id,
-
-      accountProvider: accountProvider,
-
-    );
-
-
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-
-      const SnackBar(content: Text('记录已删除')),
-
-    );
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, '记录已删除');
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
+    }
 
   }
 
@@ -2827,21 +2808,13 @@ class _HomePageState extends State<HomePage> {
                               final max =
                                   _currentMax(quickAmountKey, maxCtrl.text);
                               if (min != null && max != null && min > max) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('最小金额不能大于最大金额'),
-                                  ),
-                                );
+                                ErrorHandler.showError(context, '最小金额不能大于最大金额');
                                 return;
                               }
                               if (tempStartDate != null &&
                                   tempEndDate != null &&
                                   tempStartDate!.isAfter(tempEndDate!)) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('开始日期不能大于结束日期'),
-                                  ),
-                                );
+                                ErrorHandler.showError(context, '开始日期不能大于结束日期');
                                 return;
                               }
                               setState(() {

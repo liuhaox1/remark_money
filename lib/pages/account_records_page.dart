@@ -26,6 +26,18 @@ class AccountRecordsPage extends StatelessWidget {
     final recordProvider = context.watch<RecordProvider>();
     final categoryProvider = context.watch<CategoryProvider>();
     final bookProvider = context.watch<BookProvider>();
+
+    // 检查加载状态
+    if (!accountProvider.loaded || !recordProvider.loaded || 
+        !categoryProvider.loaded || !bookProvider.loaded) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('账户流水')),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final account = accountProvider.byId(accountId);
     final bookId = bookProvider.activeBookId;
 

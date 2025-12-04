@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'providers/book_provider.dart';
 import 'providers/record_provider.dart';
@@ -124,20 +125,29 @@ class RemarkMoneyApp extends StatelessWidget {
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) {
+          final baseLight = ThemeData(
+            useMaterial3: true,
+            colorSchemeSeed: theme.seedColor,
+            brightness: Brightness.light,
+          );
+          final baseDark = ThemeData(
+            useMaterial3: true,
+            colorSchemeSeed: theme.seedColor,
+            brightness: Brightness.dark,
+          );
+          final textThemeLight = baseLight.textTheme.apply(
+            fontFamily: GoogleFonts.notoSansSc().fontFamily,
+          );
+          final textThemeDark = baseDark.textTheme.apply(
+            fontFamily: GoogleFonts.notoSansSc().fontFamily,
+          );
+
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: AppStrings.appTitle,
             themeMode: theme.mode,
-            theme: ThemeData(
-              useMaterial3: true,
-              colorSchemeSeed: theme.seedColor,
-              brightness: Brightness.light,
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              colorSchemeSeed: theme.seedColor,
-              brightness: Brightness.dark,
-            ),
+            theme: baseLight.copyWith(textTheme: textThemeLight),
+            darkTheme: baseDark.copyWith(textTheme: textThemeDark),
             builder: (context, child) =>
                 DeviceFrame(child: child ?? const SizedBox.shrink()),
             home: const RootShell(),

@@ -10,6 +10,8 @@ import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
+import '../utils/error_handler.dart';
+import '../utils/validators.dart';
 import 'account_detail_page.dart';
 import 'add_account_type_page.dart';
 import 'add_record_page.dart';
@@ -536,13 +538,17 @@ class _AccountTile extends StatelessWidget {
 
     if (!confirmed) return;
 
-    final accountProvider = context.read<AccountProvider>();
-    await accountProvider.deleteAccount(account.id);
+    try {
+      final accountProvider = context.read<AccountProvider>();
+      await accountProvider.deleteAccount(account.id);
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('账户已删除')),
-      );
+      if (context.mounted) {
+        ErrorHandler.showSuccess(context, '账户已删除');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ErrorHandler.handleAsyncError(context, e);
+      }
     }
   }
 
@@ -757,9 +763,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
   }).toList();
 
   if (assetAccounts.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('至少需要两个资产账户才能进行转账')),
-    );
+    ErrorHandler.showWarning(context, '至少需要两个资产账户才能进行转账');
     return;
   }
 
@@ -875,9 +879,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                             .where((a) => a.id != fromAccountId)
                             .toList();
                         if (availableAccounts.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('没有可选的转入账户')),
-                          );
+                          ErrorHandler.showWarning(context, '没有可选的转入账户');
                           return;
                         }
                         final selectedId = await showAccountSelectBottomSheet(
@@ -947,42 +949,46 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                     Expanded(
                       child: FilledButton(
                         onPressed: () async {
-                          final amount = double.tryParse(amountCtrl.text.trim());
-                          if (amount == null || amount <= 0) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(content: Text('请输入有效的金额')),
+                          try {
+                            final amountStr = amountCtrl.text.trim();
+                            final amount = double.tryParse(amountStr);
+                            
+                            // 验证金额
+                            final amountError = Validators.validateAmount(amount);
+                            if (amountError != null) {
+                              ErrorHandler.showError(ctx, amountError);
+                              return;
+                            }
+                            
+                            final fromId = fromAccountId;
+                            final toId = toAccountId;
+                            if (fromId == null || toId == null) {
+                              ErrorHandler.showError(ctx, '请选择转出和转入账户');
+                              return;
+                            }
+                            if (fromId == toId) {
+                              ErrorHandler.showError(ctx, '转出账户和转入账户不能相同');
+                              return;
+                            }
+                            
+                            final bookId = context.read<BookProvider>().activeBookId;
+                            await context.read<RecordProvider>().transfer(
+                              accountProvider: context.read<AccountProvider>(),
+                              fromAccountId: fromId,
+                              toAccountId: toId,
+                              amount: amount!,
+                              fee: 0,
+                              bookId: bookId,
                             );
-                            return;
-                          }
-                          final fromId = fromAccountId;
-                          final toId = toAccountId;
-                          if (fromId == null || toId == null) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(content: Text('请选择转出和转入账户')),
-                            );
-                            return;
-                          }
-                          if (fromId == toId) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(content: Text('转出账户和转入账户不能相同')),
-                            );
-                            return;
-                          }
-                          final bookId =
-                              context.read<BookProvider>().activeBookId;
-                          await context.read<RecordProvider>().transfer(
-                                accountProvider: context.read<AccountProvider>(),
-                                fromAccountId: fromId,
-                                toAccountId: toId,
-                                amount: amount,
-                                fee: 0,
-                                bookId: bookId,
-                              );
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('转账成功')),
-                            );
+                            
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ErrorHandler.showSuccess(context, '转账成功');
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ErrorHandler.handleAsyncError(context, e);
+                            }
                           }
                         },
                         child: const Text('确认转账'),

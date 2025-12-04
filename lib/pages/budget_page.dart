@@ -343,13 +343,16 @@ class _BudgetPageState extends State<BudgetPage> {
     if (!confirmed) return;
 
     if (!mounted) return;
-    final provider = context.read<BudgetProvider>();
-    await provider.resetBudgetForBook(bookId);
+    try {
+      final provider = context.read<BudgetProvider>();
+      await provider.resetBudgetForBook(bookId);
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.budgetSaved)),
-    );
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, AppStrings.budgetSaved);
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
+    }
   }
 
   Future<void> _showBudgetActionsSheet(String bookId) async {
@@ -448,27 +451,30 @@ class _BudgetPageState extends State<BudgetPage> {
 
     final provider = context.read<BudgetProvider>();
 
-    if (result.deleted || (result.value ?? 0) <= 0) {
-      if (isYear) {
-        await provider.deleteAnnualCategoryBudget(bookId, category.key);
-      } else {
-        await provider.deleteCategoryBudget(bookId, category.key);
+    try {
+      if (result.deleted || (result.value ?? 0) <= 0) {
+        if (isYear) {
+          await provider.deleteAnnualCategoryBudget(bookId, category.key);
+        } else {
+          await provider.deleteCategoryBudget(bookId, category.key);
+        }
+        if (!mounted) return;
+        ErrorHandler.showSuccess(context, AppStrings.categoryBudgetDeleted);
+        return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.categoryBudgetDeleted)),
-      );
-      return;
-    }
 
-    if (isYear) {
-      await provider.setAnnualCategoryBudget(
-          bookId, category.key, result.value!);
-    } else {
-      await provider.setCategoryBudget(bookId, category.key, result.value!);
+      if (isYear) {
+        await provider.setAnnualCategoryBudget(
+            bookId, category.key, result.value!);
+      } else {
+        await provider.setCategoryBudget(bookId, category.key, result.value!);
+      }
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, AppStrings.categoryBudgetSaved);
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.categoryBudgetSaved)),
-    );
   }
 
   Future<void> _addCategoryBudget({
@@ -488,11 +494,7 @@ class _BudgetPageState extends State<BudgetPage> {
         .toList(growable: false);
     if (candidates.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('所有支出分类都已设置预算，可直接点击分类右侧进行调整。'),
-        ),
-      );
+      ErrorHandler.showInfo(context, '所有支出分类都已设置预算，可直接点击分类右侧进行调整。');
       return;
     }
 

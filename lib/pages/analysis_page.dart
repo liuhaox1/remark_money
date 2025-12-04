@@ -30,6 +30,22 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final cs = theme.colorScheme;
     final recordProvider = context.watch<RecordProvider>();
     final bookProvider = context.watch<BookProvider>();
+
+    // 检查加载状态
+    if (!recordProvider.loaded || !bookProvider.loaded) {
+      return Scaffold(
+        backgroundColor: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+        appBar: AppBar(
+          elevation: 0,
+          toolbarHeight: 0,
+          backgroundColor: Colors.transparent,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final bookId = bookProvider.activeBookId;
     final bookName = bookProvider.activeBook?.name ?? AppStrings.defaultBook;
     final now = DateTime.now();

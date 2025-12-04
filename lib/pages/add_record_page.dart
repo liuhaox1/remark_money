@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -1066,7 +1067,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Future<void> _onPadSubmit() async {
     final amount = _evaluateAmount();
     if (amount == null || amount <= 0) {
-      _showMessage(AppStrings.amountError);
+      ErrorHandler.showError(context, AppStrings.amountError);
       return;
     }
     _amountCtrl.text = amount.toStringAsFixed(2);
@@ -1152,11 +1153,18 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Future<void> _loadTemplatesAndPlans() async {
-    final templates = await _templateRepository.loadTemplates();
-    if (!mounted) return;
-    setState(() {
-      _templates = templates;
-    });
+    try {
+      final templates = await _templateRepository.loadTemplates();
+      if (!mounted) return;
+      setState(() {
+        _templates = templates;
+      });
+    } catch (e) {
+      // 模板加载失败不影响主要功能，静默处理
+      if (mounted) {
+        debugPrint('[AddRecordPage] Failed to load templates: $e');
+      }
+    }
   }
 
   Future<void> _pickDate() async {

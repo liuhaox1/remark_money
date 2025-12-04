@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
+import '../utils/error_handler.dart';
 
 class BookSelectorButton extends StatelessWidget {
   const BookSelectorButton({
@@ -319,8 +320,18 @@ class BookSelectorButton extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () async {
-              await context.read<BookProvider>().deleteBook(id);
-              if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+              try {
+                await context.read<BookProvider>().deleteBook(id);
+                if (dialogCtx.mounted) {
+                  Navigator.pop(dialogCtx);
+                  ErrorHandler.showSuccess(context, '账本已删除');
+                }
+              } catch (e) {
+                if (dialogCtx.mounted) {
+                  Navigator.pop(dialogCtx);
+                  ErrorHandler.handleAsyncError(context, e);
+                }
+              }
             },
             child: const Text(AppStrings.delete),
           ),

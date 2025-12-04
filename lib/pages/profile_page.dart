@@ -707,13 +707,17 @@ class ProfilePage extends StatelessWidget {
     if (!confirmed) return;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    try {
+      await prefs.clear();
 
-    // 简单提示用户重启应用以重新加载默认数据。
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('数据已清空，重新打开应用后将生效')),
-      );
+      // 简单提示用户重启应用以重新加载默认数据。
+      if (context.mounted) {
+        ErrorHandler.showSuccess(context, '数据已清空，重新打开应用后将生效');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ErrorHandler.handleAsyncError(context, e);
+      }
     }
   }
 
