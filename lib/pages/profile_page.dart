@@ -18,7 +18,6 @@ import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -44,21 +43,6 @@ class ProfilePage extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const SizedBox(height: 8),
-              Text(
-                ProfileStringsLocal.settings,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: cs.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                ProfileStringsLocal.profileIntro,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurface.withOpacity(0.78),
-                    ),
-              ),
-              const SizedBox(height: 20),
               _buildBookSection(context, bookProvider),
               const SizedBox(height: 16),
               _buildThemeSection(context, themeProvider),
@@ -66,8 +50,6 @@ class ProfilePage extends StatelessWidget {
               _buildBudgetCategorySection(context),
               const SizedBox(height: 16),
               _buildDataSecuritySection(context),
-              const SizedBox(height: 16),
-              _buildDangerSection(context),
             ],
           ),
         ),
@@ -355,39 +337,6 @@ class ProfilePage extends StatelessWidget {
   }
 
 
-  Widget _buildDangerSection(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: Icon(Icons.warning_amber_outlined, color: cs.error),
-            title: Text(
-              '危险操作',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(color: cs.error),
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: Icon(Icons.delete_forever_outlined, color: cs.error),
-            title: Text(
-              '清空全部数据',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: cs.error,
-                  ),
-            ),
-            subtitle: const Text('清除本地存储的账本、记录、账户等数据（不可恢复）'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _confirmClearAll(context),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildBudgetCategorySection(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -730,80 +679,6 @@ class ProfilePage extends StatelessWidget {
   }
 
 
-  Future<void> _confirmClearAll(BuildContext context) async {
-    final cs = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            icon: Icon(Icons.warning_amber_rounded, color: cs.error, size: 48),
-            title: Text(
-              '清空全部数据',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: cs.error,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '此操作将永久删除：',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                const Text('- 所有账本'),
-                const Text('- 所有记账记录'),
-                const Text('- 所有账户信息'),
-                const Text('- 所有分类设置'),
-                const SizedBox(height: 12),
-                Text(
-                  '警告：此操作不可撤销，请谨慎操作',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: cs.error,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text(AppStrings.cancel),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: cs.error,
-                  foregroundColor: cs.onError,
-                ),
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text(AppStrings.delete),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (!confirmed) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    try {
-      await prefs.clear();
-
-      if (context.mounted) {
-        ErrorHandler.showSuccess(
-          context,
-          '数据已清空，重新打开应用后将生效',
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ErrorHandler.handleAsyncError(context, e);
-      }
-    }
-  }
 
   Future<void> _showAddBookDialog(BuildContext context) async {
     final controller = TextEditingController();

@@ -381,8 +381,8 @@ class _AssetSummaryCard extends StatelessWidget {
               _formatAmount(netWorth),
               style: TextStyle(
                 fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: netColor,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 8),
@@ -421,9 +421,9 @@ class _AssetSummaryCard extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
-            color: cs.onSurface.withOpacity(0.6),
-            fontWeight: FontWeight.w500,
+            fontSize: 12,
+            color: cs.onSurface.withOpacity(0.75),
+            fontWeight: FontWeight.w400,
           ),
         ),
         const SizedBox(height: 2),
@@ -432,7 +432,7 @@ class _AssetSummaryCard extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             color: cs.onSurface,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -581,9 +581,10 @@ class _AccountTile extends StatelessWidget {
                     children: [
                       Text(
                         account.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -605,10 +606,10 @@ class _AccountTile extends StatelessWidget {
                   account.currentBalance.toStringAsFixed(2),
                   style: TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: amountColor,
-                      ),
-                    ),
+                    fontWeight: FontWeight.w600,
+                    color: amountColor.withOpacity(0.9),
+                  ),
+                ),
                     if (hasIssue) ...[
                       const SizedBox(height: 2),
                       Container(

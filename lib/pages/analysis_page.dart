@@ -437,17 +437,17 @@ class _HeaderCard extends StatelessWidget {
                 _SummaryItem(
                   label: AppStrings.income,
                   value: income,
-                  color: AppColors.success,
+                  color: cs.onSurface,
                 ),
                 _SummaryItem(
                   label: AppStrings.expense,
                   value: expense,
-                  color: AppColors.danger,
+                  color: cs.onSurface,
                 ),
                 _SummaryItem(
                   label: AppStrings.balance,
                   value: balance,
-                  color: AppColors.amount(balance),
+                  color: cs.onSurface,
                 ),
               ],
             ),
@@ -492,16 +492,21 @@ class _SummaryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withOpacity(0.8),
+                ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -509,7 +514,7 @@ class _SummaryItem extends StatelessWidget {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: color,
+              color: cs.onSurface,
             ),
           ),
         ],
@@ -792,17 +797,17 @@ class _PeriodTile extends StatelessWidget {
                             _AmountLabel(
                               label: AppStrings.income,
                               value: income,
-                              color: AppColors.success,
+                              color: cs.onSurface,
                             ),
                             _AmountLabel(
                               label: AppStrings.expense,
                               value: expense,
-                              color: AppColors.danger,
+                              color: cs.onSurface,
                             ),
                             _AmountLabel(
                               label: AppStrings.balance,
                               value: balance,
-                              color: AppColors.amount(balance),
+                              color: cs.onSurface,
                             ),
                           ],
                         )
@@ -844,14 +849,16 @@ class _AmountLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
+            color: cs.onSurface.withOpacity(0.75),
           ),
         ),
         const SizedBox(height: 4),
@@ -860,7 +867,7 @@ class _AmountLabel extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: color,
+            color: cs.onSurface,
           ),
         ),
       ],
