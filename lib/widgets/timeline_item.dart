@@ -36,6 +36,7 @@ class TimelineItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final title = category?.name ?? AppStrings.unknown;
     final isExpense = record.isExpense;
     final Color color = isExpense ? AppColors.danger : AppColors.success;
@@ -44,6 +45,7 @@ class TimelineItem extends StatelessWidget {
     final sign = isExpense ? '-' : '+';
     final amountStr = '$sign${_NumberFormatter.format(amountValue)}';
     final primaryColor = AppColors.primary(context);
+    final amountColor = isExpense ? AppColors.danger : AppColors.success;
 
     final row = Row(
       children: [
@@ -112,9 +114,10 @@ class TimelineItem extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
+                            color: cs.onSurface,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -123,9 +126,9 @@ class TimelineItem extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             subtitle!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textSecondary,
+                              color: cs.onSurface.withOpacity(0.7),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -137,11 +140,11 @@ class TimelineItem extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     amountStr,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       fontFeatures: [FontFeature.tabularFigures()],
-                      color: AppColors.textMain,
+                      color: amountColor,
                     ),
                     textAlign: TextAlign.right,
                   ),

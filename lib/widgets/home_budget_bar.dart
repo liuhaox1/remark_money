@@ -216,11 +216,11 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             AppStrings.homeBudgetMonthlyEmptyDesc,
             style: TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: cs.onSurface.withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 12),
@@ -310,11 +310,11 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             AppStrings.homeBudgetYearlyEmptyDesc,
             style: TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: cs.onSurface.withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 12),

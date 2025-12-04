@@ -20,6 +20,7 @@ class BudgetProgress extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final progress = total <= 0 ? 0.0 : (used / total).clamp(0.0, 1.0);
     final remaining = (total - used).clamp(0, double.infinity).toDouble();
+    final labelColor = cs.onSurface.withOpacity(0.7);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -31,9 +32,10 @@ class BudgetProgress extends StatelessWidget {
               totalLabel ?? AppStrings.monthBudget,
               total,
               AppColors.primary(context),
+              labelColor,
             ),
-            _line(AppStrings.spent, used, AppColors.danger),
-            _line(AppStrings.remain, remaining, AppColors.success),
+            _line(AppStrings.spent, used, AppColors.danger, labelColor),
+            _line(AppStrings.remain, remaining, AppColors.success, labelColor),
           ],
         ),
         const SizedBox(height: 12),
@@ -52,15 +54,20 @@ class BudgetProgress extends StatelessWidget {
     );
   }
 
-  Widget _line(String label, double value, Color color) {
+  Widget _line(
+    String label,
+    double value,
+    Color color,
+    Color labelColor,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
-            color: AppColors.textSecondary,
+            color: labelColor,
           ),
         ),
         const SizedBox(height: 4),
