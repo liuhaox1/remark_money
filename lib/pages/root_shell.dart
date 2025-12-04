@@ -547,9 +547,7 @@ class _AccountTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isDebt = account.kind == AccountKind.liability;
     final hasIssue = _hasBalanceIssue(account);
-    final amountColor = hasIssue
-        ? AppColors.danger
-        : (isDebt ? cs.tertiary : AppColors.amount(account.currentBalance));
+    final amountColor = cs.onSurface;
     final icon = _iconForAccount(account);
 
     final tileContent = InkWell(

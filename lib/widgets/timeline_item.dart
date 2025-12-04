@@ -45,7 +45,7 @@ class TimelineItem extends StatelessWidget {
     final sign = isExpense ? '-' : '+';
     final amountStr = '$sign${_NumberFormatter.format(amountValue)}';
     final primaryColor = AppColors.primary(context);
-    final amountColor = isExpense ? AppColors.danger : AppColors.success;
+    final amountColor = cs.onSurface;
 
     final row = Row(
       children: [

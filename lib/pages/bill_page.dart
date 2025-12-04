@@ -1770,7 +1770,6 @@ class _BillPageState extends State<BillPage> {
             style: TextStyle(
               fontSize: 13,
               color: cs.onSurface.withOpacity(0.75),
-              fontWeight: FontWeight.w500,
             ),
           )
         ],
@@ -2356,7 +2355,6 @@ class _BillPageState extends State<BillPage> {
                                     '预计找到 ${filteredCount()} 条记录',
           style: TextStyle(
                                       fontSize: 12,
-            fontWeight: FontWeight.w700,
                                       color: cs.primary,
                                     ),
                                   ),
@@ -2496,9 +2494,7 @@ class _BillPageState extends State<BillPage> {
                                     tempCategoryKeys.isEmpty
                                         ? '全部分类'
                                         : '已选 ${tempCategoryKeys.length} 个分类',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    style: const TextStyle(),
                                   ),
                                   const Icon(Icons.chevron_right),
                                 ],
@@ -2891,9 +2887,7 @@ class _BillPageState extends State<BillPage> {
                           children: [
                             Text(
                               '已选 ${selected.length} 个',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: const TextStyle(),
                             ),
                             const Spacer(),
                             FilledButton(
@@ -3007,9 +3001,7 @@ class _BillPageState extends State<BillPage> {
                         children: [
                           Text(
                             '已选 ${selected.isEmpty ? '全部' : selected.length.toString()}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: const TextStyle(),
                           ),
                           const Spacer(),
                           FilledButton(

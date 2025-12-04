@@ -4799,7 +4799,7 @@ class _BalanceCard extends StatelessWidget {
 
     final isDark = theme.brightness == Brightness.dark;
 
-    final valueColor = AppColors.amount(balance);
+    final valueColor = cs.onSurface;
 
 
 
@@ -5054,14 +5054,7 @@ class _BalanceMiniItem extends StatelessWidget {
   Widget build(BuildContext context) {
 
     final cs = Theme.of(context).colorScheme;
-    Color valueColor;
-    if (label == AppStrings.expense) {
-      valueColor = AppColors.danger;
-    } else if (label == AppStrings.income) {
-      valueColor = AppColors.success;
-    } else {
-      valueColor = AppColors.amount(value);
-    }
+    const valueColor = null;
 
 
 
@@ -5095,7 +5088,7 @@ class _BalanceMiniItem extends StatelessWidget {
 
             fontWeight: FontWeight.w600,
 
-            color: valueColor,
+            color: cs.onSurface,
 
           ),
 
@@ -5112,4 +5105,3 @@ class _BalanceMiniItem extends StatelessWidget {
 
 
 // _ShortcutButton 已移除：顶部仅保留日期/账本/筛选，不再放账单/预算入口
-
