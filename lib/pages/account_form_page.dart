@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../constants/bank_brands.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
+import '../utils/validators.dart';
+import '../utils/error_handler.dart';
 
 class AccountFormPage extends StatefulWidget {
   const AccountFormPage({
@@ -1071,59 +1073,87 @@ class _AccountFormPageState extends State<AccountFormPage> {
     AccountSubtype subtype,
     bool isEditing,
   ) async {
+    // 数据验证
     final name = _nameCtrl.text.trim();
-    final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
-    if (name.isEmpty) {
-      _showSnack('请填写账户名称');
+    final nameError = Validators.validateAccountName(name);
+    if (nameError != null) {
+      ErrorHandler.showError(context, nameError);
       return;
     }
-    final normalizedAmount = amount.abs();
-    final provider = context.read<AccountProvider>();
-    final accountType = _mapSubtypeToLegacy(subtype);
 
-    if (isEditing && widget.account != null) {
-      // 编辑账户时，只更新账户信息，不修改余额
-      // 余额调整应该通过专门的"调整余额"功能进行
-      final updated = widget.account!.copyWith(
-        name: name,
-        kind: kind,
-        subtype: subtype.code,
-        type: accountType,
-        includeInTotal: _includeInOverview,
-        includeInOverview: _includeInOverview,
-        // 保持原有的 initialBalance 和 currentBalance 不变
-        counterparty: _counterpartyCtrl.text.trim().isEmpty
-            ? null
-            : _counterpartyCtrl.text.trim(),
-        brandKey: _brandKey,
-        dueDate: _dueDate,
-        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-      );
-      await provider.updateAccount(updated);
-    } else {
-      final account = Account(
-        id: '',
-        name: name,
-        kind: kind,
-        subtype: subtype.code,
-        type: accountType,
-        icon: 'wallet',
-        includeInTotal: _includeInOverview,
-        includeInOverview: _includeInOverview,
-        initialBalance: normalizedAmount,
-        currentBalance: normalizedAmount,
-        brandKey: _brandKey,
-        counterparty: _counterpartyCtrl.text.trim().isEmpty
-            ? null
-            : _counterpartyCtrl.text.trim(),
-        dueDate: _dueDate,
-        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-      );
-      await provider.addAccount(account);
+    final amountStr = _amountCtrl.text.trim();
+    double normalizedAmount = 0;
+    if (!isEditing && amountStr.isNotEmpty) {
+      final amountError = Validators.validateAmountString(amountStr);
+      if (amountError != null) {
+        ErrorHandler.showError(context, amountError);
+        return;
+      }
+      normalizedAmount = double.parse(amountStr.startsWith('.') ? '0$amountStr' : amountStr).abs();
     }
 
-    if (!mounted) return;
-    Navigator.pop(context, kind);
+    final note = _noteCtrl.text.trim();
+    final noteError = Validators.validateRemark(note);
+    if (noteError != null) {
+      ErrorHandler.showError(context, noteError);
+      return;
+    }
+
+    try {
+      final provider = context.read<AccountProvider>();
+      final accountType = _mapSubtypeToLegacy(subtype);
+
+      if (isEditing && widget.account != null) {
+        // 编辑账户时，只更新账户信息，不修改余额
+        // 余额调整应该通过专门的"调整余额"功能进行
+        final updated = widget.account!.copyWith(
+          name: name,
+          kind: kind,
+          subtype: subtype.code,
+          type: accountType,
+          includeInTotal: _includeInOverview,
+          includeInOverview: _includeInOverview,
+          // 保持原有的 initialBalance 和 currentBalance 不变
+          counterparty: _counterpartyCtrl.text.trim().isEmpty
+              ? null
+              : _counterpartyCtrl.text.trim(),
+          brandKey: _brandKey,
+          dueDate: _dueDate,
+          note: note.isEmpty ? null : note,
+        );
+        await provider.updateAccount(updated);
+        if (!mounted) return;
+        ErrorHandler.showSuccess(context, '账户已更新');
+      } else {
+        final account = Account(
+          id: '',
+          name: name,
+          kind: kind,
+          subtype: subtype.code,
+          type: accountType,
+          icon: 'wallet',
+          includeInTotal: _includeInOverview,
+          includeInOverview: _includeInOverview,
+          initialBalance: normalizedAmount,
+          currentBalance: normalizedAmount,
+          brandKey: _brandKey,
+          counterparty: _counterpartyCtrl.text.trim().isEmpty
+              ? null
+              : _counterpartyCtrl.text.trim(),
+          dueDate: _dueDate,
+          note: note.isEmpty ? null : note,
+        );
+        await provider.addAccount(account);
+        if (!mounted) return;
+        ErrorHandler.showSuccess(context, '账户已添加');
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context, kind);
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
+    }
   }
 
   void _showSnack(String text) {

@@ -187,6 +187,18 @@ class _HomePageState extends State<HomePage> {
 
     final bookProvider = context.watch<BookProvider>();
 
+    // 检查加载状态
+    if (!recordProvider.loaded || !categoryProvider.loaded || !bookProvider.loaded) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF111418)
+            : const Color(0xFFF3F4F6),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final bookId = bookProvider.activeBookId;
 
 

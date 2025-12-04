@@ -668,7 +668,22 @@ class _BillPageState extends State<BillPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final recordProvider = context.watch<RecordProvider>();
+    final categoryProvider = context.watch<CategoryProvider>();
     final bookProvider = context.watch<BookProvider>();
+
+    // 检查加载状态
+    if (!recordProvider.loaded || !categoryProvider.loaded || !bookProvider.loaded) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const SizedBox.shrink(),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final bookId = bookProvider.activeBookId;
     final bookName =
         bookProvider.activeBook?.name ?? AppStrings.defaultBook;

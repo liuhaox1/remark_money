@@ -11,6 +11,8 @@ import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
+import '../utils/validators.dart';
+import '../utils/error_handler.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/budget_progress.dart';
 
@@ -71,29 +73,51 @@ class _BudgetPageState extends State<BudgetPage> {
   }
 
   Future<void> _saveTotalBudget(String bookId) async {
-    final provider = context.read<BudgetProvider>();
-    final parsed = _parseAmount(_totalCtrl.text);
-    final total = parsed ?? 0;
+    try {
+      final provider = context.read<BudgetProvider>();
+      final parsed = _parseAmount(_totalCtrl.text);
+      final total = parsed ?? 0;
 
-    await provider.setTotal(bookId, total);
+      // 验证金额
+      final amountError = Validators.validateAmount(total);
+      if (amountError != null && total > 0) {
+        if (!mounted) return;
+        ErrorHandler.showError(context, amountError);
+        return;
+      }
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.budgetSaved)),
-    );
+      await provider.setTotal(bookId, total);
+
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, AppStrings.budgetSaved);
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
+    }
   }
 
   Future<void> _saveAnnualBudget(String bookId) async {
-    final provider = context.read<BudgetProvider>();
-    final parsed = _parseAmount(_totalCtrl.text);
-    final total = parsed ?? 0;
+    try {
+      final provider = context.read<BudgetProvider>();
+      final parsed = _parseAmount(_totalCtrl.text);
+      final total = parsed ?? 0;
 
-    await provider.setAnnualTotal(bookId, total);
+      // 验证金额
+      final amountError = Validators.validateAmount(total);
+      if (amountError != null && total > 0) {
+        if (!mounted) return;
+        ErrorHandler.showError(context, amountError);
+        return;
+      }
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.budgetSaved)),
-    );
+      await provider.setAnnualTotal(bookId, total);
+
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, AppStrings.budgetSaved);
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
+    }
   }
 
   Future<void> _openPeriodSheet(String bookId, int currentDay) async {
