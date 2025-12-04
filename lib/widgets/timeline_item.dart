@@ -144,7 +144,6 @@ class TimelineItem extends StatelessWidget {
                     amountStr,
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w700,
                       fontFeatures: [FontFeature.tabularFigures()],
                       color: amountColor,
                     ),

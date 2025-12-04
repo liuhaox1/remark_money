@@ -219,6 +219,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
     required String label,
     required VoidCallback onTap,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
@@ -227,7 +228,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 20, color: AppColors.textSecondary),
+            Icon(icon, size: 20, color: cs.onSurface.withOpacity(0.75)),
             const SizedBox(height: 2),
             Text(
               label,
@@ -296,12 +297,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Widget _buildAmountField() {
+    final cs = Theme.of(context).colorScheme;
     return TextField(
       controller: _amountCtrl,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
         fontSize: 30,
-        color: AppColors.textMain,
+        color: cs.onSurface,
       ),
       textAlign: TextAlign.right,
       readOnly: true,
@@ -348,6 +350,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Widget _buildCategoryQuickPicker(List<Category> categories) {
+    final cs = Theme.of(context).colorScheme;
     if (categories.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,7 +365,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
           Text(
             AppStrings.emptyCategoryForRecord,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
+              color: cs.onSurface.withOpacity(0.75),
             ),
           ),
         ],
@@ -401,10 +404,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           .colorScheme
                           .primary
                           .withOpacity(0.08)
-                      : Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
-                          .withOpacity(0.4),
+                      : Theme.of(context).colorScheme.surface,
+                  border: Border.all(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outlineVariant
+                        .withOpacity(0.5),
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -415,7 +421,10 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       size: _kCategoryIconSize,
                       color: selected
                           ? Theme.of(context).colorScheme.primary
-                          : AppColors.textSecondary,
+                          : Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.75),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -426,6 +435,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight:
                             selected ? FontWeight.w600 : FontWeight.w400,
+                        color: selected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.85),
                       ),
                     ),
                   ],
@@ -592,7 +607,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       size: _kCategoryIconSize,
                       color: selected
                           ? cs.primary
-                          : AppColors.textSecondary,
+                          : cs.onSurface.withOpacity(0.75),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -605,7 +620,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                         fontWeight: FontWeight.w500,
                         color: selected
                             ? cs.primary
-                            : AppColors.textSecondary,
+                            : cs.onSurface.withOpacity(0.75),
                       ),
                     ),
                   ],
@@ -632,7 +647,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
             padding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest.withOpacity(0.3),
+              color: cs.surface,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Wrap(
@@ -670,7 +685,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                             size: _kCategoryIconSize,
                             color: selected
                                 ? cs.primary
-                                : AppColors.textSecondary,
+                                : cs.onSurface.withOpacity(0.75),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -715,7 +730,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
         }
       }
     }
-    final colorScheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -739,17 +754,20 @@ class _AddRecordPageState extends State<AddRecordPage> {
               _selectedAccountId = selectedId;
             });
           },
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: colorScheme.surfaceContainerHighest.withOpacity(0.4),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: cs.surface,
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(0.5),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
                   child: Text(
                     selectedAccount != null
                         ? '${selectedAccount.name} · ${selectedAccount.currentBalance.toStringAsFixed(2)}'
@@ -758,12 +776,16 @@ class _AddRecordPageState extends State<AddRecordPage> {
                     style: TextStyle(
                       fontSize: 15,
                       color: selectedAccount != null
-                          ? AppColors.textMain
-                          : Theme.of(context).hintColor,
+                          ? cs.onSurface
+                          : cs.onSurface.withOpacity(0.55),
                     ),
                   ),
                 ),
-                const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 20,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
               ],
             ),
           ),
@@ -805,19 +827,28 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
-              color: Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withOpacity(0.4),
+              color: Theme.of(context).colorScheme.surface,
+              border: Border.all(
+                color: Theme.of(context)
+                    .colorScheme
+                    .outlineVariant
+                    .withOpacity(0.5),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   DateUtilsX.ymd(_selectedDate),
-                  style: Theme.of(context).textTheme.bodyLarge,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                 ),
-                const Icon(Icons.calendar_today_outlined, size: 18),
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                ),
               ],
             ),
           ),
@@ -894,7 +925,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
               label,
               style: TextStyle(
                 fontSize: 18,
-                color: textColor ?? AppColors.textMain,
+                color: textColor ?? cs.onSurface,
                 fontWeight: fontWeight,
               ),
             ),
@@ -926,7 +957,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                   label: '今天',
                   fontWeight: FontWeight.w600,
                   onTap: _onTodayTap,
-                  textColor: AppColors.textSecondary,
+                  textColor: cs.onSurface.withOpacity(0.75),
                 ),
               ],
             ),
@@ -938,7 +969,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 buildKey(
                   label: '+',
                   onTap: () => _onOperatorTap('+'),
-                  textColor: AppColors.textSecondary,
+                  textColor: cs.onSurface.withOpacity(0.75),
                 ),
               ],
             ),
@@ -950,7 +981,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 buildKey(
                   label: '-',
                   onTap: () => _onOperatorTap('-'),
-                  textColor: AppColors.textSecondary,
+                  textColor: cs.onSurface.withOpacity(0.75),
                 ),
               ],
             ),
@@ -961,7 +992,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 buildKey(
                   label: '⌫',
                   onTap: _onBackspace,
-                  textColor: AppColors.textSecondary,
+                  textColor: cs.onSurface.withOpacity(0.75),
                 ),
                 Expanded(
                   child: InkWell(

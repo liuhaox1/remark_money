@@ -1512,8 +1512,6 @@ class _HomePageState extends State<HomePage> {
 
                     color: cs.onPrimary,
 
-                    fontWeight: FontWeight.w600,
-
                   ),
 
                 ),
@@ -2472,7 +2470,6 @@ class _HomePageState extends State<HomePage> {
                                     '预计找到 ${filteredCount()} 条记录',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      fontWeight: FontWeight.w700,
                                       color: cs.primary,
                                     ),
                                   ),
@@ -2612,9 +2609,7 @@ class _HomePageState extends State<HomePage> {
                                     tempCategoryKeys.isEmpty
                                         ? '全部分类'
                                         : '已选 ${tempCategoryKeys.length} 个分类',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    style: const TextStyle(),
                                   ),
                                   const Icon(Icons.chevron_right),
                                 ],
@@ -3210,9 +3205,7 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             Text(
                               '已选 ${selected.length} 个',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: const TextStyle(),
                             ),
                             const Spacer(),
                             FilledButton(
@@ -3325,9 +3318,7 @@ Future<Set<String>?> _openAccountMultiSelector({
                         children: [
                           Text(
                             '已选 ${selected.isEmpty ? '全部' : selected.length.toString()}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: const TextStyle(),
                           ),
                           const Spacer(),
                           FilledButton(
@@ -4951,8 +4942,6 @@ class _BalanceCard extends StatelessWidget {
 
                           fontSize: 18,
 
-                          fontWeight: FontWeight.w700,
-
                           color: valueColor,
 
                         ),
@@ -5085,8 +5074,6 @@ class _BalanceMiniItem extends StatelessWidget {
           style: TextStyle(
 
             fontSize: 18, // 固定字体大小
-
-            fontWeight: FontWeight.w600,
 
             color: cs.onSurface,
 
