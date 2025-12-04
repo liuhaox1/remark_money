@@ -2,19 +2,20 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
+import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
-import '../l10n/app_strings.dart';
 
-// 本文件内统一使用的一套颜色和样式，用于年月周面板的商业化视觉统一
-const _primaryColor = Color(0xFFC97A1A);
-const _successColor = Color(0xFF13A067);
-const _dangerColor = Color(0xFFF24848);
-const _textMainColor = Color(0xFF222222);
-const _textSecondaryColor = Color(0xFF777777);
-const _dividerColor = Color(0xFFE6E2DD);
-const _zeroAmountColor = Color(0xFFB0B0B0);
+Color _amountTextColor(double value) {
+  if (value > 0) return AppColors.success;
+  if (value < 0) return AppColors.danger;
+  return AppColors.zero;
+}
+
+Color _positiveBgColor() => AppColors.success.withOpacity(0.08);
+Color _negativeBgColor() => AppColors.danger.withOpacity(0.08);
 
 TextStyle _summaryTextStyle(Color color) {
   return TextStyle(
@@ -23,15 +24,6 @@ TextStyle _summaryTextStyle(Color color) {
     color: color,
   );
 }
-
-Color _amountTextColor(double value) {
-  if (value > 0) return _successColor;
-  if (value < 0) return _dangerColor;
-  return _zeroAmountColor;
-}
-
-Color _positiveBgColor() => _successColor.withOpacity(0.08);
-Color _negativeBgColor() => _dangerColor.withOpacity(0.08);
 
 class DatePanel extends StatefulWidget {
   const DatePanel({
@@ -56,6 +48,7 @@ class _DatePanelState extends State<DatePanel>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final weekday = DateUtilsX.weekdayShort(_selectedDay);
 
     return DefaultTabController(
@@ -74,25 +67,24 @@ class _DatePanelState extends State<DatePanel>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade400,
+                color: cs.outlineVariant.withOpacity(0.8),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 12),
             Text(
               '${DateUtilsX.ymd(_selectedDay)}  $weekday',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: _textMainColor,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 12),
             TabBar(
-              indicatorColor: _primaryColor,
-              labelColor: _primaryColor,
-              unselectedLabelColor:
-                  theme.textTheme.bodyMedium?.color ?? _textSecondaryColor,
+              indicatorColor: cs.primary,
+              labelColor: cs.primary,
+              unselectedLabelColor: cs.onSurface.withOpacity(0.65),
               tabs: const [
                 Tab(text: AppStrings.tabMonth),
                 Tab(text: AppStrings.tabWeek),
@@ -135,8 +127,9 @@ class _DatePanelState extends State<DatePanel>
 
     final selected = await showModalBottomSheet<int>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (context) {
+        final cs = Theme.of(context).colorScheme;
         return SizedBox(
           height: 280,
           child: Column(
@@ -149,20 +142,29 @@ class _DatePanelState extends State<DatePanel>
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text(AppStrings.buttonCancel),
+                      child: Text(
+                        AppStrings.buttonCancel,
+                        style: TextStyle(color: cs.primary),
+                      ),
                     ),
-                    const Text(
+                    Text(
                       AppStrings.datePickerTitle,
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(context, tempYear),
-                      child: const Text(AppStrings.buttonOk),
+                      child: Text(
+                        AppStrings.buttonOk,
+                        style: TextStyle(color: cs.primary),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1),
+              Divider(height: 1, color: cs.outlineVariant),
               Expanded(
                 child: CupertinoPicker(
                   scrollController: controller,
@@ -187,7 +189,10 @@ class _DatePanelState extends State<DatePanel>
                           child: Center(
                             child: Text(
                               '${entry.value}',
-                              style: const TextStyle(fontSize: 18),
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: cs.onSurface,
+                              ),
                             ),
                           ),
                         ),
@@ -226,8 +231,9 @@ class _DatePanelState extends State<DatePanel>
 
     final selected = await showModalBottomSheet<List<int>>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (context) {
+        final cs = Theme.of(context).colorScheme;
         return SizedBox(
           height: 320,
           child: Column(
@@ -240,21 +246,30 @@ class _DatePanelState extends State<DatePanel>
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text(AppStrings.buttonCancel),
+                      child: Text(
+                        AppStrings.buttonCancel,
+                        style: TextStyle(color: cs.primary),
+                      ),
                     ),
-                    const Text(
+                    Text(
                       AppStrings.datePickerTitle,
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
                     ),
                     TextButton(
                       onPressed: () =>
                           Navigator.pop(context, [tempYear, tempMonth]),
-                      child: const Text(AppStrings.buttonOk),
+                      child: Text(
+                        AppStrings.buttonOk,
+                        style: TextStyle(color: cs.primary),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1),
+              Divider(height: 1, color: cs.outlineVariant),
               Expanded(
                 child: Row(
                   children: [
@@ -282,7 +297,10 @@ class _DatePanelState extends State<DatePanel>
                                 child: Center(
                                   child: Text(
                                     '${entry.value}',
-                                    style: const TextStyle(fontSize: 18),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: cs.onSurface,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -306,7 +324,8 @@ class _DatePanelState extends State<DatePanel>
                                 onTap: () {
                                   monthController.animateToItem(
                                     entry.key,
-                                    duration: const Duration(milliseconds: 200),
+                                    duration:
+                                        const Duration(milliseconds: 200),
                                     curve: Curves.easeOut,
                                   );
                                   tempMonth = entry.value;
@@ -314,7 +333,10 @@ class _DatePanelState extends State<DatePanel>
                                 child: Center(
                                   child: Text(
                                     entry.value.toString().padLeft(2, '0'),
-                                    style: const TextStyle(fontSize: 18),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: cs.onSurface,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -342,6 +364,7 @@ class _DatePanelState extends State<DatePanel>
   }
 
   Widget _buildDayTab(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final recordProvider = context.watch<RecordProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
     final monthStart = DateTime(_currentYear, _currentMonth, 1);
@@ -402,8 +425,8 @@ class _DatePanelState extends State<DatePanel>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
-                side: const BorderSide(color: _primaryColor),
-                foregroundColor: _primaryColor,
+                side: BorderSide(color: cs.primary),
+                foregroundColor: cs.primary,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               ),
@@ -427,9 +450,9 @@ class _DatePanelState extends State<DatePanel>
                   child: Center(
                     child: Text(
                       label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey,
+                        color: cs.onSurface.withOpacity(0.6),
                       ),
                     ),
                   ),
@@ -451,6 +474,7 @@ class _DatePanelState extends State<DatePanel>
   }
 
   Widget _buildWeekTab(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final recordProvider = context.watch<RecordProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
 
@@ -459,7 +483,6 @@ class _DatePanelState extends State<DatePanel>
 
     final Map<DateTime, List<DateTime>> weekMap = {};
     for (final day in days) {
-      // 以周一为一周起点
       final weekStart =
           DateTime(day.year, day.month, day.day - (day.weekday - 1));
       weekMap.putIfAbsent(weekStart, () => <DateTime>[]).add(day);
@@ -468,7 +491,6 @@ class _DatePanelState extends State<DatePanel>
     final weeks = weekMap.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
 
-    // 头部“XX月总结余”
     final monthLabel = _currentMonth.toString().padLeft(2, '0');
     final monthIncome = recordProvider.monthIncome(monthStart, bookId);
     final monthExpense = recordProvider.monthExpense(monthStart, bookId);
@@ -478,7 +500,6 @@ class _DatePanelState extends State<DatePanel>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 与"日"TAB一样的头部：左边结余，右边月份选择
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -496,8 +517,8 @@ class _DatePanelState extends State<DatePanel>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
-                side: const BorderSide(color: _primaryColor),
-                foregroundColor: _primaryColor,
+                side: BorderSide(color: cs.primary),
+                foregroundColor: cs.primary,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 6,
@@ -516,7 +537,6 @@ class _DatePanelState extends State<DatePanel>
           ],
         ),
         const SizedBox(height: 12),
-        // 没有数据的情况
         if (weeks.isEmpty)
           const Expanded(
             child: Center(
@@ -524,12 +544,11 @@ class _DatePanelState extends State<DatePanel>
             ),
           )
         else
-          // 正常周列表
           Expanded(
             child: ListView.separated(
               itemCount: weeks.length,
               separatorBuilder: (_, __) =>
-                  const Divider(height: 1, color: _dividerColor),
+                  Divider(height: 1, color: cs.outlineVariant),
               itemBuilder: (context, index) {
                 final entry = weeks[index];
                 final weekDays = entry.value..sort();
@@ -584,6 +603,7 @@ class _DatePanelState extends State<DatePanel>
   }
 
   Widget _buildMonthTab(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final recordProvider = context.watch<RecordProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
 
@@ -601,7 +621,6 @@ class _DatePanelState extends State<DatePanel>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 年度结余 + 年份选择在同一行
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -616,8 +635,8 @@ class _DatePanelState extends State<DatePanel>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
-                side: const BorderSide(color: _primaryColor),
-                foregroundColor: _primaryColor,
+                side: BorderSide(color: cs.primary),
+                foregroundColor: cs.primary,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 6,
@@ -670,32 +689,32 @@ class _DayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    Color bg = Colors.grey.shade100;
-    Color dayColor = Colors.black87;
-    Color amountColor = Colors.black54;
+    Color bg = cs.surfaceVariant.withOpacity(0.35);
+    Color dayColor = cs.onSurface;
+    Color amountColor = cs.onSurface.withOpacity(0.7);
 
     if (selected) {
-      bg = cs.surfaceVariant;
-      dayColor = cs.onSurface;
-      amountColor = cs.onSurface;
+      bg = cs.primary.withOpacity(0.12);
+      dayColor = cs.primary;
+      amountColor = cs.primary;
     } else if (net > 0) {
       bg = _positiveBgColor();
       dayColor = cs.onSurface;
-      amountColor = _successColor;
+      amountColor = AppColors.success;
     } else if (net < 0) {
       bg = _negativeBgColor();
       dayColor = cs.onSurface;
-      amountColor = _dangerColor;
+      amountColor = AppColors.danger;
     } else if (hasData) {
-      bg = Colors.grey.shade100;
+      bg = cs.surfaceVariant.withOpacity(0.35);
       dayColor = cs.onSurface;
       amountColor = cs.onSurface.withOpacity(0.7);
     }
 
     if (disabled) {
-      bg = Colors.grey.shade200;
-      dayColor = Colors.grey.shade600;
-      amountColor = Colors.grey.shade500;
+      bg = cs.surfaceVariant.withOpacity(0.6);
+      dayColor = cs.onSurface.withOpacity(0.4);
+      amountColor = cs.onSurface.withOpacity(0.35);
     }
 
     return InkWell(
@@ -769,13 +788,11 @@ class _MonthNetGrid extends StatelessWidget {
             .recordsForMonth(bookId, monthDate.year, monthDate.month)
             .isNotEmpty;
 
-        Color tileColor;
+        Color tileColor = cs.surfaceVariant.withOpacity(0.35);
         if (net > 0) {
           tileColor = _positiveBgColor();
         } else if (net < 0) {
           tileColor = _negativeBgColor();
-        } else {
-          tileColor = Colors.grey.shade100;
         }
 
         final disabled = monthDate.isAfter(DateTime.now());
@@ -786,11 +803,11 @@ class _MonthNetGrid extends StatelessWidget {
             margin: const EdgeInsets.all(4),
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
             decoration: BoxDecoration(
-              color: disabled ? Colors.grey.shade200 : tileColor,
+              color: disabled ? cs.surfaceVariant.withOpacity(0.5) : tileColor,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: disabled
-                    ? Colors.grey.shade300
+                    ? cs.outlineVariant.withOpacity(0.5)
                     : cs.outline.withOpacity(0.3),
               ),
             ),
@@ -799,10 +816,10 @@ class _MonthNetGrid extends StatelessWidget {
               children: [
                 Text(
                   month.toString().padLeft(2, '0'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: _textMainColor,
+                    color: cs.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),

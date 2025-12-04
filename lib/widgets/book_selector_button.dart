@@ -35,7 +35,7 @@ class BookSelectorButton extends StatelessWidget {
             : const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: isDark ? cs.surface : Colors.white,
+          color: isDark ? cs.surface : cs.surface,
           border: Border.all(color: cs.primary.withOpacity(0.25)),
         ),
         child: Row(
@@ -54,11 +54,12 @@ class BookSelectorButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: compact ? 12 : 13,
                   fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
                 ),
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.expand_more, size: compact ? 14 : 16),
+            Icon(Icons.expand_more, size: compact ? 14 : 16, color: cs.onSurface.withOpacity(0.7)),
           ],
         ),
       ),
@@ -92,7 +93,7 @@ class BookSelectorButton extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
+                      color: cs.outlineVariant.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -104,11 +105,12 @@ class BookSelectorButton extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             AppStrings.selectBook,
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
+                              color: cs.onSurface,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -116,7 +118,7 @@ class BookSelectorButton extends StatelessWidget {
                             AppStrings.currentBookLabel(activeName),
                             style: TextStyle(
                               fontSize: 12,
-                              color: cs.outline,
+                              color: cs.onSurface.withOpacity(0.65),
                             ),
                           ),
                         ],
@@ -140,63 +142,68 @@ class BookSelectorButton extends StatelessWidget {
                     final selected = book.id == activeId;
                     final recordCount =
                         recordProvider.recordsForBook(book.id).length;
-                    final monthExpense =
-                        recordProvider.monthExpense(month, book.id);
-                    final subtitle = recordCount > 0
-                        ? AppStrings.monthExpenseWithCount(
-                            monthExpense,
-                            recordCount,
-                          )
-                        : AppStrings.noDataThisMonth;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Material(
-                        color: selected
-                            ? cs.primary.withOpacity(0.06)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        child: RadioListTile<String>(
-                          value: book.id,
-                          groupValue: activeId,
-                          onChanged: (value) async {
-                            if (value != null) {
-                              await bp.selectBook(value);
-                              if (ctx.mounted) Navigator.pop(ctx);
-                            }
-                          },
-                          title: Text(book.name),
-                          subtitle: Text(
-                            subtitle,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.outline,
-                            ),
-                          ),
-                          secondary: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.edit_outlined,
-                                  size: 18,
-                                ),
-                                tooltip: AppStrings.renameBook,
-                                onPressed: () => _showRenameBookDialog(
-                                  ctx,
-                                  book.id,
-                                  book.name,
+                        final monthExpense =
+                            recordProvider.monthExpense(month, book.id);
+                        final subtitle = recordCount > 0
+                            ? AppStrings.monthExpenseWithCount(
+                                monthExpense,
+                                recordCount,
+                              )
+                            : AppStrings.noDataThisMonth;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Material(
+                            color: selected
+                                ? cs.primary.withOpacity(0.06)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            child: RadioListTile<String>(
+                              value: book.id,
+                              groupValue: activeId,
+                              onChanged: (value) async {
+                                if (value != null) {
+                                  await bp.selectBook(value);
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                }
+                              },
+                              title: Text(
+                                book.name,
+                                style: TextStyle(color: cs.onSurface),
+                              ),
+                              subtitle: Text(
+                                subtitle,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: cs.onSurface.withOpacity(0.65),
                                 ),
                               ),
-                              if (books.length > 1)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
+                              secondary: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                      color: cs.onSurface,
+                                    ),
+                                    tooltip: AppStrings.renameBook,
+                                    onPressed: () => _showRenameBookDialog(
+                                      ctx,
+                                      book.id,
+                                      book.name,
+                                    ),
                                   ),
-                                  tooltip: AppStrings.deleteBook,
-                                  onPressed: () =>
-                                      _confirmDeleteBook(ctx, book.id),
-                                ),
+                                  if (books.length > 1)
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.delete_outline,
+                                        size: 18,
+                                        color: cs.onSurface,
+                                      ),
+                                      tooltip: AppStrings.deleteBook,
+                                      onPressed: () =>
+                                          _confirmDeleteBook(ctx, book.id),
+                                    ),
                             ],
                           ),
                           activeColor: cs.primary,

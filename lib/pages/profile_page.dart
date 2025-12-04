@@ -86,6 +86,7 @@ class ProfilePage extends StatelessWidget {
 
     final currentMode =
         provider.mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light;
+    final cs = Theme.of(context).colorScheme;
 
     return Card(
       child: Padding(
@@ -135,8 +136,8 @@ class ProfilePage extends StatelessWidget {
                       color: color,
                       border: Border.all(
                         color: selected 
-                            ? Theme.of(context).colorScheme.onSurface
-                            : Colors.grey.withOpacity(0.3),
+                            ? cs.onSurface
+                            : cs.outlineVariant.withOpacity(0.6),
                         width: selected ? 3 : 2,
                       ),
                       boxShadow: selected

@@ -25,6 +25,7 @@ import '../utils/date_utils.dart';
 import '../utils/error_handler.dart';
 
 import '../models/period_type.dart';
+import '../theme/app_tokens.dart';
 
 import '../widgets/book_selector_button.dart';
 
@@ -4503,7 +4504,8 @@ class _SelectionToolbar extends StatelessWidget {
 
             style: FilledButton.styleFrom(
 
-              backgroundColor: Colors.redAccent,
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
 
             ),
 
@@ -4776,7 +4778,7 @@ class _BalanceCard extends StatelessWidget {
 
     final isDark = theme.brightness == Brightness.dark;
 
-    final valueColor = cs.onSurface;
+    final valueColor = AppColors.amount(balance);
 
 
 
@@ -4902,7 +4904,7 @@ class _BalanceCard extends StatelessWidget {
 
                     children: [
 
-                      const Text(
+                      Text(
 
                         AppStrings.monthBalance,
 
@@ -4911,6 +4913,8 @@ class _BalanceCard extends StatelessWidget {
                           fontSize: 12,
 
                           fontWeight: FontWeight.w600,
+
+                          color: cs.onSurface.withOpacity(0.7),
 
                         ),
 
@@ -5028,7 +5032,15 @@ class _BalanceMiniItem extends StatelessWidget {
 
   Widget build(BuildContext context) {
 
-    final valueColor = Theme.of(context).colorScheme.onSurface;
+    final cs = Theme.of(context).colorScheme;
+    Color valueColor;
+    if (label == AppStrings.expense) {
+      valueColor = AppColors.danger;
+    } else if (label == AppStrings.income) {
+      valueColor = AppColors.success;
+    } else {
+      valueColor = AppColors.amount(value);
+    }
 
 
 
@@ -5042,7 +5054,11 @@ class _BalanceMiniItem extends StatelessWidget {
 
           label,
 
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: cs.onSurface.withOpacity(0.65),
+          ),
 
         ),
 
