@@ -174,9 +174,22 @@ class RemarkMoneyApp extends StatelessWidget {
           );
 
           final navBarTheme = NavigationBarThemeData(
-            labelTextStyle: WidgetStateProperty.all(
-              textThemeLight.bodyMedium,
-            ),
+            backgroundColor: baseLight.colorScheme.surface,
+            indicatorColor: baseLight.colorScheme.primary.withOpacity(0.12),
+            labelTextStyle: WidgetStateProperty.resolveWith((states) {
+              final isSelected = states.contains(WidgetState.selected);
+              final color = isSelected
+                  ? baseLight.colorScheme.onSurface
+                  : baseLight.colorScheme.onSurface.withOpacity(0.7);
+              return textThemeLight.bodyMedium?.copyWith(color: color);
+            }),
+            iconTheme: WidgetStateProperty.resolveWith((states) {
+              final isSelected = states.contains(WidgetState.selected);
+              final color = isSelected
+                  ? baseLight.colorScheme.onSurface
+                  : baseLight.colorScheme.onSurface.withOpacity(0.6);
+              return IconThemeData(color: color);
+            }),
           );
 
           final textButtonThemeLight = TextButtonThemeData(
@@ -196,24 +209,37 @@ class RemarkMoneyApp extends StatelessWidget {
             themeMode: theme.mode,
             theme: baseLight.copyWith(
               textTheme: textThemeLight,
-              listTileTheme: listTileTheme,
-              navigationBarTheme: navBarTheme,
-              textButtonTheme: textButtonThemeLight,
-            ),
-            darkTheme: baseDark.copyWith(
-              textTheme: textThemeDark,
-              listTileTheme: listTileTheme.copyWith(
-                subtitleTextStyle: textThemeDark.bodyMedium?.copyWith(
-                  color: baseDark.colorScheme.onSurface.withOpacity(0.7),
-                ),
+            listTileTheme: listTileTheme,
+            navigationBarTheme: navBarTheme,
+            textButtonTheme: textButtonThemeLight,
+          ),
+          darkTheme: baseDark.copyWith(
+            textTheme: textThemeDark,
+            listTileTheme: listTileTheme.copyWith(
+              subtitleTextStyle: textThemeDark.bodyMedium?.copyWith(
+                color: baseDark.colorScheme.onSurface.withOpacity(0.7),
               ),
-              navigationBarTheme: navBarTheme.copyWith(
-                labelTextStyle: WidgetStateProperty.all(
-                  textThemeDark.bodyMedium,
-                ),
-              ),
-              textButtonTheme: textButtonThemeDark,
             ),
+            navigationBarTheme: navBarTheme.copyWith(
+              backgroundColor: baseDark.colorScheme.surface,
+              indicatorColor: baseDark.colorScheme.primary.withOpacity(0.18),
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                final isSelected = states.contains(WidgetState.selected);
+                final color = isSelected
+                    ? baseDark.colorScheme.onSurface
+                    : baseDark.colorScheme.onSurface.withOpacity(0.7);
+                return textThemeDark.bodyMedium?.copyWith(color: color);
+              }),
+              iconTheme: WidgetStateProperty.resolveWith((states) {
+                final isSelected = states.contains(WidgetState.selected);
+                final color = isSelected
+                    ? baseDark.colorScheme.onSurface
+                    : baseDark.colorScheme.onSurface.withOpacity(0.6);
+                return IconThemeData(color: color);
+              }),
+            ),
+            textButtonTheme: textButtonThemeDark,
+          ),
             builder: (context, child) =>
                 DeviceFrame(child: child ?? const SizedBox.shrink()),
             home: const RootShell(),
