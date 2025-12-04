@@ -135,11 +135,33 @@ class RemarkMoneyApp extends StatelessWidget {
             colorSchemeSeed: theme.seedColor,
             brightness: Brightness.dark,
           );
-          final textThemeLight = baseLight.textTheme.apply(
-            fontFamily: GoogleFonts.notoSansSc().fontFamily,
+          final textThemeLight = GoogleFonts.notoSansScTextTheme(
+            baseLight.textTheme,
+          ).copyWith(
+            headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+            headlineMedium: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            titleLarge: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            titleMedium: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            titleSmall: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            bodyLarge: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            bodyMedium: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            bodySmall: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+            labelLarge: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            labelMedium: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
           );
-          final textThemeDark = baseDark.textTheme.apply(
-            fontFamily: GoogleFonts.notoSansSc().fontFamily,
+          final textThemeDark = GoogleFonts.notoSansScTextTheme(
+            baseDark.textTheme,
+          ).copyWith(
+            headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+            headlineMedium: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            titleLarge: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            titleMedium: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            titleSmall: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            bodyLarge: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            bodyMedium: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            bodySmall: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+            labelLarge: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            labelMedium: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
           );
 
           return MaterialApp(

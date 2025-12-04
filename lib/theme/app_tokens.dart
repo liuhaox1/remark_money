@@ -39,13 +39,47 @@ class AppColors {
 }
 
 class AppTextStyles {
-  /// 顶部汇总行（如“10月结余：xxx”）
-  static TextStyle summary(Color color) {
-    return TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-      color: color,
-    );
-  }
+  // 数字/大标题（计数、金额总览）
+  static TextStyle display(Color color) => TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.w800,
+        color: color,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      );
+
+  // 模块标题 / 一级标题
+  static TextStyle headline(Color color) => TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: color,
+      );
+
+  // 列表主行 / 卡片主文案
+  static TextStyle title(Color color) => TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: color,
+      );
+
+  // 副标题 / 说明文字
+  static TextStyle body(Color color) => TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: color,
+      );
+
+  // 次要信息 / 标签 / 导航文字
+  static TextStyle caption(Color color) => TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: color,
+      );
+
+  // 极小提示（少用）
+  static TextStyle tiny(Color color) => TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        color: color,
+      );
 }
 

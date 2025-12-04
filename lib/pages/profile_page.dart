@@ -45,23 +45,19 @@ class ProfilePage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             children: [
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 ProfileStringsLocal.settings,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 4),
               Text(
                 ProfileStringsLocal.profileIntro,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withOpacity(0.6),
-                ),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.6),
+                    ),
               ),
               const SizedBox(height: 20),
               _buildBookSection(context, bookProvider),
@@ -97,9 +93,9 @@ class ProfilePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               AppStrings.theme,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
             SegmentedButton<ThemeMode>(
@@ -120,9 +116,9 @@ class ProfilePage extends StatelessWidget {
               },
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               AppStrings.themeSeed,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -189,20 +185,17 @@ class ProfilePage extends StatelessWidget {
               children: [
                 const Icon(Icons.menu_book_outlined, size: 20),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   AppStrings.book,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => _showAddBookDialog(context),
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text(
+                  label: Text(
                     AppStrings.addBook,
-                    style: TextStyle(fontSize: 13),
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
               ],
@@ -211,8 +204,14 @@ class ProfilePage extends StatelessWidget {
             if (provider.books.length == 1)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(provider.books.first.name),
-                subtitle: const Text(ProfileStringsLocal.currentBookSingleHint),
+                title: Text(
+                  provider.books.first.name,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                subtitle: Text(
+                  ProfileStringsLocal.currentBookSingleHint,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -238,7 +237,10 @@ class ProfilePage extends StatelessWidget {
                       provider.selectBook(value);
                     }
                   },
-                  title: Text(book.name),
+                  title: Text(
+                    book.name,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                   secondary: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -317,11 +319,14 @@ class ProfilePage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const ListTile(
-            leading: Icon(Icons.warning_amber_outlined, color: Colors.red),
+          ListTile(
+            leading: const Icon(Icons.warning_amber_outlined, color: Colors.red),
             title: Text(
               '危险操作',
-              style: TextStyle(color: Colors.red),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(color: Colors.red),
             ),
           ),
           const Divider(height: 1),
