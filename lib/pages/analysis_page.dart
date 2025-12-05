@@ -498,28 +498,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final Color color;
 
   @override
-    Widget build(BuildContext context) {
-      return Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color.withOpacity(0.9),
-                  ),
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: color.withOpacity(0.9),
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value.toStringAsFixed(2),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: color,
             ),
-            const SizedBox(height: 4),
-            Text(
-              value.toStringAsFixed(2),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
+          ),
         ],
       ),
     );
