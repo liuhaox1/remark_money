@@ -15,32 +15,59 @@ class RecordProvider extends ChangeNotifier {
 
   // SharedPreferences 版本和数据库版本都实现了同样的方法签名，这里用 dynamic 接受
   final dynamic _repository = RepositoryFactory.createRecordRepository();
-  final List<Record> _records = [];
-  final Map<String, List<Record>> _recordsByBook = {};
+  
+  // 不再全量加载，只保留最近使用的记录缓存（用于快速访问）
+  final List<Record> _recentRecordsCache = [];
+  static const int _maxCacheSize = 1000; // 最多缓存1000条最近记录
 
+  // 统计缓存（使用数据库聚合查询的结果）
   final Map<String, Map<int, Map<int, _MonthStats>>> _monthStatsCache = {};
   final Map<String, Map<DateTime, _DayStats>> _dayStatsCache = {};
 
   final Random _random = Random();
 
-  List<Record> get records => List.unmodifiable(_records);
+  // 兼容性：返回空列表，实际查询应该使用按需查询方法
+  List<Record> get records => List.unmodifiable(_recentRecordsCache);
 
   bool _loaded = false;
   bool get loaded => _loaded;
 
+  // 检查是否使用数据库
+  bool get _isUsingDatabase => RepositoryFactory.isUsingDatabase;
+
+  /// 初始化（不再全量加载）
   Future<void> load() async {
     if (_loaded) return;
     try {
-      final list = await _repository.loadRecords();
-      _records
-        ..clear()
-        ..addAll(list);
-      _rebuildBookCache();
+      // 如果是数据库版本，只加载最近的记录用于缓存
+      if (_isUsingDatabase) {
+        final dbRepo = _repository as dynamic;
+        // 使用反射检查是否有 loadRecordsPaginated 方法
+        if (dbRepo.toString().contains('RecordRepositoryDb') || 
+            (dbRepo.runtimeType.toString().contains('RecordRepositoryDb'))) {
+          // 加载最近1000条记录作为缓存
+          _recentRecordsCache.clear();
+          final recent = await dbRepo.loadRecordsPaginated(limit: _maxCacheSize);
+          _recentRecordsCache.addAll(recent);
+        } else {
+          // SharedPreferences 版本：仍然全量加载（兼容性）
+          final list = await _repository.loadRecords();
+          _recentRecordsCache
+            ..clear()
+            ..addAll(list);
+        }
+      } else {
+        // SharedPreferences 版本：仍然全量加载（兼容性）
+        final list = await _repository.loadRecords();
+        _recentRecordsCache
+          ..clear()
+          ..addAll(list);
+      }
+      
       _loaded = true;
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.load', e, stackTrace);
-      // 保持 _loaded = false，允许重试
       _loaded = false;
       rethrow;
     }
@@ -96,11 +123,27 @@ class RecordProvider extends ChangeNotifier {
         pairId: pairId,
       );
 
-      final list = await _repository.insert(record);
-      _records
-        ..clear()
-        ..addAll(list);
-      _rebuildBookCache();
+      if (_isUsingDatabase) {
+        // 数据库版本：直接插入，不清空缓存
+        final dbRepo = _repository as dynamic;
+        await dbRepo.saveRecord(record);
+        
+        // 如果是最近的记录，添加到缓存前面
+        if (_recentRecordsCache.length < _maxCacheSize) {
+          _recentRecordsCache.insert(0, record);
+        } else {
+          // 如果缓存已满，移除最后一条，添加新记录到前面
+          _recentRecordsCache.removeLast();
+          _recentRecordsCache.insert(0, record);
+        }
+      } else {
+        // SharedPreferences 版本：兼容旧逻辑
+        final list = await _repository.insert(record);
+        _recentRecordsCache
+          ..clear()
+          ..addAll(list);
+      }
+      
       _clearCache();
 
       await _applyAccountDelta(accountProvider, record);
@@ -134,19 +177,36 @@ class RecordProvider extends ChangeNotifier {
     }
 
     try {
-      final old = _records.firstWhere(
-        (r) => r.id == updated.id,
-        orElse: () => updated,
-      );
-      final list = await _repository.update(updated);
-      _records
-        ..clear()
-        ..addAll(list);
-      _rebuildBookCache();
+      Record? old;
+      if (_isUsingDatabase) {
+        // 数据库版本：从数据库查询旧记录
+        final dbRepo = _repository as dynamic;
+        old = await dbRepo.loadRecordById(updated.id);
+        await dbRepo.saveRecord(updated);
+        
+        // 更新缓存中的记录
+        final index = _recentRecordsCache.indexWhere((r) => r.id == updated.id);
+        if (index != -1) {
+          _recentRecordsCache[index] = updated;
+        }
+      } else {
+        // SharedPreferences 版本：兼容旧逻辑
+        old = _recentRecordsCache.firstWhere(
+          (r) => r.id == updated.id,
+          orElse: () => updated,
+        );
+        final list = await _repository.update(updated);
+        _recentRecordsCache
+          ..clear()
+          ..addAll(list);
+      }
+      
       _clearCache();
 
-      await _applyAccountDelta(accountProvider, old, reverse: true);
-      await _applyAccountDelta(accountProvider, updated);
+      if (old != null) {
+        await _applyAccountDelta(accountProvider, old, reverse: true);
+        await _applyAccountDelta(accountProvider, updated);
+      }
 
       notifyListeners();
     } catch (e, stackTrace) {
@@ -165,17 +225,27 @@ class RecordProvider extends ChangeNotifier {
 
     try {
       Record? old;
-      try {
-        old = _records.firstWhere((r) => r.id == id);
-      } catch (_) {
-        old = null;
+      if (_isUsingDatabase) {
+        // 数据库版本：从数据库查询旧记录
+        final dbRepo = _repository as dynamic;
+        old = await dbRepo.loadRecordById(id);
+        await dbRepo.remove(id);
+        
+        // 从缓存中移除
+        _recentRecordsCache.removeWhere((r) => r.id == id);
+      } else {
+        // SharedPreferences 版本：兼容旧逻辑
+        try {
+          old = _recentRecordsCache.firstWhere((r) => r.id == id);
+        } catch (_) {
+          old = null;
+        }
+        final list = await _repository.remove(id);
+        _recentRecordsCache
+          ..clear()
+          ..addAll(list);
       }
-
-      final list = await _repository.remove(id);
-      _records
-        ..clear()
-        ..addAll(list);
-      _rebuildBookCache();
+      
       _clearCache();
 
       if (old != null) {
@@ -189,78 +259,245 @@ class RecordProvider extends ChangeNotifier {
     }
   }
 
+  /// 同步方法：获取指定账本的记录（从缓存，兼容旧代码）
   List<Record> recordsForBook(String bookId) {
     return List<Record>.from(
-      (_recordsByBook[bookId] ?? const []).where((r) => r.includeInStats),
+      _recentRecordsCache.where((r) => r.bookId == bookId && r.includeInStats),
     );
   }
 
+  /// 异步方法：获取指定账本的记录（使用数据库查询）
+  Future<List<Record>> recordsForBookAsync(String bookId) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.queryRecordsForPeriod(
+        bookId: bookId,
+        start: DateTime(1970, 1, 1),
+        end: DateTime.now().add(const Duration(days: 365)),
+      );
+    } else {
+      return recordsForBook(bookId);
+    }
+  }
+
+  /// 同步方法：获取指定日期的记录（从缓存，兼容旧代码）
   List<Record> recordsForDay(String bookId, DateTime day) {
-    return recordsForBook(bookId)
-        .where((r) => DateUtilsX.isSameDay(r.date, day))
+    return _recentRecordsCache
+        .where((r) => r.bookId == bookId && 
+                     DateUtilsX.isSameDay(r.date, day) && 
+                     r.includeInStats)
         .toList();
   }
 
+  /// 异步方法：获取指定日期的记录（使用数据库查询）
+  Future<List<Record>> recordsForDayAsync(String bookId, DateTime day) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.queryRecordsForDay(bookId: bookId, day: day);
+    } else {
+      return recordsForDay(bookId, day);
+    }
+  }
+
+  /// 同步方法：获取指定月份的记录（从缓存，兼容旧代码）
   List<Record> recordsForMonth(String bookId, int year, int month) {
-    return recordsForBook(bookId)
-        .where((r) => r.date.year == year && r.date.month == month)
+    return _recentRecordsCache
+        .where((r) => r.bookId == bookId && 
+                     r.date.year == year && 
+                     r.date.month == month && 
+                     r.includeInStats)
         .toList();
   }
 
+  /// 异步方法：获取指定月份的记录（使用数据库查询）
+  Future<List<Record>> recordsForMonthAsync(String bookId, int year, int month) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.queryRecordsForMonth(
+        bookId: bookId,
+        year: year,
+        month: month,
+      );
+    } else {
+      return recordsForMonth(bookId, year, month);
+    }
+  }
+
+  /// 同步方法：获取指定时间段的记录（从缓存，兼容旧代码）
   List<Record> recordsForPeriod(
     String bookId, {
     required DateTime start,
     required DateTime end,
   }) {
-    return recordsForBook(bookId).where((r) {
-      return !r.date.isBefore(start) && !r.date.isAfter(end);
-    }).toList();
+    return _recentRecordsCache
+        .where((r) => r.bookId == bookId && 
+                     !r.date.isBefore(start) && 
+                     !r.date.isAfter(end) && 
+                     r.includeInStats)
+        .toList();
   }
 
-  double periodExpense({
+  /// 异步方法：获取指定时间段的记录（使用数据库查询）
+  Future<List<Record>> recordsForPeriodAsync(
+    String bookId, {
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.queryRecordsForPeriod(
+        bookId: bookId,
+        start: start,
+        end: end,
+      );
+    } else {
+      return recordsForPeriod(bookId, start: start, end: end);
+    }
+  }
+
+  /// 分页查询：获取指定时间段的记录（带分页）
+  Future<List<Record>> recordsForPeriodPaginated(
+    String bookId, {
+    required DateTime start,
+    required DateTime end,
+    int limit = 50,
+    int offset = 0,
+    String? categoryKey,
+    String? accountId,
+    bool? isExpense,
+  }) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.queryRecordsForPeriod(
+        bookId: bookId,
+        start: start,
+        end: end,
+        categoryKey: categoryKey,
+        accountId: accountId,
+        isExpense: isExpense,
+        limit: limit,
+        offset: offset,
+      );
+    } else {
+      // SharedPreferences 版本：从缓存查询并手动分页
+      var filtered = _recentRecordsCache
+          .where((r) => r.bookId == bookId && 
+                       !r.date.isBefore(start) && 
+                       !r.date.isAfter(end) && 
+                       r.includeInStats);
+      
+      if (categoryKey != null) {
+        filtered = filtered.where((r) => r.categoryKey == categoryKey);
+      }
+      if (accountId != null) {
+        filtered = filtered.where((r) => r.accountId == accountId);
+      }
+      if (isExpense != null) {
+        filtered = filtered.where((r) => r.isExpense == isExpense);
+      }
+      
+      final list = filtered.toList();
+      final endIndex = (offset + limit).clamp(0, list.length);
+      return list.sublist(offset.clamp(0, list.length), endIndex);
+    }
+  }
+
+  /// 使用数据库聚合查询获取时间段支出
+  Future<double> periodExpense({
     required String bookId,
     required DateTime start,
     required DateTime end,
-  }) {
-    double expense = 0;
-    for (final record in recordsForPeriod(bookId, start: start, end: end)) {
-      if (record.isIncome || !record.includeInStats) continue;
-      expense += record.expenseValue;
+  }) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.getPeriodExpense(bookId: bookId, start: start, end: end);
+    } else {
+      // SharedPreferences 版本：从缓存计算
+      double expense = 0;
+      for (final record in _recentRecordsCache) {
+        if (record.bookId == bookId &&
+            !record.date.isBefore(start) &&
+            !record.date.isAfter(end) &&
+            record.isExpense &&
+            record.includeInStats) {
+          expense += record.expenseValue;
+        }
+      }
+      return expense;
     }
-    return expense;
   }
 
-  Map<String, double> periodCategoryExpense({
+  /// 使用数据库聚合查询获取时间段分类支出
+  Future<Map<String, double>> periodCategoryExpense({
     required String bookId,
     required DateTime start,
     required DateTime end,
-  }) {
-    final result = <String, double>{};
-    for (final record in recordsForPeriod(bookId, start: start, end: end)) {
-      if (record.isIncome || !record.includeInStats) continue;
-      result[record.categoryKey] =
-          (result[record.categoryKey] ?? 0) + record.expenseValue;
+  }) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.getPeriodCategoryExpense(bookId: bookId, start: start, end: end);
+    } else {
+      // SharedPreferences 版本：从缓存计算
+      final result = <String, double>{};
+      for (final record in _recentRecordsCache) {
+        if (record.bookId == bookId &&
+            !record.date.isBefore(start) &&
+            !record.date.isAfter(end) &&
+            record.isExpense &&
+            record.includeInStats) {
+          result[record.categoryKey] =
+              (result[record.categoryKey] ?? 0) + record.expenseValue;
+        }
+      }
+      return result;
     }
-    return result;
   }
 
+  /// 同步方法：获取月份收入（从缓存，兼容旧代码）
   double monthIncome(DateTime month, String bookId) {
     final stats = _getMonthStats(month, bookId);
     return stats.income;
   }
 
+  /// 异步方法：获取月份收入（使用数据库聚合查询）
+  Future<double> monthIncomeAsync(DateTime month, String bookId) async {
+    final stats = await getMonthStatsAsync(month, bookId);
+    return stats.income;
+  }
+
+  /// 同步方法：获取月份支出（从缓存，兼容旧代码）
   double monthExpense(DateTime month, String bookId) {
     final stats = _getMonthStats(month, bookId);
     return stats.expense;
   }
 
+  /// 异步方法：获取月份支出（使用数据库聚合查询）
+  Future<double> monthExpenseAsync(DateTime month, String bookId) async {
+    final stats = await getMonthStatsAsync(month, bookId);
+    return stats.expense;
+  }
+
+  /// 同步方法：获取日期收入（从缓存，兼容旧代码）
   double dayIncome(String bookId, DateTime day) {
     final stats = _getDayStats(bookId, day);
     return stats.income;
   }
 
+  /// 异步方法：获取日期收入（使用数据库聚合查询）
+  Future<double> dayIncomeAsync(String bookId, DateTime day) async {
+    final stats = await getDayStatsAsync(bookId, day);
+    return stats.income;
+  }
+
+  /// 同步方法：获取日期支出（从缓存，兼容旧代码）
   double dayExpense(String bookId, DateTime day) {
     final stats = _getDayStats(bookId, day);
+    return stats.expense;
+  }
+
+  /// 异步方法：获取日期支出（使用数据库聚合查询）
+  Future<double> dayExpenseAsync(String bookId, DateTime day) async {
+    final stats = await getDayStatsAsync(bookId, day);
     return stats.expense;
   }
 
@@ -279,7 +516,6 @@ class RecordProvider extends ChangeNotifier {
     }
 
     try {
-      final existingIds = _records.map((r) => r.id).toSet();
       final accounts = accountProvider.accounts;
       
       if (accounts.isEmpty) {
@@ -319,9 +555,17 @@ class RecordProvider extends ChangeNotifier {
             record = record.copyWith(accountId: defaultAccount.id);
           }
 
-          // Ensure id uniqueness.
-          if (existingIds.contains(record.id)) {
-            record = record.copyWith(id: _generateId());
+          // Ensure id uniqueness (检查数据库或缓存)
+          if (_isUsingDatabase) {
+            final dbRepo = _repository as dynamic;
+            final existing = await dbRepo.loadRecordById(record.id);
+            if (existing != null) {
+              record = record.copyWith(id: _generateId());
+            }
+          } else {
+            if (_recentRecordsCache.any((r) => r.id == record.id)) {
+              record = record.copyWith(id: _generateId());
+            }
           }
 
           newRecords.add(record);
@@ -332,28 +576,28 @@ class RecordProvider extends ChangeNotifier {
       }
 
       if (newRecords.isNotEmpty) {
-        _records.addAll(newRecords);
-        _records.sort((a, b) => b.date.compareTo(a.date));
-        
-        // 使用 saveRecords 保存所有记录（兼容 SharedPreferences 和 Database）
-        try {
-          // 尝试调用 saveRecords（两种 Repository 都有这个方法）
-          await (_repository as dynamic).saveRecords(_records);
-        } catch (e) {
-          // 如果失败，使用批量插入（仅 Database 版本）
-          if (_repository.toString().contains('RecordRepositoryDb')) {
-            await (_repository as dynamic).batchInsert(newRecords);
-            // 重新加载所有记录
-            final list = await _repository.loadRecords();
-            _records
-              ..clear()
-              ..addAll(list);
-          } else {
-            rethrow;
+        if (_isUsingDatabase) {
+          // 数据库版本：批量插入
+          final dbRepo = _repository as dynamic;
+          await dbRepo.batchInsert(newRecords);
+          
+          // 更新缓存：添加新记录到前面
+          for (final record in newRecords.reversed) {
+            if (_recentRecordsCache.length < _maxCacheSize) {
+              _recentRecordsCache.insert(0, record);
+            } else {
+              _recentRecordsCache.removeLast();
+              _recentRecordsCache.insert(0, record);
+            }
           }
+        } else {
+          // SharedPreferences 版本：兼容旧逻辑
+          _recentRecordsCache.addAll(newRecords);
+          _recentRecordsCache.sort((a, b) => b.date.compareTo(a.date));
+          
+          await (_repository as dynamic).saveRecords(_recentRecordsCache);
         }
         
-        _rebuildBookCache();
         _clearCache();
         notifyListeners();
       }
@@ -450,7 +694,19 @@ class RecordProvider extends ChangeNotifier {
         );
       }
 
-      return _records.firstWhere((r) => r.pairId == pairId);
+      // 查找转账记录
+      if (_isUsingDatabase) {
+        final dbRepo = _repository as dynamic;
+        final records = await dbRepo.queryRecordsForPeriod(
+          bookId: bookId,
+          start: now.subtract(const Duration(seconds: 1)),
+          end: now.add(const Duration(seconds: 1)),
+        );
+        final transferRecord = records.firstWhere((r) => r.pairId == pairId);
+        return transferRecord;
+      } else {
+        return _recentRecordsCache.firstWhere((r) => r.pairId == pairId);
+      }
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.transfer', e, stackTrace);
       rethrow;
@@ -626,7 +882,9 @@ class RecordProvider extends ChangeNotifier {
     );
   }
 
+  /// 获取月份统计（使用数据库聚合查询或缓存）
   _MonthStats _getMonthStats(DateTime month, String bookId) {
+    // 检查缓存
     if (_monthStatsCache.containsKey(bookId)) {
       final yearMap = _monthStatsCache[bookId]!;
       if (yearMap.containsKey(month.year)) {
@@ -637,10 +895,18 @@ class RecordProvider extends ChangeNotifier {
       }
     }
 
+    // 如果使用数据库，使用聚合查询
+    if (_isUsingDatabase) {
+      // 异步查询，但这里需要同步返回，所以先返回0，然后异步更新缓存
+      // 实际使用中应该使用 Future 版本
+      return const _MonthStats(income: 0, expense: 0);
+    }
+
+    // SharedPreferences 版本：从缓存计算
     double income = 0;
     double expense = 0;
 
-    for (final record in _records) {
+    for (final record in _recentRecordsCache) {
       if (record.bookId == bookId &&
           record.date.year == month.year &&
           record.date.month == month.month) {
@@ -662,18 +928,66 @@ class RecordProvider extends ChangeNotifier {
     return stats;
   }
 
-  _DayStats _getDayStats(String bookId, DateTime day) {
-    if (_dayStatsCache.containsKey(bookId)) {
-      final dayMap = _dayStatsCache[bookId]!;
-      if (dayMap.containsKey(day)) {
-        return dayMap[day]!;
+  /// 异步获取月份统计（使用数据库聚合查询）
+  Future<_MonthStats> getMonthStatsAsync(DateTime month, String bookId) async {
+    // 检查缓存
+    if (_monthStatsCache.containsKey(bookId)) {
+      final yearMap = _monthStatsCache[bookId]!;
+      if (yearMap.containsKey(month.year)) {
+        final monthMap = yearMap[month.year]!;
+        if (monthMap.containsKey(month.month)) {
+          return monthMap[month.month]!;
+        }
       }
     }
 
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      final stats = await dbRepo.getMonthStats(
+        bookId: bookId,
+        year: month.year,
+        month: month.month,
+      );
+      
+      final result = _MonthStats(
+        income: stats['income'] ?? 0.0,
+        expense: stats['expense'] ?? 0.0,
+      );
+      
+      // 更新缓存
+      final yearMap = _monthStatsCache.putIfAbsent(bookId, () => {});
+      final monthMap = yearMap.putIfAbsent(month.year, () => {});
+      monthMap[month.month] = result;
+      
+      return result;
+    } else {
+      // SharedPreferences 版本：同步计算
+      return _getMonthStats(month, bookId);
+    }
+  }
+
+  /// 获取日期统计（使用数据库聚合查询或缓存）
+  _DayStats _getDayStats(String bookId, DateTime day) {
+    // 检查缓存
+    if (_dayStatsCache.containsKey(bookId)) {
+      final dayMap = _dayStatsCache[bookId]!;
+      final dayKey = DateTime(day.year, day.month, day.day);
+      if (dayMap.containsKey(dayKey)) {
+        return dayMap[dayKey]!;
+      }
+    }
+
+    // 如果使用数据库，使用聚合查询
+    if (_isUsingDatabase) {
+      // 异步查询，但这里需要同步返回，所以先返回0
+      return const _DayStats(income: 0, expense: 0);
+    }
+
+    // SharedPreferences 版本：从缓存计算
     double income = 0;
     double expense = 0;
 
-    for (final record in _records) {
+    for (final record in _recentRecordsCache) {
       if (record.bookId == bookId && DateUtilsX.isSameDay(record.date, day)) {
         if (!record.includeInStats) continue;
         if (record.isIncome) {
@@ -685,25 +999,50 @@ class RecordProvider extends ChangeNotifier {
     }
 
     final stats = _DayStats(income: income, expense: expense);
+    final dayKey = DateTime(day.year, day.month, day.day);
 
     final dayMap = _dayStatsCache.putIfAbsent(bookId, () => {});
-    dayMap[day] = stats;
+    dayMap[dayKey] = stats;
 
     return stats;
+  }
+
+  /// 异步获取日期统计（使用数据库聚合查询）
+  Future<_DayStats> getDayStatsAsync(String bookId, DateTime day) async {
+    // 检查缓存
+    if (_dayStatsCache.containsKey(bookId)) {
+      final dayMap = _dayStatsCache[bookId]!;
+      final dayKey = DateTime(day.year, day.month, day.day);
+      if (dayMap.containsKey(dayKey)) {
+        return dayMap[dayKey]!;
+      }
+    }
+
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      final stats = await dbRepo.getDayStats(bookId: bookId, day: day);
+      
+      final result = _DayStats(
+        income: stats['income'] ?? 0.0,
+        expense: stats['expense'] ?? 0.0,
+      );
+      
+      // 更新缓存
+      final dayKey = DateTime(day.year, day.month, day.day);
+      final dayMap = _dayStatsCache.putIfAbsent(bookId, () => {});
+      dayMap[dayKey] = result;
+      
+      return result;
+    } else {
+      // SharedPreferences 版本：同步计算
+      return _getDayStats(bookId, day);
+    }
   }
 
   String _generateId() {
     final timestamp = DateTime.now().microsecondsSinceEpoch;
     final randomBits = _random.nextInt(1 << 31);
     return '${timestamp.toRadixString(16)}-${randomBits.toRadixString(16)}';
-  }
-
-  void _rebuildBookCache() {
-    _recordsByBook.clear();
-    for (final record in _records) {
-      final list = _recordsByBook.putIfAbsent(record.bookId, () => []);
-      list.add(record);
-    }
   }
 
   void _clearCache() {
@@ -723,7 +1062,6 @@ class RecordProvider extends ChangeNotifier {
     final delta = reverse ? -baseDelta : baseDelta;
     await accountProvider.adjustBalance(record.accountId, delta);
   }
-
 }
 
 class _MonthStats {
@@ -739,3 +1077,4 @@ class _DayStats {
 
   const _DayStats({required this.income, required this.expense});
 }
+

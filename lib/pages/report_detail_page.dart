@@ -191,228 +191,154 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
 
-    final records = _periodRecords(recordProvider, bookId);
-
-    final hasData = records.isNotEmpty;
-
-    final income = _periodIncome(recordProvider, bookId, records);
-
-    final expense = _periodExpense(recordProvider, bookId, records);
-
-    final balance = income - expense;
-
-    final comparison = _previousBalance(recordProvider, bookId);
-
-    final expenseDiff =
-
-        comparison.hasData ? expense - comparison.balance : null;
-
-    final range = _periodRange();
-
-
-
-    final expenseEntries = _buildCategoryEntries(
-
-      records,
-
-      categoryProvider,
-
-      cs,
-
-      isIncome: false,
-
-    );
-
-    final incomeEntries = _buildCategoryEntries(
-
-      records,
-
-      categoryProvider,
-
-      cs,
-
-      isIncome: true,
-
-    );
-
-    final distributionEntries =
-
-        _showIncomeCategory ? incomeEntries : expenseEntries;
-
-    final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
-
-    final ranking = List<ChartEntry>.from(rankingEntries)
-
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    // 趋势图：月/周模式显示日趋势，年模式显示月趋势
-
-    final dailyEntries = _buildDailyEntries(recordProvider, bookId, cs);
-
-
-
-    final activity = _periodActivity(recordProvider, bookId);
-
-    final totalExpenseValue =
-
-        distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
-
-    final totalRankingValue =
-
-        rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
-
-    const emptyText = AppStrings.emptyPeriodRecords;
-
-    String? weeklySummaryText;
-
-    if (_isWeekMode && hasData) {
-
-      final currentExpense = expense;
-
-      final currentRange = range;
-
-      final prevStart = DateUtilsX.startOfWeek(currentRange.start)
-
-          .subtract(const Duration(days: 7));
-
-      final prevEnd = prevStart.add(const Duration(days: 6));
-
-      final prevExpense = recordProvider.periodExpense(
-
-        bookId: bookId,
-
-        start: prevStart,
-
-        end: prevEnd,
-
-      );
-
-      final diff = currentExpense - prevExpense;
-
-      final topCategory =
-
-          expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
-
-      weeklySummaryText = AppTextTemplates.weeklySummary(
-
-        expense: currentExpense,
-
-        diff: diff,
-
-        topCategory: topCategory,
-
-      );
-
-    }
-
-
-
-    return Scaffold(
-
-      backgroundColor:
-
-          isDark ? const Color(0xFF111418) : const Color(0xFFF8F9FA),
-
-      appBar: AppBar(
-
-        title: Text(_appBarTitle(range)),
-
-        actions: [
-
-          IconButton(
-
-            tooltip: '保存图片',
-
-            icon: const Icon(Icons.image_outlined),
-
-            onPressed: () => _saveReportAsImage(context, bookName, range),
-
-          ),
-
-          const BookSelectorButton(compact: true),
-
-          const SizedBox(width: 8),
-
-        ],
-
-      ),
-
-      body: SafeArea(
-
-        child: Center(
-
-          child: ConstrainedBox(
-
-            constraints: const BoxConstraints(maxWidth: 430),
-
-            child: RepaintBoundary(
-
-              key: _reportContentKey,
-
-              child: SingleChildScrollView(
-
-                physics: const AlwaysScrollableScrollPhysics(),
-
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-
-                child: _buildReportContent(
-
-                  context: context,
-
-                  cs: cs,
-
-                  isDark: isDark,
-
-                  bookName: bookName,
-
-                  range: range,
-
-                  income: income,
-
-                  expense: expense,
-
-                  balance: balance,
-
-                  expenseDiff: expenseDiff,
-
-                  comparison: comparison,
-
-                  hasData: hasData,
-
-                  weeklySummaryText: weeklySummaryText,
-
-                  onViewDetail: () => _openBillDetail(context, range, bookName),
-
-                  showViewDetailButton: true,
-
-                  distributionEntries: distributionEntries,
-
-                  totalExpenseValue: totalExpenseValue,
-
-                  ranking: ranking,
-
-                  totalRankingValue: totalRankingValue,
-
-                  categoryProvider: categoryProvider,
-
-                  dailyEntries: dailyEntries,
-
-                  activity: activity,
-
-                  emptyText: emptyText,
-
-                ),
-
-              ),
-
+    // 使用 FutureBuilder 异步加载报表数据（支持100万条记录）
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _loadReportData(recordProvider, bookId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+            appBar: AppBar(
+              title: const Text('报表详情'),
+              backgroundColor: Colors.transparent,
             ),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          ),
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+            appBar: AppBar(
+              title: const Text('报表详情'),
+              backgroundColor: Colors.transparent,
+            ),
+            body: Center(child: Text('加载失败: ${snapshot.error}')),
+          );
+        }
 
-        ),
+        final data = snapshot.data ?? {};
+        final records = data['records'] as List<Record>? ?? [];
+        final income = data['income'] as double? ?? 0.0;
+        final expense = data['expense'] as double? ?? 0.0;
+        final balance = income - expense;
+        final comparison = data['comparison'] as _PeriodComparison? ?? _PeriodComparison(balance: 0, hasData: false);
+        final expenseDiff = comparison.hasData ? expense - comparison.balance : null;
+        final range = _periodRange();
+        final hasData = records.isNotEmpty;
 
-      ),
+        final expenseEntries = _buildCategoryEntries(
+          records,
+          categoryProvider,
+          cs,
+          isIncome: false,
+        );
 
+        final incomeEntries = _buildCategoryEntries(
+          records,
+          categoryProvider,
+          cs,
+          isIncome: true,
+        );
+
+        final distributionEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
+        final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
+
+        final ranking = List<ChartEntry>.from(rankingEntries)
+          ..sort((a, b) => b.value.compareTo(a.value));
+
+        // 趋势图：月/周模式显示日趋势，年模式显示月趋势
+        // 使用 FutureBuilder 单独加载日趋势数据（需要 context）
+        final activity = data['activity'] as _PeriodActivity? ?? _PeriodActivity(recordCount: 0, activeDays: 0, streak: 0);
+        
+        return FutureBuilder<List<ChartEntry>>(
+          future: _buildDailyEntriesAsync(recordProvider, bookId),
+          builder: (context, dailySnapshot) {
+            final dailyEntries = dailySnapshot.data ?? [];
+
+            final totalExpenseValue = distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
+            final totalRankingValue = rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
+
+            const emptyText = AppStrings.emptyPeriodRecords;
+
+            String? weeklySummaryText;
+            if (_isWeekMode && hasData) {
+              final currentExpense = expense;
+              final currentRange = range;
+              final prevStart = DateUtilsX.startOfWeek(currentRange.start)
+                  .subtract(const Duration(days: 7));
+              final prevEnd = prevStart.add(const Duration(days: 6));
+              
+              // 使用异步方法获取上一周的支出
+              final prevExpense = data['prevWeekExpense'] as double? ?? 0.0;
+              final diff = currentExpense - prevExpense;
+              final topCategory = expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
+
+              weeklySummaryText = AppTextTemplates.weeklySummary(
+                expense: currentExpense,
+                diff: diff,
+                topCategory: topCategory,
+              );
+            }
+
+            return Scaffold(
+              backgroundColor:
+                  isDark ? const Color(0xFF111418) : const Color(0xFFF8F9FA),
+
+              appBar: AppBar(
+                title: Text(_appBarTitle(range)),
+                actions: [
+                  IconButton(
+                    tooltip: '保存图片',
+                    icon: const Icon(Icons.image_outlined),
+                    onPressed: () => _saveReportAsImage(context, bookName, range),
+                  ),
+                  const BookSelectorButton(compact: true),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              body: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 430),
+                    child: RepaintBoundary(
+                      key: _reportContentKey,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        child: _buildReportContent(
+                          context: context,
+                          cs: cs,
+                          isDark: isDark,
+                          bookName: bookName,
+                          range: range,
+                          income: income,
+                          expense: expense,
+                          balance: balance,
+                          expenseDiff: expenseDiff,
+                          comparison: comparison,
+                          hasData: hasData,
+                          weeklySummaryText: weeklySummaryText,
+                          onViewDetail: () => _openBillDetail(context, range, bookName),
+                          showViewDetailButton: true,
+                          distributionEntries: distributionEntries,
+                          totalExpenseValue: totalExpenseValue,
+                          ranking: ranking,
+                          totalRankingValue: totalRankingValue,
+                          categoryProvider: categoryProvider,
+                          dailyEntries: dailyEntries,
+                          activity: activity,
+                          emptyText: emptyText,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
 
   }
@@ -1017,186 +943,88 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
       final currentBookName = targetBook?.name ?? AppStrings.defaultBook;
 
-
-
-      final records = _periodRecords(recordProvider, bookId);
-
+      // 加载报表数据
+      final reportData = await _loadReportData(recordProvider, bookId);
+      final records = reportData['records'] as List<Record>? ?? [];
+      final income = reportData['income'] as double? ?? 0.0;
+      final expense = reportData['expense'] as double? ?? 0.0;
+      final balance = income - expense;
+      final comparison = reportData['comparison'] as _PeriodComparison? ?? _PeriodComparison(balance: 0, hasData: false);
+      final expenseDiff = comparison.hasData ? expense - comparison.balance : null;
+      final currentRange = range;
       final hasData = records.isNotEmpty;
 
-      final income = _periodIncome(recordProvider, bookId, records);
-
-      final expense = _periodExpense(recordProvider, bookId, records);
-
-      final balance = income - expense;
-
-      final comparison = _previousBalance(recordProvider, bookId);
-
-      final expenseDiff =
-
-          comparison.hasData ? expense - comparison.balance : null;
-
-      final currentRange = _periodRange();
-
-
-
+      // 构建分类条目
       final expenseEntries = _buildCategoryEntries(
-
         records,
-
         categoryProvider,
-
         cs,
-
         isIncome: false,
-
       );
-
       final incomeEntries = _buildCategoryEntries(
-
         records,
-
         categoryProvider,
-
         cs,
-
         isIncome: true,
-
       );
-
-      final distributionEntries =
-
-          _showIncomeCategory ? incomeEntries : expenseEntries;
-
+      final distributionEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
       final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
-
       final ranking = List<ChartEntry>.from(rankingEntries)
-
         ..sort((a, b) => b.value.compareTo(a.value));
+      final totalExpenseValue = distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
+      final totalRankingValue = rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
 
-      // 趋势图：月/周模式显示日趋势，年模式显示月趋势
-
-      final dailyEntries = _buildDailyEntries(recordProvider, bookId, cs);
-
-      final activity = _periodActivity(recordProvider, bookId);
-
-      final totalExpenseValue =
-
-          distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
-
-      final totalRankingValue =
-
-          rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
-
+      // 加载日趋势数据
+      final dailyEntries = await _buildDailyEntriesAsync(recordProvider, bookId);
+      final activity = reportData['activity'] as _PeriodActivity? ?? _PeriodActivity(recordCount: 0, activeDays: 0, streak: 0);
       const emptyText = AppStrings.emptyPeriodRecords;
 
       String? weeklySummaryText;
-
       if (_isWeekMode && hasData) {
-
-        final currentExpense = expense;
-
-        final prevStart = DateUtilsX.startOfWeek(currentRange.start)
-
-            .subtract(const Duration(days: 7));
-
-        final prevEnd = prevStart.add(const Duration(days: 6));
-
-        final prevExpense = recordProvider.periodExpense(
-
-          bookId: bookId,
-
-          start: prevStart,
-
-          end: prevEnd,
-
-        );
-
-        final diff = currentExpense - prevExpense;
-
-        final topCategory =
-
-            expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
-
+        final prevExpense = reportData['prevWeekExpense'] as double? ?? 0.0;
+        final diff = expense - prevExpense;
+        final topCategory = expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
         weeklySummaryText = AppTextTemplates.weeklySummary(
-
-          expense: currentExpense,
-
+          expense: expense,
           diff: diff,
-
           topCategory: topCategory,
-
         );
-
       }
 
-
-
-      // 创建一个临时的全尺寸 widget 用于截图（不使用 SingleChildScrollView）
-
+      // 创建 GlobalKey 用于截图
       final fullSizeKey = GlobalKey();
 
       final fullSizeWidget = RepaintBoundary(
-
         key: fullSizeKey,
-
         child: Container(
-
           width: 430,
-
           color: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
-
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-
           child: _buildReportContent(
-
             context: context,
-
             cs: cs,
-
             isDark: isDark,
-
             bookName: currentBookName,
-
             range: currentRange,
-
             income: income,
-
             expense: expense,
-
             balance: balance,
-
             expenseDiff: expenseDiff,
-
             comparison: comparison,
-
             hasData: hasData,
-
             weeklySummaryText: weeklySummaryText,
-
             onViewDetail: null,
-
             showViewDetailButton: false,
-
             distributionEntries: distributionEntries,
-
             totalExpenseValue: totalExpenseValue,
-
             ranking: ranking,
-
             totalRankingValue: totalRankingValue,
-
             categoryProvider: categoryProvider,
-
             dailyEntries: dailyEntries,
-
             activity: activity,
-
             emptyText: emptyText,
-
           ),
-
         ),
-
       );
 
 
@@ -1572,102 +1400,189 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
 
-  _PeriodComparison _previousBalance(
-
+  /// 异步加载报表数据（支持100万条记录）
+  Future<Map<String, dynamic>> _loadReportData(
     RecordProvider recordProvider,
-
     String bookId,
+  ) async {
+    final range = _periodRange();
+    
+    // 异步加载时间段记录
+    final records = await recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: range.start,
+      end: range.end,
+    );
 
-  ) {
-
+    // 计算收入和支出
+    double income;
+    double expense;
+    
     if (_isYearMode) {
-
-      final prevRange = DateTimeRange(
-
-        start: DateTime(widget.year - 1, 1, 1),
-
-        end: DateTime(widget.year - 1, 12, 31),
-
-      );
-
-      final records = recordProvider.recordsForPeriod(
-
-        bookId,
-
-        start: prevRange.start,
-
-        end: prevRange.end,
-
-      );
-
-      final expense = records
-
+      // 年度模式：使用聚合查询
+      double totalIncome = 0;
+      double totalExpense = 0;
+      for (var m = 1; m <= 12; m++) {
+        final monthStats = await recordProvider.getMonthStatsAsync(
+          DateTime(widget.year, m, 1),
+          bookId,
+        );
+        totalIncome += monthStats.income;
+        totalExpense += monthStats.expense;
+      }
+      income = totalIncome;
+      expense = totalExpense;
+    } else {
+      // 月/周模式：从记录计算
+      income = records
+          .where((r) => r.isIncome)
+          .fold<double>(0, (sum, r) => sum + r.incomeValue);
+      expense = records
           .where((r) => r.isExpense)
-
           .fold<double>(0, (sum, r) => sum + r.expenseValue);
+    }
 
-      return _PeriodComparison(
+    // 加载对比数据
+    final comparison = await _previousBalanceAsync(recordProvider, bookId);
 
-        balance: expense,
+    // 加载活动数据
+    final activity = await _periodActivityAsync(recordProvider, bookId);
 
-        hasData: records.isNotEmpty,
+    // 加载日趋势数据（需要 context，稍后在 build 中处理）
+    final dailyEntries = <ChartEntry>[];
 
+    // 加载上一周支出（如果是周模式）
+    double? prevWeekExpense;
+    if (_isWeekMode) {
+      final prevStart = DateUtilsX.startOfWeek(range.start)
+          .subtract(const Duration(days: 7));
+      final prevEnd = prevStart.add(const Duration(days: 6));
+      prevWeekExpense = await recordProvider.periodExpense(
+        bookId: bookId,
+        start: prevStart,
+        end: prevEnd,
       );
+    }
 
+    return {
+      'records': records,
+      'income': income,
+      'expense': expense,
+      'comparison': comparison,
+      'activity': activity,
+      'dailyEntries': dailyEntries,
+      'prevWeekExpense': prevWeekExpense ?? 0.0,
+    };
+  }
+
+  /// 异步加载对比数据
+  Future<_PeriodComparison> _previousBalanceAsync(
+    RecordProvider recordProvider,
+    String bookId,
+  ) async {
+    if (_isYearMode) {
+      final prevRange = DateTimeRange(
+        start: DateTime(widget.year - 1, 1, 1),
+        end: DateTime(widget.year - 1, 12, 31),
+      );
+      final expense = await recordProvider.periodExpense(
+        bookId: bookId,
+        start: prevRange.start,
+        end: prevRange.end,
+      );
+      final records = await recordProvider.recordsForPeriodAsync(
+        bookId,
+        start: prevRange.start,
+        end: prevRange.end,
+      );
+      return _PeriodComparison(
+        balance: expense,
+        hasData: records.isNotEmpty,
+      );
     }
 
     if (_isWeekMode) {
-
       final start = DateUtilsX.startOfWeek(_periodRange().start)
-
           .subtract(const Duration(days: 7));
-
       final prevRange = DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
-
-      final records = recordProvider.recordsForPeriod(
-
-        bookId,
-
+      final expense = await recordProvider.periodExpense(
+        bookId: bookId,
         start: prevRange.start,
-
         end: prevRange.end,
-
       );
-
-      final expense = records
-
-          .where((r) => r.isExpense)
-
-          .fold<double>(0, (sum, r) => sum + r.expenseValue);
-
+      final records = await recordProvider.recordsForPeriodAsync(
+        bookId,
+        start: prevRange.start,
+        end: prevRange.end,
+      );
       return _PeriodComparison(
-
         balance: expense,
-
         hasData: records.isNotEmpty,
-
       );
-
     }
 
-
-
-    final currentMonth =
-
-        DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
-
+    final currentMonth = DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
     final prevMonth = DateTime(currentMonth.year, currentMonth.month - 1, 1);
+    final monthStats = await recordProvider.getMonthStatsAsync(prevMonth, bookId);
+    final monthRecords = await recordProvider.recordsForMonthAsync(
+      bookId,
+      prevMonth.year,
+      prevMonth.month,
+    );
+    return _PeriodComparison(
+      balance: monthStats.expense,
+      hasData: monthRecords.isNotEmpty,
+    );
+  }
 
+  _PeriodComparison _previousBalance(
+    RecordProvider recordProvider,
+    String bookId,
+  ) {
+    if (_isYearMode) {
+      final prevRange = DateTimeRange(
+        start: DateTime(widget.year - 1, 1, 1),
+        end: DateTime(widget.year - 1, 12, 31),
+      );
+      final records = recordProvider.recordsForPeriod(
+        bookId,
+        start: prevRange.start,
+        end: prevRange.end,
+      );
+      final expense = records
+          .where((r) => r.isExpense)
+          .fold<double>(0, (sum, r) => sum + r.expenseValue);
+      return _PeriodComparison(
+        balance: expense,
+        hasData: records.isNotEmpty,
+      );
+    }
+
+    if (_isWeekMode) {
+      final start = DateUtilsX.startOfWeek(_periodRange().start)
+          .subtract(const Duration(days: 7));
+      final prevRange = DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
+      final records = recordProvider.recordsForPeriod(
+        bookId,
+        start: prevRange.start,
+        end: prevRange.end,
+      );
+      final expense = records
+          .where((r) => r.isExpense)
+          .fold<double>(0, (sum, r) => sum + r.expenseValue);
+      return _PeriodComparison(
+        balance: expense,
+        hasData: records.isNotEmpty,
+      );
+    }
+
+    final currentMonth = DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
+    final prevMonth = DateTime(currentMonth.year, currentMonth.month - 1, 1);
     final expense = recordProvider.monthExpense(prevMonth, bookId);
-
     final hasData = recordProvider
-
         .recordsForMonth(bookId, prevMonth.year, prevMonth.month)
-
         .isNotEmpty;
-
     return _PeriodComparison(balance: expense, hasData: hasData);
-
   }
 
 
@@ -1800,114 +1715,115 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
 
-  List<ChartEntry> _buildDailyEntries(
-
+  /// 异步构建日趋势数据
+  Future<List<ChartEntry>> _buildDailyEntriesAsync(
     RecordProvider recordProvider,
-
     String bookId,
-
-    ColorScheme cs,
-
-  ) {
-
+  ) async {
+    final cs = Theme.of(context).colorScheme;
+    
     if (_isYearMode) {
-
       // 年模式：构建12个月的月趋势数据
-
       final entries = <ChartEntry>[];
-
       for (var month = 1; month <= 12; month++) {
-
         final monthDate = DateTime(widget.year, month, 1);
-
-        final expense = recordProvider.monthExpense(monthDate, bookId);
-
+        final monthStats = await recordProvider.getMonthStatsAsync(monthDate, bookId);
         entries.add(
-
           ChartEntry(
-
             label: '$month月',
-
-            value: expense,
-
+            value: monthStats.expense,
             color: cs.primary,
-
           ),
-
         );
-
       }
-
       return entries;
-
     }
 
-    
-
-    // 日趋势的横轴应该覆盖完整周期：
-
-    // - 月视图：当月 1 号 ~ 当月最后一天（即使还没到月底，后面的天数也显示为 0）
-
-    // - 周视图：本周 7 天
-
+    // 日趋势的横轴应该覆盖完整周期
     final baseRange = _periodRange();
-
     DateTime start = baseRange.start;
-
     DateTime end = baseRange.end;
 
-
-
     if (_isMonthMode) {
-
-      // 当月从 1 号到最后一天
-
       start = DateTime(start.year, start.month, 1);
-
       end = DateTime(start.year, start.month + 1, 0);
-
     } else if (_isWeekMode) {
-
-      // 确保是完整的一周（7 天）
-
       start = DateUtilsX.startOfWeek(start);
-
       end = start.add(const Duration(days: 6));
-
     }
 
-
-
     final dayCount = end.difference(start).inDays + 1;
-
     final days = List.generate(
-
       dayCount,
-
       (i) => start.add(Duration(days: i)),
-
     );
 
+    // 异步加载每天的支出统计
+    final entries = <ChartEntry>[];
+    for (final d in days) {
+      final dayStats = await recordProvider.getDayStatsAsync(bookId, d);
+      entries.add(
+        ChartEntry(
+          label: _isWeekMode ? '${d.month}/${d.day}' : d.day.toString(),
+          value: dayStats.expense,
+          color: cs.primary,
+        ),
+      );
+    }
 
+    return entries;
+  }
+
+  List<ChartEntry> _buildDailyEntries(
+    RecordProvider recordProvider,
+    String bookId,
+    ColorScheme cs,
+  ) {
+    if (_isYearMode) {
+      // 年模式：构建12个月的月趋势数据
+      final entries = <ChartEntry>[];
+      for (var month = 1; month <= 12; month++) {
+        final monthDate = DateTime(widget.year, month, 1);
+        final expense = recordProvider.monthExpense(monthDate, bookId);
+        entries.add(
+          ChartEntry(
+            label: '$month月',
+            value: expense,
+            color: cs.primary,
+          ),
+        );
+      }
+      return entries;
+    }
+
+    // 日趋势的横轴应该覆盖完整周期
+    final baseRange = _periodRange();
+    DateTime start = baseRange.start;
+    DateTime end = baseRange.end;
+
+    if (_isMonthMode) {
+      start = DateTime(start.year, start.month, 1);
+      end = DateTime(start.year, start.month + 1, 0);
+    } else if (_isWeekMode) {
+      start = DateUtilsX.startOfWeek(start);
+      end = start.add(const Duration(days: 6));
+    }
+
+    final dayCount = end.difference(start).inDays + 1;
+    final days = List.generate(
+      dayCount,
+      (i) => start.add(Duration(days: i)),
+    );
 
     return days
-
         .map(
-
           (d) => ChartEntry(
-
             label: _isWeekMode ? '${d.month}/${d.day}' : d.day.toString(),
-
             value: recordProvider.dayExpense(bookId, d),
-
             color: cs.primary,
-
           ),
-
         )
-
         .toList();
-
   }
 
 
@@ -2168,46 +2084,51 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
 
-  _PeriodActivity _periodActivity(
-
+  /// 异步加载活动数据
+  Future<_PeriodActivity> _periodActivityAsync(
     RecordProvider recordProvider,
-
     String bookId,
-
-  ) {
-
+  ) async {
     final range = _periodRange();
-
-    final records = recordProvider.recordsForPeriod(
-
+    final records = await recordProvider.recordsForPeriodAsync(
       bookId,
-
       start: range.start,
-
       end: range.end,
-
     );
 
     final activeDays = <String>{};
-
     for (final record in records) {
-
       activeDays.add(DateUtilsX.ymd(record.date));
-
     }
 
-    // 杩炵画澶╂暟锛氱畝鍖栦负娲诲姩澶╂暟
-
     return _PeriodActivity(
-
       recordCount: records.length,
-
       activeDays: activeDays.length,
-
       streak: activeDays.length,
+    );
+  }
 
+  _PeriodActivity _periodActivity(
+    RecordProvider recordProvider,
+    String bookId,
+  ) {
+    final range = _periodRange();
+    final records = recordProvider.recordsForPeriod(
+      bookId,
+      start: range.start,
+      end: range.end,
     );
 
+    final activeDays = <String>{};
+    for (final record in records) {
+      activeDays.add(DateUtilsX.ymd(record.date));
+    }
+
+    return _PeriodActivity(
+      recordCount: records.length,
+      activeDays: activeDays.length,
+      streak: activeDays.length,
+    );
   }
 
 

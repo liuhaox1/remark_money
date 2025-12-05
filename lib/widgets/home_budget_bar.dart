@@ -61,7 +61,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final budgetProvider = context.watch<BudgetProvider>();
-    final recordProvider = context.watch<RecordProvider>();
+    final recordProvider = context.read<RecordProvider>();
     final bookProvider = context.watch<BookProvider>();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -72,39 +72,52 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
     // 月度预算数据
     final monthPeriod = budgetProvider.currentPeriodRange(bookId, today);
     final monthTotal = budgetEntry.total;
-    final monthUsed = recordProvider.periodExpense(
-      bookId: bookId,
-      start: monthPeriod.start,
-      end: monthPeriod.end,
-    );
-    final monthRemaining = monthTotal - monthUsed;
-    final monthToday = today.isBefore(monthPeriod.start)
-        ? monthPeriod.start
-        : (today.isAfter(monthPeriod.end) ? monthPeriod.end : today);
-    final rawMonthDaysLeft = monthPeriod.end.difference(monthToday).inDays + 1;
-    final monthDaysLeft = rawMonthDaysLeft < 0 ? 0 : rawMonthDaysLeft;
-    final monthDailyAllowance =
-        monthDaysLeft > 0 ? monthRemaining / monthDaysLeft : 0.0;
+    // 使用 FutureBuilder 异步加载月度支出数据
+    return FutureBuilder<double>(
+      future: recordProvider.periodExpense(
+        bookId: bookId,
+        start: monthPeriod.start,
+        end: monthPeriod.end,
+      ),
+      builder: (context, monthSnapshot) {
+        if (monthSnapshot.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        final monthUsed = monthSnapshot.data ?? 0.0;
+        final monthRemaining = monthTotal - monthUsed;
+        final monthToday = today.isBefore(monthPeriod.start)
+            ? monthPeriod.start
+            : (today.isAfter(monthPeriod.end) ? monthPeriod.end : today);
+        final rawMonthDaysLeft = monthPeriod.end.difference(monthToday).inDays + 1;
+        final monthDaysLeft = rawMonthDaysLeft < 0 ? 0 : rawMonthDaysLeft;
+        final monthDailyAllowance =
+            monthDaysLeft > 0 ? monthRemaining / monthDaysLeft : 0.0;
 
-    // 年度预算数据
-    final yearStart = DateTime(today.year, 1, 1);
-    final yearEnd = DateTime(today.year, 12, 31);
-    final yearTotal = budgetEntry.annualTotal;
-    final yearUsed = recordProvider.periodExpense(
-      bookId: bookId,
-      start: yearStart,
-      end: yearEnd,
-    );
-    final yearRemaining = yearTotal - yearUsed;
-    final yearToday = today.isBefore(yearStart)
-        ? yearStart
-        : (today.isAfter(yearEnd) ? yearEnd : today);
-    final totalYearDays = yearEnd.difference(yearStart).inDays + 1;
-    final elapsedYearDays = yearToday.difference(yearStart).inDays + 1;
-    final usedPercent = yearTotal > 0 ? (yearUsed / yearTotal * 100) : 0.0;
-    final timePercent =
-        totalYearDays > 0 ? (elapsedYearDays / totalYearDays * 100) : 0.0;
-    final usageAheadOfTime = usedPercent > timePercent + 10.0;
+        // 使用 FutureBuilder 异步加载年度支出数据
+        return FutureBuilder<double>(
+          future: recordProvider.periodExpense(
+            bookId: bookId,
+            start: DateTime(today.year, 1, 1),
+            end: DateTime(today.year, 12, 31),
+          ),
+          builder: (context, yearSnapshot) {
+            if (yearSnapshot.connectionState != ConnectionState.done) {
+              return const SizedBox.shrink();
+            }
+            final yearTotal = budgetEntry.annualTotal;
+            final yearUsed = yearSnapshot.data ?? 0.0;
+            final yearRemaining = yearTotal - yearUsed;
+            final yearStart = DateTime(today.year, 1, 1);
+            final yearEnd = DateTime(today.year, 12, 31);
+            final yearToday = today.isBefore(yearStart)
+                ? yearStart
+                : (today.isAfter(yearEnd) ? yearEnd : today);
+            final totalYearDays = yearEnd.difference(yearStart).inDays + 1;
+            final elapsedYearDays = yearToday.difference(yearStart).inDays + 1;
+            final usedPercent = yearTotal > 0 ? (yearUsed / yearTotal * 100) : 0.0;
+            final timePercent =
+                totalYearDays > 0 ? (elapsedYearDays / totalYearDays * 100) : 0.0;
+            final usageAheadOfTime = usedPercent > timePercent + 10.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -190,6 +203,10 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
           ],
         ),
       ),
+    );
+          },
+        );
+      },
     );
   }
 

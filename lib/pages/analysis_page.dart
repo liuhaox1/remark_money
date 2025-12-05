@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/period_type.dart';
+import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
@@ -52,170 +53,182 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final isCurrentYear = now.year == _selectedYear;
 
     final months = DateUtilsX.monthsInYear(_selectedYear);
-    final monthSummaries = months
-        .map(
-          (m) => _MonthSummary(
-            month: m.month,
-            income: recordProvider.monthIncome(m, bookId),
-            expense: recordProvider.monthExpense(m, bookId),
-            recordCount: recordProvider
-                .recordsForMonth(bookId, m.year, m.month)
-                .length,
-            isCurrentMonth: isCurrentYear && m.month == now.month,
+    
+    // 使用 FutureBuilder 异步加载年度统计数据（支持100万条记录）
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _loadYearAnalysisData(recordProvider, bookId, months, isCurrentYear, now),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            backgroundColor:
+                isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+            appBar: AppBar(
+              elevation: 0,
+              toolbarHeight: 0,
+              backgroundColor: Colors.transparent,
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor:
+                isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+            appBar: AppBar(
+              elevation: 0,
+              toolbarHeight: 0,
+              backgroundColor: Colors.transparent,
+            ),
+            body: Center(child: Text('加载失败: ${snapshot.error}')),
+          );
+        }
+
+        final data = snapshot.data ?? {};
+        final monthSummaries = data['monthSummaries'] as List<_MonthSummary>? ?? [];
+        final visibleMonths = monthSummaries
+            .where((m) => m.hasRecords || m.isCurrentMonth)
+            .toList();
+        final weekSummaries = data['weekSummaries'] as List<_WeekSummary>? ?? [];
+        final yearIncome = data['yearIncome'] as double? ?? 0.0;
+        final yearExpense = data['yearExpense'] as double? ?? 0.0;
+        final yearBalance = yearIncome - yearExpense;
+        final hasYearRecords = data['hasYearRecords'] as bool? ?? false;
+        final totalRecordCount = data['totalRecordCount'] as int? ?? 0;
+
+        return Scaffold(
+          backgroundColor:
+              isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+          appBar: AppBar(
+            elevation: 0,
+            toolbarHeight: 0,
+            backgroundColor: Colors.transparent,
           ),
-        )
-        .toList();
-    final visibleMonths = monthSummaries
-        .where((m) => m.hasRecords || m.isCurrentMonth)
-        .toList();
-
-    final weekSummaries =
-        _buildWeekSummaries(recordProvider, bookId, _selectedYear);
-
-    final yearIncome =
-        monthSummaries.fold<double>(0, (sum, item) => sum + item.income);
-    final yearExpense =
-        monthSummaries.fold<double>(0, (sum, item) => sum + item.expense);
-    final yearBalance = yearIncome - yearExpense;
-    final hasYearRecords = recordProvider
-        .recordsForBook(bookId)
-        .any((r) => r.date.year == _selectedYear);
-    final totalRecordCount = recordProvider
-        .recordsForBook(bookId)
-        .where((r) => r.date.year == _selectedYear)
-        .length;
-
-    return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
-      appBar: AppBar(
-        elevation: 0,
-        toolbarHeight: 0,
-        backgroundColor: Colors.transparent,
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
-            child: Column(
-              children: [
-                _HeaderCard(
-                  isDark: isDark,
-                  cs: cs,
-                  bookName: bookName,
-                  year: _selectedYear,
-                  income: yearIncome,
-                  expense: yearExpense,
-                  balance: yearBalance,
-                  periodType: _periodType,
-                ),
-                const SizedBox(height: 4),
-                if (hasYearRecords)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Column(
+                  children: [
+                    _HeaderCard(
+                      isDark: isDark,
+                      cs: cs,
+                      bookName: bookName,
+                      year: _selectedYear,
+                      income: yearIncome,
+                      expense: yearExpense,
+                      balance: yearBalance,
+                      periodType: _periodType,
                     ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '${AppStrings.reportSummaryPrefix}$totalRecordCount'
-                        '${AppStrings.reportSummaryMiddleRecords}'
-                        '${yearExpense.toStringAsFixed(0)}'
-                        '${AppStrings.reportSummarySuffixYuan}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.outline,
+                    const SizedBox(height: 4),
+                    if (hasYearRecords)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            '${AppStrings.reportSummaryPrefix}$totalRecordCount'
+                            '${AppStrings.reportSummaryMiddleRecords}'
+                            '${yearExpense.toStringAsFixed(0)}'
+                            '${AppStrings.reportSummarySuffixYuan}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.outline,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                const SizedBox(height: 4),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        PeriodSelector(
-                          label: AppStrings.yearLabel(_selectedYear),
-                          periodType: PeriodType.year,
-                          onTap: _pickYear,
-                          onPrev: () => setState(() {
-                            _selectedYear -= 1;
-                          }),
-                          onNext: () => setState(() {
-                            _selectedYear += 1;
-                          }),
-                          compact: true,
-                        ),
-                        SegmentedButton<PeriodType>(
-                          segments: const [
-                            ButtonSegment(
-                              value: PeriodType.week,
-                              label: Text(AppStrings.weekReport),
-                              icon: Icon(Icons.calendar_view_week),
+                    const SizedBox(height: 4),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        child: Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            PeriodSelector(
+                              label: AppStrings.yearLabel(_selectedYear),
+                              periodType: PeriodType.year,
+                              onTap: _pickYear,
+                              onPrev: () => setState(() {
+                                _selectedYear -= 1;
+                              }),
+                              onNext: () => setState(() {
+                                _selectedYear += 1;
+                              }),
+                              compact: true,
                             ),
-                            ButtonSegment(
-                              value: PeriodType.month,
-                              label: Text(AppStrings.monthReport),
-                              icon: Icon(Icons.calendar_view_month),
-                            ),
-                            ButtonSegment(
-                              value: PeriodType.year,
-                              label: Text(AppStrings.yearReport),
-                              icon: Icon(Icons.date_range),
+                            SegmentedButton<PeriodType>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: PeriodType.week,
+                                  label: Text(AppStrings.weekReport),
+                                  icon: Icon(Icons.calendar_view_week),
+                                ),
+                                ButtonSegment(
+                                  value: PeriodType.month,
+                                  label: Text(AppStrings.monthReport),
+                                  icon: Icon(Icons.calendar_view_month),
+                                ),
+                                ButtonSegment(
+                                  value: PeriodType.year,
+                                  label: Text(AppStrings.yearReport),
+                                  icon: Icon(Icons.date_range),
+                                ),
+                              ],
+                              selected: {_periodType},
+                              onSelectionChanged: (value) {
+                                setState(() => _periodType = value.first);
+                              },
                             ),
                           ],
-                          selected: {_periodType},
-                          onSelectionChanged: (value) {
-                            setState(() => _periodType = value.first);
-                          },
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: _PeriodList(
-                      year: _selectedYear,
-                      cs: cs,
-                      periodType: _periodType,
-                      months: visibleMonths,
-                      weeks: weekSummaries,
-                      hasYearRecords: hasYearRecords,
-                      onTapMonth: (month) => _openBillPage(
-                        context,
-                        bookId: bookId,
-                        year: _selectedYear,
-                        month: month,
-                      ),
-                      onTapYear: () => _openBillPage(
-                        context,
-                        bookId: bookId,
-                        year: _selectedYear,
-                      ),
-                      onTapWeek: (range) => _openBillPage(
-                        context,
-                        bookId: bookId,
-                        year: _selectedYear,
-                        weekRange: range,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: _PeriodList(
+                          year: _selectedYear,
+                          cs: cs,
+                          periodType: _periodType,
+                          months: visibleMonths,
+                          weeks: weekSummaries,
+                          hasYearRecords: hasYearRecords,
+                          onTapMonth: (month) => _openBillPage(
+                            context,
+                            bookId: bookId,
+                            year: _selectedYear,
+                            month: month,
+                          ),
+                          onTapYear: () => _openBillPage(
+                            context,
+                            bookId: bookId,
+                            year: _selectedYear,
+                          ),
+                          onTapWeek: (range) => _openBillPage(
+                            context,
+                            bookId: bookId,
+                            year: _selectedYear,
+                            weekRange: range,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -301,6 +314,106 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
   }
 
+  /// 异步加载年度分析数据（支持100万条记录）
+  Future<Map<String, dynamic>> _loadYearAnalysisData(
+    RecordProvider recordProvider,
+    String bookId,
+    List<DateTime> months,
+    bool isCurrentYear,
+    DateTime now,
+  ) async {
+    // 异步加载月份统计数据
+    final monthSummaries = <_MonthSummary>[];
+    for (final m in months) {
+      final monthStats = await recordProvider.getMonthStatsAsync(m, bookId);
+      final monthRecords = await recordProvider.recordsForMonthAsync(bookId, m.year, m.month);
+      monthSummaries.add(
+        _MonthSummary(
+          month: m.month,
+          income: monthStats.income,
+          expense: monthStats.expense,
+          recordCount: monthRecords.length,
+          isCurrentMonth: isCurrentYear && m.month == now.month,
+        ),
+      );
+    }
+
+    // 异步加载年度记录用于周统计
+    final yearStart = DateTime(_selectedYear, 1, 1);
+    final yearEnd = DateTime(_selectedYear, 12, 31, 23, 59, 59);
+    final yearRecords = await recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: yearStart,
+      end: yearEnd,
+    );
+
+    final weekSummaries = _buildWeekSummariesFromRecords(yearRecords, _selectedYear);
+
+    final yearIncome = monthSummaries.fold<double>(0, (sum, item) => sum + item.income);
+    final yearExpense = monthSummaries.fold<double>(0, (sum, item) => sum + item.expense);
+    final hasYearRecords = yearRecords.isNotEmpty;
+    final totalRecordCount = yearRecords.length;
+
+    return {
+      'monthSummaries': monthSummaries,
+      'weekSummaries': weekSummaries,
+      'yearIncome': yearIncome,
+      'yearExpense': yearExpense,
+      'hasYearRecords': hasYearRecords,
+      'totalRecordCount': totalRecordCount,
+    };
+  }
+
+  List<_WeekSummary> _buildWeekSummariesFromRecords(
+    List<Record> records,
+    int year,
+  ) {
+    final Map<DateTime, _WeekSummary> map = {};
+    for (final record in records) {
+      final start = DateUtilsX.startOfWeek(record.date);
+      final range = DateUtilsX.weekRange(record.date);
+      final summary = map.putIfAbsent(
+        start,
+        () => _WeekSummary(
+          start: start,
+          end: range.end,
+          income: 0,
+          expense: 0,
+          recordCount: 0,
+        ),
+      );
+      if (record.isIncome) {
+        summary.income += record.incomeValue;
+      } else {
+        summary.expense += record.expenseValue;
+      }
+      summary.recordCount += 1;
+    }
+
+    final now = DateTime.now();
+    final currentStart = DateUtilsX.startOfWeek(now);
+    if (now.year == year && !map.containsKey(currentStart)) {
+      final range = DateUtilsX.weekRange(now);
+      map[currentStart] = _WeekSummary(
+        start: currentStart,
+        end: range.end,
+        income: 0,
+        expense: 0,
+        recordCount: 0,
+      );
+    }
+
+    final entries = map.values.toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+
+    for (var i = 0; i < entries.length; i++) {
+      entries[i].weekIndex = i + 1;
+    }
+
+    entries.sort((a, b) => b.start.compareTo(a.start));
+    return entries;
+  }
+
   List<_WeekSummary> _buildWeekSummaries(
     RecordProvider recordProvider,
     String bookId,
@@ -358,7 +471,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 }
 
-  class _HeaderCard extends StatelessWidget {
+class _HeaderCard extends StatelessWidget {
   const _HeaderCard({
     required this.isDark,
     required this.cs,

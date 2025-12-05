@@ -1440,64 +1440,98 @@ class _BillPageState extends State<BillPage> {
     final recordProvider = context.watch<RecordProvider>();
     final months = DateUtilsX.monthsInYear(_selectedYear);
 
-    double totalIncome = 0;
-    double totalExpense = 0;
+    // 使用 FutureBuilder 异步加载统计数据（支持100万条记录）
+    return FutureBuilder<List<Map<String, double>>>(
+      future: _loadYearStats(recordProvider, bookId, months),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    final monthItems = <Widget>[];
-    for (final m in months) {
-      final income = recordProvider.monthIncome(m, bookId);
-      final expense = recordProvider.monthExpense(m, bookId);
-      final balance = income - expense;
+        if (snapshot.hasError) {
+          return Center(child: Text('加载失败: ${snapshot.error}'));
+        }
 
-      totalIncome += income;
-      totalExpense += expense;
+        final monthStats = snapshot.data ?? [];
+        double totalIncome = 0;
+        double totalExpense = 0;
 
-      // 只展示有记账的月份，避免一整年全是 0.00 的行
-      if (income == 0 && expense == 0) continue;
+        final monthItems = <Widget>[];
+        for (var i = 0; i < months.length; i++) {
+          final m = months[i];
+          final stats = i < monthStats.length ? monthStats[i] : {'income': 0.0, 'expense': 0.0};
+          final income = stats['income'] ?? 0.0;
+          final expense = stats['expense'] ?? 0.0;
+          final balance = income - expense;
 
-      monthItems.add(
-        InkWell(
-          onTap: () {
-            setState(() {
-              _periodType = PeriodType.month;
-              _selectedYear = m.year;
-              _selectedMonth = DateTime(m.year, m.month, 1);
-            });
-          },
-          child: _billCard(
-          title: AppStrings.monthLabel(m.month),
-          income: income,
-          expense: expense,
-          balance: balance,
-          cs: cs,
+          totalIncome += income;
+          totalExpense += expense;
+
+          // 只展示有记账的月份，避免一整年全是 0.00 的行
+          if (income == 0 && expense == 0) continue;
+
+          monthItems.add(
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _periodType = PeriodType.month;
+                  _selectedYear = m.year;
+                  _selectedMonth = DateTime(m.year, m.month, 1);
+                });
+              },
+              child: _billCard(
+                title: AppStrings.monthLabel(m.month),
+                income: income,
+                expense: expense,
+                balance: balance,
+                cs: cs,
+              ),
+            ),
+          );
+        }
+
+        final items = <Widget>[];
+        final totalBalance = totalIncome - totalExpense;
+
+        // 年度小结
+        items.add(
+          _billCard(
+            title: AppStrings.yearReport,
+            subtitle:
+                '本年收入 ${totalIncome.toStringAsFixed(2)} 元 · 支出 ${totalExpense.toStringAsFixed(2)} 元',
+            income: totalIncome,
+            expense: totalExpense,
+            balance: totalBalance,
+            cs: cs,
+            highlight: true,
           ),
-        ),
-      );
-    }
+        );
 
-    final items = <Widget>[];
-    final totalBalance = totalIncome - totalExpense;
+        items.addAll(monthItems);
 
-    // 年度小结
-      items.add(
-        _billCard(
-          title: AppStrings.yearReport,
-          subtitle:
-              '本年收入 ${totalIncome.toStringAsFixed(2)} 元 · 支出 ${totalExpense.toStringAsFixed(2)} 元',
-          income: totalIncome,
-          expense: totalExpense,
-          balance: totalBalance,
-          cs: cs,
-          highlight: true,
-        ),
-      );
-
-    items.addAll(monthItems);
-
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: items,
+        return ListView(
+          padding: const EdgeInsets.all(12),
+          children: items,
+        );
+      },
     );
+  }
+
+  /// 异步加载年度统计数据
+  Future<List<Map<String, double>>> _loadYearStats(
+    RecordProvider recordProvider,
+    String bookId,
+    List<DateTime> months,
+  ) async {
+    final stats = <Map<String, double>>[];
+    for (final m in months) {
+      final monthStats = await recordProvider.getMonthStatsAsync(m, bookId);
+      stats.add({
+        'income': monthStats.income,
+        'expense': monthStats.expense,
+      });
+    }
+    return stats;
   }
 
   Widget _buildWeekBill(BuildContext context, ColorScheme cs, String bookId) {
@@ -1510,16 +1544,37 @@ class _BillPageState extends State<BillPage> {
         List.generate(7, (i) => _selectedWeek.start.add(Duration(days: i)));
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
-    double totalIncome = 0;
-    double totalExpense = 0;
-    int emptyDays = 0;
+    
+    // 使用 FutureBuilder 异步加载周记录（支持100万条记录）
+    return FutureBuilder<List<Record>>(
+      future: recordProvider.recordsForPeriodAsync(
+        bookId,
+        start: _selectedWeek.start,
+        end: _selectedWeek.end.add(const Duration(days: 1)).subtract(const Duration(seconds: 1)),
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    final items = <Widget>[];
+        if (snapshot.hasError) {
+          return Center(child: Text('加载失败: ${snapshot.error}'));
+        }
 
-    for (final d in days) {
-      final dayDate = DateTime(d.year, d.month, d.day);
-      final allRecords = recordProvider.recordsForDay(bookId, d);
-      final records = _applyFilters(allRecords, categoryMap);
+        final allWeekRecords = snapshot.data ?? [];
+        double totalIncome = 0;
+        double totalExpense = 0;
+        int emptyDays = 0;
+
+        final items = <Widget>[];
+
+        for (final d in days) {
+          final dayDate = DateTime(d.year, d.month, d.day);
+          // 从已加载的记录中筛选当天的记录
+          final allRecords = allWeekRecords.where((r) => 
+            DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId
+          ).toList();
+          final records = _applyFilters(allRecords, categoryMap);
 
       double income = 0;
       double expense = 0;
@@ -1555,43 +1610,45 @@ class _BillPageState extends State<BillPage> {
         ),
       );
 
-      for (final r in records) {
-        final category = categoryMap[r.categoryKey];
-        items.add(
-          TimelineItem(
-            record: r,
-            leftSide: false,
-            category: category,
-            subtitle: r.remark.isEmpty ? null : r.remark,
-            onTap: () => _openEditRecord(r),
-            onDelete: () => _confirmAndDeleteRecord(r),
+          for (final r in records) {
+            final category = categoryMap[r.categoryKey];
+            items.add(
+              TimelineItem(
+                record: r,
+                leftSide: false,
+                category: category,
+                subtitle: r.remark.isEmpty ? null : r.remark,
+                onTap: () => _openEditRecord(r),
+                onDelete: () => _confirmAndDeleteRecord(r),
+              ),
+            );
+          }
+        }
+
+        final subtitleParts = <String>[AppStrings.weekRangeLabel(_selectedWeek)];
+        if (emptyDays > 0) {
+          subtitleParts.add(AppTextTemplates.weekEmptyDaysHint(emptyDays));
+        }
+
+        // 顶部整周小结卡片
+        items.insert(
+          0,
+          _billCard(
+            title: DateUtilsX.weekLabel(_weekNumberForWeek(_selectedWeek.start)),
+            subtitle: subtitleParts.join(' · '),
+            income: totalIncome,
+            expense: totalExpense,
+            balance: totalIncome - totalExpense,
+            cs: cs,
+            highlight: true,
           ),
         );
-      }
-    }
 
-    final subtitleParts = <String>[AppStrings.weekRangeLabel(_selectedWeek)];
-    if (emptyDays > 0) {
-      subtitleParts.add(AppTextTemplates.weekEmptyDaysHint(emptyDays));
-    }
-
-    // 顶部整周小结卡片
-      items.insert(
-        0,
-        _billCard(
-          title: DateUtilsX.weekLabel(_weekNumberForWeek(_selectedWeek.start)),
-          subtitle: subtitleParts.join(' · '),
-          income: totalIncome,
-          expense: totalExpense,
-          balance: totalIncome - totalExpense,
-          cs: cs,
-          highlight: true,
-        ),
-      );
-
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: items,
+        return ListView(
+          padding: const EdgeInsets.all(12),
+          children: items,
+        );
+      },
     );
   }
 
@@ -1610,16 +1667,39 @@ class _BillPageState extends State<BillPage> {
       for (final c in categoryProvider.categories) c.key: c,
     };
 
-    double totalIncome = 0;
-    double totalExpense = 0;
-    double maxDailyExpense = 0;
-    int recordedDays = 0;
+    // 使用 FutureBuilder 异步加载月记录（支持100万条记录）
+    final monthStart = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
+    final monthEnd = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0, 23, 59, 59);
+    
+    return FutureBuilder<List<Record>>(
+      future: recordProvider.recordsForPeriodAsync(
+        bookId,
+        start: monthStart,
+        end: monthEnd,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    final nonEmptyDays = <DateTime>[];
+        if (snapshot.hasError) {
+          return Center(child: Text('加载失败: ${snapshot.error}'));
+        }
 
-    for (final d in days) {
-      final allRecords = recordProvider.recordsForDay(bookId, d);
-      final records = _applyFilters(allRecords, categoryMap);
+        final allMonthRecords = snapshot.data ?? [];
+        double totalIncome = 0;
+        double totalExpense = 0;
+        double maxDailyExpense = 0;
+        int recordedDays = 0;
+
+        final nonEmptyDays = <DateTime>[];
+
+        for (final d in days) {
+          // 从已加载的记录中筛选当天的记录
+          final allRecords = allMonthRecords.where((r) => 
+            DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId
+          ).toList();
+          final records = _applyFilters(allRecords, categoryMap);
 
       double income = 0;
       double expense = 0;
@@ -1631,91 +1711,96 @@ class _BillPageState extends State<BillPage> {
         }
       }
 
-      totalIncome += income;
-      totalExpense += expense;
+          totalIncome += income;
+          totalExpense += expense;
 
-      if (records.isNotEmpty) {
-        recordedDays += 1;
-        nonEmptyDays.add(d);
-      }
-      if (expense > maxDailyExpense) {
-        maxDailyExpense = expense;
-      }
-    }
-
-    final totalDays = days.length;
-    final avgExpense = totalDays > 0 ? totalExpense / totalDays : 0;
-    final emptyDays = totalDays - recordedDays;
-
-    final items = <Widget>[];
-
-    final subtitleParts = <String>[];
-    subtitleParts.add(
-      '本月支出 ${totalExpense.toStringAsFixed(2)} 元 · 日均 ${avgExpense.toStringAsFixed(2)} 元',
-    );
-    subtitleParts.add('记账 $recordedDays 天');
-    if (emptyDays > 0) {
-      subtitleParts.add(AppTextTemplates.monthEmptyDaysHint(emptyDays));
-    }
-    if (maxDailyExpense > 0) {
-      subtitleParts.add('单日最高支出 ${maxDailyExpense.toStringAsFixed(2)} 元');
-    }
-
-      items.add(
-        _billCard(
-          title: AppStrings.monthListTitle,
-          subtitle: subtitleParts.join(' · '),
-          income: totalIncome,
-          expense: totalExpense,
-          balance: totalIncome - totalExpense,
-          cs: cs,
-          highlight: true,
-        ),
-      );
-
-    for (final d in nonEmptyDays) {
-      final allRecords = recordProvider.recordsForDay(bookId, d);
-      final records = _applyFilters(allRecords, categoryMap);
-
-      double income = 0;
-      double expense = 0;
-      for (final r in records) {
-        if (r.isIncome) {
-          income += r.incomeValue;
-        } else {
-          expense += r.expenseValue;
+          if (records.isNotEmpty) {
+            recordedDays += 1;
+            nonEmptyDays.add(d);
+          }
+          if (expense > maxDailyExpense) {
+            maxDailyExpense = expense;
+          }
         }
-      }
-      final balance = income - expense;
+
+        final totalDays = days.length;
+        final avgExpense = totalDays > 0 ? totalExpense / totalDays : 0;
+        final emptyDays = totalDays - recordedDays;
+
+        final items = <Widget>[];
+
+        final subtitleParts = <String>[];
+        subtitleParts.add(
+          '本月支出 ${totalExpense.toStringAsFixed(2)} 元 · 日均 ${avgExpense.toStringAsFixed(2)} 元',
+        );
+        subtitleParts.add('记账 $recordedDays 天');
+        if (emptyDays > 0) {
+          subtitleParts.add(AppTextTemplates.monthEmptyDaysHint(emptyDays));
+        }
+        if (maxDailyExpense > 0) {
+          subtitleParts.add('单日最高支出 ${maxDailyExpense.toStringAsFixed(2)} 元');
+        }
 
         items.add(
           _billCard(
-            title: AppStrings.monthDayLabel(d.month, d.day),
-            income: income,
-            expense: expense,
-            balance: balance,
-          cs: cs,
-        ),
-      );
-
-      for (final r in records) {
-        final category = categoryMap[r.categoryKey];
-        items.add(
-          TimelineItem(
-            record: r,
-            leftSide: false,
-            category: category,
-            subtitle: r.remark.isEmpty ? null : r.remark,
-            onTap: () => _openEditRecord(r),
-            onDelete: () => _confirmAndDeleteRecord(r),
+            title: AppStrings.monthListTitle,
+            subtitle: subtitleParts.join(' · '),
+            income: totalIncome,
+            expense: totalExpense,
+            balance: totalIncome - totalExpense,
+            cs: cs,
+            highlight: true,
           ),
         );
-      }
-    }
 
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: items,
+        for (final d in nonEmptyDays) {
+          // 从已加载的记录中筛选当天的记录
+          final allRecords = allMonthRecords.where((r) => 
+            DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId
+          ).toList();
+          final records = _applyFilters(allRecords, categoryMap);
+
+          double income = 0;
+          double expense = 0;
+          for (final r in records) {
+            if (r.isIncome) {
+              income += r.incomeValue;
+            } else {
+              expense += r.expenseValue;
+            }
+          }
+          final balance = income - expense;
+
+          items.add(
+            _billCard(
+              title: AppStrings.monthDayLabel(d.month, d.day),
+              income: income,
+              expense: expense,
+              balance: balance,
+              cs: cs,
+            ),
+          );
+
+          for (final r in records) {
+            final category = categoryMap[r.categoryKey];
+            items.add(
+              TimelineItem(
+                record: r,
+                leftSide: false,
+                category: category,
+                subtitle: r.remark.isEmpty ? null : r.remark,
+                onTap: () => _openEditRecord(r),
+                onDelete: () => _confirmAndDeleteRecord(r),
+              ),
+            );
+          }
+        }
+
+        return ListView(
+          padding: const EdgeInsets.all(12),
+          children: items,
+        );
+      },
     );
   }
 

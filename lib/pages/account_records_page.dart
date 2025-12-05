@@ -48,28 +48,45 @@ class AccountRecordsPage extends StatelessWidget {
       );
     }
 
-    // 获取该账户的所有记录
-    final allRecords = recordProvider.recordsForBook(bookId)
-        .where((r) => r.accountId == accountId)
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    // 使用 FutureBuilder 异步加载账户记录（支持100万条记录）
+    return FutureBuilder<List<Record>>(
+      future: recordProvider.recordsForBookAsync(bookId).then((records) => 
+        records.where((r) => r.accountId == accountId).toList()
+          ..sort((a, b) => b.date.compareTo(a.date))
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(title: Text('${account.name} - 流水')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    // 按日期分组
-    final groupedRecords = _groupRecordsByDate(allRecords);
-    final categoryMap = {
-      for (final c in categoryProvider.categories) c.key: c,
-    };
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: Text('${account.name} - 流水')),
+            body: Center(child: Text('加载失败: ${snapshot.error}')),
+          );
+        }
 
-    // 计算统计
-    final totalIncome = allRecords
-        .where((r) => r.isIncome)
-        .fold<double>(0, (sum, r) => sum + r.amount);
-    final totalExpense = allRecords
-        .where((r) => r.isExpense)
-        .fold<double>(0, (sum, r) => sum + r.amount);
-    final netChange = totalIncome - totalExpense;
+        final allRecords = snapshot.data ?? [];
+        
+        // 按日期分组
+        final groupedRecords = _groupRecordsByDate(allRecords);
+        final categoryMap = {
+          for (final c in categoryProvider.categories) c.key: c,
+        };
 
-    return Scaffold(
+        // 计算统计
+        final totalIncome = allRecords
+            .where((r) => r.isIncome)
+            .fold<double>(0, (sum, r) => sum + r.amount);
+        final totalExpense = allRecords
+            .where((r) => r.isExpense)
+            .fold<double>(0, (sum, r) => sum + r.amount);
+        final netChange = totalIncome - totalExpense;
+
+        return Scaffold(
       appBar: AppBar(
         title: Text('${account.name} - 流水'),
       ),

@@ -630,24 +630,56 @@ class _BudgetPageState extends State<BudgetPage> {
     final today = DateTime(now.year, now.month, now.day);
     final budgetEntry = budgetProvider.budgetForBook(bookId);
 
-    final monthData = _buildViewData(
-      view: _BudgetView.month,
-      bookId: bookId,
-      budgetEntry: budgetEntry,
-      recordProvider: recordProvider,
-      budgetProvider: budgetProvider,
-      today: today,
-    );
-    final yearData = _buildViewData(
-      view: _BudgetView.year,
-      bookId: bookId,
-      budgetEntry: budgetEntry,
-      recordProvider: recordProvider,
-      budgetProvider: budgetProvider,
-      today: today,
-    );
+    // 使用 FutureBuilder 异步加载预算数据
+    return FutureBuilder<Map<String, _BudgetViewData>>(
+      future: Future.wait([
+        _buildViewData(
+          view: _BudgetView.month,
+          bookId: bookId,
+          budgetEntry: budgetEntry,
+          recordProvider: recordProvider,
+          budgetProvider: budgetProvider,
+          today: today,
+        ),
+        _buildViewData(
+          view: _BudgetView.year,
+          bookId: bookId,
+          budgetEntry: budgetEntry,
+          recordProvider: recordProvider,
+          budgetProvider: budgetProvider,
+          today: today,
+        ),
+      ]).then((results) => {
+        'month': results[0],
+        'year': results[1],
+      }),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+            appBar: AppBar(
+              title: const Text('预算'),
+              backgroundColor: Colors.transparent,
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return DefaultTabController(
+        final monthData = snapshot.data?['month'];
+        final yearData = snapshot.data?['year'];
+        
+        if (monthData == null || yearData == null) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+            appBar: AppBar(
+              title: const Text('预算'),
+              backgroundColor: Colors.transparent,
+            ),
+            body: const Center(child: Text('加载失败')),
+          );
+        }
+
+        return DefaultTabController(
       length: 2,
       initialIndex: _initialTabIndex,
       child: Scaffold(
@@ -715,6 +747,8 @@ class _BudgetPageState extends State<BudgetPage> {
           ),
         ),
       ),
+      );
+      },
     );
   }
 
@@ -844,14 +878,14 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  _BudgetViewData _buildViewData({
+  Future<_BudgetViewData> _buildViewData({
     required _BudgetView view,
     required String bookId,
     required BudgetEntry budgetEntry,
     required RecordProvider recordProvider,
     required BudgetProvider budgetProvider,
     required DateTime today,
-  }) {
+  }) async {
     final isYear = view == _BudgetView.year;
     final period = isYear
         ? DateTimeRange(
@@ -862,12 +896,12 @@ class _BudgetPageState extends State<BudgetPage> {
 
     final totalBudget = isYear ? budgetEntry.annualTotal : budgetEntry.total;
     final hasBudget = totalBudget > 0;
-    final used = recordProvider.periodExpense(
+    final used = await recordProvider.periodExpense(
       bookId: bookId,
       start: period.start,
       end: period.end,
     );
-    final expenseSpent = recordProvider.periodCategoryExpense(
+    final expenseSpent = await recordProvider.periodCategoryExpense(
       bookId: bookId,
       start: period.start,
       end: period.end,

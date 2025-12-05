@@ -324,6 +324,233 @@ class RecordRepositoryDb {
     }
   }
 
+  /// 查询指定日期范围的记录（用于按需查询）
+  Future<List<Record>> queryRecordsForPeriod({
+    required String bookId,
+    required DateTime start,
+    required DateTime end,
+    String? categoryKey,
+    String? accountId,
+    bool? isExpense,
+    int? limit,
+    int? offset,
+  }) async {
+    try {
+      final db = await _dbHelper.database;
+      
+      final where = <String>['book_id = ?', 'date >= ?', 'date <= ?'];
+      final whereArgs = <dynamic>[
+        bookId,
+        start.millisecondsSinceEpoch,
+        end.millisecondsSinceEpoch,
+      ];
+
+      if (categoryKey != null) {
+        where.add('category_key = ?');
+        whereArgs.add(categoryKey);
+      }
+
+      if (accountId != null) {
+        where.add('account_id = ?');
+        whereArgs.add(accountId);
+      }
+
+      if (isExpense != null) {
+        where.add('is_expense = ?');
+        whereArgs.add(isExpense ? 1 : 0);
+      }
+
+      final maps = await db.query(
+        Tables.records,
+        where: where.join(' AND '),
+        whereArgs: whereArgs,
+        orderBy: 'date DESC, created_at DESC',
+        limit: limit,
+        offset: offset,
+      );
+
+      return maps.map((map) => _mapToRecord(map)).toList();
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] queryRecordsForPeriod failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// 查询指定月份的记录
+  Future<List<Record>> queryRecordsForMonth({
+    required String bookId,
+    required int year,
+    required int month,
+    int? limit,
+    int? offset,
+  }) async {
+    final start = DateTime(year, month, 1);
+    final end = DateTime(year, month + 1, 0, 23, 59, 59);
+    return queryRecordsForPeriod(
+      bookId: bookId,
+      start: start,
+      end: end,
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  /// 查询指定日期的记录
+  Future<List<Record>> queryRecordsForDay({
+    required String bookId,
+    required DateTime day,
+  }) async {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = DateTime(day.year, day.month, day.day, 23, 59, 59);
+    return queryRecordsForPeriod(
+      bookId: bookId,
+      start: start,
+      end: end,
+    );
+  }
+
+  /// 使用SQL聚合查询获取月份统计（高效）
+  Future<Map<String, double>> getMonthStats({
+    required String bookId,
+    required int year,
+    required int month,
+  }) async {
+    try {
+      final db = await _dbHelper.database;
+      final start = DateTime(year, month, 1).millisecondsSinceEpoch;
+      final end = DateTime(year, month + 1, 0, 23, 59, 59).millisecondsSinceEpoch;
+
+      final result = await db.rawQuery('''
+        SELECT 
+          SUM(CASE WHEN is_expense = 0 AND include_in_stats = 1 THEN amount ELSE 0 END) as income,
+          SUM(CASE WHEN is_expense = 1 AND include_in_stats = 1 THEN amount ELSE 0 END) as expense
+        FROM ${Tables.records}
+        WHERE book_id = ? AND date >= ? AND date <= ?
+      ''', [bookId, start, end]);
+
+      if (result.isEmpty) {
+        return {'income': 0.0, 'expense': 0.0};
+      }
+
+      final row = result.first;
+      return {
+        'income': (row['income'] as num?)?.toDouble() ?? 0.0,
+        'expense': (row['expense'] as num?)?.toDouble() ?? 0.0,
+      };
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] getMonthStats failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// 使用SQL聚合查询获取日期统计（高效）
+  Future<Map<String, double>> getDayStats({
+    required String bookId,
+    required DateTime day,
+  }) async {
+    try {
+      final db = await _dbHelper.database;
+      final start = DateTime(day.year, day.month, day.day).millisecondsSinceEpoch;
+      final end = DateTime(day.year, day.month, day.day, 23, 59, 59).millisecondsSinceEpoch;
+
+      final result = await db.rawQuery('''
+        SELECT 
+          SUM(CASE WHEN is_expense = 0 AND include_in_stats = 1 THEN amount ELSE 0 END) as income,
+          SUM(CASE WHEN is_expense = 1 AND include_in_stats = 1 THEN amount ELSE 0 END) as expense
+        FROM ${Tables.records}
+        WHERE book_id = ? AND date >= ? AND date <= ?
+      ''', [bookId, start, end]);
+
+      if (result.isEmpty) {
+        return {'income': 0.0, 'expense': 0.0};
+      }
+
+      final row = result.first;
+      return {
+        'income': (row['income'] as num?)?.toDouble() ?? 0.0,
+        'expense': (row['expense'] as num?)?.toDouble() ?? 0.0,
+      };
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] getDayStats failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// 使用SQL聚合查询获取时间段支出统计（高效）
+  Future<double> getPeriodExpense({
+    required String bookId,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    try {
+      final db = await _dbHelper.database;
+      final result = await db.rawQuery('''
+        SELECT SUM(amount) as total
+        FROM ${Tables.records}
+        WHERE book_id = ? 
+          AND date >= ? 
+          AND date <= ?
+          AND is_expense = 1 
+          AND include_in_stats = 1
+      ''', [
+        bookId,
+        start.millisecondsSinceEpoch,
+        end.millisecondsSinceEpoch,
+      ]);
+
+      if (result.isEmpty || result.first['total'] == null) {
+        return 0.0;
+      }
+
+      return (result.first['total'] as num).toDouble();
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] getPeriodExpense failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// 使用SQL聚合查询获取时间段分类支出统计（高效）
+  Future<Map<String, double>> getPeriodCategoryExpense({
+    required String bookId,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    try {
+      final db = await _dbHelper.database;
+      final result = await db.rawQuery('''
+        SELECT category_key, SUM(amount) as total
+        FROM ${Tables.records}
+        WHERE book_id = ? 
+          AND date >= ? 
+          AND date <= ?
+          AND is_expense = 1 
+          AND include_in_stats = 1
+        GROUP BY category_key
+      ''', [
+        bookId,
+        start.millisecondsSinceEpoch,
+        end.millisecondsSinceEpoch,
+      ]);
+
+      final categoryExpense = <String, double>{};
+      for (final row in result) {
+        final categoryKey = row['category_key'] as String;
+        final total = (row['total'] as num).toDouble();
+        categoryExpense[categoryKey] = total;
+      }
+
+      return categoryExpense;
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] getPeriodCategoryExpense failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   /// 将数据库映射转换为 Record 对象
   Record _mapToRecord(Map<String, dynamic> map) {
     return Record(
