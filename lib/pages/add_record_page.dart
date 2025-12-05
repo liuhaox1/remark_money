@@ -232,7 +232,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
             const SizedBox(height: 2),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: cs.onSurface.withOpacity(0.87),
+              ),
             ),
           ],
         ),
@@ -697,6 +699,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
                               fontWeight: selected
                                   ? FontWeight.w600
                                   : FontWeight.w400,
+                              color: selected
+                                  ? cs.primary
+                                  : cs.onSurface.withOpacity(0.87),
                             ),
                           ),
                         ],
