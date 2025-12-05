@@ -15,11 +15,96 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/auth_service.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final AuthService _authService = const AuthService();
+  String? _token;
+  bool _loadingToken = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadToken();
+  }
+
+  Widget _buildLoginStatusCard(BuildContext context, bool isLoggedIn) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      color: cs.surface,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ListTile(
+        leading: CircleAvatar(
+          radius: 18,
+          backgroundColor: cs.primary.withOpacity(0.12),
+          child: Icon(
+            Icons.person_outline,
+            color: cs.primary,
+          ),
+        ),
+        title: Text(
+          isLoggedIn ? '已登录' : '未登录',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: cs.onSurface,
+              ),
+        ),
+        subtitle: _loadingToken
+            ? Text(
+                '正在检测登录状态…',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+              )
+            : Text(
+                isLoggedIn
+                    ? '你的数据已绑定到账号，可在多设备同步。'
+                    : '登录后可以备份数据、在多台设备之间同步账本。',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+              ),
+        trailing: TextButton(
+          onPressed: _loadingToken
+              ? null
+              : (isLoggedIn ? _logout : _goLogin),
+          child: Text(isLoggedIn ? '退出登录' : '去登录'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadToken() async {
+    final t = await _authService.loadToken();
+    if (!mounted) return;
+    setState(() {
+      _token = t;
+      _loadingToken = false;
+    });
+  }
+
+  Future<void> _logout() async {
+    await _authService.clearToken();
+    await _loadToken();
+  }
+
+  Future<void> _goLogin() async {
+    final result = await Navigator.pushNamed(context, '/login');
+    if (result == true) {
+      await _loadToken();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +117,7 @@ class ProfilePage extends StatelessWidget {
     final bookCount = bookProvider.books.length;
     final categoryCount = categoryProvider.categories.length;
     final reminderEnabled = reminderProvider.enabled;
+    final isLoggedIn = (_token != null && _token!.isNotEmpty);
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -51,6 +137,8 @@ class ProfilePage extends StatelessWidget {
                   categoryCount: categoryCount,
                   reminderEnabled: reminderEnabled,
                 ),
+                const SizedBox(height: 12),
+                _buildLoginStatusCard(context, isLoggedIn),
                 const SizedBox(height: 12),
                 _buildVipCard(context),
                 const SizedBox(height: 12),

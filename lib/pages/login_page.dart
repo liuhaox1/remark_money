@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+/// 手机号验证码登录页
+class SmsLoginPage extends StatefulWidget {
+  const SmsLoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<SmsLoginPage> createState() => _SmsLoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _SmsLoginPageState extends State<SmsLoginPage> {
   final _phoneCtrl = TextEditingController();
   final _smsCtrl = TextEditingController();
   final _auth = const AuthService();

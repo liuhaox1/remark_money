@@ -27,7 +27,7 @@ import 'database/database_helper.dart';
 import 'l10n/app_strings.dart';
 
 import 'pages/root_shell.dart';
-import 'pages/login_page.dart';
+import 'pages/login_landing_page.dart';
 import 'pages/add_record_page.dart';
 import 'pages/analysis_page.dart';
 import 'pages/bill_page.dart';
@@ -250,7 +250,7 @@ class RemarkMoneyApp extends StatelessWidget {
               '/budget': (_) => const BudgetPage(),
               '/category-manager': (_) => const CategoryManagerPage(),
               '/finger-accounting': (_) => const FingerAccountingPage(),
-              '/login': (_) => const LoginPage(),
+              '/login': (_) => const LoginLandingPage(),
             },
             onGenerateRoute: (settings) {
               if (settings.name == '/add') {
