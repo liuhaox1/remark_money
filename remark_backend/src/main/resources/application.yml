@@ -23,8 +23,9 @@ auth:
 weixin:
   app-id: your_wechat_appid_here
   app-secret: your_wechat_appsecret_here
-  # 登录 code 换取 openid 的接口地址（小程序/APP 可根据需要调整）
-  jscode2session-url: https://api.weixin.qq.com/sns/jscode2session
+  # APP 内微信授权使用的登录接口地址
+  # 对应文档：https://api.weixin.qq.com/sns/oauth2/access_token
+  jscode2session-url: https://api.weixin.qq.com/sns/oauth2/access_token
 
 logging:
   level:

@@ -88,7 +88,7 @@ public class AuthService {
     String url = wxCode2SessionUrl +
         "?appid=" + wxAppId +
         "&secret=" + wxSecret +
-        "&js_code=" + code +
+        "&code=" + code +
         "&grant_type=authorization_code";
 
     Map<String, Object> resp = restTemplate.getForObject(url, Map.class);
@@ -113,4 +113,3 @@ public class AuthService {
     return result;
   }
 }
-

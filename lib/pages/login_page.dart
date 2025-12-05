@@ -62,7 +62,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _loginWithWeChat() async {
-    _showSnack('请先接入微信 SDK，获取 code 后调用 AuthService.loginWithWeChat');
+    _showSnack('请在接入原生微信 SDK 后，调用 AuthService.loginWithWeChat(code) 完成登录。');
   }
 
   void _showSnack(String msg) {
@@ -148,4 +148,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
