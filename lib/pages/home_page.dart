@@ -270,94 +270,50 @@ class _HomePageState extends State<HomePage> {
             constraints: const BoxConstraints(maxWidth: 430),
 
             child: SingleChildScrollView(
-
-            child: Column(
-
-              children: [
-
+              child: Column(
+                children: [
+                  _BalanceCard(
+                    income: monthIncome,
+                    expense: monthExpense,
+                    balance: monthBalance,
+                    dateLabel: dateLabel,
+                    onTapDate: _pickDate,
+                    onTapSearch: _openFilterSheet,
+                  ),
+                  const SizedBox(height: 8),
                   _HomeSearchBar(
-
                     controller: _searchController,
-
                     focusNode: _searchFocusNode,
-
                     keyword: _searchKeyword,
-
                     hasActiveFilter: _hasActiveFilterOrSearch,
-
                     onChanged: _onSearchKeywordChanged,
-
                     onSubmitted: _onSearchSubmitted,
-
                     onTapFilter: _openFilterSheet,
-
                     onClear: _clearSearchKeyword,
-
                   ),
-
                   if (_showSuggestions)
-
                     _HomeSearchSuggestionPanel(
-
                       keyword: _searchKeyword,
-
                       history: _searchHistory,
-
                       categories: categoryProvider.categories,
-
                       onTapHistory: _applyHistoryKeyword,
-
                       onClearHistory: _clearSearchHistory,
-
                       onTapCategory: _applyCategorySuggestion,
-
                     ),
-
                   _HomeQuickFiltersBar(
-
                     timeRangeType: _timeRangeType,
-
                     filterIncomeExpense: _filterIncomeExpense,
-
                     minAmount: _minAmount,
-
                     onSelectTimeRange: _handleQuickTimeRange,
-
                     onToggleIncomeOnly: _handleQuickIncomeOnly,
-
                     onToggleExpenseOnly: _handleQuickExpenseOnly,
-
                     onToggleHighExpense: _handleQuickHighExpense,
-
                   ),
-
                   if (_hasActiveFilterOrSearch)
-
                     _HomeFilterSummaryBar(
-
                       summaryText: _buildFilterSummaryText(),
-
                       onClearAll: _handleClearAllFilters,
-
                     ),
-
-                _BalanceCard(
-
-                  income: monthIncome,
-
-                  expense: monthExpense,
-
-                  balance: monthBalance,
-
-                  dateLabel: dateLabel,
-
-                  onTapDate: _pickDate,
-
-                  onTapSearch: _openFilterSheet,
-
-                ),
-
-                const SizedBox(height: 8),
 
                 WeekStrip(
 
