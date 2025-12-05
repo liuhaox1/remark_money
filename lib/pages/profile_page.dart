@@ -227,36 +227,6 @@ class ProfilePage extends StatelessWidget {
       child: Column(
         children: [
           ListTile(
-            leading: Icon(Icons.palette_outlined,
-                color: cs.onSurface.withOpacity(0.8)),
-            title: Text(
-              '主题颜色',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(color: cs.onSurface),
-            ),
-            trailing:
-                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-            onTap: () => _openThemeSheet(context),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: Icon(Icons.table_chart_outlined,
-                color: cs.onSurface.withOpacity(0.8)),
-            title: Text(
-              '数据导入导出',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(color: cs.onSurface),
-            ),
-            trailing:
-                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-            onTap: () => _showImportExportSheet(context),
-          ),
-          const Divider(height: 1),
-          ListTile(
             leading: Icon(Icons.feedback_outlined,
                 color: cs.onSurface.withOpacity(0.8)),
             title: Text(

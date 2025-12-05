@@ -370,9 +370,16 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                   children: [
                     TextField(
                       controller: nameCtrl,
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: cs.onSurface),
+                      decoration: InputDecoration(
                         labelText: AppStrings.categoryName,
+                        labelStyle: TextStyle(
+                          color: cs.onSurface.withOpacity(0.78),
+                        ),
                         hintText: AppStrings.categoryNameHint,
+                        hintStyle: TextStyle(
+                          color: cs.onSurface.withOpacity(0.78),
+                        ),
                       ),
                     ),
                     if (effectiveParentKey == null) ...[
