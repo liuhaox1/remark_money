@@ -1785,7 +1785,8 @@ class _BillPageState extends State<BillPage> {
           Text(
             '本期收入 ${income.toStringAsFixed(2)} 元 · 支出 ${expense.toStringAsFixed(2)} 元 · 结余 ${balance.toStringAsFixed(2)} 元',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
+              fontWeight: FontWeight.normal,
               color: cs.onSurface.withOpacity(0.75),
             ),
           )
