@@ -288,7 +288,9 @@ class BookSelectorButton extends StatelessWidget {
               style: TextStyle(color: cs.onSurface),
               decoration: InputDecoration(
                 hintText: AppStrings.bookNameHint,
-                hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.6)),
+                hintStyle: TextStyle(
+                  color: cs.onSurface.withOpacity(0.78),
+                ),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {

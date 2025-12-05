@@ -1026,19 +1026,28 @@ class ProfilePage extends StatelessWidget {
     String id,
     String initialName,
   ) async {
+    final cs = Theme.of(context).colorScheme;
     final controller = TextEditingController(text: initialName);
     final formKey = GlobalKey<FormState>();
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text(AppStrings.renameBook),
+        title: Text(
+          AppStrings.renameBook,
+          style: TextStyle(color: cs.onSurface),
+        ),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            decoration:
-                const InputDecoration(hintText: AppStrings.bookNameHint),
+            style: TextStyle(color: cs.onSurface),
+            decoration: InputDecoration(
+              hintText: AppStrings.bookNameHint,
+              hintStyle: TextStyle(
+                color: cs.onSurface.withOpacity(0.78),
+              ),
+            ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return AppStrings.bookNameRequired;
@@ -1050,7 +1059,10 @@ class ProfilePage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(AppStrings.cancel),
+            child: Text(
+              AppStrings.cancel,
+              style: TextStyle(color: cs.onSurface),
+            ),
           ),
           FilledButton(
             onPressed: () async {
