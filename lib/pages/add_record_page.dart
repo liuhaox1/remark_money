@@ -893,22 +893,28 @@ class _AddRecordPageState extends State<AddRecordPage> {
               controller: _remarkCtrl,
               minLines: 1,
               maxLines: 1,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isCollapsed: true,
                 border: InputBorder.none,
                 hintText: AppStrings.remarkOptional,
+                hintStyle: TextStyle(
+                  fontSize: 14,
+                  color: cs.onSurface.withOpacity(0.6),
+                ),
               ),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
+                color: cs.onSurface,
               ),
             ),
           ),
           const SizedBox(width: 8),
           Text(
             '¥ $amountText',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
+              color: cs.onSurface,
             ),
           ),
         ],
