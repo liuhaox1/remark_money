@@ -330,33 +330,47 @@ class BookSelectorButton extends StatelessWidget {
   ) async {
     await showDialog(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text(AppStrings.deleteBook),
-        content: const Text(AppStrings.confirmDeleteBook),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text(AppStrings.cancel),
+      builder: (dialogCtx) {
+        final cs = Theme.of(dialogCtx).colorScheme;
+        return AlertDialog(
+          title: Text(
+            AppStrings.deleteBook,
+            style: TextStyle(color: cs.onSurface),
           ),
-          FilledButton(
-            onPressed: () async {
-              try {
-                await context.read<BookProvider>().deleteBook(id);
-                if (dialogCtx.mounted) {
-                  Navigator.pop(dialogCtx);
-                  ErrorHandler.showSuccess(context, '账本已删除');
-                }
-              } catch (e) {
-                if (dialogCtx.mounted) {
-                  Navigator.pop(dialogCtx);
-                  ErrorHandler.handleAsyncError(context, e);
-                }
-              }
-            },
-            child: const Text(AppStrings.delete),
+          content: Text(
+            AppStrings.confirmDeleteBook,
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.78),
+            ),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(
+                AppStrings.cancel,
+                style: TextStyle(color: cs.onSurface),
+              ),
+            ),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  await context.read<BookProvider>().deleteBook(id);
+                  if (dialogCtx.mounted) {
+                    Navigator.pop(dialogCtx);
+                    ErrorHandler.showSuccess(context, '账本已删除');
+                  }
+                } catch (e) {
+                  if (dialogCtx.mounted) {
+                    Navigator.pop(dialogCtx);
+                    ErrorHandler.handleAsyncError(context, e);
+                  }
+                }
+              },
+              child: const Text(AppStrings.delete),
+            ),
+          ],
+        );
+      },
     );
   }
 }

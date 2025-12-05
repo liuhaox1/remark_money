@@ -710,7 +710,7 @@ class AccountDetailPage extends StatelessWidget {
         account.currentBalance < 0) {
       return AppColors.danger;
     }
-    return AppColors.amount(account.currentBalance);
+    return cs.onSurface;
   }
 
   bool _hasBalanceIssue(Account account) {

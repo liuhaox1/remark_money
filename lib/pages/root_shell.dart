@@ -340,7 +340,6 @@ class _AssetsPageBody extends StatelessWidget {
     Widget build(BuildContext context) {
       final theme = Theme.of(context);
       final cs = theme.colorScheme;
-      final netColor = AppColors.amount(netWorth);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
@@ -381,7 +380,7 @@ class _AssetsPageBody extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
-                  color: netColor,
+                  color: cs.onPrimary,
                 ),
             ),
             const SizedBox(height: 8),
