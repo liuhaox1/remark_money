@@ -939,11 +939,12 @@ class _EmptyYearCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             AppStrings.emptyYearRecords,
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 14,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 10),
