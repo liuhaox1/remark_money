@@ -30,22 +30,31 @@ Future<String?> showAccountSelectBottomSheet(
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   '当前还没有可用账户，请先添加账户。',
-                  style: TextStyle(fontSize: 13),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.onSurface.withOpacity(0.87),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('知道了'),
+                    child: Text(
+                      '知道了',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -64,14 +73,18 @@ Future<String?> showAccountSelectBottomSheet(
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: Icon(
+                      Icons.close,
+                      color: colorScheme.onSurface,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -92,6 +105,7 @@ Future<String?> showAccountSelectBottomSheet(
                         fontSize: 15,
                         fontWeight:
                             isSelected ? FontWeight.w600 : FontWeight.w400,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     subtitle: Text(

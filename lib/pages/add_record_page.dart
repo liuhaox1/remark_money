@@ -456,6 +456,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
   }
 
   Widget _buildAdvancedSheetContent() {
+    final cs = Theme.of(context).colorScheme;
     final statsLabel = _isExpense ? '计入支出统计' : '计入收入统计';
 
     return Column(
@@ -466,18 +467,26 @@ class _AddRecordPageState extends State<AddRecordPage> {
           '更多设置',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
+            color: cs.onSurface,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           '记账习惯和统计',
-          style: Theme.of(context).textTheme.bodyMedium,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: cs.onSurface.withOpacity(0.87),
+          ),
         ),
         const SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: _includeInStats,
-          title: Text(statsLabel),
+          title: Text(
+            statsLabel,
+            style: TextStyle(
+              color: cs.onSurface,
+            ),
+          ),
           onChanged: (v) => setState(() => _includeInStats = v),
         ),
       ],

@@ -136,14 +136,17 @@ class _BudgetPageState extends State<BudgetPage> {
             children: [
               Text(
                 AppStrings.budgetPeriodSettingTitle,
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 AppStrings.budgetPeriodSettingDesc,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+                      color:
+                          Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+                    ),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -199,7 +202,12 @@ class _BudgetPageState extends State<BudgetPage> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(ctx).pop(),
-                    child: const Text(AppStrings.cancel),
+                    child: Text(
+                      AppStrings.cancel,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
@@ -315,11 +323,12 @@ class _BudgetPageState extends State<BudgetPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             '确认重置',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
+                              color: cs.onError,
                             ),
                           ),
                         ),
@@ -365,7 +374,12 @@ class _BudgetPageState extends State<BudgetPage> {
                   Icons.refresh,
                   color: cs.error,
                 ),
-                title: const Text(AppStrings.resetBookBudget),
+                title: Text(
+                  AppStrings.resetBookBudget,
+                  style: TextStyle(
+                    color: cs.onSurface,
+                  ),
+                ),
                 subtitle: Text(
                   '清空本账本的总预算和所有分类预算',
                   style: TextStyle(
@@ -1488,7 +1502,7 @@ class _CategoryBudgetTile extends StatelessWidget {
                     ),
                     style: TextStyle(
                       fontSize: 12,
-                      color: isOverspend ? AppColors.danger : AppColors.success,
+                      color: cs.onSurface,
                     ),
                   ),
                 ),
@@ -1520,9 +1534,9 @@ class _EmptyHint extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
-          color: AppColors.textSecondary,
+          color: cs.onSurface.withOpacity(0.75),
         ),
       ),
     );
