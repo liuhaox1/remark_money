@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../l10n/app_strings.dart';
-import '../l10n/profile_strings_local.dart';
 import '../models/import_result.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
@@ -25,357 +24,208 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bookProvider = context.watch<BookProvider>();
-    final themeProvider = context.watch<ThemeProvider>();
+    final categoryProvider = context.watch<CategoryProvider>();
     final reminderProvider = context.watch<ReminderProvider>();
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+    final cs = Theme.of(context).colorScheme;
+
+    final activeBookName = bookProvider.activeBook?.name ?? AppStrings.book;
+    final bookCount = bookProvider.books.length;
+    final categoryCount = categoryProvider.categories.length;
+    final reminderEnabled = reminderProvider.enabled;
 
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        toolbarHeight: 0,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildBookSection(context, bookProvider),
-              const SizedBox(height: 16),
-              _buildThemeSection(context, themeProvider),
-              const SizedBox(height: 16),
-              _buildBudgetCategorySection(context),
-              const SizedBox(height: 16),
-              _buildDataSecuritySection(context),
-            ],
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              children: [
+                _buildHeaderCard(
+                  context,
+                  title: '设置',
+                  subtitle: '管理你的账本、主题、预算和提醒',
+                  activeBook: activeBookName,
+                  bookCount: bookCount,
+                  categoryCount: categoryCount,
+                  reminderEnabled: reminderEnabled,
+                ),
+                const SizedBox(height: 12),
+                _buildVipCard(context),
+                const SizedBox(height: 12),
+                _buildActionGrid(
+                  context,
+                  reminderProvider: reminderProvider,
+                ),
+                const SizedBox(height: 12),
+                _buildSettingsList(context),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildThemeSection(BuildContext context, ThemeProvider provider) {
-    const seedOptions = <Color>[
-      Colors.teal,
-      Colors.orange,
-      Colors.indigo,
-      Colors.pink,
-    ];
-
-    final currentMode =
-        provider.mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light;
+  Widget _buildVipCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
     return Card(
       color: cs.surface,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(
-              AppStrings.theme,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: cs.onSurface),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: cs.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.workspace_premium_outlined, color: cs.primary),
             ),
-            const SizedBox(height: 12),
-            SegmentedButton<ThemeMode>(
-              segments: const [
-                ButtonSegment(
-                  value: ThemeMode.light,
-                  label: Text(AppStrings.themeLight),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.dark,
-                  label: Text(AppStrings.themeDark),
-                ),
-              ],
-              selected: {currentMode},
-              showSelectedIcon: false,
-              onSelectionChanged: (value) {
-                provider.setMode(value.first);
-              },
-            ),
-            const SizedBox(height: 16),
-            Text(
-              AppStrings.themeSeed,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(color: cs.onSurface),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              children: seedOptions.map((color) {
-                final selected = provider.seedColor.value == color.value;
-                return GestureDetector(
-                  onTap: () => provider.setSeedColor(color),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color,
-                      border: Border.all(
-                        color: selected 
-                            ? cs.onSurface
-                            : cs.outlineVariant.withOpacity(0.6),
-                        width: selected ? 3 : 2,
-                      ),
-                      boxShadow: selected
-                          ? [
-                              BoxShadow(
-                                color: color.withOpacity(0.4),
-                                blurRadius: 8,
-                                spreadRadius: 2,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: selected
-                        ? Icon(
-                            Icons.check,
-                            color: cs.onPrimary,
-                            size: 20,
-                          )
-                        : null,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '升级为 VIP',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: cs.onSurface),
                   ),
-                );
-              }).toList(),
+                  const SizedBox(height: 4),
+                  Text(
+                    '畅享更多高级功能',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
+                  ),
+                ],
+              ),
             ),
+            Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBookSection(BuildContext context, BookProvider provider) {
+  Widget _buildActionGrid(
+    BuildContext context, {
+    required ReminderProvider reminderProvider,
+  }) {
     final cs = Theme.of(context).colorScheme;
-    if (provider.books.isEmpty) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
+    final actions = [
+      _ProfileAction(
+        icon: Icons.menu_book_outlined,
+        label: '账本管理',
+        onTap: () => _showBookManagerSheet(context),
+      ),
+      _ProfileAction(
+        icon: Icons.color_lens_outlined,
+        label: '主题风格',
+        onTap: () => _openThemeSheet(context),
+      ),
+      _ProfileAction(
+        icon: Icons.trending_down_outlined,
+        label: AppStrings.budget,
+        onTap: () => Navigator.pushNamed(context, '/budget'),
+      ),
+      _ProfileAction(
+        icon: Icons.category_outlined,
+        label: AppStrings.categoryManager,
+        onTap: () => Navigator.pushNamed(context, '/category-manager'),
+      ),
+      _ProfileAction(
+        icon: Icons.privacy_tip_outlined,
+        label: '数据与安全',
+        onTap: () {
+          final csInner = Theme.of(context).colorScheme;
+          _showDataSecuritySheet(context, csInner);
+        },
+      ),
+      _ProfileAction(
+        icon: Icons.alarm_outlined,
+        label: '提醒设置',
+        onTap: () => _showReminderSheet(context, reminderProvider),
+      ),
+    ];
+
     return Card(
       color: cs.surface,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.menu_book_outlined, size: 20, color: cs.onSurface),
-                const SizedBox(width: 8),
-                Text(
-                  AppStrings.book,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: cs.onSurface),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => _showAddBookDialog(context),
-                  icon: Icon(Icons.add, size: 18, color: cs.primary),
-                  label: Text(
-                    AppStrings.addBook,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: cs.primary),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (provider.books.length == 1)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  provider.books.first.name,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(color: cs.onSurface),
-                ),
-                subtitle: Text(
-                  ProfileStringsLocal.currentBookSingleHint,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 1.4,
+          ),
+          itemCount: actions.length,
+          itemBuilder: (context, index) {
+            final action = actions[index];
+            return InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: action.onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                      icon: Icon(Icons.edit_outlined, color: cs.onSurface),
-                      tooltip: AppStrings.renameBook,
-                      onPressed: () => _showRenameBookDialog(
-                        context,
-                        provider.books.first.id,
-                        provider.books.first.name,
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
+                      child: Icon(
+                        action.icon,
+                        color: cs.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      action.label,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: cs.onSurface),
                     ),
                   ],
                 ),
-              )
-            else
-              ...provider.books.map(
-                (book) => RadioListTile<String>(
-                  value: book.id,
-                  groupValue: provider.activeBookId,
-                  activeColor: cs.primary,
-                  onChanged: (value) {
-                    if (value != null) {
-                      provider.selectBook(value);
-                    }
-                  },
-                  title: Text(
-                    book.name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(color: cs.onSurface),
-                  ),
-                  secondary: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit_outlined, color: cs.onSurface),
-                        tooltip: AppStrings.renameBook,
-                        onPressed: () => _showRenameBookDialog(
-                          context,
-                          book.id,
-                          book.name,
-                        ),
-                      ),
-                      if (provider.books.length > 1)
-                        IconButton(
-                          icon: Icon(Icons.delete_outline, color: cs.onSurface),
-                          tooltip: AppStrings.deleteBook,
-                          onPressed: () => _confirmDelete(context, book.id),
-                        ),
-                    ],
-                  ),
-                ),
               ),
-          ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildLegacyDataSecuritySection(BuildContext context) {
-    return Card(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const ListTile(
-            leading: Icon(Icons.ios_share_outlined),
-            title: Text('数据导入/导出'),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.file_upload_outlined),
-            title: const Text('导入数据'),
-            subtitle: const Text('从 CSV 文件导入记账记录'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _importCsv(context),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.table_chart_outlined),
-            title: const Text('导出数据'),
-            subtitle: const Text('导出当前账本的全部记账记录（CSV）'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showExportSheet(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDataSecuritySection(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Card(
-      color: cs.surface,
-      child: ListTile(
-        leading: Icon(Icons.privacy_tip_outlined,
-            color: cs.onSurface.withOpacity(0.8)),
-        title: Text(
-          '数据与安全',
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
-              ?.copyWith(color: cs.onSurface),
-        ),
-        subtitle: Text(
-          '导入导出、备份与恢复',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
-        ),
-        trailing:
-            Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-        onTap: () => _showDataSecuritySheet(context, cs),
-      ),
-    );
-  }
-
-
-
-  Widget _buildBudgetCategorySection(BuildContext context) {
+  Widget _buildSettingsList(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Card(
       color: cs.surface,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: Icon(Icons.account_balance_wallet_outlined,
+            leading: Icon(Icons.palette_outlined,
                 color: cs.onSurface.withOpacity(0.8)),
             title: Text(
-              '预算与分类',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(color: cs.onSurface),
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: Icon(Icons.trending_down_outlined,
-                color: cs.onSurface.withOpacity(0.8)),
-            title: Text(
-              AppStrings.budget,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(color: cs.onSurface),
-            ),
-            trailing: Icon(Icons.chevron_right,
-                color: cs.onSurface.withOpacity(0.6)),
-            onTap: () => Navigator.pushNamed(context, '/budget'),
-          ),
-          ListTile(
-            leading:
-                Icon(Icons.category_outlined, color: cs.onSurface.withOpacity(0.8)),
-            title: Text(
-              AppStrings.categoryManager,
+              '主题颜色',
               style: Theme.of(context)
                   .textTheme
                   .bodyLarge
@@ -383,44 +233,445 @@ class ProfilePage extends StatelessWidget {
             ),
             trailing:
                 Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-            onTap: () => Navigator.pushNamed(context, '/category-manager'),
+            onTap: () => _openThemeSheet(context),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(Icons.table_chart_outlined,
+                color: cs.onSurface.withOpacity(0.8)),
+            title: Text(
+              '数据导出',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(color: cs.onSurface),
+            ),
+            trailing:
+                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
+            onTap: () => _showExportSheet(context),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(Icons.file_download_outlined,
+                color: cs.onSurface.withOpacity(0.8)),
+            title: Text(
+              '导入 CSV',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(color: cs.onSurface),
+            ),
+            trailing:
+                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
+            onTap: () => _importCsv(context),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(Icons.feedback_outlined,
+                color: cs.onSurface.withOpacity(0.8)),
+            title: Text(
+              '意见反馈',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(color: cs.onSurface),
+            ),
+            trailing:
+                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
+            onTap: () => _showPlaceholder(context, '意见反馈'),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading:
+                Icon(Icons.info_outline, color: cs.onSurface.withOpacity(0.8)),
+            title: Text(
+              '关于应用',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(color: cs.onSurface),
+            ),
+            trailing:
+                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
+            onTap: () => _showPlaceholder(context, '关于应用'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHabitSection(
-    BuildContext context,
-    ReminderProvider reminderProvider,
-  ) {
-    final time = reminderProvider.timeOfDay;
-    final timeLabel =
-        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-
-    return Card(
+  Widget _buildHeaderCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required String activeBook,
+    required int bookCount,
+    required int categoryCount,
+    required bool reminderEnabled,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: [
+            cs.primary.withOpacity(0.85),
+            cs.primaryContainer.withOpacity(0.9),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const ListTile(
-            leading: Icon(Icons.alarm_outlined),
-            title: Text('记账习惯与提醒'),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: cs.onPrimary.withOpacity(0.18),
+                child: Icon(
+                  Icons.person_outline,
+                  size: 30,
+                  color: cs.onPrimary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: cs.onPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: cs.onPrimary.withOpacity(0.85),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          SwitchListTile(
-            value: reminderProvider.enabled,
-            title: const Text('开启每天记账提醒'),
-            subtitle: Text('每天固定时间提醒你打开「指尖记账」，坚持好习惯'),
-            onChanged: (v) => reminderProvider.setEnabled(v),
-          ),
-          ListTile(
-            leading: const Icon(Icons.schedule_outlined),
-            title: const Text('提醒时间'),
-            subtitle: Text(timeLabel),
-            onTap: () => _pickReminderTime(context, reminderProvider),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildHeaderStat(
+                context,
+                label: '当前账本',
+                value: activeBook,
+              ),
+              _buildHeaderStat(
+                context,
+                label: '账本数量',
+                value: '$bookCount',
+              ),
+              _buildHeaderStat(
+                context,
+                label: '分类数量',
+                value: '$categoryCount',
+              ),
+              _buildHeaderStat(
+                context,
+                label: '提醒',
+                value: reminderEnabled ? '已开启' : '未开启',
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHeaderStat(
+    BuildContext context, {
+    required String label,
+    required String value,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .labelMedium
+                ?.copyWith(color: cs.onPrimary.withOpacity(0.85)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: cs.onPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showBookManagerSheet(BuildContext context) async {
+    final bookProvider = context.read<BookProvider>();
+    final cs = Theme.of(context).colorScheme;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: cs.surface,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      '我的账本',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: cs.onSurface),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showAddBookDialog(context);
+                      },
+                      icon: Icon(Icons.add, color: cs.primary),
+                      label: Text(
+                        AppStrings.addBook,
+                        style: TextStyle(color: cs.primary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ...bookProvider.books.map(
+                (book) => RadioListTile<String>(
+                  value: book.id,
+                  groupValue: bookProvider.activeBookId,
+                  activeColor: cs.primary,
+                  title: Text(
+                    book.name,
+                    style: TextStyle(
+                        color: cs.onSurface, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    book.id == bookProvider.activeBookId ? '当前账本' : '点击切换',
+                    style: TextStyle(color: cs.onSurface.withOpacity(0.65)),
+                  ),
+                  secondary: Wrap(
+                    spacing: 4,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.edit_outlined,
+                            size: 20, color: cs.onSurface),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _showRenameBookDialog(context, book.id, book.name);
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete_outline,
+                            size: 20, color: cs.onSurface),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _confirmDelete(context, book.id);
+                        },
+                      ),
+                    ],
+                  ),
+                  onChanged: (value) {
+                    if (value != null) {
+                      bookProvider.selectBook(value);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openThemeSheet(BuildContext context) async {
+    final themeProvider = context.read<ThemeProvider>();
+    final cs = Theme.of(context).colorScheme;
+    const seedOptions = <Color>[
+      Colors.teal,
+      Colors.orange,
+      Colors.indigo,
+      Colors.pink,
+    ];
+    final currentMode =
+        themeProvider.mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: cs.surface,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '主题风格',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(color: cs.onSurface),
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<ThemeMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: ThemeMode.light,
+                      label: Text(AppStrings.themeLight),
+                    ),
+                    ButtonSegment(
+                      value: ThemeMode.dark,
+                      label: Text(AppStrings.themeDark),
+                    ),
+                  ],
+                  selected: {currentMode},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (value) {
+                    themeProvider.setMode(value.first);
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '主题色',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(color: cs.onSurface),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  children: seedOptions.map((color) {
+                    final selected =
+                        themeProvider.seedColor.value == color.value;
+                    return GestureDetector(
+                      onTap: () => themeProvider.setSeedColor(color),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: color,
+                          border: Border.all(
+                            color: selected
+                                ? cs.onSurface
+                                : cs.outlineVariant.withOpacity(0.6),
+                            width: selected ? 3 : 2,
+                          ),
+                          boxShadow: selected
+                              ? [
+                                  BoxShadow(
+                                    color: color.withOpacity(0.35),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: selected
+                            ? Icon(Icons.check, color: cs.onPrimary, size: 20)
+                            : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showReminderSheet(
+    BuildContext context,
+    ReminderProvider provider,
+  ) async {
+    final cs = Theme.of(context).colorScheme;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: cs.surface,
+      showDragHandle: true,
+      builder: (ctx) {
+        final time = provider.timeOfDay;
+        final timeLabel =
+            '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  value: provider.enabled,
+                  title: Text(
+                    '开启每日记账提醒',
+                    style: TextStyle(color: cs.onSurface),
+                  ),
+                  subtitle: Text(
+                    '每天固定时间提醒你打开指尖记账',
+                    style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  ),
+                  onChanged: (v) => provider.setEnabled(v),
+                ),
+                ListTile(
+                  leading: Icon(Icons.schedule_outlined,
+                      color: cs.onSurface.withOpacity(0.8)),
+                  title: Text(
+                    '提醒时间',
+                    style: TextStyle(color: cs.onSurface),
+                  ),
+                  subtitle: Text(
+                    timeLabel,
+                    style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  ),
+                  onTap: () async {
+                    final current = provider.timeOfDay;
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: current,
+                    );
+                    if (picked != null) {
+                      await provider.setTime(picked);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -430,25 +681,41 @@ class ProfilePage extends StatelessWidget {
   ) async {
     await showModalBottomSheet<void>(
       context: context,
+      backgroundColor: colorScheme.surface,
       showDragHandle: true,
       builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.file_upload_outlined),
-                title: const Text('导入 CSV 数据'),
-                subtitle: const Text('从 CSV 文件导入记账记录'),
+                leading: Icon(Icons.file_upload_outlined,
+                    color: cs.onSurface.withOpacity(0.7)),
+                title: Text(
+                  '导入 CSV 数据',
+                  style: TextStyle(color: cs.onSurface),
+                ),
+                subtitle: Text(
+                  '从 CSV 文件导入记账记录',
+                  style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _importCsv(context);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.table_chart_outlined),
-                title: const Text('导出 CSV 数据'),
-                subtitle: const Text('导出当前账本的全部记账记录'),
+                leading: Icon(Icons.table_chart_outlined,
+                    color: cs.onSurface.withOpacity(0.7)),
+                title: Text(
+                  '导出 CSV 数据',
+                  style: TextStyle(color: cs.onSurface),
+                ),
+                subtitle: Text(
+                  '导出当前账本的全部记账记录',
+                  style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showExportSheet(context);
@@ -464,16 +731,25 @@ class ProfilePage extends StatelessWidget {
   Future<void> _showExportSheet(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       showDragHandle: true,
       builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.table_view_outlined),
-                title: const Text('导出为 CSV'),
-                subtitle: const Text('适合在 Excel / 表格中查看'),
+                leading: Icon(Icons.table_view_outlined,
+                    color: cs.onSurface.withOpacity(0.7)),
+                title: Text(
+                  '导出为 CSV',
+                  style: TextStyle(color: cs.onSurface),
+                ),
+                subtitle: Text(
+                  '适合在 Excel / 表格中查看',
+                  style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _exportAllCsv(context);
@@ -521,7 +797,8 @@ class ProfilePage extends StatelessWidget {
 
       final dir = await getTemporaryDirectory();
       final now = DateTime.now();
-      final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
       final safeBookId = bookId.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
       final fileName = 'remark_records_all_${safeBookId}_$dateStr.csv';
       final file = File('${dir.path}/$fileName');
@@ -571,7 +848,6 @@ class ProfilePage extends StatelessWidget {
         if (!bookProvider.loaded) bookProvider.load(),
       ]);
 
-      // 构建查找映射
       final categoriesByName = {
         for (final c in categoryProvider.categories) c.name: c,
       };
@@ -582,7 +858,6 @@ class ProfilePage extends StatelessWidget {
         for (final a in accountProvider.accounts) a.name: a,
       };
 
-      // 获取默认值
       final defaultBookId = bookProvider.activeBookId;
       final defaultAccount = accountProvider.accounts.firstWhere(
         (a) => a.name == '现金',
@@ -595,7 +870,6 @@ class ProfilePage extends StatelessWidget {
       );
       final defaultCategoryKey = defaultCategory.key;
 
-      // 解析CSV
       final imported = parseCsvToRecords(
         content,
         categoriesByName: categoriesByName,
@@ -608,27 +882,34 @@ class ProfilePage extends StatelessWidget {
 
       if (imported.isEmpty) {
         if (context.mounted) {
-          ErrorHandler.showWarning(context, 'CSV文件中没有有效的记录');
+          ErrorHandler.showWarning(context, 'CSV 文件中没有有效的记录');
         }
         return;
       }
 
       final confirmed = await showDialog<bool>(
             context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('导入记录'),
-              content: Text('将导入约 ${imported.length} 条记录，可能会与当前数据合并。是否继续？'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text(AppStrings.cancel),
+            builder: (ctx) {
+              final cs = Theme.of(ctx).colorScheme;
+              return AlertDialog(
+                title: Text('导入记录', style: TextStyle(color: cs.onSurface)),
+                content: Text(
+                  '将导入约 ${imported.length} 条记录，可能会与当前数据合并。是否继续？',
+                  style: TextStyle(color: cs.onSurface.withOpacity(0.9)),
                 ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text(AppStrings.ok),
-                ),
-              ],
-            ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(AppStrings.cancel,
+                        style: TextStyle(color: cs.onSurface)),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text(AppStrings.ok),
+                  ),
+                ],
+              );
+            },
           ) ??
           false;
 
@@ -655,7 +936,7 @@ class ProfilePage extends StatelessWidget {
       }
     } on FormatException catch (e) {
       if (context.mounted) {
-        ErrorHandler.showError(context, 'CSV文件格式不正确：${e.message}');
+        ErrorHandler.showError(context, 'CSV 文件格式不正确：${e.message}');
       }
     } catch (e) {
       if (context.mounted) {
@@ -663,22 +944,6 @@ class ProfilePage extends StatelessWidget {
       }
     }
   }
-
-  Future<void> _pickReminderTime(
-    BuildContext context,
-    ReminderProvider provider,
-  ) async {
-    final current = provider.timeOfDay;
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: current,
-    );
-    if (picked != null) {
-      await provider.setTime(picked);
-    }
-  }
-
-
 
   Future<void> _showAddBookDialog(BuildContext context) async {
     final controller = TextEditingController();
@@ -773,18 +1038,37 @@ class ProfilePage extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text(AppStrings.deleteBook),
-        content: const Text(AppStrings.confirmDeleteBook),
+        title: Text(
+          AppStrings.deleteBook,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        content: Text(
+          AppStrings.confirmDeleteBook,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.78),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(AppStrings.cancel),
+            child: Text(
+              AppStrings.cancel,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
           FilledButton(
             onPressed: () async {
               await provider.deleteBook(id);
               if (context.mounted) Navigator.pop(context);
             },
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
             child: const Text(AppStrings.delete),
           ),
         ],
@@ -796,15 +1080,40 @@ class ProfilePage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: const Text('该功能将在后续版本中完善，敬请期待。'),
+        title: Text(
+          title,
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+        ),
+        content: Text(
+          '该功能将在后续版本中完善，敬请期待。',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.78),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text(AppStrings.ok),
+            child: Text(
+              AppStrings.ok,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _ProfileAction {
+  const _ProfileAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 }

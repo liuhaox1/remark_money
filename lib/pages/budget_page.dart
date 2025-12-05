@@ -185,7 +185,7 @@ class _BudgetPageState extends State<BudgetPage> {
                             fontWeight:
                                 selected ? FontWeight.w700 : FontWeight.w500,
                             color: selected
-                                ? Colors.white
+                                ? Theme.of(context).colorScheme.onPrimary
                                 : Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -415,8 +415,15 @@ class _BudgetPageState extends State<BudgetPage> {
 
     final result = await showDialog<_EditBudgetResult>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('为「${category.name}」设置预算'),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          title: Text(
+            '为「${category.name}」设置预算',
+            style: TextStyle(
+              color: cs.onSurface,
+            ),
+          ),
         content: TextField(
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -426,32 +433,43 @@ class _BudgetPageState extends State<BudgetPage> {
             hintText: AppStrings.budgetInputHint,
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(AppStrings.cancel),
-          ),
-          if (currentBudget != null && currentBudget > 0)
+          actions: [
             TextButton(
-              onPressed: () =>
-                  Navigator.of(ctx).pop(const _EditBudgetResult(deleted: true)),
-              child: const Text(AppStrings.deleteBudget),
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(
+                AppStrings.cancel,
+                style: TextStyle(
+                  color: cs.onSurface,
+                ),
+              ),
             ),
-          FilledButton(
-            onPressed: () {
-              final parsed = _parseAmount(controller.text);
-              if (parsed == null) {
-                Navigator.of(ctx).pop(const _EditBudgetResult(deleted: true));
-              } else {
-                Navigator.of(ctx).pop(
-                  _EditBudgetResult(deleted: false, value: parsed),
-                );
-              }
-            },
-            child: const Text(AppStrings.save),
-          ),
-        ],
-      ),
+            if (currentBudget != null && currentBudget > 0)
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(ctx).pop(const _EditBudgetResult(deleted: true)),
+                child: Text(
+                  AppStrings.deleteBudget,
+                  style: TextStyle(
+                    color: cs.error,
+                  ),
+                ),
+              ),
+            FilledButton(
+              onPressed: () {
+                final parsed = _parseAmount(controller.text);
+                if (parsed == null) {
+                  Navigator.of(ctx).pop(const _EditBudgetResult(deleted: true));
+                } else {
+                  Navigator.of(ctx).pop(
+                    _EditBudgetResult(deleted: false, value: parsed),
+                  );
+                }
+              },
+              child: const Text(AppStrings.save),
+            ),
+          ],
+        );
+      },
     );
 
     if (!mounted || result == null) return;
@@ -521,18 +539,19 @@ class _BudgetPageState extends State<BudgetPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 AppStrings.addCategoryBudget,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 '优先为本期花得多的分类设置预算，有助于更好地控制支出。',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.textSecondary,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
                 ),
               ),
               const SizedBox(height: 12),
@@ -556,12 +575,17 @@ class _BudgetPageState extends State<BudgetPage> {
                           color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
-                      title: Text(cat.name),
+                      title: Text(
+                        cat.name,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
                       subtitle: Text(
                         '${AppStrings.expenseThisPeriodPrefix}¥${spent.toStringAsFixed(0)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
                       onTap: () => Navigator.of(ctx).pop(cat.key),
@@ -1091,7 +1115,7 @@ class _BudgetSummaryCard extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: [
                     cs.primary.withOpacity(0.15),
-                    Colors.white,
+                    cs.surface,
                   ],
                 ),
           color: isDark ? cs.surface : null,
@@ -1100,7 +1124,7 @@ class _BudgetSummaryCard extends StatelessWidget {
               ? null
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: cs.onSurface.withOpacity(0.05),
                     blurRadius: 18,
                     offset: const Offset(0, 8),
                   ),
@@ -1117,9 +1141,10 @@ class _BudgetSummaryCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1440,9 +1465,10 @@ class _CategoryBudgetTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   category.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
                   ),
                 ),
               ),
@@ -1453,7 +1479,9 @@ class _CategoryBudgetTile extends StatelessWidget {
                   budget != null && budget! > 0
                       ? AppStrings.edit
                       : AppStrings.setBudget,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: cs.primary,
+                  ),
                 ),
               )
             ],

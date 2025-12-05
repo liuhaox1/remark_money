@@ -306,13 +306,17 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         children: [
           Row(
             children: [
-              Icon(Icons.lightbulb_outline, color: cs.primary),
+              Icon(
+                Icons.lightbulb_outline,
+                color: cs.onSurface.withOpacity(0.75),
+              ),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 AppStrings.homeBudgetYearlyEmptyTitle,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
                 ),
               ),
             ],
@@ -322,7 +326,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
             AppStrings.homeBudgetYearlyEmptyDesc,
             style: TextStyle(
               fontSize: 12,
-              color: cs.onSurface.withOpacity(0.7),
+              color: cs.onSurface.withOpacity(0.75),
             ),
           ),
           const SizedBox(height: 12),

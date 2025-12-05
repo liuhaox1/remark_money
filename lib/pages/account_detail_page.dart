@@ -23,9 +23,17 @@ class AccountDetailPage extends StatelessWidget {
     final account = accountProvider.byId(accountId);
 
     if (account == null) {
+      final cs = Theme.of(context).colorScheme;
       return Scaffold(
         appBar: AppBar(title: const Text('账户详情')),
-        body: const Center(child: Text('账户不存在')),
+        body: Center(
+          child: Text(
+            '账户不存在',
+            style: TextStyle(
+              color: cs.onSurface,
+            ),
+          ),
+        ),
       );
     }
 
@@ -50,7 +58,9 @@ class AccountDetailPage extends StatelessWidget {
                         Expanded(
                           child: Text(
                             account.name,
-                            style: Theme.of(context).textTheme.titleLarge,
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: cs.onSurface,
+                            ),
                           ),
                         ),
                         if (account.brandKey != null)
@@ -105,7 +115,12 @@ class AccountDetailPage extends StatelessWidget {
                     if (account.counterparty != null &&
                         account.counterparty!.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text('对方：${account.counterparty!}'),
+                      Text(
+                        '对方：${account.counterparty!}',
+                        style: TextStyle(
+                          color: cs.onSurface.withOpacity(0.87),
+                        ),
+                      ),
                     ],
                     if (account.dueDate != null) ...[
                       const SizedBox(height: 6),
@@ -127,7 +142,9 @@ class AccountDetailPage extends StatelessWidget {
                   children: [
                     Text(
                       '账户管理',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: cs.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -162,7 +179,9 @@ class AccountDetailPage extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
         final accounts = context.read<AccountProvider>().accounts.where((a) {
           return a.kind != AccountKind.liability && a.id != account.id;
         }).toList();
@@ -173,13 +192,17 @@ class AccountDetailPage extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, bottom),
           child: StatefulBuilder(
-            builder: (context, setState) {
+            builder: (statefulContext, setState) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     '账户间转账',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   // 转入账户选择
@@ -188,8 +211,10 @@ class AccountDetailPage extends StatelessWidget {
                     children: [
                       Text(
                         '转入账户',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: cs.onSurface.withOpacity(0.7),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -210,7 +235,7 @@ class AccountDetailPage extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                              color: cs.outline.withOpacity(0.3),
                             ),
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -221,16 +246,17 @@ class AccountDetailPage extends StatelessWidget {
                                   toAccountId != null
                                       ? accounts.firstWhere((a) => a.id == toAccountId).name
                                       : '请选择转入账户',
-                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  style: TextStyle(
+                                    fontSize: 16,
                                     color: toAccountId != null
-                                        ? Theme.of(context).colorScheme.onSurface
-                                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                        ? cs.onSurface
+                                        : cs.onSurface.withOpacity(0.5),
                                   ),
                                 ),
                               ),
                               Icon(
                                 Icons.arrow_drop_down,
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                color: cs.onSurface.withOpacity(0.5),
                               ),
                             ],
                           ),
@@ -243,9 +269,11 @@ class AccountDetailPage extends StatelessWidget {
                     controller: amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: cs.onSurface),
+                    decoration: InputDecoration(
                       labelText: '金额',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -284,6 +312,7 @@ class AccountDetailPage extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
         final assets = context
             .read<AccountProvider>()
@@ -303,7 +332,9 @@ class AccountDetailPage extends StatelessWidget {
                 children: [
                   Text(
                     '新增借款',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -311,13 +342,19 @@ class AccountDetailPage extends StatelessWidget {
                     items: assets
                         .map((a) => DropdownMenuItem(
                               value: a.id,
-                              child: Text(a.name),
+                              child: Text(
+                                a.name,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
                             ))
                         .toList(),
                     onChanged: (v) => setState(() => assetAccountId = v),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '资金进入账户',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -325,9 +362,11 @@ class AccountDetailPage extends StatelessWidget {
                     controller: amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    decoration: InputDecoration(
                       labelText: '借款金额',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -367,6 +406,7 @@ class AccountDetailPage extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
         final assets = context
             .read<AccountProvider>()
@@ -386,7 +426,9 @@ class AccountDetailPage extends StatelessWidget {
                 children: [
                   Text(
                     '还款',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -394,13 +436,19 @@ class AccountDetailPage extends StatelessWidget {
                     items: assets
                         .map((a) => DropdownMenuItem(
                               value: a.id,
-                              child: Text(a.name),
+                              child: Text(
+                                a.name,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
                             ))
                         .toList(),
                     onChanged: (v) => setState(() => assetAccountId = v),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '还款资金来源',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -408,9 +456,11 @@ class AccountDetailPage extends StatelessWidget {
                     controller: principalCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    decoration: InputDecoration(
                       labelText: '本金金额',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -418,9 +468,11 @@ class AccountDetailPage extends StatelessWidget {
                     controller: interestCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    decoration: InputDecoration(
                       labelText: '利息（可选，计入支出）',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -461,6 +513,7 @@ class AccountDetailPage extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
         final assets = context
             .read<AccountProvider>()
@@ -480,7 +533,9 @@ class AccountDetailPage extends StatelessWidget {
                 children: [
                   Text(
                     '借给对方',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -488,13 +543,19 @@ class AccountDetailPage extends StatelessWidget {
                     items: assets
                         .map((a) => DropdownMenuItem(
                               value: a.id,
-                              child: Text(a.name),
+                              child: Text(
+                                a.name,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
                             ))
                         .toList(),
                     onChanged: (v) => setState(() => assetAccountId = v),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '资金来源账户',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -502,9 +563,11 @@ class AccountDetailPage extends StatelessWidget {
                     controller: amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    decoration: InputDecoration(
                       labelText: '借出金额',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -542,6 +605,7 @@ class AccountDetailPage extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
         final assets = context
             .read<AccountProvider>()
@@ -561,7 +625,9 @@ class AccountDetailPage extends StatelessWidget {
                 children: [
                   Text(
                     '收回借款',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -569,13 +635,19 @@ class AccountDetailPage extends StatelessWidget {
                     items: assets
                         .map((a) => DropdownMenuItem(
                               value: a.id,
-                              child: Text(a.name),
+                              child: Text(
+                                a.name,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
                             ))
                         .toList(),
                     onChanged: (v) => setState(() => assetAccountId = v),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '收款账户',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -583,9 +655,11 @@ class AccountDetailPage extends StatelessWidget {
                     controller: amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    decoration: InputDecoration(
                       labelText: '收回金额',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -669,6 +743,7 @@ class AccountDetailPage extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
         final bottom = MediaQuery.of(ctx).viewInsets.bottom + 12;
         return Padding(
@@ -679,7 +754,9 @@ class AccountDetailPage extends StatelessWidget {
             children: [
               Text(
                 '调整账户余额',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -693,10 +770,20 @@ class AccountDetailPage extends StatelessWidget {
                 controller: balanceCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 autofocus: true,
-                decoration: const InputDecoration(
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                decoration: InputDecoration(
                   labelText: '余额',
                   helperText: '输入账户的实际余额',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  labelStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  helperStyle: TextStyle(
+                    color:
+                        Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -705,6 +792,9 @@ class AccountDetailPage extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.onSurface,
+                      ),
                       child: const Text('取消'),
                     ),
                   ),

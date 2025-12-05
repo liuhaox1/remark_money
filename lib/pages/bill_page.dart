@@ -1091,6 +1091,7 @@ class _BillPageState extends State<BillPage> {
     
     final choice = await showModalBottomSheet<String>(
       context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         return SafeArea(
@@ -1140,9 +1141,9 @@ class _BillPageState extends State<BillPage> {
                 const Divider(height: 1),
                 const SizedBox(height: 8),
                 ListTile(
-                  leading: const Icon(Icons.table_chart_outlined),
-                  title: const Text('导出 CSV'),
-                  subtitle: Text('用 Excel 打开查看和分析数据（$recordCount 条）'),
+                  leading: Icon(Icons.table_chart_outlined, color: cs.onSurface.withOpacity(0.7)),
+                  title: Text('导出 CSV', style: TextStyle(color: cs.onSurface)),
+                  subtitle: Text('用 Excel 打开查看和分析数据（$recordCount 条）', style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
                   onTap: () => Navigator.pop(ctx, 'csv'),
                 ),
                 const SizedBox(height: 4),

@@ -203,7 +203,10 @@ class _AccountFormPageState extends State<AccountFormPage> {
       children: [
         Text(
           kindLabel,
-          style: const TextStyle(fontSize: 13, color: Colors.grey),
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+          ),
         ),
         if (!hideSubtypeLabel) ...[
           const SizedBox(height: 4),
@@ -360,11 +363,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -1019,6 +1022,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     bool autofocus = false,
     FocusNode? focusNode,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
     crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
@@ -1030,17 +1034,24 @@ class _AccountFormPageState extends State<AccountFormPage> {
           textAlign: textAlign,
           autofocus: autofocus,
           focusNode: focusNode,
+          style: TextStyle(color: cs.onSurface),
           decoration: InputDecoration(
             hintText: hintText,
             border: InputBorder.none,
             isDense: true,
             contentPadding: EdgeInsets.zero,
+            hintStyle: TextStyle(
+              color: cs.onSurface.withOpacity(0.55),
+            ),
           ),
         ),
         if (helperText != null)
           Text(
             helperText,
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
+            style: TextStyle(
+              fontSize: 11,
+              color: cs.onSurface.withOpacity(0.65),
+            ),
           ),
       ],
     );

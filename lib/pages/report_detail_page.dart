@@ -2834,6 +2834,7 @@ class _EmptyPeriodCard extends StatelessWidget {
             AppStrings.emptyPeriodRecords,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.w700,
+              color: cs.onSurface,
             ),
           ),
 

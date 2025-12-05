@@ -9,13 +9,12 @@ class AddAccountTypePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final options = _options;
-    const primaryColor = Color(0xFFFFD54F);
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
+      backgroundColor: cs.surface,
       appBar: AppBar(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.black,
+        backgroundColor: cs.surface,
         elevation: 0,
         title: const Text('添加账户'),
       ),
@@ -24,7 +23,7 @@ class AddAccountTypePage extends StatelessWidget {
         itemBuilder: (context, index) {
           final option = options[index];
           return Container(
-            color: Colors.white,
+            color: cs.surface,
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               leading: Container(
@@ -38,16 +37,23 @@ class AddAccountTypePage extends StatelessWidget {
               ),
               title: Text(
                 option.title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
               ),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   option.subtitle,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
                 ),
               ),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
             onTap: () async {
                 if (option.subtype == AccountSubtype.savingCard) {
                   final result = await Navigator.push<AccountKind>(
@@ -204,22 +210,22 @@ class BankSelectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCEF),
+      backgroundColor: cs.surface,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFD54F),
-        foregroundColor: Colors.black,
+        backgroundColor: cs.surface,
         elevation: 0,
         title: const Text('选择银行'),
       ),
       body: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: kSupportedBankBrands.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant.withOpacity(0.3)),
         itemBuilder: (context, index) {
           final brand = kSupportedBankBrands[index];
           return Container(
-            color: Colors.white,
+            color: cs.surface,
             child: ListTile(
               leading: Container(
                 width: 44,
@@ -240,9 +246,13 @@ class BankSelectionPage extends StatelessWidget {
               ),
               title: Text(
                 brand.displayName,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
               onTap: () async {
                 final result = await Navigator.push<AccountKind>(
                   context,
@@ -276,22 +286,22 @@ class CreditCardSelectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCEF),
+      backgroundColor: cs.surface,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFD54F),
-        foregroundColor: Colors.black,
+        backgroundColor: cs.surface,
         elevation: 0,
         title: const Text('选择信用卡'),
       ),
       body: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: kSupportedCreditCardBrands.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant.withOpacity(0.3)),
         itemBuilder: (context, index) {
           final brand = kSupportedCreditCardBrands[index];
           return Container(
-            color: Colors.white,
+            color: cs.surface,
             child: ListTile(
               leading: Container(
                 width: 44,
@@ -312,9 +322,13 @@ class CreditCardSelectionPage extends StatelessWidget {
               ),
               title: Text(
                 brand.displayName,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
               onTap: () async {
                 final result = await Navigator.push<AccountKind>(
                   context,
@@ -391,22 +405,22 @@ class VirtualAccountSelectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCEF),
+      backgroundColor: cs.surface,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFD54F),
-        foregroundColor: Colors.black,
+        backgroundColor: cs.surface,
         elevation: 0,
         title: const Text('添加虚拟账户'),
       ),
       body: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _virtualOptions.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant.withOpacity(0.3)),
         itemBuilder: (context, index) {
           final item = _virtualOptions[index];
           return Container(
-            color: Colors.white,
+            color: cs.surface,
             child: ListTile(
               leading: Container(
                 width: 44,
@@ -419,13 +433,20 @@ class VirtualAccountSelectionPage extends StatelessWidget {
               ),
               title: Text(
                 item.title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
               ),
               subtitle: Text(
                 item.subtitle,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
               onTap: () async {
                 final result = await Navigator.push<AccountKind>(
                   context,
@@ -498,22 +519,22 @@ class InvestAccountSelectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCEF),
+      backgroundColor: cs.surface,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFD54F),
-        foregroundColor: Colors.black,
+        backgroundColor: cs.surface,
         elevation: 0,
         title: const Text('选择投资账户'),
       ),
       body: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _investOptions.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant.withOpacity(0.3)),
         itemBuilder: (context, index) {
           final item = _investOptions[index];
           return Container(
-            color: Colors.white,
+            color: cs.surface,
             child: ListTile(
               leading: Container(
                 width: 44,
@@ -526,13 +547,20 @@ class InvestAccountSelectionPage extends StatelessWidget {
               ),
               title: Text(
                 item.title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
               ),
               subtitle: Text(
                 item.subtitle,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
               onTap: () async {
                 final result = await Navigator.push<AccountKind>(
                   context,

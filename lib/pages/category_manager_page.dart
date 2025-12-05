@@ -32,12 +32,29 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
     final provider = context.watch<CategoryProvider>();
     final expense = provider.categories.where((c) => c.isExpense).toList();
     final income = provider.categories.where((c) => !c.isExpense).toList();
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.categoryManager),
+        backgroundColor: cs.surface,
+        foregroundColor: cs.onSurface,
+        elevation: 0,
+        title: Text(
+          AppStrings.categoryManager,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(color: cs.onSurface),
+        ),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: cs.onSurface,
+          unselectedLabelColor: cs.onSurface.withOpacity(0.65),
+          indicatorColor: cs.primary,
+          labelStyle: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
           tabs: const [
             Tab(text: AppStrings.expenseCategory),
             Tab(text: AppStrings.incomeCategory),
@@ -60,17 +77,17 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
 
   Widget _buildList(List<Category> categories) {
     if (categories.isEmpty) {
-      return const Center(
+      final cs = Theme.of(context).colorScheme;
+      return Center(
         child: Text(
           AppStrings.emptyCategoryHint,
-          style: TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: cs.onSurface.withOpacity(0.65)),
         ),
       );
     }
 
     // 一级分类：parentKey 为空
-    final topCategories =
-        categories.where((c) => c.parentKey == null).toList();
+    final topCategories = categories.where((c) => c.parentKey == null).toList();
 
     // 二级分类分组
     final Map<String, List<Category>> childrenMap = {};
@@ -122,8 +139,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
               });
             },
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
                   CircleAvatar(
@@ -138,18 +154,21 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                   Expanded(
                     child: Text(
                       top.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
+                        color: cs.onSurface,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    icon: Icon(Icons.edit_outlined,
+                        size: 20, color: cs.onSurface.withOpacity(0.7)),
                     onPressed: () => _showEditCategoryDialog(top),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
+                    icon: Icon(Icons.delete_outline,
+                        size: 20, color: cs.onSurface.withOpacity(0.7)),
                     onPressed: () => _confirmDelete(top),
                   ),
                   Icon(
@@ -157,7 +176,10 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                         ? Icons.expand_less_rounded
                         : Icons.expand_more_rounded,
                     size: 22,
-                    color: AppColors.textSecondary,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.65),
                   ),
                 ],
               ),
@@ -181,8 +203,8 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: () => _showAddSubCategoryDialog(top),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('添加子分类'),
+                icon: Icon(Icons.add, size: 18, color: cs.primary),
+                label: Text('添加子分类', style: TextStyle(color: cs.primary)),
               ),
             ),
           ],
@@ -192,6 +214,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
   }
 
   Widget _buildChildCategoryItem(Category category) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -200,20 +223,23 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
           Icon(
             category.icon,
             size: 20,
+            color: cs.onSurface.withOpacity(0.7),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               category.name,
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14, color: cs.onSurface),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
+            icon: Icon(Icons.edit_outlined,
+                size: 18, color: cs.onSurface.withOpacity(0.7)),
             onPressed: () => _showEditCategoryDialog(category),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
+            icon: Icon(Icons.delete_outline,
+                size: 18, color: cs.onSurface.withOpacity(0.7)),
             onPressed: () => _confirmDelete(category),
           ),
         ],
@@ -245,17 +271,21 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) {
+        final cs = Theme.of(context).colorScheme;
         return AlertDialog(
-          title: const Text(AppStrings.deleteCategory),
-          content: Text(AppStrings.deleteCategoryConfirm(category.name)),
+          title: Text(AppStrings.deleteCategory,
+              style: TextStyle(color: cs.onSurface)),
+          content: Text(AppStrings.deleteCategoryConfirm(category.name),
+              style: TextStyle(color: cs.onSurface)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text(AppStrings.cancel),
+              child: Text(AppStrings.cancel,
+                  style: TextStyle(color: cs.onSurface)),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text(AppStrings.delete),
+              child: Text(AppStrings.delete),
             ),
           ],
         );
@@ -318,18 +348,20 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
       builder: (context) {
         final nameCtrl = TextEditingController(text: original?.name ?? '');
         IconData selectedIcon = original?.icon ?? _iconOptions.first;
-        final String? effectiveParentKey =
-            original?.parentKey ?? parentKey;
-        bool isExpense =
-            original?.isExpense ?? initialIsExpense ?? _tabController.index == 0;
+        final String? effectiveParentKey = original?.parentKey ?? parentKey;
+        bool isExpense = original?.isExpense ??
+            initialIsExpense ??
+            _tabController.index == 0;
 
         return StatefulBuilder(
           builder: (context, setState) {
+            final cs = Theme.of(context).colorScheme;
             return AlertDialog(
               title: Text(
                 original == null
                     ? AppStrings.addCategory
                     : AppStrings.editCategory,
+                style: TextStyle(color: cs.onSurface),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -345,16 +377,17 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                     ),
                     if (effectiveParentKey == null) ...[
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         AppStrings.categoryType,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
                         ),
                       ),
                       const SizedBox(height: 6),
                       SegmentedButton<bool>(
-                        segments: const [
+                        segments: [
                           ButtonSegment(
                             value: true,
                             label: Text(AppStrings.expenseCategory),
@@ -371,11 +404,12 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                       ),
                     ],
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       AppStrings.categoryIcon,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -399,7 +433,8 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(AppStrings.cancel),
+                  child: Text(AppStrings.cancel,
+                      style: TextStyle(color: cs.onSurface)),
                 ),
                 FilledButton(
                   onPressed: () {
