@@ -1,0 +1,32 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: remark-backend
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/remark_money?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
+    username: root
+    password: your_password_here
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  type-aliases-package: com.remark.money.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+auth:
+  jwt-secret: change_this_secret_to_a_long_random_string
+  jwt-expiration-seconds: 2592000 # 30 days
+
+weixin:
+  app-id: your_wechat_appid_here
+  app-secret: your_wechat_appsecret_here
+  # 登录 code 换取 openid 的接口地址（小程序/APP 可根据需要调整）
+  jscode2session-url: https://api.weixin.qq.com/sns/jscode2session
+
+logging:
+  level:
+    root: INFO
+    com.remark.money: DEBUG
