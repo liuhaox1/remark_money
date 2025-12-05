@@ -1719,12 +1719,12 @@ class _BillPageState extends State<BillPage> {
   // ======================================================
   // 📦 通用账单卡片
   // ======================================================
-  Widget _billCard({
-    required String title,
-    String? subtitle,
-    required double income,
-    required double expense,
-    required double balance,
+    Widget _billCard({
+      required String title,
+      String? subtitle,
+      required double income,
+      required double expense,
+      required double balance,
     required ColorScheme cs,
   }) {
     return Container(
@@ -1747,14 +1747,14 @@ class _BillPageState extends State<BillPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: cs.primary,
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: cs.primary,
+              ),
             ),
-          ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
             Text(

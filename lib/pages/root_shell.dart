@@ -325,7 +325,7 @@ class _AssetsPageBody extends StatelessWidget {
   }
 }
 
-class _AssetSummaryCard extends StatelessWidget {
+  class _AssetSummaryCard extends StatelessWidget {
   const _AssetSummaryCard({
     required this.totalAssets,
     required this.totalDebts,
@@ -337,53 +337,52 @@ class _AssetSummaryCard extends StatelessWidget {
   final double netWorth;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final netColor = AppColors.amount(netWorth);
+    Widget build(BuildContext context) {
+      final theme = Theme.of(context);
+      final cs = theme.colorScheme;
+      final netColor = AppColors.amount(netWorth);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              cs.primary.withOpacity(0.18),
-              cs.surface,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                cs.primary.withOpacity(0.85),
+                cs.primaryContainer.withOpacity(0.9),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: cs.shadow.withOpacity(0.18),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
             ],
           ),
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: cs.shadow.withOpacity(0.08),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+              Text(
               AppStrings.netWorth,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface.withOpacity(0.7),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onPrimary.withOpacity(0.9),
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
+              const SizedBox(height: 2),
+              Text(
               _formatAmount(netWorth),
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                  color: netColor,
+                ),
             ),
             const SizedBox(height: 8),
             Row(

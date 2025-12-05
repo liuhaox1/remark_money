@@ -180,26 +180,20 @@ class _HomePageState extends State<HomePage> {
   @override
 
   Widget build(BuildContext context) {
+      final recordProvider = context.watch<RecordProvider>();
+      final categoryProvider = context.watch<CategoryProvider>();
+      final bookProvider = context.watch<BookProvider>();
 
-    final start = DateTime.now();
-
-    final recordProvider = context.watch<RecordProvider>();
-
-    final categoryProvider = context.watch<CategoryProvider>();
-
-    final bookProvider = context.watch<BookProvider>();
-
-    // 检查加载状态
-    if (!recordProvider.loaded || !categoryProvider.loaded || !bookProvider.loaded) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF111418)
-            : const Color(0xFFF3F4F6),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
+      // 检查加载状态
+      if (!recordProvider.loaded || !categoryProvider.loaded || !bookProvider.loaded) {
+        final cs = Theme.of(context).colorScheme;
+        return Scaffold(
+          backgroundColor: cs.surface,
+          body: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
 
     final bookId = bookProvider.activeBookId;
 
@@ -241,16 +235,6 @@ class _HomePageState extends State<HomePage> {
 
 
 
-    debugPrint(
-
-      'HomePage build duration: '
-
-      '${DateTime.now().difference(start).inMilliseconds}ms',
-
-    );
-
-
-
     final theme = Theme.of(context);
 
     final isDark = theme.brightness == Brightness.dark;
@@ -266,20 +250,12 @@ class _HomePageState extends State<HomePage> {
 
 
     return Scaffold(
-
-      backgroundColor:
-
-          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
-
-      appBar: AppBar(
-
-        elevation: 0,
-
-        toolbarHeight: 0,
-
-        backgroundColor: Colors.transparent,
-
-      ),
+        backgroundColor: theme.colorScheme.surface,
+        appBar: AppBar(
+          elevation: 0,
+          toolbarHeight: 0,
+          backgroundColor: theme.colorScheme.surface,
+        ),
 
       body: SafeArea(
 
@@ -4802,29 +4778,18 @@ class _BalanceCard extends StatelessWidget {
 
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
 
-        decoration: BoxDecoration(
-
-          gradient: isDark
-
-              ? null
-
-              : LinearGradient(
-
-                  begin: Alignment.topCenter,
-
-                  end: Alignment.bottomCenter,
-
-                  colors: [
-
-                    cs.primary.withOpacity(0.18),
-
-                    cs.surface,
-
-                  ],
-
-                ),
-
-          color: isDark ? cs.surface : null,
+          decoration: BoxDecoration(
+            gradient: isDark
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      cs.primary.withOpacity(0.85),
+                      cs.primaryContainer.withOpacity(0.9),
+                    ],
+                  ),
+            color: isDark ? cs.surface : null,
 
           borderRadius: BorderRadius.circular(24),
 

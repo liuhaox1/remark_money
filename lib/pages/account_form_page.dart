@@ -156,19 +156,21 @@ class _AccountFormPageState extends State<AccountFormPage> {
       appBarTitle = _customTitle ?? (isEditing ? '编辑账户' : '添加账户');
     }
 
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: (isBankCard || isVirtual || isCash || isLoan || isCustomAsset)
-          ? const Color(0xFFFFFCEF)
-          : null,
+      backgroundColor: cs.surface,
       appBar: AppBar(
-        backgroundColor: (isBankCard || isVirtual || isCash || isLoan || isCustomAsset)
-            ? const Color(0xFFFFD54F)
-            : null,
-        foregroundColor: (isBankCard || isVirtual || isCash || isLoan || isCustomAsset)
-            ? Colors.black
-            : null,
-        elevation: (isBankCard || isVirtual || isCash || isLoan || isCustomAsset) ? 0 : null,
-        title: Text(appBarTitle),
+        backgroundColor: cs.surface,
+        foregroundColor: cs.onSurface,
+        elevation: 0,
+        title: Text(
+          appBarTitle,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(color: cs.onSurface),
+        ),
       ),
       body: isBankCard
           ? _buildBankCardForm(context, kind, subtype, isEditing)
