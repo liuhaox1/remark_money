@@ -70,48 +70,53 @@ class ProfilePage extends StatelessWidget {
 
   Widget _buildVipCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Card(
-      color: cs.surface,
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: cs.primary.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _showPlaceholder(context, '升级为 VIP'),
+      child: Card(
+        color: cs.surface,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: cs.primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child:
+                    Icon(Icons.workspace_premium_outlined, color: cs.primary),
               ),
-              child: Icon(Icons.workspace_premium_outlined, color: cs.primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '升级为 VIP',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(color: cs.onSurface),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '畅享更多高级功能',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
-                  ),
-                ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '升级为 VIP',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: cs.onSurface),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '畅享更多高级功能',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-          ],
+              Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
+            ],
+          ),
         ),
       ),
     );
@@ -240,7 +245,7 @@ class ProfilePage extends StatelessWidget {
             leading: Icon(Icons.table_chart_outlined,
                 color: cs.onSurface.withOpacity(0.8)),
             title: Text(
-              '数据导出',
+              '数据导入导出',
               style: Theme.of(context)
                   .textTheme
                   .bodyLarge
@@ -248,22 +253,7 @@ class ProfilePage extends StatelessWidget {
             ),
             trailing:
                 Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-            onTap: () => _showExportSheet(context),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: Icon(Icons.file_download_outlined,
-                color: cs.onSurface.withOpacity(0.8)),
-            title: Text(
-              '导入 CSV',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(color: cs.onSurface),
-            ),
-            trailing:
-                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-            onTap: () => _importCsv(context),
+            onTap: () => _showImportExportSheet(context),
           ),
           const Divider(height: 1),
           ListTile(
@@ -285,7 +275,7 @@ class ProfilePage extends StatelessWidget {
             leading:
                 Icon(Icons.info_outline, color: cs.onSurface.withOpacity(0.8)),
             title: Text(
-              '关于应用',
+              '关于指尖记账 1.0.0',
               style: Theme.of(context)
                   .textTheme
                   .bodyLarge
@@ -293,7 +283,7 @@ class ProfilePage extends StatelessWidget {
             ),
             trailing:
                 Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-            onTap: () => _showPlaceholder(context, '关于应用'),
+            onTap: () => _showPlaceholder(context, '关于指尖记账 1.0.0'),
           ),
         ],
       ),
@@ -665,6 +655,50 @@ class ProfilePage extends StatelessWidget {
                     if (picked != null) {
                       await provider.setTime(picked);
                     }
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showImportExportSheet(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: cs.surface,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(Icons.file_upload_outlined,
+                      color: cs.onSurface.withOpacity(0.7)),
+                  title:
+                      Text('导入 CSV 数据', style: TextStyle(color: cs.onSurface)),
+                  subtitle: Text('从 CSV 文件导入记账记录',
+                      style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _importCsv(context);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.table_chart_outlined,
+                      color: cs.onSurface.withOpacity(0.7)),
+                  title: Text('导出 CSV', style: TextStyle(color: cs.onSurface)),
+                  subtitle: Text('适合 Excel/表格查看与分析',
+                      style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showExportSheet(context);
                   },
                 ),
               ],

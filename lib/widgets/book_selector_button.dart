@@ -20,8 +20,7 @@ class BookSelectorButton extends StatelessWidget {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final bookProvider = context.watch<BookProvider>();
-    final activeName =
-        bookProvider.activeBook?.name ?? AppStrings.defaultBook;
+    final activeName = bookProvider.activeBook?.name ?? AppStrings.defaultBook;
 
     return InkWell(
       onTap: () => _showBookPicker(context),
@@ -59,7 +58,8 @@ class BookSelectorButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.expand_more, size: compact ? 14 : 16, color: cs.onSurface.withOpacity(0.7)),
+            Icon(Icons.expand_more,
+                size: compact ? 14 : 16, color: cs.onSurface.withOpacity(0.7)),
           ],
         ),
       ),
@@ -77,8 +77,7 @@ class BookSelectorButton extends StatelessWidget {
         final bp = ctx.watch<BookProvider>();
         final books = bp.books;
         final activeId = bp.activeBookId;
-        final activeName =
-            bp.activeBook?.name ?? AppStrings.defaultBook;
+        final activeName = bp.activeBook?.name ?? AppStrings.defaultBook;
         final now = DateTime.now();
         final month = DateTime(now.year, now.month, 1);
         return SafeArea(
@@ -142,68 +141,68 @@ class BookSelectorButton extends StatelessWidget {
                     final selected = book.id == activeId;
                     final recordCount =
                         recordProvider.recordsForBook(book.id).length;
-                        final monthExpense =
-                            recordProvider.monthExpense(month, book.id);
-                        final subtitle = recordCount > 0
-                            ? AppStrings.monthExpenseWithCount(
-                                monthExpense,
-                                recordCount,
-                              )
-                            : AppStrings.noDataThisMonth;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Material(
-                            color: selected
-                                ? cs.primary.withOpacity(0.06)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                            child: RadioListTile<String>(
-                              value: book.id,
-                              groupValue: activeId,
-                              onChanged: (value) async {
-                                if (value != null) {
-                                  await bp.selectBook(value);
-                                  if (ctx.mounted) Navigator.pop(ctx);
-                                }
-                              },
-                              title: Text(
-                                book.name,
-                                style: TextStyle(color: cs.onSurface),
-                              ),
-                              subtitle: Text(
-                                subtitle,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: cs.onSurface.withOpacity(0.65),
+                    final monthExpense =
+                        recordProvider.monthExpense(month, book.id);
+                    final subtitle = recordCount > 0
+                        ? AppStrings.monthExpenseWithCount(
+                            monthExpense,
+                            recordCount,
+                          )
+                        : AppStrings.noDataThisMonth;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Material(
+                        color: selected
+                            ? cs.primary.withOpacity(0.06)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        child: RadioListTile<String>(
+                          value: book.id,
+                          groupValue: activeId,
+                          onChanged: (value) async {
+                            if (value != null) {
+                              await bp.selectBook(value);
+                              if (ctx.mounted) Navigator.pop(ctx);
+                            }
+                          },
+                          title: Text(
+                            book.name,
+                            style: TextStyle(color: cs.onSurface),
+                          ),
+                          subtitle: Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurface.withOpacity(0.65),
+                            ),
+                          ),
+                          secondary: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.edit_outlined,
+                                  size: 18,
+                                  color: cs.onSurface,
+                                ),
+                                tooltip: AppStrings.renameBook,
+                                onPressed: () => _showRenameBookDialog(
+                                  ctx,
+                                  book.id,
+                                  book.name,
                                 ),
                               ),
-                              secondary: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.edit_outlined,
-                                      size: 18,
-                                      color: cs.onSurface,
-                                    ),
-                                    tooltip: AppStrings.renameBook,
-                                    onPressed: () => _showRenameBookDialog(
-                                      ctx,
-                                      book.id,
-                                      book.name,
-                                    ),
+                              if (books.length > 1)
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                    color: cs.onSurface,
                                   ),
-                                  if (books.length > 1)
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.delete_outline,
-                                        size: 18,
-                                        color: cs.onSurface,
-                                      ),
-                                      tooltip: AppStrings.deleteBook,
-                                      onPressed: () =>
-                                          _confirmDeleteBook(ctx, book.id),
-                                    ),
+                                  tooltip: AppStrings.deleteBook,
+                                  onPressed: () =>
+                                      _confirmDeleteBook(ctx, book.id),
+                                ),
                             ],
                           ),
                           activeColor: cs.primary,
@@ -274,40 +273,52 @@ class BookSelectorButton extends StatelessWidget {
     final formKey = GlobalKey<FormState>();
     await showDialog(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text(AppStrings.renameBook),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            decoration:
-                const InputDecoration(hintText: AppStrings.bookNameHint),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return AppStrings.bookNameRequired;
-              }
-              return null;
-            },
+      builder: (dialogCtx) {
+        final cs = Theme.of(dialogCtx).colorScheme;
+        return AlertDialog(
+          title: Text(
+            AppStrings.renameBook,
+            style: TextStyle(color: cs.onSurface),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text(AppStrings.cancel),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              autofocus: true,
+              style: TextStyle(color: cs.onSurface),
+              decoration: InputDecoration(
+                hintText: AppStrings.bookNameHint,
+                hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.6)),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return AppStrings.bookNameRequired;
+                }
+                return null;
+              },
+            ),
           ),
-          FilledButton(
-            onPressed: () async {
-              if (formKey.currentState?.validate() != true) return;
-              await context
-                  .read<BookProvider>()
-                  .renameBook(id, controller.text.trim());
-              if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-            },
-            child: const Text(AppStrings.save),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(
+                AppStrings.cancel,
+                style: TextStyle(color: cs.onSurface),
+              ),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (formKey.currentState?.validate() != true) return;
+                await context
+                    .read<BookProvider>()
+                    .renameBook(id, controller.text.trim());
+                if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+              },
+              child: const Text(AppStrings.save),
+            ),
+          ],
+        );
+      },
     );
   }
 
