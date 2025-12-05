@@ -358,7 +358,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 }
 
-class _HeaderCard extends StatelessWidget {
+  class _HeaderCard extends StatelessWidget {
   const _HeaderCard({
     required this.isDark,
     required this.cs,
@@ -380,86 +380,93 @@ class _HeaderCard extends StatelessWidget {
   final PeriodType periodType;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              cs.primary.withOpacity(0.18),
-              cs.surface,
-            ],
-          ),
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: isDark
-              ? null
-              : [
+    Widget build(BuildContext context) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: isDark
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      cs.primary.withOpacity(0.85),
+                      cs.primaryContainer.withOpacity(0.9),
+                    ],
+                  ),
+            color: isDark ? cs.surface : null,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: isDark
+                ? null
+                : [
                   BoxShadow(
                     color: cs.shadow.withOpacity(0.08),
                     blurRadius: 18,
                     offset: const Offset(0, 8),
+                    ),
+                  ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    AppStrings.reportOverview,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? cs.onSurface : cs.onPrimary,
+                        ),
                   ),
-                ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  AppStrings.reportOverview,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                ),
                 const Spacer(),
                 const BookSelectorButton(compact: true),
               ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _periodLabel(),
-              style: TextStyle(
-                fontSize: 13,
-                color: cs.onSurface.withOpacity(0.65),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _SummaryItem(
-                  label: AppStrings.income,
-                  value: income,
-                  color: cs.onSurface,
+              const SizedBox(height: 8),
+              Text(
+                _periodLabel(),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark
+                      ? cs.onSurface.withOpacity(0.65)
+                      : cs.onPrimary.withOpacity(0.85),
                 ),
-                _SummaryItem(
-                  label: AppStrings.expense,
-                  value: expense,
-                  color: cs.onSurface,
-                ),
-                _SummaryItem(
-                  label: AppStrings.balance,
-                  value: balance,
-                  color: cs.onSurface,
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              AppStrings.currentBookLabel(bookName),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: cs.onSurface.withOpacity(0.8),
               ),
-            ),
+              const SizedBox(height: 8),
+              // 收入 / 支出 / 结余
+              Row(
+                children: [
+                  _SummaryItem(
+                    label: AppStrings.income,
+                    value: income,
+                    color: isDark ? cs.onSurface : cs.onPrimary,
+                  ),
+                  _SummaryItem(
+                    label: AppStrings.expense,
+                    value: expense,
+                    color: isDark ? cs.onSurface : cs.onPrimary,
+                  ),
+                  _SummaryItem(
+                    label: AppStrings.balance,
+                    value: balance,
+                    color: isDark ? cs.onSurface : cs.onPrimary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                AppStrings.currentBookLabel(bookName),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? cs.onSurface.withOpacity(0.8)
+                      : cs.onPrimary.withOpacity(0.9),
+                ),
+              ),
           ],
         ),
       ),
@@ -479,7 +486,7 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-class _SummaryItem extends StatelessWidget {
+  class _SummaryItem extends StatelessWidget {
   const _SummaryItem({
     required this.label,
     required this.value,
@@ -488,35 +495,31 @@ class _SummaryItem extends StatelessWidget {
 
   final String label;
   final double value;
-  final Color color;
+    final Color color;
 
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withOpacity(0.8),
-                ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value.toStringAsFixed(2),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
+    Widget build(BuildContext context) {
+      return Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: color.withOpacity(0.9),
+                  ),
             ),
-          ),
+            const SizedBox(height: 4),
+            Text(
+              value.toStringAsFixed(2),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
         ],
       ),
     );

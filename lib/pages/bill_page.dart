@@ -1479,17 +1479,18 @@ class _BillPageState extends State<BillPage> {
     final totalBalance = totalIncome - totalExpense;
 
     // 年度小结
-    items.add(
-      _billCard(
-        title: AppStrings.yearReport,
-        subtitle:
-            '本年收入 ${totalIncome.toStringAsFixed(2)} 元 · 支出 ${totalExpense.toStringAsFixed(2)} 元',
-        income: totalIncome,
-        expense: totalExpense,
-        balance: totalBalance,
-        cs: cs,
-      ),
-    );
+      items.add(
+        _billCard(
+          title: AppStrings.yearReport,
+          subtitle:
+              '本年收入 ${totalIncome.toStringAsFixed(2)} 元 · 支出 ${totalExpense.toStringAsFixed(2)} 元',
+          income: totalIncome,
+          expense: totalExpense,
+          balance: totalBalance,
+          cs: cs,
+          highlight: true,
+        ),
+      );
 
     items.addAll(monthItems);
 
@@ -1543,13 +1544,13 @@ class _BillPageState extends State<BillPage> {
 
       final balance = income - expense;
 
-      items.add(
-        _billCard(
-          title: AppStrings.monthDayLabel(d.month, d.day),
-          subtitle: DateUtilsX.weekdayShort(d),
-          income: income,
-          expense: expense,
-          balance: balance,
+        items.add(
+          _billCard(
+            title: AppStrings.monthDayLabel(d.month, d.day),
+            subtitle: DateUtilsX.weekdayShort(d),
+            income: income,
+            expense: expense,
+            balance: balance,
           cs: cs,
         ),
       );
@@ -1575,17 +1576,18 @@ class _BillPageState extends State<BillPage> {
     }
 
     // 顶部整周小结卡片
-    items.insert(
-      0,
-      _billCard(
-        title: DateUtilsX.weekLabel(_weekNumberForWeek(_selectedWeek.start)),
-        subtitle: subtitleParts.join(' · '),
-        income: totalIncome,
-        expense: totalExpense,
-        balance: totalIncome - totalExpense,
-        cs: cs,
-      ),
-    );
+      items.insert(
+        0,
+        _billCard(
+          title: DateUtilsX.weekLabel(_weekNumberForWeek(_selectedWeek.start)),
+          subtitle: subtitleParts.join(' · '),
+          income: totalIncome,
+          expense: totalExpense,
+          balance: totalIncome - totalExpense,
+          cs: cs,
+          highlight: true,
+        ),
+      );
 
     return ListView(
       padding: const EdgeInsets.all(12),
@@ -1659,16 +1661,17 @@ class _BillPageState extends State<BillPage> {
       subtitleParts.add('单日最高支出 ${maxDailyExpense.toStringAsFixed(2)} 元');
     }
 
-    items.add(
-      _billCard(
-        title: AppStrings.monthListTitle,
-        subtitle: subtitleParts.join(' · '),
-        income: totalIncome,
-        expense: totalExpense,
-        balance: totalIncome - totalExpense,
-        cs: cs,
-      ),
-    );
+      items.add(
+        _billCard(
+          title: AppStrings.monthListTitle,
+          subtitle: subtitleParts.join(' · '),
+          income: totalIncome,
+          expense: totalExpense,
+          balance: totalIncome - totalExpense,
+          cs: cs,
+          highlight: true,
+        ),
+      );
 
     for (final d in nonEmptyDays) {
       final allRecords = recordProvider.recordsForDay(bookId, d);
@@ -1685,12 +1688,12 @@ class _BillPageState extends State<BillPage> {
       }
       final balance = income - expense;
 
-      items.add(
-        _billCard(
-          title: AppStrings.monthDayLabel(d.month, d.day),
-          income: income,
-          expense: expense,
-          balance: balance,
+        items.add(
+          _billCard(
+            title: AppStrings.monthDayLabel(d.month, d.day),
+            income: income,
+            expense: expense,
+            balance: balance,
           cs: cs,
         ),
       );
@@ -1725,24 +1728,37 @@ class _BillPageState extends State<BillPage> {
       required double income,
       required double expense,
       required double balance,
-    required ColorScheme cs,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cs.outlineVariant.withOpacity(0.4),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: cs.outlineVariant.withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          )
-        ],
+      required ColorScheme cs,
+      bool highlight = false,
+    }) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: BoxDecoration(
+          gradient: highlight
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    cs.primary.withOpacity(0.85),
+                    cs.primaryContainer.withOpacity(0.9),
+                  ],
+                )
+              : null,
+          color: highlight ? null : cs.surface,
+          borderRadius: BorderRadius.circular(highlight ? 24 : 16),
+          border: highlight
+              ? null
+              : Border.all(
+                  color: cs.outlineVariant.withOpacity(0.4),
+                ),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withOpacity(highlight ? 0.18 : 0.12),
+              blurRadius: highlight ? 18 : 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
