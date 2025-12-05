@@ -570,16 +570,7 @@ class _HeaderCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
-                AppStrings.currentBookLabel(bookName),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: isDark
-                      ? cs.onSurface.withOpacity(0.8)
-                      : cs.onPrimary.withOpacity(0.9),
-                ),
-              ),
+              
           ],
         ),
       ),

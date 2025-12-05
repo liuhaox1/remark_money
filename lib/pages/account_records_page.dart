@@ -226,6 +226,8 @@ class AccountRecordsPage extends StatelessWidget {
         ],
       ),
     );
+      },
+    );
   }
 
   Widget _buildStatItem(

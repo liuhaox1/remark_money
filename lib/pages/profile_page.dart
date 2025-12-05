@@ -16,6 +16,7 @@ import '../providers/record_provider.dart';
 import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/auth_service.dart';
+import 'account_settings_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
 
@@ -37,52 +38,16 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadToken();
   }
 
-  Widget _buildLoginStatusCard(BuildContext context, bool isLoggedIn) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      color: cs.surface,
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        leading: CircleAvatar(
-          radius: 18,
-          backgroundColor: cs.primary.withOpacity(0.12),
-          child: Icon(
-            Icons.person_outline,
-            color: cs.primary,
-          ),
-        ),
-        title: Text(
-          isLoggedIn ? '已登录' : '未登录',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: cs.onSurface,
-              ),
-        ),
-        subtitle: _loadingToken
-            ? Text(
-                '正在检测登录状态…',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: cs.onSurface.withOpacity(0.7),
-                ),
-              )
-            : Text(
-                isLoggedIn
-                    ? '你的数据已绑定到账号，可在多设备同步。'
-                    : '登录后可以备份数据、在多台设备之间同步账本。',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: cs.onSurface.withOpacity(0.7),
-                ),
-              ),
-        trailing: TextButton(
-          onPressed: _loadingToken
-              ? null
-              : (isLoggedIn ? _logout : _goLogin),
-          child: Text(isLoggedIn ? '退出登录' : '去登录'),
-        ),
+  Future<void> _openAccountSettings(bool isLoggedIn) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AccountSettingsPage(initialLoggedIn: isLoggedIn),
       ),
     );
+    if (changed == true) {
+      await _loadToken();
+    }
   }
 
   Future<void> _loadToken() async {
@@ -136,9 +101,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   bookCount: bookCount,
                   categoryCount: categoryCount,
                   reminderEnabled: reminderEnabled,
+                  isLoggedIn: isLoggedIn,
                 ),
-                const SizedBox(height: 12),
-                _buildLoginStatusCard(context, isLoggedIn),
                 const SizedBox(height: 12),
                 _buildVipCard(context),
                 const SizedBox(height: 12),
@@ -349,14 +313,15 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildHeaderCard(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required String activeBook,
-    required int bookCount,
-    required int categoryCount,
-    required bool reminderEnabled,
-  }) {
+      BuildContext context, {
+      required String title,
+      required String subtitle,
+      required String activeBook,
+      required int bookCount,
+      required int categoryCount,
+      required bool reminderEnabled,
+      required bool isLoggedIn,
+    }) {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
@@ -374,17 +339,21 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: cs.onPrimary.withOpacity(0.18),
-                child: Icon(
-                  Icons.person_outline,
-                  size: 30,
-                  color: cs.onPrimary,
+            Row(
+              children: [
+                InkWell(
+                  borderRadius: BorderRadius.circular(28),
+                  onTap: () => _openAccountSettings(isLoggedIn),
+                  child: CircleAvatar(
+                    radius: 28,
+                    backgroundColor: cs.onPrimary.withOpacity(0.18),
+                    child: Icon(
+                      Icons.person_outline,
+                      size: 30,
+                      color: cs.onPrimary,
+                    ),
+                  ),
                 ),
-              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
