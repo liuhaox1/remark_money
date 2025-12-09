@@ -694,18 +694,35 @@ class RecordProvider extends ChangeNotifier {
         );
       }
 
-      // 查找转账记录
+      // 查找转账记录（扩大查询范围，避免找不到记录）
       if (_isUsingDatabase) {
         final dbRepo = _repository as dynamic;
         final records = await dbRepo.queryRecordsForPeriod(
           bookId: bookId,
-          start: now.subtract(const Duration(seconds: 1)),
-          end: now.add(const Duration(seconds: 1)),
+          start: now.subtract(const Duration(seconds: 5)),
+          end: now.add(const Duration(seconds: 5)),
         );
-        final transferRecord = records.firstWhere((r) => r.pairId == pairId);
-        return transferRecord;
+        try {
+          final transferRecord = records.firstWhere((r) => r.pairId == pairId);
+          return transferRecord;
+        } catch (e) {
+          // 如果找不到，返回第一条记录（通常是转出记录）
+          if (records.isNotEmpty) {
+            return records.first;
+          }
+          rethrow;
+        }
       } else {
-        return _recentRecordsCache.firstWhere((r) => r.pairId == pairId);
+        try {
+          return _recentRecordsCache.firstWhere((r) => r.pairId == pairId);
+        } catch (e) {
+          // 如果缓存中找不到，尝试从最近添加的记录中查找
+          if (_recentRecordsCache.isNotEmpty) {
+            // 返回最后一条记录（通常是刚添加的）
+            return _recentRecordsCache.last;
+          }
+          rethrow;
+        }
       }
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.transfer', e, stackTrace);

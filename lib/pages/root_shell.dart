@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
@@ -987,14 +988,30 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                             if (context.mounted) {
                               ErrorHandler.showSuccess(context, '转账成功');
                             }
-                          } catch (e) {
+                          } catch (e, stackTrace) {
+                            // 记录详细错误日志
+                            debugPrint('[转账错误] $e');
+                            debugPrint('Stack trace: $stackTrace');
+                            
                             // 发生错误时也要关闭弹窗
                             if (ctx.mounted) {
                               Navigator.pop(ctx);
                             }
                             // 显示错误消息
                             if (context.mounted) {
-                              ErrorHandler.handleAsyncError(context, e);
+                              // 显示更具体的错误信息
+                              String errorMessage = '操作失败，请稍后重试';
+                              if (e is ArgumentError) {
+                                errorMessage = e.message.toString();
+                              } else if (e.toString().contains('StateError') || 
+                                         e.toString().contains('找不到') ||
+                                         e.toString().contains('not found')) {
+                                errorMessage = '转账记录创建失败，请重试';
+                              } else if (e.toString().contains('database') || 
+                                         e.toString().contains('sql')) {
+                                errorMessage = '数据库操作失败，请稍后重试';
+                              }
+                              ErrorHandler.showError(context, errorMessage, error: e);
                             }
                           }
                         },
