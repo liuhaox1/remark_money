@@ -23,7 +23,34 @@ class CategoryRepositoryDb {
         return await loadCategories();
       }
 
-      return maps.map((map) => _mapToCategory(map)).toList();
+      final categories = maps.map((map) => _mapToCategory(map)).toList();
+      
+      // 迁移旧分类：更新分类名称，删除已废弃的分类
+      final migratedCategories = CategoryRepository.migrateCategories(categories);
+      
+      // 检查是否有变化：数量变化或名称变化
+      bool hasChanges = migratedCategories.length != categories.length;
+      if (!hasChanges) {
+        // 检查是否有分类名称被更新
+        for (final migrated in migratedCategories) {
+          final original = categories.firstWhere(
+            (c) => c.key == migrated.key,
+            orElse: () => migrated,
+          );
+          if (original.name != migrated.name) {
+            hasChanges = true;
+            break;
+          }
+        }
+      }
+      
+      // 如果迁移后有变化，保存更新后的分类
+      if (hasChanges || migratedCategories.any((c) => CategoryRepository.needsMigration(c))) {
+        await saveCategories(migratedCategories);
+        return migratedCategories;
+      }
+      
+      return migratedCategories;
     } catch (e, stackTrace) {
       debugPrint('[CategoryRepositoryDb] loadCategories failed: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -184,5 +211,6 @@ class CategoryRepositoryDb {
       parentKey: map['parent_key'] as String?,
     );
   }
+
 }
 

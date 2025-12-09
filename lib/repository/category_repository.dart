@@ -73,21 +73,7 @@ class CategoryRepository {
       icon: Icons.local_mall_outlined,
       isExpense: true,
     ),
-    // 购物 - 二级（区分线上线下，优化粒度）
-    Category(
-      key: 'shop_online',
-      name: AppStrings.catShopOnline,
-      icon: Icons.shopping_cart_outlined,
-      isExpense: true,
-      parentKey: 'top_shopping',
-    ),
-    Category(
-      key: 'shop_offline',
-      name: AppStrings.catShopOffline,
-      icon: Icons.store_outlined,
-      isExpense: true,
-      parentKey: 'top_shopping',
-    ),
+    // 购物 - 二级（统一按商品类型分类）
     Category(
       key: 'shop_clothes',
       name: AppStrings.catShopClothes,
@@ -136,13 +122,6 @@ class CategoryRepository {
       key: 'trans_taxi',
       name: AppStrings.catTransTaxi,
       icon: Icons.local_taxi_outlined,
-      isExpense: true,
-      parentKey: 'top_transport',
-    ),
-    Category(
-      key: 'trans_ride_hailing',
-      name: AppStrings.catTransRideHailing,
-      icon: Icons.directions_car_outlined,
       isExpense: true,
       parentKey: 'top_transport',
     ),
@@ -326,13 +305,6 @@ class CategoryRepository {
       parentKey: 'top_leisure',
     ),
     Category(
-      key: 'fun_social',
-      name: AppStrings.catFunSocial,
-      icon: Icons.diversity_3_outlined,
-      isExpense: true,
-      parentKey: 'top_leisure',
-    ),
-    Category(
       key: 'fun_hobby',
       name: AppStrings.catFunHobby,
       icon: Icons.color_lens_outlined,
@@ -359,13 +331,6 @@ class CategoryRepository {
       key: 'edu_book',
       name: AppStrings.catEduBook,
       icon: Icons.auto_stories_outlined,
-      isExpense: true,
-      parentKey: 'top_education',
-    ),
-    Category(
-      key: 'edu_ebook',
-      name: AppStrings.catEduEbook,
-      icon: Icons.menu_book_outlined,
       isExpense: true,
       parentKey: 'top_education',
     ),
@@ -404,13 +369,6 @@ class CategoryRepository {
       isExpense: true,
       parentKey: 'top_education',
     ),
-    Category(
-      key: 'edu_misc',
-      name: AppStrings.catEduMisc,
-      icon: Icons.receipt_outlined,
-      isExpense: true,
-      parentKey: 'top_education',
-    ),
 
     // 一级：健康医疗
     Category(
@@ -419,7 +377,7 @@ class CategoryRepository {
       icon: Icons.medical_services_outlined,
       isExpense: true,
     ),
-    // 健康医疗 - 二级（统一维度，补充细分）
+    // 健康医疗 - 二级（统一维度，合并重叠分类）
     Category(
       key: 'health_clinic',
       name: AppStrings.catHealthClinic,
@@ -428,23 +386,9 @@ class CategoryRepository {
       parentKey: 'top_health',
     ),
     Category(
-      key: 'health_registration',
-      name: AppStrings.catHealthRegistration,
-      icon: Icons.assignment_outlined,
-      isExpense: true,
-      parentKey: 'top_health',
-    ),
-    Category(
       key: 'health_check',
       name: AppStrings.catHealthCheck,
       icon: Icons.health_and_safety_outlined,
-      isExpense: true,
-      parentKey: 'top_health',
-    ),
-    Category(
-      key: 'health_physical',
-      name: AppStrings.catHealthPhysical,
-      icon: Icons.favorite_outlined,
       isExpense: true,
       parentKey: 'top_health',
     ),
@@ -575,13 +519,6 @@ class CategoryRepository {
       key: 'fin_fee',
       name: AppStrings.catFinFee,
       icon: Icons.receipt_outlined,
-      isExpense: true,
-      parentKey: 'top_finance',
-    ),
-    Category(
-      key: 'fin_transfer_fee',
-      name: AppStrings.catFinTransferFee,
-      icon: Icons.swap_horiz_outlined,
       isExpense: true,
       parentKey: 'top_finance',
     ),
@@ -726,11 +663,26 @@ class CategoryRepository {
     final categories = raw.map((value) => Category.fromJson(value)).toList();
     
     // 迁移旧分类：更新分类名称，删除已废弃的分类
-    final migratedCategories = _migrateCategories(categories);
+    final migratedCategories = migrateCategories(categories);
+    
+    // 检查是否有变化：数量变化或名称变化
+    bool hasChanges = migratedCategories.length != categories.length;
+    if (!hasChanges) {
+      // 检查是否有分类名称被更新
+      for (final migrated in migratedCategories) {
+        final original = categories.firstWhere(
+          (c) => c.key == migrated.key,
+          orElse: () => migrated,
+        );
+        if (original.name != migrated.name) {
+          hasChanges = true;
+          break;
+        }
+      }
+    }
     
     // 如果迁移后有变化，保存更新后的分类
-    if (migratedCategories.length != categories.length || 
-        migratedCategories.any((c) => _needsMigration(c))) {
+    if (hasChanges || migratedCategories.any((c) => needsMigration(c))) {
       await saveCategories(migratedCategories);
     }
     
@@ -739,12 +691,22 @@ class CategoryRepository {
 
   /// 迁移旧分类到新分类结构
   /// 删除已废弃的分类，更新分类名称
-  List<Category> _migrateCategories(List<Category> categories) {
+  /// 这是一个公共静态方法，供数据库版本的 repository 使用
+  static List<Category> migrateCategories(List<Category> categories) {
     final migrated = <Category>[];
     final oldKeyToNewKey = <String, String>{
       // 已删除的分类key映射到新的分类key
       'food_meal': 'food_lunch', // 正餐 -> 午餐
       'food_snack': 'food_afternoon_tea', // 零食小吃 -> 下午茶
+      'shop_online': 'shop_other', // 线上购物 -> 其他购物
+      'shop_offline': 'shop_other', // 线下购物 -> 其他购物
+      'trans_ride_hailing': 'trans_taxi', // 网约车 -> 打车
+      'health_registration': 'health_clinic', // 挂号 -> 门诊
+      'health_physical': 'health_check', // 体检 -> 检查
+      'fun_social': 'fun_party', // 社交 -> 聚会
+      'edu_ebook': 'edu_book', // 电子书 -> 书籍
+      'edu_misc': 'edu_tuition', // 学杂费 -> 学费
+      'fin_transfer_fee': 'fin_fee', // 转账手续费 -> 手续费
     };
     
     // 旧分类名称到新分类名称的映射
@@ -754,6 +716,9 @@ class CategoryRepository {
       '零食小吃': AppStrings.catFoodAfternoonTea,
       '饮品': AppStrings.catFoodDrink,
       '打车/网约车': AppStrings.catTransTaxi,
+      '打车': AppStrings.catTransTaxi,
+      '网约车': AppStrings.catTransTaxi,
+      '长途出行': AppStrings.catTransLongTrip,
       '油费/充电': AppStrings.catTransFuel,
       '自驾养车': AppStrings.catTransFuel,
       '网络/电视': AppStrings.catLivingInternet,
@@ -765,14 +730,23 @@ class CategoryRepository {
       '游戏/影音': AppStrings.catFunGame,
       '电影/演出': AppStrings.catFunMovie,
       '聚会/社交': AppStrings.catFunParty,
+      '社交': AppStrings.catFunParty,
       '书籍/电子书': AppStrings.catEduBook,
+      '电子书': AppStrings.catEduBook,
       '考试/证书': AppStrings.catEduExam,
       '学费/学杂费': AppStrings.catEduTuition,
-      '门诊/挂号': AppStrings.catHealthClinic,
-      '检查/体检': AppStrings.catHealthCheck,
+      '学杂费': AppStrings.catEduTuition,
+      '门诊挂号': AppStrings.catHealthClinic,
+      '门诊': AppStrings.catHealthClinic,
+      '挂号': AppStrings.catHealthClinic,
+      '检查体检': AppStrings.catHealthCheck,
+      '检查': AppStrings.catHealthCheck,
+      '体检': AppStrings.catHealthCheck,
       '手术/治疗': AppStrings.catHealthSurgery,
       '牙科/视力': AppStrings.catHealthDental,
       '利息/手续费': AppStrings.catFinInterest,
+      '转账手续费': AppStrings.catFinFee,
+      '资金调账': AppStrings.catFinAdjust,
       '还贷/卡费': AppStrings.catFinLoan,
       '借贷与卡费还款': AppStrings.catFinLoan,
     };
@@ -801,13 +775,19 @@ class CategoryRepository {
       String newName = category.name;
       if (oldNameToNewName.containsKey(category.name)) {
         newName = oldNameToNewName[category.name]!;
-      } else if (category.name.contains('/') || category.name.contains('（') || category.name.contains('与')) {
-        // 如果名称包含"/"、"（"或"与"，尝试从默认分类中获取正确名称
+      } else {
+        // 尝试从默认分类中获取正确名称（如果key匹配但名称不同，说明需要更新）
         final defaultCat = defaultCategories.firstWhere(
           (c) => c.key == category.key,
           orElse: () => category,
         );
-        newName = defaultCat.name;
+        // 如果找到了默认分类且名称不同，使用默认分类的名称
+        if (defaultCat.key == category.key && defaultCat.name != category.name) {
+          newName = defaultCat.name;
+        } else if (category.name.contains('/') || category.name.contains('（') || category.name.contains('与')) {
+          // 如果名称包含"/"、"（"或"与"，也更新名称
+          newName = defaultCat.name;
+        }
       }
       
       // 创建迁移后的分类
@@ -825,16 +805,43 @@ class CategoryRepository {
   }
 
   /// 检查分类是否需要迁移
-  bool _needsMigration(Category category) {
-    return category.name.contains('/') || 
-           category.name.contains('（') || 
-           category.name.contains('与') ||
-           category.key == 'food_meal' ||
-           category.key == 'food_snack';
+  static bool needsMigration(Category category) {
+    // 检查是否是需要删除的旧分类key
+    if (category.key == 'food_meal' ||
+        category.key == 'food_snack' ||
+        category.key == 'shop_online' ||
+        category.key == 'shop_offline' ||
+        category.key == 'trans_ride_hailing' ||
+        category.key == 'health_registration' ||
+        category.key == 'health_physical' ||
+        category.key == 'fun_social' ||
+        category.key == 'edu_ebook' ||
+        category.key == 'edu_misc' ||
+        category.key == 'fin_transfer_fee') {
+      return true;
+    }
+    
+    // 检查名称是否包含需要迁移的字符
+    if (category.name.contains('/') || 
+        category.name.contains('（') || 
+        category.name.contains('与')) {
+      return true;
+    }
+    
+    // 检查默认分类中是否有相同key但名称不同的分类（说明名称需要更新）
+    final defaultCat = defaultCategories.firstWhere(
+      (c) => c.key == category.key,
+      orElse: () => category,
+    );
+    if (defaultCat.key == category.key && defaultCat.name != category.name) {
+      return true;
+    }
+    
+    return false;
   }
 
   /// 根据分类key获取新的分类名称
-  String _getNewCategoryName(String key) {
+  static String _getNewCategoryName(String key) {
     final defaultCat = defaultCategories.firstWhere(
       (c) => c.key == key,
       orElse: () => Category(

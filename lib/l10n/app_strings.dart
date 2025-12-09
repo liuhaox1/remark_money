@@ -309,7 +309,7 @@ class AppStrings {
 
   // 工资收入 - 二级
   static const catIncomeBasicSalary = '基本工资';
-  static const catIncomeBonus = '奖金/提成';
+  static const catIncomeBonus = '奖金提成';
   static const catIncomeYearEnd = '年终奖';
 
   // 兼职收入 - 二级
@@ -325,7 +325,7 @@ class AppStrings {
 
   // 其他收入 - 二级
   static const catIncomeRedPacket = '红包收入';
-  static const catIncomeRefund = '退费/报销';
+  static const catIncomeRefund = '退费报销';
 
   // ????
   static const unitYi = '亿';
@@ -397,8 +397,6 @@ class AppStrings {
   static const catFoodTakeout = '外卖';
 
   static const catTopShopping = '购物';
-  static const catShopOnline = '线上购物';
-  static const catShopOffline = '线下购物';
   static const catShopClothes = '服饰鞋包';
   static const catShopDigital = '数码家电';
   static const catShopBeauty = '美妆护肤';
@@ -407,14 +405,13 @@ class AppStrings {
   static const catTopTransport = '出行';
   static const catTransCommute = '公共交通';
   static const catTransTaxi = '打车';
-  static const catTransRideHailing = '网约车';
   static const catTransShare = '共享出行';
   static const catTransFuel = '油费';
   static const catTransCharging = '充电';
   static const catTransParking = '停车费';
   static const catTransToll = '过路费';
   static const catTransMaintenance = '车辆保养';
-  static const catTransLongTrip = '长途出行';
+  static const catTransLongTrip = '机票火车';
 
   static const catTopLiving = '居住与账单';
   static const catLivingRent = '住房支出';
@@ -435,25 +432,20 @@ class AppStrings {
   static const catFunSport = '运动健身';
   static const catFunTravel = '旅游度假';
   static const catFunParty = '聚会';
-  static const catFunSocial = '社交';
   static const catFunHobby = '兴趣爱好';
 
   static const catTopEducation = '教育成长';
   static const catEduCourse = '课程培训';
   static const catEduBook = '书籍';
-  static const catEduEbook = '电子书';
   static const catEduExam = '考试';
   static const catEduCertificate = '证书';
   static const catEduLanguage = '语言学习';
   static const catEduOnline = '在线课程';
   static const catEduTuition = '学费';
-  static const catEduMisc = '学杂费';
 
   static const catTopHealth = '健康医疗';
   static const catHealthClinic = '门诊';
-  static const catHealthRegistration = '挂号';
   static const catHealthCheck = '检查';
-  static const catHealthPhysical = '体检';
   static const catHealthMedicine = '药品';
   static const catHealthSurgery = '手术';
   static const catHealthTreatment = '治疗';
@@ -474,7 +466,6 @@ class AppStrings {
   static const catFinCredit = '信用卡还款';
   static const catFinInterest = '利息';
   static const catFinFee = '手续费';
-  static const catFinTransferFee = '转账手续费';
   static const catFinInvestLoss = '投资亏损';
-  static const catFinAdjust = '资金调账';
+  static const catFinAdjust = '账户调整';
 }

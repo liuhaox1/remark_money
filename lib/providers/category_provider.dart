@@ -36,6 +36,23 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
+  /// 重新加载所有分类（强制刷新，用于迁移等场景）
+  Future<void> reload() async {
+    try {
+      final List<Category> list =
+          (await _repo.loadCategories()).cast<Category>();
+      _categories
+        ..clear()
+        ..addAll(list.map(_sanitize));
+      _loaded = true;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('CategoryProvider.reload', e, stackTrace);
+      _loaded = false;
+      rethrow;
+    }
+  }
+
   /// 新增分类
   Future<void> addCategory(Category c) async {
     try {

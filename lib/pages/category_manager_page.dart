@@ -22,6 +22,15 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
   final Set<String> _expandedTopKeys = <String>{};
 
   @override
+  void initState() {
+    super.initState();
+    // 进入页面时强制重新加载分类，确保迁移逻辑执行
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CategoryProvider>().reload();
+    });
+  }
+
+  @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
@@ -154,9 +163,9 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                   Expanded(
                     child: Text(
                       top.name,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.normal,
                         color: cs.onSurface,
                       ),
                     ),
@@ -229,7 +238,11 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
           Expanded(
             child: Text(
               category.name,
-              style: TextStyle(fontSize: 14, color: cs.onSurface),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontSize: 14,
+                fontWeight: FontWeight.normal,
+                color: cs.onSurface,
+              ),
             ),
           ),
           IconButton(

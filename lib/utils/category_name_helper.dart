@@ -16,7 +16,6 @@ class CategoryNameHelper {
     AppStrings.catFinLoan: '借贷还款',
     AppStrings.catFinCredit: '信用卡还款',
     AppStrings.catFinFee: '手续费',
-    AppStrings.catFinTransferFee: '转账手续费',
   };
 
   /// 英文分类key到中文名称的映射表
@@ -55,7 +54,7 @@ class CategoryNameHelper {
     'parking': '停车费',
     'toll': '过路费',
     'maintenance': '车辆保养',
-    'longtrip': '长途出行',
+    'longtrip': '机票火车',
 
     // 居住相关
     'rent': '住房支出',
@@ -76,19 +75,16 @@ class CategoryNameHelper {
     'sport': '运动健身',
     'travel': '旅游度假',
     'party': '聚会',
-    'social': '社交',
     'hobby': '兴趣爱好',
 
     // 教育相关
     'course': '课程培训',
     'book': '书籍',
-    'ebook': '电子书',
     'exam': '考试',
     'certificate': '证书',
     'language': '语言学习',
     'online': '在线课程',
     'tuition': '学费',
-    'misc': '学杂费',
 
     // 健康相关
     'clinic': '门诊',
@@ -115,9 +111,8 @@ class CategoryNameHelper {
     'credit': '信用卡还款',
     'interest': '利息',
     'fee': '手续费',
-    'transfer_fee': '转账手续费',
     'invest_loss': '投资亏损',
-    'adjust': '资金调账',
+    'adjust': '账户调整',
   };
 
   /// 获取分类的显示名称（优先使用缩短版本）
