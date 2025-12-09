@@ -978,11 +978,21 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                               bookId: bookId,
                             );
                             
+                            // 先关闭弹窗
+                            if (ctx.mounted) {
+                              Navigator.pop(ctx);
+                            }
+                            
+                            // 再显示成功消息（使用原始 context）
                             if (context.mounted) {
-                              Navigator.pop(context);
                               ErrorHandler.showSuccess(context, '转账成功');
                             }
                           } catch (e) {
+                            // 发生错误时也要关闭弹窗
+                            if (ctx.mounted) {
+                              Navigator.pop(ctx);
+                            }
+                            // 显示错误消息
                             if (context.mounted) {
                               ErrorHandler.handleAsyncError(context, e);
                             }
