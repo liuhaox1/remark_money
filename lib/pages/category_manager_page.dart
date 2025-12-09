@@ -1,4 +1,6 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -163,10 +165,12 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                   Expanded(
                     child: Text(
                       top.name,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.normal,
                         color: cs.onSurface,
+                        // 使用系统默认字体，避免 Noto Sans SC 对"门"字的渲染问题
+                        fontFamily: _getSystemChineseFont(),
                       ),
                     ),
                   ),
@@ -238,10 +242,11 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
           Expanded(
             child: Text(
               category.name,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.normal,
                 color: cs.onSurface,
+                fontFamily: _getSystemChineseFont(), // 使用系统默认中文字体，避免 Noto Sans SC 对"门"字的渲染问题
               ),
             ),
           ),
@@ -500,4 +505,14 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
         Icons.pets,
         Icons.card_giftcard,
       ];
+
+  /// 获取系统默认中文字体
+  /// 返回 null 表示使用系统默认字体，避免 Noto Sans SC 对某些字符（如"门"）的渲染问题
+  String? _getSystemChineseFont() {
+    // 返回 null 让 Flutter 使用系统默认字体
+    // 在 Windows 上通常是 Microsoft YaHei（微软雅黑）
+    // 在 macOS 上通常是 PingFang SC（苹方）
+    // 在 Android 上通常是 Roboto 或系统默认中文字体
+    return null;
+  }
 }

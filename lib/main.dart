@@ -136,10 +136,12 @@ class RemarkMoneyApp extends StatelessWidget {
             colorSchemeSeed: theme.seedColor,
             brightness: Brightness.dark,
           );
-          // 统一字体样式配置 - 使用 Noto Sans SC 字体
+          // 统一字体样式配置 - 使用 Noto Sans SC 字体，如果加载失败则使用系统默认字体
           final notoSansScFontFamily = GoogleFonts.notoSansSc().fontFamily;
+          // 使用系统默认字体作为回退，避免某些字符（如"门"）的渲染问题
           final textThemeLight = baseLight.textTheme.apply(
             fontFamily: notoSansScFontFamily,
+            // 如果 Noto Sans SC 有问题，系统会自动回退到默认字体
           ).copyWith(
             headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
             headlineMedium: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
