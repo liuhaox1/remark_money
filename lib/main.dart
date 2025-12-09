@@ -29,6 +29,7 @@ import 'l10n/app_strings.dart';
 import 'pages/root_shell.dart';
 import 'pages/login_landing_page.dart';
 import 'pages/add_record_page.dart';
+import 'services/auth_service.dart';
 import 'pages/analysis_page.dart';
 import 'pages/bill_page.dart';
 import 'pages/budget_page.dart';
@@ -245,7 +246,7 @@ class RemarkMoneyApp extends StatelessWidget {
           ),
             builder: (context, child) =>
                 DeviceFrame(child: child ?? const SizedBox.shrink()),
-            home: const RootShell(),
+            home: _AuthWrapper(),
             routes: {
               '/stats': (_) => const AnalysisPage(),
               '/bill': (_) => const BillPage(),
@@ -268,5 +269,64 @@ class RemarkMoneyApp extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+/// 认证包装器：根据 token 状态决定显示登录页还是主页面
+class _AuthWrapper extends StatefulWidget {
+  const _AuthWrapper();
+
+  @override
+  State<_AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<_AuthWrapper> {
+  final _authService = const AuthService();
+  bool _isChecking = true;
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    try {
+      final isValid = await _authService.isTokenValid();
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = isValid;
+          _isChecking = false;
+        });
+      }
+    } catch (e) {
+      // 检查失败，默认显示登录页
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = false;
+          _isChecking = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isChecking) {
+      // 显示加载中
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // 如果已登录，显示主页面；否则显示登录页
+    if (_isLoggedIn) {
+      return const RootShell();
+    } else {
+      return const LoginLandingPage();
+    }
   }
 }

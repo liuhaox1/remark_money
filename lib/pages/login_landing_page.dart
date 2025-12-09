@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import 'login_page.dart';
+import 'root_shell.dart';
 
 class LoginLandingPage extends StatefulWidget {
   const LoginLandingPage({super.key});
@@ -25,8 +26,21 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
       _showSnack('请先阅读并同意《用户协议》和《隐私协议》');
       return;
     }
-    // 预留：接入原生微信 SDK 后，在这里获取 code ，再调用 _auth.loginWithWeChat(code: ...)
-    _showSnack('微信登录接入后在这里完成授权和登录');
+    try {
+      // 预留：接入原生微信 SDK 后，在这里获取 code
+      // final code = await getWeChatAuthCode();
+      // final result = await _auth.loginWithWeChat(code: code);
+      // if (mounted) {
+      //   Navigator.of(context).pushReplacement(
+      //     MaterialPageRoute(builder: (_) => const RootShell()),
+      //   );
+      // }
+      _showSnack('微信登录接入后在这里完成授权和登录');
+    } catch (e) {
+      if (mounted) {
+        _showSnack('微信登录失败: $e');
+      }
+    }
   }
 
   Future<void> _onPhoneLogin() async {
@@ -39,7 +53,10 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
       MaterialPageRoute(builder: (_) => const SmsLoginPage()),
     );
     if (result == true && mounted) {
-      Navigator.pop(context, true);
+      // 登录成功，替换整个路由栈到主页面
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const RootShell()),
+      );
     }
   }
 
