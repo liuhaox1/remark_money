@@ -774,9 +774,13 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   '账户间转账',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 // 转出账户选择
@@ -918,9 +922,15 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                   controller: amountCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  decoration: InputDecoration(
                     labelText: '金额',
-                    border: OutlineInputBorder(),
+                    labelStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
