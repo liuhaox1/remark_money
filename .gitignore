@@ -33,6 +33,11 @@ migrate_working_dir/
 /build/
 remark_backend/target/
 
+# Backend local configuration files (containing real passwords/secrets)
+remark_backend/src/main/resources/application-dev-local.properties
+remark_backend/src/main/resources/application-pro-local.properties
+remark_backend/src/main/resources/application-local.properties
+
 # Symbolication related
 app.*.symbols
 

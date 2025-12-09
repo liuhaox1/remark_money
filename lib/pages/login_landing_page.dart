@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'login_page.dart';
 import 'root_shell.dart';
+import 'terms_privacy_page.dart';
 
 class LoginLandingPage extends StatefulWidget {
   const LoginLandingPage({super.key});
@@ -162,7 +163,14 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                             ),
                             GestureDetector(
                               onTap: () {
-                                _showSnack('用户协议内容待接入');
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TermsPrivacyPage(
+                                      type: TermsPrivacyType.terms,
+                                    ),
+                                  ),
+                                );
                               },
                               child: Text(
                                 '《用户协议》',
@@ -181,7 +189,14 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                             ),
                             GestureDetector(
                               onTap: () {
-                                _showSnack('隐私协议内容待接入');
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TermsPrivacyPage(
+                                      type: TermsPrivacyType.privacy,
+                                    ),
+                                  ),
+                                );
                               },
                               child: Text(
                                 '《隐私协议》',
