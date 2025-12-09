@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:provider/provider.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -145,7 +146,9 @@ class _HomePageState extends State<HomePage> {
 
   DateTime? _endDate; // 日期范围结束
 
-
+  // 添加月份统计数据缓存
+  double? _cachedMonthIncome;
+  double? _cachedMonthExpense;
 
   // 添加缓存来存储每天的统计信息
 
@@ -172,7 +175,37 @@ class _HomePageState extends State<HomePage> {
     _searchFocusNode.addListener(_handleSearchFocusChange);
 
     _loadSearchHistory();
+    
+    // 异步加载月份统计数据
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadMonthStats();
+    });
 
+  }
+  
+  /// 异步加载月份统计数据
+  Future<void> _loadMonthStats() async {
+    if (!mounted) return;
+    
+    final recordProvider = context.read<RecordProvider>();
+    final bookProvider = context.read<BookProvider>();
+    final bookId = bookProvider.activeBookId;
+    final selectedMonth = DateTime(_selectedDay.year, _selectedDay.month, 1);
+    
+    try {
+      final income = await recordProvider.monthIncomeAsync(selectedMonth, bookId);
+      final expense = await recordProvider.monthExpenseAsync(selectedMonth, bookId);
+      
+      if (mounted) {
+        setState(() {
+          _cachedMonthIncome = income;
+          _cachedMonthExpense = expense;
+        });
+      }
+    } catch (e) {
+      // 静默处理错误，使用同步方法的结果
+      debugPrint('[HomePage] Failed to load month stats: $e');
+    }
   }
 
 
@@ -201,9 +234,10 @@ class _HomePageState extends State<HomePage> {
 
     final selectedMonth = DateTime(_selectedDay.year, _selectedDay.month, 1);
 
-    final monthIncome = recordProvider.monthIncome(selectedMonth, bookId);
+    // 优先使用缓存的异步统计数据，如果没有则使用同步方法
+    final monthIncome = _cachedMonthIncome ?? recordProvider.monthIncome(selectedMonth, bookId);
 
-    final monthExpense = recordProvider.monthExpense(selectedMonth, bookId);
+    final monthExpense = _cachedMonthExpense ?? recordProvider.monthExpense(selectedMonth, bookId);
 
     final monthBalance = monthIncome - monthExpense;
 
@@ -398,10 +432,17 @@ class _HomePageState extends State<HomePage> {
     setState(() => _selectedDay = day);
 
     _clearCache(); // 清除缓存
+    
+    // 清除月份统计缓存，重新加载
+    _cachedMonthIncome = null;
+    _cachedMonthExpense = null;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
 
       _scrollToDayInMonthList(day);
+      
+      // 重新加载月份统计数据
+      _loadMonthStats();
 
     });
 
