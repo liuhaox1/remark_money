@@ -88,5 +88,54 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
   }
+
+  /// 注册：使用账号和密码注册
+  Future<void> register({
+    required String username,
+    required String password,
+  }) async {
+    final resp = await http.post(
+      _uri('/api/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'password': password,
+      }),
+    );
+    if (resp.statusCode >= 400) {
+      final errorBody = resp.body;
+      throw Exception(errorBody.isNotEmpty ? errorBody : '注册失败');
+    }
+  }
+
+  /// 登录：使用账号和密码登录
+  Future<AuthResult> login({
+    required String username,
+    required String password,
+  }) async {
+    final resp = await http.post(
+      _uri('/api/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'password': password,
+      }),
+    );
+    if (resp.statusCode >= 400) {
+      final errorBody = resp.body;
+      throw Exception(errorBody.isNotEmpty ? errorBody : '登录失败');
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final result = AuthResult.fromJson(data);
+    await _saveToken(result.token);
+    return result;
+  }
+
+  /// 假登录：用于开发测试，无需后端验证
+  Future<void> mockLogin() async {
+    // 直接保存一个假的 token，用于绕过登录验证
+    const fakeToken = 'mock_token_for_development';
+    await _saveToken(fakeToken);
+  }
 }
 

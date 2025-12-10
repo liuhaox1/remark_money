@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
-import 'login_page.dart';
 import 'root_shell.dart';
 import 'terms_privacy_page.dart';
+import 'register_page.dart';
+import 'account_login_page.dart' as account_login;
 
 class LoginLandingPage extends StatefulWidget {
   const LoginLandingPage({super.key});
@@ -22,36 +23,34 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
     );
   }
 
-  Future<void> _onWeChatLogin() async {
+  Future<void> _onRegister() async {
     if (!_agreed) {
       _showSnack('请先阅读并同意《用户协议》和《隐私协议》');
       return;
     }
-    try {
-      // 预留：接入原生微信 SDK 后，在这里获取 code
-      // final code = await getWeChatAuthCode();
-      // final result = await _auth.loginWithWeChat(code: code);
-      // if (mounted) {
-      //   Navigator.of(context).pushReplacement(
-      //     MaterialPageRoute(builder: (_) => const RootShell()),
-      //   );
-      // }
-      _showSnack('微信登录接入后在这里完成授权和登录');
-    } catch (e) {
-      if (mounted) {
-        _showSnack('微信登录失败: $e');
-      }
+    // 跳转到注册页面
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const RegisterPage()),
+    );
+    if (result == true && mounted) {
+      // 注册成功后，跳转到登录页面
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const account_login.LoginPage()),
+      );
     }
   }
 
-  Future<void> _onPhoneLogin() async {
+  Future<void> _onLogin() async {
     if (!_agreed) {
       _showSnack('请先阅读并同意《用户协议》和《隐私协议》');
       return;
     }
+    // 跳转到登录页面
     final result = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const SmsLoginPage()),
+      MaterialPageRoute(builder: (_) => const account_login.LoginPage()),
     );
     if (result == true && mounted) {
       // 登录成功，替换整个路由栈到主页面
@@ -103,26 +102,26 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 微信登录按钮（主按钮）
+                  // 注册按钮（主按钮）
                   SizedBox(
                     height: 48,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFD54F),
-                        foregroundColor: Colors.black87,
+                        backgroundColor: cs.primary,
+                        foregroundColor: cs.onPrimary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
                       ),
-                      onPressed: _agreed ? _onWeChatLogin : null,
+                      onPressed: _agreed ? _onRegister : null,
                       child: const Text(
-                        '微信登录',
+                        '注册',
                         style: TextStyle(fontSize: 16),
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // 手机号登录按钮
+                  // 登录按钮
                   SizedBox(
                     height: 48,
                     child: OutlinedButton(
@@ -131,9 +130,9 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                           borderRadius: BorderRadius.circular(24),
                         ),
                       ),
-                      onPressed: _agreed ? _onPhoneLogin : null,
+                      onPressed: _agreed ? _onLogin : null,
                       child: const Text(
-                        '使用手机号登录',
+                        '登录',
                         style: TextStyle(fontSize: 16),
                       ),
                     ),

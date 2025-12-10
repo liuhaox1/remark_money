@@ -54,5 +54,44 @@ public class AuthController {
       return ResponseEntity.badRequest().body(ex.getMessage());
     }
   }
+
+  @PostMapping("/register")
+  public ResponseEntity<?> register(@RequestBody Map<String, String> body) {
+    String username = body.get("username");
+    String password = body.get("password");
+    if (username == null || username.trim().isEmpty()) {
+      return ResponseEntity.badRequest().body("账号不能为空");
+    }
+    if (password == null || password.trim().isEmpty()) {
+      return ResponseEntity.badRequest().body("密码不能为空");
+    }
+    if (password.length() < 6) {
+      return ResponseEntity.badRequest().body("密码长度至少6位");
+    }
+    try {
+      authService.register(username.trim(), password.trim());
+      return ResponseEntity.ok().build();
+    } catch (IllegalArgumentException ex) {
+      return ResponseEntity.badRequest().body(ex.getMessage());
+    }
+  }
+
+  @PostMapping("/login")
+  public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
+    String username = body.get("username");
+    String password = body.get("password");
+    if (username == null || username.trim().isEmpty()) {
+      return ResponseEntity.badRequest().body("账号不能为空");
+    }
+    if (password == null || password.trim().isEmpty()) {
+      return ResponseEntity.badRequest().body("密码不能为空");
+    }
+    try {
+      Map<String, Object> result = authService.login(username.trim(), password.trim());
+      return ResponseEntity.ok(result);
+    } catch (IllegalArgumentException ex) {
+      return ResponseEntity.badRequest().body(ex.getMessage());
+    }
+  }
 }
 
