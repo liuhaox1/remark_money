@@ -64,6 +64,22 @@ class _ProfilePageState extends State<ProfilePage> {
     await _loadToken();
   }
 
+  Future<void> _handleCloudSync() async {
+    if (_loadingToken) return;
+    final loggedIn = _token != null && _token!.isNotEmpty;
+    if (loggedIn) {
+      // 已登录：后续可跳转云端同步页，这里先给提示
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已登录，可进行云端同步')),
+        );
+      }
+      return;
+    }
+    // 未登录直接跳转登录页
+    await _goLogin();
+  }
+
   Future<void> _goLogin() async {
     final result = await Navigator.pushNamed(context, '/login');
     if (result == true) {
@@ -93,6 +109,33 @@ class _ProfilePageState extends State<ProfilePage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
+                // 本地存储提示
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: cs.primary.withOpacity(0.25), width: 1),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 18, color: cs.primary.withOpacity(0.9)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '当前数据仅保存在本地。登录后可开启云端同步与多人账本。',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: cs.onSurface.withOpacity(0.85),
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 _buildHeaderCard(
                   context,
                   title: '设置',
@@ -180,6 +223,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }) {
     final cs = Theme.of(context).colorScheme;
     final actions = [
+      _ProfileAction(
+        icon: Icons.cloud_sync_outlined,
+        label: '云端同步',
+        onTap: _handleCloudSync,
+      ),
       _ProfileAction(
         icon: Icons.menu_book_outlined,
         label: '账本管理',
