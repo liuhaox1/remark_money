@@ -129,62 +129,6 @@ class _ProfilePageState extends State<ProfilePage> {
         context, '礼包码已提交，当前为体验模式（未接入后端）');
   }
 
-  Future<void> _showMultiBookSheet() async {
-    if (_loadingToken) return;
-    final loggedIn = _token != null && _token!.isNotEmpty;
-    if (!loggedIn) {
-      await _goLogin();
-      return;
-    }
-    await showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.outlineVariant.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: Icon(Icons.group_add_outlined,
-                    color: cs.primary, size: 24),
-                title: const Text('生成多人账本邀请码'),
-                subtitle: const Text('生成 8 位邀请码，分享给成员加入'),
-                onTap: () {
-                  final code = _generateInviteCode();
-                  Navigator.pop(ctx);
-                  ErrorHandler.showSuccess(
-                      context, '邀请码（体验模式）已生成：$code');
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.meeting_room_outlined,
-                    color: cs.primary, size: 24),
-                title: const Text('输入邀请码加入账本'),
-                subtitle: const Text('输入 8 位邀请码加入他人共享账本'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await _showJoinInviteDialog();
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   String _generateInviteCode() {
     final rand = Random.secure();
@@ -393,11 +337,6 @@ class _ProfilePageState extends State<ProfilePage> {
         icon: Icons.card_giftcard_outlined,
         label: '兑换礼包码',
         onTap: _showGiftCodeDialog,
-      ),
-      _ProfileAction(
-        icon: Icons.group_outlined,
-        label: '多人账本',
-        onTap: _showMultiBookSheet,
       ),
       _ProfileAction(
         icon: Icons.menu_book_outlined,
@@ -1282,31 +1221,80 @@ class _ProfilePageState extends State<ProfilePage> {
     final cs = Theme.of(context).colorScheme;
     final controller = TextEditingController(text: initialName);
     final formKey = GlobalKey<FormState>();
+    final bookProvider = context.read<BookProvider>();
+    final book = bookProvider.books.firstWhere((b) => b.id == id);
+    
+    // 检查是否已登录
+    final loggedIn = _token != null && _token!.isNotEmpty;
+    
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(
-          AppStrings.renameBook,
+          '账本设置',
           style: TextStyle(color: cs.onSurface),
         ),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            style: TextStyle(color: cs.onSurface),
-            decoration: InputDecoration(
-              hintText: AppStrings.bookNameHint,
-              hintStyle: TextStyle(
-                color: cs.onSurface.withOpacity(0.78),
-              ),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: controller,
+                  autofocus: true,
+                  style: TextStyle(color: cs.onSurface),
+                  decoration: InputDecoration(
+                    labelText: '账本名称',
+                    hintText: AppStrings.bookNameHint,
+                    hintStyle: TextStyle(
+                      color: cs.onSurface.withOpacity(0.78),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return AppStrings.bookNameRequired;
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // 多人账本功能
+                if (loggedIn) ...[
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.group_outlined, color: cs.primary),
+                    title: const Text('升级为多人账本'),
+                    subtitle: const Text('生成邀请码，与好友共享账本'),
+                    trailing: Switch(
+                      value: false, // TODO: 从服务器获取是否已升级
+                      onChanged: (value) {
+                        if (value) {
+                          Navigator.pop(context);
+                          _showUpgradeToMultiBookDialog(context, id);
+                        }
+                      },
+                    ),
+                  ),
+                ] else ...[
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.info_outline, color: cs.outline),
+                    title: const Text('多人账本'),
+                    subtitle: const Text('登录后可使用多人账本功能'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _goLogin();
+                    },
+                  ),
+                ],
+              ],
             ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return AppStrings.bookNameRequired;
-              }
-              return null;
-            },
           ),
         ),
         actions: [
@@ -1320,13 +1308,76 @@ class _ProfilePageState extends State<ProfilePage> {
           FilledButton(
             onPressed: () async {
               if (formKey.currentState?.validate() != true) return;
-              await context
-                  .read<BookProvider>()
-                  .renameBook(id, controller.text.trim());
+              await bookProvider.renameBook(id, controller.text.trim());
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text(AppStrings.save),
           )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showUpgradeToMultiBookDialog(BuildContext context, String bookId) async {
+    final cs = Theme.of(context).colorScheme;
+    // TODO: 调用后端API升级为多人账本
+    final inviteCode = _generateInviteCode(); // 临时生成，实际应从服务器获取
+    
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('多人账本'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('邀请码已生成，分享给好友即可加入账本：'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      inviteCode,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onPrimaryContainer,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.copy, color: cs.primary),
+                    onPressed: () {
+                      // TODO: 复制到剪贴板
+                      ErrorHandler.showSuccess(context, '已复制邀请码');
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _showJoinInviteDialog();
+              },
+              icon: const Icon(Icons.person_add),
+              label: const Text('输入邀请码加入其他账本'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('关闭', style: TextStyle(color: cs.onSurface)),
+          ),
         ],
       ),
     );

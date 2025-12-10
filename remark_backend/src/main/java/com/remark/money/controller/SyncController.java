@@ -310,6 +310,7 @@ public class SyncController {
         ? record.getLastSyncTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null);
     map.put("cloudBillCount", record.getCloudBillCount());
     map.put("syncDeviceId", record.getSyncDeviceId());
+    map.put("dataVersion", record.getDataVersion());
     return map;
   }
 }

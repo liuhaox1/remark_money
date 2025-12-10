@@ -292,6 +292,7 @@ public class SyncService {
       record.setBookId(bookId);
       record.setDeviceId(deviceId);
       record.setCloudBillCount(0);
+      record.setDataVersion(1L); // 初始版本号为1
       syncRecordMapper.insert(record);
       return syncRecordMapper.findByUserBookDevice(userId, bookId, deviceId);
     }
@@ -299,7 +300,7 @@ public class SyncService {
   }
 
   /**
-   * 更新同步记录
+   * 更新同步记录（包含版本号）
    */
   private void updateSyncRecord(Long userId, String bookId, String deviceId,
                                 String lastSyncBillId, LocalDateTime lastSyncTime, int cloudBillCount) {
@@ -308,6 +309,8 @@ public class SyncService {
     record.setLastSyncTime(lastSyncTime);
     record.setCloudBillCount(cloudBillCount);
     record.setSyncDeviceId(deviceId);
+    // 同步后版本号+1
+    record.setDataVersion((record.getDataVersion() != null ? record.getDataVersion() : 1L) + 1);
     syncRecordMapper.upsert(record);
   }
 

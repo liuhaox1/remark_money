@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS sync_record (
   last_sync_time DATETIME DEFAULT NULL COMMENT '上次同步时间',
   cloud_bill_count INT NOT NULL DEFAULT 0 COMMENT '云端账单数量（is_delete=0）',
   sync_device_id VARCHAR(64) DEFAULT NULL COMMENT '最后同步的设备ID',
+  data_version BIGINT NOT NULL DEFAULT 1 COMMENT '数据版本号，同步后统一',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_book_device (user_id, book_id, device_id),

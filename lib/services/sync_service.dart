@@ -227,6 +227,7 @@ class SyncRecord {
   final String? lastSyncTime;
   final int? cloudBillCount;
   final String? syncDeviceId;
+  final int? dataVersion;
 
   SyncRecord({
     this.userId,
@@ -236,6 +237,7 @@ class SyncRecord {
     this.lastSyncTime,
     this.cloudBillCount,
     this.syncDeviceId,
+    this.dataVersion,
   });
 
   factory SyncRecord.fromJson(Map<String, dynamic> json) {
@@ -247,6 +249,7 @@ class SyncRecord {
       lastSyncTime: json['lastSyncTime'] as String?,
       cloudBillCount: json['cloudBillCount'] as int?,
       syncDeviceId: json['syncDeviceId'] as String?,
+      dataVersion: json['dataVersion'] as int?,
     );
   }
 }

@@ -11,6 +11,7 @@ public class SyncRecord {
   private LocalDateTime lastSyncTime;
   private Integer cloudBillCount;
   private String syncDeviceId;
+  private Long dataVersion; // 数据版本号
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
 
@@ -93,6 +94,14 @@ public class SyncRecord {
 
   public void setUpdatedAt(LocalDateTime updatedAt) {
     this.updatedAt = updatedAt;
+  }
+
+  public Long getDataVersion() {
+    return dataVersion;
+  }
+
+  public void setDataVersion(Long dataVersion) {
+    this.dataVersion = dataVersion;
   }
 }
 

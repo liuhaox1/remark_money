@@ -24,7 +24,17 @@ class _SyncPageState extends State<SyncPage> {
   @override
   void initState() {
     super.initState();
-    _loadStatus();
+    _loadStatus().then((_) {
+      // 加载状态后，如果已登录且有同步记录，自动触发同步
+      if (mounted && _syncRecord != null && _syncRecord!.lastSyncTime != null) {
+        // 延迟一下，让用户看到状态
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _performAutoSync();
+          }
+        });
+      }
+    });
   }
 
   Future<void> _loadStatus() async {
@@ -41,8 +51,8 @@ class _SyncPageState extends State<SyncPage> {
     }
   }
 
-  /// 首次同步：检测本地是否有数据，有则上传，无则拉取
-  Future<void> _performFirstSync() async {
+  /// 自动同步：根据同步记录自动判断首次/增量同步
+  Future<void> _performAutoSync() async {
     if (_isSyncing) return;
 
     setState(() {
@@ -60,19 +70,35 @@ class _SyncPageState extends State<SyncPage> {
         return;
       }
 
-      // 检查本地是否有数据
-      final localRecords = recordProvider.records;
-      final hasLocalData = localRecords.isNotEmpty;
+      // 检查是否有同步记录（判断是否首次同步）
+      final hasSyncRecord = _syncRecord != null && 
+          _syncRecord!.lastSyncTime != null && 
+          _syncRecord!.lastSyncTime!.isNotEmpty;
 
-      if (hasLocalData) {
-        // 全量上传
-        await _fullUpload(bookId, localRecords);
+      if (!hasSyncRecord) {
+        // 首次同步：检查本地是否有数据
+        final localRecords = recordProvider.records;
+        final hasLocalData = localRecords.isNotEmpty;
+
+        if (hasLocalData) {
+          // 全量上传
+          setState(() => _statusText = '首次同步：上传本地数据...');
+          await _fullUpload(bookId, localRecords);
+        } else {
+          // 全量拉取
+          setState(() => _statusText = '首次同步：下载云端数据...');
+          await _fullDownload(bookId);
+        }
       } else {
-        // 全量拉取
-        await _fullDownload(bookId);
+        // 增量同步
+        setState(() => _statusText = '增量同步中...');
+        await _performIncrementalSync();
       }
 
       await _loadStatus();
+      if (mounted) {
+        ErrorHandler.showSuccess(context, '同步完成');
+      }
     } catch (e) {
       if (mounted) {
         ErrorHandler.handleAsyncError(context, e);
@@ -427,6 +453,8 @@ class _SyncPageState extends State<SyncPage> {
                     Text('云端账单数：${_syncRecord!.cloudBillCount ?? 0}'),
                     if (_syncRecord!.lastSyncTime != null)
                       Text('最后同步：${_syncRecord!.lastSyncTime}'),
+                    if (_syncRecord!.dataVersion != null)
+                      Text('数据版本：${_syncRecord!.dataVersion}'),
                   ],
                   const SizedBox(height: 8),
                   Text(
@@ -438,18 +466,11 @@ class _SyncPageState extends State<SyncPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // 首次同步按钮
+          // 自动同步按钮（系统自动判断首次/增量）
           ElevatedButton.icon(
-            onPressed: _isSyncing ? null : _performFirstSync,
-            icon: const Icon(Icons.cloud_upload),
-            label: const Text('首次同步'),
-          ),
-          const SizedBox(height: 8),
-          // 增量同步按钮
-          OutlinedButton.icon(
-            onPressed: _isSyncing ? null : _performIncrementalSync,
+            onPressed: _isSyncing ? null : _performAutoSync,
             icon: const Icon(Icons.sync),
-            label: const Text('增量同步'),
+            label: const Text('开始同步'),
           ),
         ],
       ),

@@ -11,6 +11,7 @@
     <result property="lastSyncTime" column="last_sync_time"/>
     <result property="cloudBillCount" column="cloud_bill_count"/>
     <result property="syncDeviceId" column="sync_device_id"/>
+    <result property="dataVersion" column="data_version"/>
     <result property="createdAt" column="created_at"/>
     <result property="updatedAt" column="updated_at"/>
   </resultMap>
@@ -22,9 +23,9 @@
 
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO sync_record (user_id, book_id, device_id, last_sync_bill_id, last_sync_time,
-                            cloud_bill_count, sync_device_id, created_at, updated_at)
+                            cloud_bill_count, sync_device_id, data_version, created_at, updated_at)
     VALUES (#{userId}, #{bookId}, #{deviceId}, #{lastSyncBillId}, #{lastSyncTime},
-            #{cloudBillCount}, #{syncDeviceId}, NOW(), NOW())
+            #{cloudBillCount}, #{syncDeviceId}, #{dataVersion}, NOW(), NOW())
   </insert>
 
   <update id="update">
@@ -33,20 +34,22 @@
       last_sync_time = #{lastSyncTime},
       cloud_bill_count = #{cloudBillCount},
       sync_device_id = #{syncDeviceId},
+      data_version = #{dataVersion},
       updated_at = NOW()
     WHERE user_id = #{userId} AND book_id = #{bookId} AND device_id = #{deviceId}
   </update>
 
   <insert id="upsert">
     INSERT INTO sync_record (user_id, book_id, device_id, last_sync_bill_id, last_sync_time,
-                            cloud_bill_count, sync_device_id, created_at, updated_at)
+                            cloud_bill_count, sync_device_id, data_version, created_at, updated_at)
     VALUES (#{userId}, #{bookId}, #{deviceId}, #{lastSyncBillId}, #{lastSyncTime},
-            #{cloudBillCount}, #{syncDeviceId}, NOW(), NOW())
+            #{cloudBillCount}, #{syncDeviceId}, #{dataVersion}, NOW(), NOW())
     ON DUPLICATE KEY UPDATE
       last_sync_bill_id = VALUES(last_sync_bill_id),
       last_sync_time = VALUES(last_sync_time),
       cloud_bill_count = VALUES(cloud_bill_count),
       sync_device_id = VALUES(sync_device_id),
+      data_version = VALUES(data_version),
       updated_at = NOW()
   </insert>
 
