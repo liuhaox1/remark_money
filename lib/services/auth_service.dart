@@ -5,6 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const String kApiBaseUrl = 'http://localhost:8080';
 
+/// 注册异常，用于提供友好的错误提示
+class RegisterException implements Exception {
+  RegisterException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class AuthResult {
   AuthResult({required this.token, required this.user});
 
@@ -111,8 +119,14 @@ class AuthService {
       }),
     );
     if (resp.statusCode >= 400) {
-      final errorBody = resp.body;
-      throw Exception(errorBody.isNotEmpty ? errorBody : '注册失败');
+      final errorBody = resp.body.trim();
+      // 解析错误消息，提供友好的提示
+      if (errorBody.contains('账号已存在') || 
+          errorBody.contains('用户名已存在') ||
+          errorBody.contains('username already exists')) {
+        throw RegisterException('该账号已被注册，请使用其他账号或直接登录');
+      }
+      throw RegisterException(errorBody.isNotEmpty ? errorBody : '注册失败，请稍后再试');
     }
   }
 

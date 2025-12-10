@@ -58,7 +58,17 @@ class _RegisterPageState extends State<RegisterPage> {
       // 注册成功后返回 true，让登录页面跳转到登录页
       Navigator.pop(context, true);
     } catch (e) {
-      _showSnack(e.toString());
+      // 显示友好的错误提示
+      String errorMessage = '注册失败，请稍后再试';
+      if (e is RegisterException) {
+        errorMessage = e.message;
+      } else if (e.toString().contains('账号已存在') || 
+                 e.toString().contains('用户名已存在')) {
+        errorMessage = '该账号已被注册，请使用其他账号或直接登录';
+      } else if (e.toString().isNotEmpty) {
+        errorMessage = e.toString().replaceFirst('Exception: ', '');
+      }
+      _showSnack(errorMessage);
     } finally {
       if (mounted) setState(() => _registering = false);
     }
