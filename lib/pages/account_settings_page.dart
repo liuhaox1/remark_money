@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import 'login_landing_page.dart';
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key, required this.initialLoggedIn});
@@ -35,7 +36,11 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('已退出登录')));
-    Navigator.pop(context, true);
+    // 退出登录后，清除所有路由并跳转到登录页
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginLandingPage()),
+      (route) => false, // 清除所有之前的路由
+    );
   }
 
   Future<void> _handleLogin() async {
@@ -108,48 +113,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                     ),
                     onTap: _isLoggedIn ? null : _handleLogin,
                   ),
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text('手机'),
-                    subtitle: Text(
-                      _isLoggedIn ? '已绑定或待完善' : '未绑定',
-                      style: TextStyle(
-                        color: cs.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: cs.onSurface.withOpacity(0.4),
-                    ),
-                    onTap: _isLoggedIn
-                        ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('手机号绑定功能待接入')),
-                            );
-                          }
-                        : _handleLogin,
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text('微信'),
-                    subtitle: Text(
-                      _isLoggedIn ? '已绑定或待完善' : '未绑定',
-                      style: TextStyle(
-                        color: cs.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: cs.onSurface.withOpacity(0.4),
-                    ),
-                    onTap: _isLoggedIn
-                        ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('微信账号管理功能待接入')),
-                            );
-                          }
-                        : _handleLogin,
-                  ),
+                  // 隐藏手机和微信登录相关选项
                 ],
               ),
             ),

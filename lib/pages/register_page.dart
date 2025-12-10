@@ -55,6 +55,7 @@ class _RegisterPageState extends State<RegisterPage> {
       await _auth.register(username: username, password: password);
       if (!mounted) return;
       _showSnack('注册成功');
+      // 注册成功后返回 true，让登录页面跳转到登录页
       Navigator.pop(context, true);
     } catch (e) {
       _showSnack(e.toString());

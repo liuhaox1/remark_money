@@ -291,6 +291,17 @@ class _AuthWrapperState extends State<_AuthWrapper> {
     _checkAuth();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 当路由变化时，重新检查认证状态（例如从登录页返回时）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isChecking) {
+        _checkAuth();
+      }
+    });
+  }
+
   Future<void> _checkAuth() async {
     try {
       final isValid = await _authService.isTokenValid();
@@ -309,6 +320,14 @@ class _AuthWrapperState extends State<_AuthWrapper> {
         });
       }
     }
+  }
+
+  // 添加一个方法来重新检查认证状态（供外部调用）
+  void refreshAuth() {
+    setState(() {
+      _isChecking = true;
+    });
+    _checkAuth();
   }
 
   @override

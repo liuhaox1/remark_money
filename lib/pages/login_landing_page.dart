@@ -53,9 +53,10 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
       MaterialPageRoute(builder: (_) => const account_login.LoginPage()),
     );
     if (result == true && mounted) {
-      // 登录成功，替换整个路由栈到主页面
-      Navigator.of(context).pushReplacement(
+      // 登录成功，清除所有路由并跳转到首页（RootShell）
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const RootShell()),
+        (route) => false, // 清除所有之前的路由
       );
     }
   }
