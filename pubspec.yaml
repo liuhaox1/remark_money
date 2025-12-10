@@ -31,6 +31,10 @@ dependencies:
   flutter_slidable: ^3.0.1
   google_fonts: ^6.2.1
   
+  # 语音识别
+  speech_to_text: ^6.6.0
+  permission_handler: ^11.0.1
+  
   # Windows 平台支持 - 移除直接依赖，使用传递依赖
   # win32: ^5.2.0
 

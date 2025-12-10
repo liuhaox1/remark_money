@@ -20,6 +20,7 @@ import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../repository/repository_factory.dart';
 import 'add_account_type_page.dart';
+import 'voice_record_page.dart';
 
 class AddRecordPage extends StatefulWidget {
   const AddRecordPage({
@@ -196,6 +197,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 onTap: _onQuickAccountTap,
               ),
               _buildQuickToolItem(
+                icon: Icons.mic_outlined,
+                label: '语音',
+                onTap: _onVoiceInputTap,
+              ),
+              _buildQuickToolItem(
                 icon: Icons.tune_outlined,
                 label: '更多',
                 onTap: _onQuickMoreTap,
@@ -240,6 +246,16 @@ class _AddRecordPageState extends State<AddRecordPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _onVoiceInputTap() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const VoiceRecordPage()),
+    );
+    if (result == true && mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
   Future<void> _onQuickAccountTap() async {

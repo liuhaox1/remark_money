@@ -39,6 +39,7 @@ import '../widgets/timeline_item.dart';
 import '../widgets/week_strip.dart';
 
 import 'add_record_page.dart';
+import 'voice_record_page.dart';
 
 import 'home_page_date_panel.dart';
 
@@ -313,6 +314,7 @@ class _HomePageState extends State<HomePage> {
                     dateLabel: dateLabel,
                     onTapDate: _pickDate,
                     onTapSearch: _openFilterSheet,
+                    onTapVoice: _openVoiceRecord,
                   ),
                   const SizedBox(height: 8),
                   _HomeSearchBar(
@@ -2181,7 +2183,12 @@ class _HomePageState extends State<HomePage> {
 
   }
 
-
+  void _openVoiceRecord() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const VoiceRecordPage()),
+    );
+  }
 
     Future<void> _openFilterSheet() async {
     final categories = context.read<CategoryProvider>().categories;
@@ -4735,6 +4742,8 @@ class _BalanceCard extends StatelessWidget {
 
     required this.onTapSearch,
 
+    this.onTapVoice,
+
   });
 
 
@@ -4750,6 +4759,8 @@ class _BalanceCard extends StatelessWidget {
   final VoidCallback onTapDate;
 
   final VoidCallback onTapSearch;
+
+  final VoidCallback? onTapVoice;
 
 
 
@@ -4835,6 +4846,18 @@ class _BalanceCard extends StatelessWidget {
                 ),
 
                 const BookSelectorButton(),
+
+                // 语音记账按钮
+                if (onTapVoice != null)
+                  InkWell(
+                    onTap: onTapVoice,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(Icons.mic_outlined,
+                          size: 20, color: cs.onSurface),
+                    ),
+                  ),
 
                 // 修复按钮抖动问题：使用 InkWell 替代 IconButton
 
