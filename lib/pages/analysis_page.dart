@@ -495,35 +495,35 @@ class _HeaderCard extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: isDark
-                ? null
-                : LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      cs.primary.withOpacity(0.85),
-                      cs.primaryContainer.withOpacity(0.9),
-                    ],
-                  ),
-            color: isDark ? cs.surface : null,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: isDark
-                ? null
-                : [
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? null
+              : LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    cs.primary.withOpacity(0.85),
+                    cs.primaryContainer.withOpacity(0.9),
+                  ],
+                ),
+          color: isDark ? cs.surface : null,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: isDark
+              ? null
+              : [
                   BoxShadow(
-                    color: cs.shadow.withOpacity(0.08),
+                    color: Theme.of(context).shadowColor.withOpacity(0.08),
                     blurRadius: 18,
                     offset: const Offset(0, 8),
-                    ),
-                  ],
-          ),
+                  ),
+                ],
+        ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   PeriodSelector(
                     label: periodLabel,
@@ -533,10 +533,7 @@ class _HeaderCard extends StatelessWidget {
                     onNext: onNextPeriod,
                     compact: true,
                   ),
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6),
-                    child: BookSelectorButton(compact: true),
-                  ),
+                  const BookSelectorButton(compact: true),
                 ],
               ),
               const SizedBox(height: 8),

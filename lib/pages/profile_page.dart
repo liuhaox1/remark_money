@@ -89,7 +89,7 @@ class _ProfilePageState extends State<ProfilePage> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: const BoxConstraints(maxWidth: 430),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
@@ -326,7 +326,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
           colors: [
             cs.primary.withOpacity(0.85),
@@ -335,6 +335,13 @@ class _ProfilePageState extends State<ProfilePage> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
