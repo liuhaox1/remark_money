@@ -8,21 +8,24 @@ import org.apache.ibatis.annotations.Select;
   @Mapper
   public interface UserMapper {
 
-  @Select("SELECT id, username, password, phone, nickname, wechat_open_id, created_at, updated_at FROM user WHERE id = #{id}")
+  @Select("SELECT id, username, password, phone, nickname, wechat_open_id, pay_type, pay_expire, created_at, updated_at FROM user WHERE id = #{id}")
   User findById(@Param("id") Long id);
 
-  @Select("SELECT id, username, password, phone, nickname, wechat_open_id, created_at, updated_at FROM user WHERE username = #{username}")
+  @Select("SELECT id, username, password, phone, nickname, wechat_open_id, pay_type, pay_expire, created_at, updated_at FROM user WHERE username = #{username}")
   User findByUsername(@Param("username") String username);
 
-  @Select("SELECT id, username, password, phone, nickname, wechat_open_id, created_at, updated_at FROM user WHERE phone = #{phone}")
+  @Select("SELECT id, username, password, phone, nickname, wechat_open_id, pay_type, pay_expire, created_at, updated_at FROM user WHERE phone = #{phone}")
   User findByPhone(@Param("phone") String phone);
 
-  @Select("SELECT id, username, password, phone, nickname, wechat_open_id, created_at, updated_at FROM user WHERE wechat_open_id = #{openId}")
+  @Select("SELECT id, username, password, phone, nickname, wechat_open_id, pay_type, pay_expire, created_at, updated_at FROM user WHERE wechat_open_id = #{openId}")
   User findByWechatOpenId(@Param("openId") String openId);
 
-  @org.apache.ibatis.annotations.Insert("INSERT INTO user (username, password, phone, nickname, wechat_open_id, created_at, updated_at) VALUES (#{username}, #{password}, #{phone}, #{nickname}, #{wechatOpenId}, NOW(), NOW())")
+  @org.apache.ibatis.annotations.Insert("INSERT INTO user (username, password, phone, nickname, wechat_open_id, pay_type, pay_expire, created_at, updated_at) VALUES (#{username}, #{password}, #{phone}, #{nickname}, #{wechatOpenId}, #{payType}, #{payExpire}, NOW(), NOW())")
   @org.apache.ibatis.annotations.Options(useGeneratedKeys = true, keyProperty = "id")
   void insert(User user);
 
   void updateWechatOpenId(@Param("id") Long id, @Param("openId") String openId);
+
+  @org.apache.ibatis.annotations.Update("UPDATE user SET pay_type = #{payType}, pay_expire = #{payExpire}, updated_at = NOW() WHERE id = #{id}")
+  void updatePay(@Param("id") Long id, @Param("payType") Integer payType, @Param("payExpire") java.time.LocalDateTime payExpire);
 }

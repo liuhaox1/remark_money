@@ -70,6 +70,7 @@ public class AuthService {
       user = new User();
       user.setPhone(phone);
       user.setNickname("用户" + phone.substring(Math.max(0, phone.length() - 4)));
+      user.setPayType(0);
       userMapper.insert(user);
     }
 
@@ -105,6 +106,7 @@ public class AuthService {
       user = new User();
       user.setWechatOpenId(openId);
       user.setNickname("微信用户");
+      user.setPayType(0);
       userMapper.insert(user);
     }
 
@@ -133,6 +135,7 @@ public class AuthService {
     user.setUsername(username);
     user.setPassword(hashedPassword);
     user.setNickname(username); // 默认昵称为用户名
+    user.setPayType(0);
     userMapper.insert(user);
 
     log.info("User registered: {}", username);

@@ -10,6 +10,8 @@ public class User {
   private String phone;
   private String nickname;
   private String wechatOpenId;
+  private Integer payType;
+  private LocalDateTime payExpire;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
 
@@ -43,6 +45,22 @@ public class User {
 
   public void setWechatOpenId(String wechatOpenId) {
     this.wechatOpenId = wechatOpenId;
+  }
+
+  public Integer getPayType() {
+    return payType;
+  }
+
+  public void setPayType(Integer payType) {
+    this.payType = payType;
+  }
+
+  public LocalDateTime getPayExpire() {
+    return payExpire;
+  }
+
+  public void setPayExpire(LocalDateTime payExpire) {
+    this.payExpire = payExpire;
   }
 
   public LocalDateTime getCreatedAt() {

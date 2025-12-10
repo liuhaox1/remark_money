@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -78,6 +79,164 @@ class _ProfilePageState extends State<ProfilePage> {
     }
     // 未登录直接跳转登录页
     await _goLogin();
+  }
+
+  Future<void> _showGiftCodeDialog() async {
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          title: const Text('兑换礼包码'),
+          content: TextField(
+            controller: controller,
+            maxLength: 6,
+            decoration: const InputDecoration(
+              hintText: '输入 6 位礼包码',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('取消', style: TextStyle(color: cs.onSurface)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final code = controller.text.trim();
+                if (code.length != 6) {
+                  ErrorHandler.showWarning(ctx, '请输入 6 位礼包码');
+                  return;
+                }
+                Navigator.pop(ctx);
+                await _redeemGiftCodeStub(code);
+              },
+              child: const Text('兑换'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _redeemGiftCodeStub(String code) async {
+    // TODO: 接入后端接口 /api/gift/redeem
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+    ErrorHandler.showSuccess(
+        context, '礼包码已提交，当前为体验模式（未接入后端）');
+  }
+
+  Future<void> _showMultiBookSheet() async {
+    if (_loadingToken) return;
+    final loggedIn = _token != null && _token!.isNotEmpty;
+    if (!loggedIn) {
+      await _goLogin();
+      return;
+    }
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.outlineVariant.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: Icon(Icons.group_add_outlined,
+                    color: cs.primary, size: 24),
+                title: const Text('生成多人账本邀请码'),
+                subtitle: const Text('生成 8 位邀请码，分享给成员加入'),
+                onTap: () {
+                  final code = _generateInviteCode();
+                  Navigator.pop(ctx);
+                  ErrorHandler.showSuccess(
+                      context, '邀请码（体验模式）已生成：$code');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.meeting_room_outlined,
+                    color: cs.primary, size: 24),
+                title: const Text('输入邀请码加入账本'),
+                subtitle: const Text('输入 8 位邀请码加入他人共享账本'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _showJoinInviteDialog();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _generateInviteCode() {
+    final rand = Random.secure();
+    final buffer = StringBuffer();
+    for (var i = 0; i < 8; i++) {
+      buffer.write(rand.nextInt(10));
+    }
+    return buffer.toString();
+  }
+
+  Future<void> _showJoinInviteDialog() async {
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          title: const Text('加入多人账本'),
+          content: TextField(
+            controller: controller,
+            maxLength: 8,
+            decoration: const InputDecoration(
+              hintText: '输入 8 位邀请码',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('取消', style: TextStyle(color: cs.onSurface)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final code = controller.text.trim();
+                if (code.length != 8) {
+                  ErrorHandler.showWarning(ctx, '请输入 8 位邀请码');
+                  return;
+                }
+                Navigator.pop(ctx);
+                await _joinBookByCodeStub(code);
+              },
+              child: const Text('加入'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _joinBookByCodeStub(String code) async {
+    // TODO: 接入后端接口 /api/book/join
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+    ErrorHandler.showSuccess(
+        context, '已提交加入请求（体验模式，未接入后端）：$code');
   }
 
   Future<void> _goLogin() async {
@@ -227,6 +386,16 @@ class _ProfilePageState extends State<ProfilePage> {
         icon: Icons.cloud_sync_outlined,
         label: '云端同步',
         onTap: _handleCloudSync,
+      ),
+      _ProfileAction(
+        icon: Icons.card_giftcard_outlined,
+        label: '兑换礼包码',
+        onTap: _showGiftCodeDialog,
+      ),
+      _ProfileAction(
+        icon: Icons.group_outlined,
+        label: '多人账本',
+        onTap: _showMultiBookSheet,
       ),
       _ProfileAction(
         icon: Icons.menu_book_outlined,
