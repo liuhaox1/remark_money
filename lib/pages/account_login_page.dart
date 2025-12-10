@@ -76,10 +76,13 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 24),
               TextField(
                 controller: _usernameCtrl,
-                decoration: const InputDecoration(
+                style: TextStyle(color: cs.onSurface),
+                decoration: InputDecoration(
                   labelText: '账号',
                   hintText: '请输入账号',
-                  prefixIcon: Icon(Icons.person_outline),
+                  labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+                  prefixIcon: Icon(Icons.person_outline, color: cs.onSurface.withOpacity(0.7)),
                 ),
                 textInputAction: TextInputAction.next,
               ),
@@ -87,13 +90,17 @@ class _LoginPageState extends State<LoginPage> {
               TextField(
                 controller: _passwordCtrl,
                 obscureText: _obscurePassword,
+                style: TextStyle(color: cs.onSurface),
                 decoration: InputDecoration(
                   labelText: '密码',
                   hintText: '请输入密码',
-                  prefixIcon: const Icon(Icons.lock_outline),
+                  labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+                  prefixIcon: Icon(Icons.lock_outline, color: cs.onSurface.withOpacity(0.7)),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                      color: cs.onSurface.withOpacity(0.7),
                     ),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),

@@ -79,9 +79,17 @@ class AuthService {
   }
 
   /// 检查 token 是否有效（永不过期，只要存在即有效）
+  /// 注意：假登录的 token 不被认为是有效的
   Future<bool> isTokenValid() async {
     final token = await loadToken();
-    return token != null && token.isNotEmpty;
+    if (token == null || token.isEmpty) {
+      return false;
+    }
+    // 假登录的 token 不被认为是有效的
+    if (token == 'mock_token_for_development') {
+      return false;
+    }
+    return true;
   }
 
   Future<void> clearToken() async {

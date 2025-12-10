@@ -87,10 +87,13 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 24),
               TextField(
                 controller: _usernameCtrl,
-                decoration: const InputDecoration(
+                style: TextStyle(color: cs.onSurface),
+                decoration: InputDecoration(
                   labelText: '账号',
                   hintText: '请输入账号（用户名）',
-                  prefixIcon: Icon(Icons.person_outline),
+                  labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+                  prefixIcon: Icon(Icons.person_outline, color: cs.onSurface.withOpacity(0.7)),
                 ),
                 textInputAction: TextInputAction.next,
               ),
@@ -98,13 +101,17 @@ class _RegisterPageState extends State<RegisterPage> {
               TextField(
                 controller: _passwordCtrl,
                 obscureText: _obscurePassword,
+                style: TextStyle(color: cs.onSurface),
                 decoration: InputDecoration(
                   labelText: '密码',
                   hintText: '请输入密码（至少6位）',
-                  prefixIcon: const Icon(Icons.lock_outline),
+                  labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+                  prefixIcon: Icon(Icons.lock_outline, color: cs.onSurface.withOpacity(0.7)),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                      color: cs.onSurface.withOpacity(0.7),
                     ),
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
@@ -115,13 +122,17 @@ class _RegisterPageState extends State<RegisterPage> {
               TextField(
                 controller: _confirmPasswordCtrl,
                 obscureText: _obscureConfirmPassword,
+                style: TextStyle(color: cs.onSurface),
                 decoration: InputDecoration(
                   labelText: '确认密码',
                   hintText: '请再次输入密码',
-                  prefixIcon: const Icon(Icons.lock_outline),
+                  labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+                  prefixIcon: Icon(Icons.lock_outline, color: cs.onSurface.withOpacity(0.7)),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                      color: cs.onSurface.withOpacity(0.7),
                     ),
                     onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                   ),
