@@ -65,3 +65,44 @@ CREATE TABLE IF NOT EXISTS book_member (
   INDEX idx_member_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 账单表（云端同步）
+CREATE TABLE IF NOT EXISTS bill_info (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  bill_id VARCHAR(64) NOT NULL COMMENT '客户端生成的唯一ID',
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  account_id VARCHAR(64) NOT NULL,
+  category_key VARCHAR(64) NOT NULL,
+  amount DECIMAL(15,2) NOT NULL,
+  direction TINYINT NOT NULL COMMENT '0=out支出,1=income收入',
+  remark VARCHAR(512) DEFAULT NULL,
+  attachment_url VARCHAR(500) DEFAULT NULL COMMENT '附件URL（未来OSS）',
+  bill_date DATETIME NOT NULL COMMENT '账单日期',
+  include_in_stats TINYINT NOT NULL DEFAULT 1,
+  pair_id VARCHAR(64) DEFAULT NULL COMMENT '转账配对ID',
+  is_delete TINYINT NOT NULL DEFAULT 0 COMMENT '0=有效,1=已删除',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_bill_id (bill_id),
+  INDEX idx_user_book (user_id, book_id),
+  INDEX idx_user_update (user_id, update_time),
+  INDEX idx_user_bill_id (user_id, bill_id),
+  INDEX idx_delete (is_delete)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 同步记录表
+CREATE TABLE IF NOT EXISTS sync_record (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  device_id VARCHAR(64) NOT NULL COMMENT '设备唯一标识',
+  last_sync_bill_id VARCHAR(64) DEFAULT NULL COMMENT '上次同步的最大bill_id',
+  last_sync_time DATETIME DEFAULT NULL COMMENT '上次同步时间',
+  cloud_bill_count INT NOT NULL DEFAULT 0 COMMENT '云端账单数量（is_delete=0）',
+  sync_device_id VARCHAR(64) DEFAULT NULL COMMENT '最后同步的设备ID',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_book_device (user_id, book_id, device_id),
+  INDEX idx_user_book (user_id, book_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

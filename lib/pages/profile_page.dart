@@ -18,6 +18,7 @@ import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/auth_service.dart';
 import 'account_settings_page.dart';
+import 'sync_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
 
@@ -69,10 +70,11 @@ class _ProfilePageState extends State<ProfilePage> {
     if (_loadingToken) return;
     final loggedIn = _token != null && _token!.isNotEmpty;
     if (loggedIn) {
-      // 已登录：后续可跳转云端同步页，这里先给提示
+      // 已登录：跳转云端同步页
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已登录，可进行云端同步')),
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SyncPage()),
         );
       }
       return;

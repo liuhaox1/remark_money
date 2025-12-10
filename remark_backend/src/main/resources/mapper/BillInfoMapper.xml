@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.remark.money.mapper.BillInfoMapper">
+
+  <resultMap id="BillInfoResultMap" type="com.remark.money.entity.BillInfo">
+    <id property="id" column="id"/>
+    <result property="billId" column="bill_id"/>
+    <result property="userId" column="user_id"/>
+    <result property="bookId" column="book_id"/>
+    <result property="accountId" column="account_id"/>
+    <result property="categoryKey" column="category_key"/>
+    <result property="amount" column="amount"/>
+    <result property="direction" column="direction"/>
+    <result property="remark" column="remark"/>
+    <result property="attachmentUrl" column="attachment_url"/>
+    <result property="billDate" column="bill_date"/>
+    <result property="includeInStats" column="include_in_stats"/>
+    <result property="pairId" column="pair_id"/>
+    <result property="isDelete" column="is_delete"/>
+    <result property="updateTime" column="update_time"/>
+    <result property="createdAt" column="created_at"/>
+  </resultMap>
+
+  <select id="findByBillId" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info WHERE bill_id = #{billId}
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO bill_info (bill_id, user_id, book_id, account_id, category_key, amount, direction,
+                          remark, attachment_url, bill_date, include_in_stats, pair_id, is_delete, update_time, created_at)
+    VALUES (#{billId}, #{userId}, #{bookId}, #{accountId}, #{categoryKey}, #{amount}, #{direction},
+            #{remark}, #{attachmentUrl}, #{billDate}, #{includeInStats}, #{pairId}, #{isDelete}, NOW(), NOW())
+  </insert>
+
+  <insert id="batchInsert">
+    INSERT INTO bill_info (bill_id, user_id, book_id, account_id, category_key, amount, direction,
+                          remark, attachment_url, bill_date, include_in_stats, pair_id, is_delete, update_time, created_at)
+    VALUES
+    <foreach collection="list" item="item" separator=",">
+      (#{item.billId}, #{item.userId}, #{item.bookId}, #{item.accountId}, #{item.categoryKey}, #{item.amount}, #{item.direction},
+       #{item.remark}, #{item.attachmentUrl}, #{item.billDate}, #{item.includeInStats}, #{item.pairId}, #{item.isDelete}, NOW(), NOW())
+    </foreach>
+  </insert>
+
+  <update id="update">
+    UPDATE bill_info SET
+      account_id = #{accountId},
+      category_key = #{categoryKey},
+      amount = #{amount},
+      direction = #{direction},
+      remark = #{remark},
+      attachment_url = #{attachmentUrl},
+      bill_date = #{billDate},
+      include_in_stats = #{includeInStats},
+      pair_id = #{pairId},
+      is_delete = #{isDelete},
+      update_time = NOW()
+    WHERE bill_id = #{billId} AND user_id = #{userId}
+  </update>
+
+  <update id="batchUpdate">
+    <foreach collection="list" item="item" separator=";">
+      UPDATE bill_info SET
+        account_id = #{item.accountId},
+        category_key = #{item.categoryKey},
+        amount = #{item.amount},
+        direction = #{item.direction},
+        remark = #{item.remark},
+        attachment_url = #{item.attachmentUrl},
+        bill_date = #{item.billDate},
+        include_in_stats = #{item.includeInStats},
+        pair_id = #{item.pairId},
+        is_delete = #{item.isDelete},
+        update_time = NOW()
+      WHERE bill_id = #{item.billId} AND user_id = #{item.userId}
+    </foreach>
+  </update>
+
+  <select id="countByUserIdAndBookId" resultType="int">
+    SELECT COUNT(*) FROM bill_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
+  </select>
+
+  <select id="findAllByUserIdAndBookId" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
+    ORDER BY update_time ASC, bill_id ASC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="findIncrementalByUserIdAndBookId" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
+      AND (update_time > #{lastSyncTime} OR (update_time = #{lastSyncTime} AND bill_id > #{lastSyncBillId}))
+    ORDER BY update_time ASC, bill_id ASC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="findMaxBillIdByUserIdAndBookId" resultType="String">
+    SELECT MAX(bill_id) FROM bill_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
+  </select>
+
+</mapper>
+
