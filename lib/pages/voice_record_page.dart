@@ -99,6 +99,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
             _isListening = false;
             _statusText = '识别出错: $error';
           });
+          // 显示详细错误信息，特别是 Windows 平台的提示
           ErrorHandler.showError(context, error);
         }
       },

@@ -265,9 +265,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             if (_isWeekMode && hasData) {
               final currentExpense = expense;
               final currentRange = range;
-              final prevStart = DateUtilsX.startOfWeek(currentRange.start)
-                  .subtract(const Duration(days: 7));
-              final prevEnd = prevStart.add(const Duration(days: 6));
               
               // 使用异步方法获取上一周的支出
               final prevExpense = data['prevWeekExpense'] as double? ?? 0.0;
@@ -994,6 +991,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       // 创建 GlobalKey 用于截图
       final fullSizeKey = GlobalKey();
 
+      if (!context.mounted) return;
+
       final fullSizeWidget = RepaintBoundary(
         key: fullSizeKey,
         child: Container(
@@ -1030,6 +1029,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
       // 使用 Overlay 来渲染全尺寸 widget（放在屏幕外）
+
+      if (!context.mounted) return;
 
       final overlay = Overlay.of(context);
 
@@ -1296,110 +1297,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
 
-  List<Record> _periodRecords(
-
-    RecordProvider recordProvider,
-
-    String bookId,
-
-  ) {
-
-    final range = _periodRange();
-
-    return recordProvider.recordsForPeriod(
-
-      bookId,
-
-      start: range.start,
-
-      end: range.end,
-
-    );
-
-  }
-
-
-
-  double _periodIncome(
-
-    RecordProvider recordProvider,
-
-    String bookId,
-
-    List<Record> records,
-
-  ) {
-
-    if (_isYearMode) {
-
-      double total = 0;
-
-      for (var m = 1; m <= 12; m++) {
-
-        total += recordProvider.monthIncome(
-
-          DateTime(widget.year, m, 1),
-
-          bookId,
-
-        );
-
-      }
-
-      return total;
-
-    }
-
-    return records
-
-        .where((r) => r.isIncome)
-
-        .fold<double>(0, (sum, r) => sum + r.incomeValue);
-
-  }
-
-
-
-  double _periodExpense(
-
-    RecordProvider recordProvider,
-
-    String bookId,
-
-    List<Record> records,
-
-  ) {
-
-    if (_isYearMode) {
-
-      double total = 0;
-
-      for (var m = 1; m <= 12; m++) {
-
-        total += recordProvider.monthExpense(
-
-          DateTime(widget.year, m, 1),
-
-          bookId,
-
-        );
-
-      }
-
-      return total;
-
-    }
-
-    return records
-
-        .where((r) => r.isExpense)
-
-        .fold<double>(0, (sum, r) => sum + r.expenseValue);
-
-  }
-
-
-
   /// 异步加载报表数据（支持100万条记录）
   Future<Map<String, dynamic>> _loadReportData(
     RecordProvider recordProvider,
@@ -1535,55 +1432,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
-  _PeriodComparison _previousBalance(
-    RecordProvider recordProvider,
-    String bookId,
-  ) {
-    if (_isYearMode) {
-      final prevRange = DateTimeRange(
-        start: DateTime(widget.year - 1, 1, 1),
-        end: DateTime(widget.year - 1, 12, 31),
-      );
-      final records = recordProvider.recordsForPeriod(
-        bookId,
-        start: prevRange.start,
-        end: prevRange.end,
-      );
-      final expense = records
-          .where((r) => r.isExpense)
-          .fold<double>(0, (sum, r) => sum + r.expenseValue);
-      return _PeriodComparison(
-        balance: expense,
-        hasData: records.isNotEmpty,
-      );
-    }
-
-    if (_isWeekMode) {
-      final start = DateUtilsX.startOfWeek(_periodRange().start)
-          .subtract(const Duration(days: 7));
-      final prevRange = DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
-      final records = recordProvider.recordsForPeriod(
-        bookId,
-        start: prevRange.start,
-        end: prevRange.end,
-      );
-      final expense = records
-          .where((r) => r.isExpense)
-          .fold<double>(0, (sum, r) => sum + r.expenseValue);
-      return _PeriodComparison(
-        balance: expense,
-        hasData: records.isNotEmpty,
-      );
-    }
-
-    final currentMonth = DateTime(widget.year, widget.month ?? DateTime.now().month, 1);
-    final prevMonth = DateTime(currentMonth.year, currentMonth.month - 1, 1);
-    final expense = recordProvider.monthExpense(prevMonth, bookId);
-    final hasData = recordProvider
-        .recordsForMonth(bookId, prevMonth.year, prevMonth.month)
-        .isNotEmpty;
-    return _PeriodComparison(balance: expense, hasData: hasData);
-  }
 
 
 
@@ -1772,58 +1620,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     }
 
     return entries;
-  }
-
-  List<ChartEntry> _buildDailyEntries(
-    RecordProvider recordProvider,
-    String bookId,
-    ColorScheme cs,
-  ) {
-    if (_isYearMode) {
-      // 年模式：构建12个月的月趋势数据
-      final entries = <ChartEntry>[];
-      for (var month = 1; month <= 12; month++) {
-        final monthDate = DateTime(widget.year, month, 1);
-        final expense = recordProvider.monthExpense(monthDate, bookId);
-        entries.add(
-          ChartEntry(
-            label: '$month月',
-            value: expense,
-            color: cs.primary,
-          ),
-        );
-      }
-      return entries;
-    }
-
-    // 日趋势的横轴应该覆盖完整周期
-    final baseRange = _periodRange();
-    DateTime start = baseRange.start;
-    DateTime end = baseRange.end;
-
-    if (_isMonthMode) {
-      start = DateTime(start.year, start.month, 1);
-      end = DateTime(start.year, start.month + 1, 0);
-    } else if (_isWeekMode) {
-      start = DateUtilsX.startOfWeek(start);
-      end = start.add(const Duration(days: 6));
-    }
-
-    final dayCount = end.difference(start).inDays + 1;
-    final days = List.generate(
-      dayCount,
-      (i) => start.add(Duration(days: i)),
-    );
-
-    return days
-        .map(
-          (d) => ChartEntry(
-            label: _isWeekMode ? '${d.month}/${d.day}' : d.day.toString(),
-            value: recordProvider.dayExpense(bookId, d),
-            color: cs.primary,
-          ),
-        )
-        .toList();
   }
 
 
@@ -2108,28 +1904,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
-  _PeriodActivity _periodActivity(
-    RecordProvider recordProvider,
-    String bookId,
-  ) {
-    final range = _periodRange();
-    final records = recordProvider.recordsForPeriod(
-      bookId,
-      start: range.start,
-      end: range.end,
-    );
-
-    final activeDays = <String>{};
-    for (final record in records) {
-      activeDays.add(DateUtilsX.ymd(record.date));
-    }
-
-    return _PeriodActivity(
-      recordCount: records.length,
-      activeDays: activeDays.length,
-      streak: activeDays.length,
-    );
-  }
 
 
 
@@ -2567,20 +2341,6 @@ class _PeriodHeaderCard extends StatelessWidget {
 
   }
 
-
-
-  int _weekIndexForRange(DateTimeRange range) {
-
-    final first =
-
-        DateUtilsX.startOfWeek(DateTime(range.start.year, 1, 1));
-
-    final diff = range.start.difference(first).inDays;
-
-    return (diff ~/ 7) + 1;
-
-  }
-
 }
 
 
@@ -2591,8 +2351,6 @@ class _SectionCard extends StatelessWidget {
 
     required this.title,
 
-    this.trailing,
-
     required this.child,
 
   });
@@ -2600,8 +2358,6 @@ class _SectionCard extends StatelessWidget {
 
 
   final String title;
-
-  final Widget? trailing;
 
   final Widget child;
 
@@ -2669,10 +2425,6 @@ class _SectionCard extends StatelessWidget {
 
                 ),
 
-                const Spacer(),
-
-                if (trailing != null) trailing!,
-
               ],
 
             ),
@@ -2694,20 +2446,6 @@ class _SectionCard extends StatelessWidget {
       ),
 
     );
-
-  }
-
-
-
-  int _weekIndexForRange(DateTimeRange range) {
-
-    final first =
-
-        DateUtilsX.startOfWeek(DateTime(range.start.year, 1, 1));
-
-    final diff = range.start.difference(first).inDays;
-
-    return (diff ~/ 7) + 1;
 
   }
 

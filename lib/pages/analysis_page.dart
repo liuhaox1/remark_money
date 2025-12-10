@@ -118,7 +118,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       income: yearIncome,
                       expense: yearExpense,
                       balance: yearBalance,
-                      periodType: _periodType,
+                      periodLabel: AppStrings.yearLabel(_selectedYear),
+                      onTapPeriod: _pickYear,
+                      onPrevPeriod: () => setState(() => _selectedYear -= 1),
+                      onNextPeriod: () => setState(() => _selectedYear += 1),
                     ),
                     const SizedBox(height: 4),
                     if (hasYearRecords)
@@ -152,18 +155,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            PeriodSelector(
-                              label: AppStrings.yearLabel(_selectedYear),
-                              periodType: PeriodType.year,
-                              onTap: _pickYear,
-                              onPrev: () => setState(() {
-                                _selectedYear -= 1;
-                              }),
-                              onNext: () => setState(() {
-                                _selectedYear += 1;
-                              }),
-                              compact: true,
-                            ),
                             SegmentedButton<PeriodType>(
                               segments: const [
                                 ButtonSegment(
@@ -480,7 +471,10 @@ class _HeaderCard extends StatelessWidget {
     required this.income,
     required this.expense,
     required this.balance,
-    required this.periodType,
+    required this.periodLabel,
+    required this.onTapPeriod,
+    required this.onPrevPeriod,
+    required this.onNextPeriod,
   });
 
   final bool isDark;
@@ -490,7 +484,10 @@ class _HeaderCard extends StatelessWidget {
   final double income;
   final double expense;
   final double balance;
-  final PeriodType periodType;
+  final String periodLabel;
+  final VoidCallback onTapPeriod;
+  final VoidCallback onPrevPeriod;
+  final VoidCallback onNextPeriod;
 
   @override
     Widget build(BuildContext context) {
@@ -525,28 +522,22 @@ class _HeaderCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    AppStrings.reportOverview,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? cs.onSurface : cs.onPrimary,
-                        ),
+                  PeriodSelector(
+                    label: periodLabel,
+                    periodType: PeriodType.year,
+                    onTap: onTapPeriod,
+                    onPrev: onPrevPeriod,
+                    onNext: onNextPeriod,
+                    compact: true,
                   ),
-                const Spacer(),
-                const BookSelectorButton(compact: true),
-              ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _periodLabel(),
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isDark
-                      ? cs.onSurface.withOpacity(0.65)
-                      : cs.onPrimary.withOpacity(0.85),
-                ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: BookSelectorButton(compact: true),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               // 收入 / 支出 / 结余
@@ -577,17 +568,6 @@ class _HeaderCard extends StatelessWidget {
     );
   }
 
-  String _periodLabel() {
-    final yearLabel = AppStrings.yearLabel(year);
-    switch (periodType) {
-      case PeriodType.week:
-        return '$yearLabel · 周账单';
-      case PeriodType.month:
-        return '$yearLabel · 月账单';
-      case PeriodType.year:
-        return '$yearLabel · 年度账单';
-    }
-  }
 }
 
   class _SummaryItem extends StatelessWidget {
