@@ -18,6 +18,7 @@ import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
+import '../services/gift_code_service.dart';
 import 'account_settings_page.dart';
 import 'sync_page.dart';
 import 'vip_purchase_page.dart';
@@ -126,11 +127,60 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _redeemGiftCodeStub(String code) async {
-    // TODO: 接入后端接口 /api/gift/redeem
-    await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
-    ErrorHandler.showSuccess(
-        context, '礼包码已提交，当前为体验模式（未接入后端）');
+    
+    // 显示加载提示
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final giftCodeService = GiftCodeService();
+      final result = await giftCodeService.redeem(code);
+      
+      if (!mounted) return;
+      
+      // 关闭加载提示
+      Navigator.pop(context);
+      
+      if (result.success) {
+        // 显示成功消息
+        String message = result.message;
+        if (result.payExpire != null) {
+          final expireStr = '${result.payExpire!.year}-${result.payExpire!.month.toString().padLeft(2, '0')}-${result.payExpire!.day.toString().padLeft(2, '0')}';
+          message += '\n付费到期时间：$expireStr';
+        }
+        ErrorHandler.showSuccess(context, message);
+      } else {
+        ErrorHandler.showError(context, result.message);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      // 关闭加载提示
+      Navigator.pop(context);
+      
+      // 显示错误消息
+      String errorMsg = e.toString().replaceFirst('Exception: ', '');
+      if (errorMsg.contains('未登录')) {
+        errorMsg = '未登录，请先登录';
+      } else if (errorMsg.contains('格式不正确')) {
+        errorMsg = '礼包码格式不正确，请输入8位数字';
+      } else if (errorMsg.contains('不存在')) {
+        errorMsg = '礼包码不存在';
+      } else if (errorMsg.contains('已过期')) {
+        errorMsg = '礼包码已过期';
+      } else if (errorMsg.contains('已被使用')) {
+        errorMsg = '礼包码已被使用';
+      } else if (errorMsg.contains('兑换失败')) {
+        errorMsg = '兑换失败，请稍后再试';
+      }
+      ErrorHandler.showError(context, errorMsg);
+    }
   }
 
 
