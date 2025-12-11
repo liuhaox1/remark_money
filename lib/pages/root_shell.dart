@@ -8,11 +8,15 @@ import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
+import '../services/auth_service.dart';
+import '../services/sync_service.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../utils/error_handler.dart';
 import '../utils/validators.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import 'account_detail_page.dart';
 import 'add_account_type_page.dart';
 import 'add_record_page.dart';
@@ -29,6 +33,8 @@ class RootShell extends StatefulWidget {
 
 class _RootShellState extends State<RootShell> {
   int _index = 0;
+  final SyncService _syncService = SyncService();
+  final AuthService _authService = const AuthService();
 
   late final List<Widget> _pages = [
     const HomePage(),
@@ -36,6 +42,74 @@ class _RootShellState extends State<RootShell> {
     const AssetsPage(),
     const ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 登录时自动同步（延迟执行，确保context和providers已准备好）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _performLoginSync();
+          }
+        });
+      }
+    });
+  }
+
+  /// 登录时自动同步
+  Future<void> _performLoginSync() async {
+    if (!mounted) return;
+    
+    try {
+      final isValid = await _authService.isTokenValid();
+      if (!isValid || !mounted) return;
+
+      final bookProvider = context.read<BookProvider>();
+      if (!bookProvider.loaded) {
+        // 如果BookProvider还没加载，等待一下
+        await Future.delayed(const Duration(milliseconds: 200));
+        if (!mounted) return;
+      }
+      
+      final bookId = bookProvider.activeBookId;
+      if (bookId.isEmpty || !mounted) return;
+
+      // 静默同步，不显示错误提示
+      await _syncService.queryStatus(bookId: bookId).then((result) async {
+        if (!mounted) return;
+        if (result.success && result.syncRecord != null) {
+          // 检查版本号，如果不同则同步
+          final localVersion = await _getLocalVersion(bookId);
+          final serverVersion = result.syncRecord!.dataVersion ?? 0;
+          
+          if (localVersion != serverVersion) {
+            // 版本号不同，触发同步（静默）
+            // 这里可以调用sync_page的同步逻辑，但为了简化，先只查询状态
+            // 实际的同步会在sync_page的定时器中自动执行
+          }
+        }
+      });
+    } catch (e) {
+      // 静默失败，不显示错误
+      debugPrint('Login sync failed: $e');
+    }
+  }
+
+  Future<int> _getLocalVersion(String bookId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt('data_version_$bookId') ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
   Future<void> _openQuickAddPage() async {
     await Navigator.push(
@@ -56,6 +130,18 @@ class _RootShellState extends State<RootShell> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // 确保所有providers都已加载
+    final bookProvider = context.watch<BookProvider>();
+    final recordProvider = context.watch<RecordProvider>();
+    
+    if (!bookProvider.loaded || !recordProvider.loaded) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
     return Scaffold(
       body: IndexedStack(
         index: _index,

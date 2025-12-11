@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/account.dart';
 import '../repository/repository_factory.dart';
 import '../utils/error_handler.dart';
+import '../services/data_version_service.dart';
 
 class AccountProvider extends ChangeNotifier {
   AccountProvider();
@@ -70,7 +71,7 @@ class AccountProvider extends ChangeNotifier {
 
   double get netWorth => totalAssets - totalDebts;
 
-  Future<void> addAccount(Account account) async {
+  Future<void> addAccount(Account account, {String? bookId}) async {
     final nextSort =
         _accounts.isEmpty ? 0 : (_accounts.map((a) => a.sortOrder).reduce(max) + 1);
     final now = DateTime.now();
@@ -85,16 +86,24 @@ class AccountProvider extends ChangeNotifier {
       ),
     );
     await _persist();
+    // 数据修改时版本号+1（账户数据是全局的，使用默认账本ID）
+    if (bookId != null) {
+      await DataVersionService.incrementVersion(bookId);
+    }
   }
 
-  Future<void> updateAccount(Account updated) async {
+  Future<void> updateAccount(Account updated, {String? bookId}) async {
     final index = _accounts.indexWhere((a) => a.id == updated.id);
     if (index == -1) return;
     _accounts[index] = updated.copyWith(updatedAt: DateTime.now());
     await _persist();
+    // 数据修改时版本号+1
+    if (bookId != null) {
+      await DataVersionService.incrementVersion(bookId);
+    }
   }
 
-  Future<void> adjustBalance(String accountId, double delta) async {
+  Future<void> adjustBalance(String accountId, double delta, {String? bookId}) async {
     final index = _accounts.indexWhere((a) => a.id == accountId);
     if (index == -1) return;
     final account = _accounts[index];
@@ -103,11 +112,15 @@ class AccountProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     await _persist();
+    // 数据修改时版本号+1
+    if (bookId != null) {
+      await DataVersionService.incrementVersion(bookId);
+    }
   }
 
   /// 调整初始余额（用于修正历史偏差）
   /// 会同时更新 currentBalance，保持余额一致性
-  Future<void> adjustInitialBalance(String accountId, double newInitialBalance) async {
+  Future<void> adjustInitialBalance(String accountId, double newInitialBalance, {String? bookId}) async {
     final index = _accounts.indexWhere((a) => a.id == accountId);
     if (index == -1) return;
     final account = _accounts[index];
@@ -119,11 +132,19 @@ class AccountProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     await _persist();
+    // 数据修改时版本号+1
+    if (bookId != null) {
+      await DataVersionService.incrementVersion(bookId);
+    }
   }
 
-  Future<void> deleteAccount(String id) async {
+  Future<void> deleteAccount(String id, {String? bookId}) async {
     _accounts.removeWhere((a) => a.id == id);
     await _persist();
+    // 数据修改时版本号+1
+    if (bookId != null) {
+      await DataVersionService.incrementVersion(bookId);
+    }
   }
 
   String _generateId() {

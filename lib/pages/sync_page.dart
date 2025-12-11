@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/record.dart';
+import '../models/account.dart';
 import '../providers/record_provider.dart';
 import '../providers/book_provider.dart';
+import '../providers/budget_provider.dart';
+import '../providers/account_provider.dart';
 import '../services/sync_service.dart';
+import '../services/data_version_service.dart';
 import '../utils/error_handler.dart';
 import 'dart:convert';
+import 'dart:async';
 
 class SyncPage extends StatefulWidget {
   const SyncPage({super.key});
@@ -20,6 +25,7 @@ class _SyncPageState extends State<SyncPage> {
   String _statusText = '准备同步';
   SyncRecord? _syncRecord;
   Map<String, dynamic>? _userInfo;
+  Timer? _syncTimer;
 
   @override
   void initState() {
@@ -33,6 +39,24 @@ class _SyncPageState extends State<SyncPage> {
             _performAutoSync();
           }
         });
+      }
+    });
+    // 启动30秒定时同步
+    _startPeriodicSync();
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    super.dispose();
+  }
+
+  /// 启动定时同步（30秒一次）
+  void _startPeriodicSync() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && !_isSyncing) {
+        _performAutoSync();
       }
     });
   }
@@ -52,7 +76,7 @@ class _SyncPageState extends State<SyncPage> {
   }
 
   /// 自动同步：根据同步记录自动判断首次/增量同步
-  Future<void> _performAutoSync() async {
+  Future<void> _performAutoSync({bool isManual = false}) async {
     if (_isSyncing) return;
 
     setState(() {
@@ -66,7 +90,23 @@ class _SyncPageState extends State<SyncPage> {
       final bookId = bookProvider.activeBookId;
 
       if (bookId.isEmpty) {
-        ErrorHandler.showError(context, '请先选择账本');
+        if (isManual) {
+          ErrorHandler.showError(context, '请先选择账本');
+        }
+        return;
+      }
+
+      // 检查版本号：如果版本号相同，不需要同步
+      final localVersion = await DataVersionService.getVersion(bookId);
+      final serverVersion = _syncRecord?.dataVersion ?? 0;
+      
+      if (localVersion == serverVersion && _syncRecord != null && 
+          _syncRecord!.lastSyncTime != null && 
+          _syncRecord!.lastSyncTime!.isNotEmpty) {
+        // 版本号相同，不需要同步
+        if (isManual) {
+          ErrorHandler.showSuccess(context, '数据已是最新版本');
+        }
         return;
       }
 
@@ -95,12 +135,23 @@ class _SyncPageState extends State<SyncPage> {
         await _performIncrementalSync();
       }
 
+      // 同步预算数据
+      await _syncBudget(bookId);
+
+      // 同步账户数据
+      await _syncAccounts(bookId);
+
+      // 同步后更新本地版本号
+      if (_syncRecord?.dataVersion != null) {
+        await DataVersionService.syncVersion(bookId, _syncRecord!.dataVersion!);
+      }
+
       await _loadStatus();
-      if (mounted) {
+      if (mounted && isManual) {
         ErrorHandler.showSuccess(context, '同步完成');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && isManual) {
         ErrorHandler.handleAsyncError(context, e);
       }
     } finally {
@@ -329,17 +380,21 @@ class _SyncPageState extends State<SyncPage> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
-          title: const Text('发现云端更新'),
+          title: Text('发现云端更新', style: TextStyle(color: cs.onSurface)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('同一账单在其他设备更新过，已用云端版本覆盖本地。'),
+              Text('同一账单在其他设备更新过，已用云端版本覆盖本地。', 
+                  style: TextStyle(color: cs.onSurface)),
               const SizedBox(height: 16),
-              const Text('差异对比：', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('差异对比：', 
+                  style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Text('金额：本地 ${localRecord.amount} → 云端 ${cloudBill['amount']}'),
-              Text('备注：本地 ${localRecord.remark} → 云端 ${cloudBill['remark'] ?? ''}'),
+              Text('金额：本地 ${localRecord.amount} → 云端 ${cloudBill['amount']}', 
+                  style: TextStyle(color: cs.onSurface)),
+              Text('备注：本地 ${localRecord.remark} → 云端 ${cloudBill['remark'] ?? ''}', 
+                  style: TextStyle(color: cs.onSurface)),
             ],
           ),
           actions: [
@@ -367,8 +422,8 @@ class _SyncPageState extends State<SyncPage> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
-          title: const Text('存储额度提醒'),
-          content: Text(message),
+          title: Text('存储额度提醒', style: TextStyle(color: cs.onSurface)),
+          content: Text(message, style: TextStyle(color: cs.onSurface)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -379,7 +434,7 @@ class _SyncPageState extends State<SyncPage> {
                 Navigator.pop(ctx);
                 // TODO: 跳转到升级页面
               },
-              child: const Text('去升级'),
+              child: Text('去升级', style: TextStyle(color: cs.onPrimary)),
             ),
           ],
         );
@@ -423,6 +478,96 @@ class _SyncPageState extends State<SyncPage> {
     );
   }
 
+  /// 同步预算数据
+  Future<void> _syncBudget(String bookId) async {
+    try {
+      final budgetProvider = context.read<BudgetProvider>();
+      final budgetEntry = budgetProvider.budgetForBook(bookId);
+      
+      // 上传预算数据
+      final budgetData = {
+        'total': budgetEntry.total,
+        'categoryBudgets': budgetEntry.categoryBudgets,
+        'periodStartDay': budgetEntry.periodStartDay,
+        'annualTotal': budgetEntry.annualTotal,
+        'annualCategoryBudgets': budgetEntry.annualCategoryBudgets,
+      };
+      
+      final uploadResult = await _syncService.uploadBudget(
+        bookId: bookId,
+        budgetData: budgetData,
+      );
+      
+      if (uploadResult.success) {
+        // 下载云端预算数据（如果有更新）
+        final downloadResult = await _syncService.downloadBudget(bookId: bookId);
+        if (downloadResult.success && downloadResult.budget != null) {
+          // 更新本地预算数据
+          final cloudBudget = downloadResult.budget!;
+          await budgetProvider.updateBudgetForBook(
+            bookId: bookId,
+            totalBudget: (cloudBudget['total'] as num?)?.toDouble() ?? 0,
+            categoryBudgets: Map<String, double>.from(
+              (cloudBudget['categoryBudgets'] as Map?)?.cast<String, double>() ?? {},
+            ),
+            annualBudget: (cloudBudget['annualTotal'] as num?)?.toDouble() ?? 0,
+            annualCategoryBudgets: Map<String, double>.from(
+              (cloudBudget['annualCategoryBudgets'] as Map?)?.cast<String, double>() ?? {},
+            ),
+            periodStartDay: (cloudBudget['periodStartDay'] as int?) ?? 1,
+          );
+        }
+      }
+    } catch (e) {
+      // 预算同步失败不影响账单同步
+      debugPrint('Budget sync failed: $e');
+    }
+  }
+
+  /// 同步账户数据
+  Future<void> _syncAccounts(String bookId) async {
+    try {
+      final accountProvider = context.read<AccountProvider>();
+      final accounts = accountProvider.accounts;
+      
+      // 上传账户数据
+      final accountsData = accounts.map((a) => a.toMap()).toList();
+      
+      final uploadResult = await _syncService.uploadAccounts(
+        accounts: accountsData,
+      );
+      
+      if (uploadResult.success) {
+        // 下载云端账户数据（如果有更新）
+        final downloadResult = await _syncService.downloadAccounts();
+        if (downloadResult.success && downloadResult.accounts != null && 
+            downloadResult.accounts!.isNotEmpty) {
+          // 更新本地账户数据（合并策略：云端优先）
+          final cloudAccounts = downloadResult.accounts!;
+          for (final accountMap in cloudAccounts) {
+            try {
+              final account = Account.fromMap(accountMap);
+              // 检查本地是否存在
+              final existing = accountProvider.byId(account.id);
+              if (existing == null) {
+                // 新增账户
+                await accountProvider.addAccount(account, bookId: bookId);
+              } else {
+                // 更新账户（使用云端数据）
+                await accountProvider.updateAccount(account, bookId: bookId);
+              }
+            } catch (e) {
+              debugPrint('Failed to sync account: $e');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // 账户同步失败不影响其他数据同步
+      debugPrint('Account sync failed: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -446,15 +591,19 @@ class _SyncPageState extends State<SyncPage> {
                 children: [
                   Text(
                     '当前账本：$bookName',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: cs.onSurface),
                   ),
                   const SizedBox(height: 8),
                   if (_syncRecord != null) ...[
-                    Text('云端账单数：${_syncRecord!.cloudBillCount ?? 0}'),
+                    Text('云端账单数：${_syncRecord!.cloudBillCount ?? 0}',
+                        style: TextStyle(color: cs.onSurface)),
                     if (_syncRecord!.lastSyncTime != null)
-                      Text('最后同步：${_syncRecord!.lastSyncTime}'),
+                      Text('最后同步：${_syncRecord!.lastSyncTime}',
+                          style: TextStyle(color: cs.onSurface)),
                     if (_syncRecord!.dataVersion != null)
-                      Text('数据版本：${_syncRecord!.dataVersion}'),
+                      Text('数据版本：${_syncRecord!.dataVersion}',
+                          style: TextStyle(color: cs.onSurface)),
                   ],
                   const SizedBox(height: 8),
                   Text(
@@ -466,11 +615,11 @@ class _SyncPageState extends State<SyncPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // 自动同步按钮（系统自动判断首次/增量）
+          // 手动同步按钮（只在首次且版本号不同时同步）
           ElevatedButton.icon(
-            onPressed: _isSyncing ? null : _performAutoSync,
+            onPressed: _isSyncing ? null : () => _performAutoSync(isManual: true),
             icon: const Icon(Icons.sync),
-            label: const Text('开始同步'),
+            label: const Text('手动同步'),
           ),
         ],
       ),

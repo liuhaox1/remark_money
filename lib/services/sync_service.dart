@@ -217,6 +217,120 @@ class SyncService {
       return SyncResult.error(data['error'] as String? ?? '查询失败');
     }
   }
+
+  /// 上传预算数据
+  Future<SyncResult> uploadBudget({
+    required String bookId,
+    required Map<String, dynamic> budgetData,
+  }) async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('未登录');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await http.post(
+      _uri('/api/sync/budget/upload'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'bookId': bookId,
+        'budget': budgetData,
+      }),
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success();
+    } else {
+      return SyncResult.error(data['error'] as String? ?? '上传失败');
+    }
+  }
+
+  /// 下载预算数据
+  Future<SyncResult> downloadBudget({required String bookId}) async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('未登录');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await http.get(
+      _uri('/api/sync/budget/download?deviceId=$deviceId&bookId=$bookId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success(
+        budget: data['budget'] as Map<String, dynamic>?,
+      );
+    } else {
+      return SyncResult.error(data['error'] as String? ?? '下载失败');
+    }
+  }
+
+  /// 上传账户数据
+  Future<SyncResult> uploadAccounts({
+    required List<Map<String, dynamic>> accounts,
+  }) async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('未登录');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await http.post(
+      _uri('/api/sync/account/upload'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'accounts': accounts,
+      }),
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success();
+    } else {
+      return SyncResult.error(data['error'] as String? ?? '上传失败');
+    }
+  }
+
+  /// 下载账户数据
+  Future<SyncResult> downloadAccounts() async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('未登录');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await http.get(
+      _uri('/api/sync/account/download?deviceId=$deviceId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success(
+        accounts: (data['accounts'] as List?)
+            ?.map((e) => e as Map<String, dynamic>)
+            .toList() ?? [],
+      );
+    } else {
+      return SyncResult.error(data['error'] as String? ?? '下载失败');
+    }
+  }
 }
 
 class SyncRecord {
@@ -264,6 +378,8 @@ class SyncResult {
   final int? skipCount;
   final bool? hasMore;
   final String? quotaWarning;
+  final Map<String, dynamic>? budget;
+  final List<Map<String, dynamic>>? accounts;
 
   SyncResult({
     required this.success,
@@ -275,6 +391,8 @@ class SyncResult {
     this.skipCount,
     this.hasMore,
     this.quotaWarning,
+    this.budget,
+    this.accounts,
   });
 
   factory SyncResult.success({
@@ -285,6 +403,8 @@ class SyncResult {
     int? skipCount,
     bool? hasMore,
     String? quotaWarning,
+    Map<String, dynamic>? budget,
+    List<Map<String, dynamic>>? accounts,
   }) {
     return SyncResult(
       success: true,
@@ -295,6 +415,8 @@ class SyncResult {
       skipCount: skipCount,
       hasMore: hasMore,
       quotaWarning: quotaWarning,
+      budget: budget,
+      accounts: accounts,
     );
   }
 

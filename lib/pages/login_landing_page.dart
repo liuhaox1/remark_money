@@ -53,7 +53,10 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
       MaterialPageRoute(builder: (_) => const account_login.LoginPage()),
     );
     if (result == true && mounted) {
-      // 登录成功，直接跳转到首页
+      // 登录成功，等待一下确保token已保存，然后导航
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (!mounted) return;
+      // 使用pushAndRemoveUntil清除所有路由并导航到RootShell
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const RootShell()),
         (route) => false,

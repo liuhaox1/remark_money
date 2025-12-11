@@ -90,12 +90,14 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
-          title: const Text('兑换礼包码'),
+          title: Text('兑换礼包码', style: TextStyle(color: cs.onSurface)),
           content: TextField(
             controller: controller,
-            maxLength: 6,
-            decoration: const InputDecoration(
-              hintText: '输入 6 位礼包码',
+            maxLength: 8,
+            style: TextStyle(color: cs.onSurface),
+            decoration: InputDecoration(
+              hintText: '输入 8 位礼包码',
+              hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
             ),
           ),
           actions: [
@@ -106,14 +108,14 @@ class _ProfilePageState extends State<ProfilePage> {
             ElevatedButton(
               onPressed: () async {
                 final code = controller.text.trim();
-                if (code.length != 6) {
-                  ErrorHandler.showWarning(ctx, '请输入 6 位礼包码');
+                if (code.length != 8) {
+                  ErrorHandler.showWarning(ctx, '请输入 8 位礼包码');
                   return;
                 }
                 Navigator.pop(ctx);
                 await _redeemGiftCodeStub(code);
               },
-              child: const Text('兑换'),
+              child: Text('兑换', style: TextStyle(color: cs.onPrimary)),
             ),
           ],
         );
@@ -146,12 +148,14 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
-          title: const Text('加入多人账本'),
+          title: Text('加入多人账本', style: TextStyle(color: cs.onSurface)),
           content: TextField(
             controller: controller,
             maxLength: 8,
-            decoration: const InputDecoration(
+            style: TextStyle(color: cs.onSurface),
+            decoration: InputDecoration(
               hintText: '输入 8 位邀请码',
+              hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
             ),
           ),
           actions: [
@@ -169,7 +173,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Navigator.pop(ctx);
                 await _joinBookByCodeStub(code);
               },
-              child: const Text('加入'),
+              child: Text('加入', style: TextStyle(color: cs.onPrimary)),
             ),
           ],
         );
@@ -1326,12 +1330,13 @@ class _ProfilePageState extends State<ProfilePage> {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('多人账本'),
+        title: Text('多人账本', style: TextStyle(color: cs.onSurface)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('邀请码已生成，分享给好友即可加入账本：'),
+            Text('邀请码已生成，分享给好友即可加入账本：',
+                style: TextStyle(color: cs.onSurface)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -1368,8 +1373,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 Navigator.pop(context);
                 _showJoinInviteDialog();
               },
-              icon: const Icon(Icons.person_add),
-              label: const Text('输入邀请码加入其他账本'),
+              icon: Icon(Icons.person_add, color: cs.primary),
+              label: Text('输入邀请码加入其他账本',
+                  style: TextStyle(color: cs.primary)),
             ),
           ],
         ),

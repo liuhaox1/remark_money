@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/budget.dart';
 import '../repository/repository_factory.dart';
 import '../utils/error_handler.dart';
+import '../services/data_version_service.dart';
 
 class BudgetProvider extends ChangeNotifier {
   BudgetProvider();
@@ -54,6 +55,8 @@ class BudgetProvider extends ChangeNotifier {
       );
       _budgetStore = _budgetStore.replaceEntry(bookId, entry);
       await _repository.saveBudget(_budgetStore);
+      // 数据修改时版本号+1
+      await DataVersionService.incrementVersion(bookId);
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.updateBudgetForBook', e, stackTrace);
@@ -160,6 +163,8 @@ class BudgetProvider extends ChangeNotifier {
       );
       _budgetStore = _budgetStore.replaceEntry(bookId, entry);
       await _repository.saveBudget(_budgetStore);
+      // 数据修改时版本号+1
+      await DataVersionService.incrementVersion(bookId);
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.resetBudgetForBook', e, stackTrace);

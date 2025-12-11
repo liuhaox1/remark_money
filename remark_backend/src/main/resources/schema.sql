@@ -90,6 +90,49 @@ CREATE TABLE IF NOT EXISTS bill_info (
   INDEX idx_delete (is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 预算表（云端同步）
+CREATE TABLE IF NOT EXISTS budget_info (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  total DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT '总预算',
+  category_budgets TEXT DEFAULT NULL COMMENT '分类预算JSON',
+  period_start_day TINYINT NOT NULL DEFAULT 1 COMMENT '预算周期起始日1-28',
+  annual_total DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT '年度总预算',
+  annual_category_budgets TEXT DEFAULT NULL COMMENT '年度分类预算JSON',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_book (user_id, book_id),
+  INDEX idx_user_book (user_id, book_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 账户表（云端同步）
+CREATE TABLE IF NOT EXISTS account_info (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  account_id VARCHAR(64) NOT NULL COMMENT '客户端生成的唯一ID',
+  name VARCHAR(128) NOT NULL COMMENT '账户名称',
+  kind VARCHAR(16) NOT NULL COMMENT '账户类型: asset, liability, lend',
+  subtype VARCHAR(32) DEFAULT 'cash' COMMENT '账户子类型',
+  type VARCHAR(32) DEFAULT 'cash' COMMENT '账户类型: cash, bankCard, eWallet, etc.',
+  icon VARCHAR(32) DEFAULT 'wallet' COMMENT '图标',
+  include_in_total TINYINT NOT NULL DEFAULT 1 COMMENT '是否计入总额',
+  include_in_overview TINYINT NOT NULL DEFAULT 1 COMMENT '是否在概览中显示',
+  currency VARCHAR(8) DEFAULT 'CNY' COMMENT '货币',
+  sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+  initial_balance DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT '初始余额',
+  current_balance DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT '当前余额',
+  counterparty VARCHAR(128) DEFAULT NULL COMMENT '对方名称',
+  interest_rate DECIMAL(10,4) DEFAULT NULL COMMENT '利率',
+  due_date DATETIME DEFAULT NULL COMMENT '到期日期',
+  note VARCHAR(512) DEFAULT NULL COMMENT '备注',
+  brand_key VARCHAR(64) DEFAULT NULL COMMENT '品牌标识',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_account (user_id, account_id),
+  INDEX idx_user_account (user_id, account_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 同步记录表
 CREATE TABLE IF NOT EXISTS sync_record (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,

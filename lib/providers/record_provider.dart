@@ -8,6 +8,7 @@ import '../repository/repository_factory.dart';
 import '../utils/date_utils.dart';
 import '../utils/validation_utils.dart';
 import '../utils/error_handler.dart';
+import '../services/data_version_service.dart';
 import 'account_provider.dart';
 
 class RecordProvider extends ChangeNotifier {
@@ -148,6 +149,9 @@ class RecordProvider extends ChangeNotifier {
 
       await _applyAccountDelta(accountProvider, record);
 
+      // 数据修改时版本号+1
+      await DataVersionService.incrementVersion(bookId);
+
       notifyListeners();
       return record;
     } catch (e, stackTrace) {
@@ -208,6 +212,9 @@ class RecordProvider extends ChangeNotifier {
         await _applyAccountDelta(accountProvider, updated);
       }
 
+      // 数据修改时版本号+1
+      await DataVersionService.incrementVersion(updated.bookId);
+
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.updateRecord', e, stackTrace);
@@ -250,6 +257,8 @@ class RecordProvider extends ChangeNotifier {
 
       if (old != null) {
         await _applyAccountDelta(accountProvider, old, reverse: true);
+        // 数据修改时版本号+1
+        await DataVersionService.incrementVersion(old.bookId);
       }
 
       notifyListeners();
