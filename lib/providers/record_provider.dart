@@ -625,7 +625,8 @@ class RecordProvider extends ChangeNotifier {
     }
   }
 
-  Future<Record> transfer({
+  /// 账户间转账：仅调整账户余额，不写入交易记录
+  Future<void> transfer({
     required AccountProvider accountProvider,
     required String fromAccountId,
     required String toAccountId,
@@ -661,82 +662,18 @@ class RecordProvider extends ChangeNotifier {
     }
 
     try {
-      final pairId = _generateId();
       final now = date ?? DateTime.now();
-      final baseRemark = remark ?? '';
-      final mainRemark = baseRemark.isEmpty ? '转账' : baseRemark;
-
-      await addRecord(
-        amount: amount,
-        remark: mainRemark,
-        date: now,
-        categoryKey: 'transfer-out',
-        bookId: bookId,
-        accountId: fromAccountId,
-        direction: TransactionDirection.out,
-        includeInStats: false,
-        pairId: pairId,
-        accountProvider: accountProvider,
-      );
-
-      await addRecord(
-        amount: amount,
-        remark: mainRemark,
-        date: now,
-        categoryKey: 'transfer-in',
-        bookId: bookId,
-        accountId: toAccountId,
-        direction: TransactionDirection.income,
-        includeInStats: false,
-        pairId: pairId,
-        accountProvider: accountProvider,
-      );
-
+      // 仅调整账户余额，不写入交易记录
+      // 资金流动：转出账户扣除转账金额，转入账户增加
+      await accountProvider.adjustBalance(fromAccountId, -amount, bookId: bookId);
+      await accountProvider.adjustBalance(toAccountId, amount, bookId: bookId);
       if (fee > 0) {
-        await addRecord(
-          amount: fee,
-          remark: '手续费',
-          date: now,
-          categoryKey: 'transfer-fee',
-          bookId: bookId,
-          accountId: fromAccountId,
-          direction: TransactionDirection.out,
-          includeInStats: false,
-          pairId: pairId,
-          accountProvider: accountProvider,
-        );
+        // 手续费只扣减，不计入交易
+        await accountProvider.adjustBalance(fromAccountId, -fee, bookId: bookId);
       }
-
-      // 查找转账记录（扩大查询范围，避免找不到记录）
-      if (_isUsingDatabase) {
-        final dbRepo = _repository as dynamic;
-        final records = await dbRepo.queryRecordsForPeriod(
-          bookId: bookId,
-          start: now.subtract(const Duration(seconds: 5)),
-          end: now.add(const Duration(seconds: 5)),
-        );
-        try {
-          final transferRecord = records.firstWhere((r) => r.pairId == pairId);
-          return transferRecord;
-        } catch (e) {
-          // 如果找不到，返回第一条记录（通常是转出记录）
-          if (records.isNotEmpty) {
-            return records.first;
-          }
-          rethrow;
-        }
-      } else {
-        try {
-          return _recentRecordsCache.firstWhere((r) => r.pairId == pairId);
-        } catch (e) {
-          // 如果缓存中找不到，尝试从最近添加的记录中查找
-          if (_recentRecordsCache.isNotEmpty) {
-            // 返回最后一条记录（通常是刚添加的）
-            return _recentRecordsCache.last;
-          }
-          rethrow;
-        }
-      }
+      // 同步版本号（记录未写入，手动更新）
+      await DataVersionService.incrementVersion(bookId);
+      return;
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.transfer', e, stackTrace);
       rethrow;

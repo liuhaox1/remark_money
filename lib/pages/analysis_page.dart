@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 
 import '../l10n/app_strings.dart';
 import '../models/period_type.dart';
@@ -448,19 +449,33 @@ class _AnalysisPageState extends State<AnalysisPage> {
       });
     }
     
-    // 计算分类数据
-    final categoryMap = <String, double>{};
-    for (final record in yearRecords.where((r) => r.isExpense)) {
-      categoryMap[record.categoryKey] = (categoryMap[record.categoryKey] ?? 0) + record.amount;
-    }
-    final categoryList = categoryMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
     // 将分类key转换为中文名称
     final categoryNameMap = <String, String>{};
     for (final category in categoryProvider.categories) {
       categoryNameMap[category.key] = category.name;
     }
+    
+    // 计算分类数据（按展示名称聚合，避免出现“未分类”或未知key）
+    final categoryMap = <String, double>{};
+    for (final record in yearRecords.where((r) => r.isExpense)) {
+      final rawKey = record.categoryKey;
+      // 排除不计入统计的记录（如转账、标记不统计的记录）
+      if (!record.includeInStats) continue;
+      if (rawKey.startsWith('transfer')) continue;
+      // 将key映射为展示名，找不到则使用英文映射，再找不到用“其他”
+      String displayName =
+          categoryNameMap[rawKey] ?? CategoryNameHelper.mapEnglishKeyToChinese(rawKey);
+      if (displayName == CategoryNameHelper.unknownCategoryName) {
+        displayName = '其他';
+        // 调试日志：定位被归入“其他”的记录
+        if (kDebugMode) {
+          debugPrint('[Analysis] 分类未匹配，归入其他: key=$rawKey, amount=${record.amount}, date=${record.date.toIso8601String()}');
+        }
+      }
+      categoryMap[displayName] = (categoryMap[displayName] ?? 0) + record.amount;
+    }
+    final categoryList = categoryMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     
     // 计算同比数据
     final thisYearExpense = yearRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
@@ -500,8 +515,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     
     if (categoryList.isNotEmpty) {
       final topCategory = categoryList.first;
-      final topCategoryName = categoryNameMap[topCategory.key] ?? CategoryNameHelper.mapEnglishKeyToChinese(topCategory.key);
-      insights.add('$topCategoryName是您的主要支出类别，占比${(topCategory.value / thisYearExpense * 100).toStringAsFixed(1)}%');
+      insights.add('${topCategory.key}是您的主要支出类别，占比${(topCategory.value / thisYearExpense * 100).toStringAsFixed(1)}%');
     }
     
     if (currentMonthExpense > avgMonthlyExpense * 1.2) {
@@ -511,9 +525,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return {
       'trendData': trendData,
       'categoryData': categoryList.take(10).map((e) {
-        final categoryName = categoryNameMap[e.key] ?? CategoryNameHelper.mapEnglishKeyToChinese(e.key);
         return {
-          'category': categoryName,
+          'category': e.key,
           'amount': e.value,
           'percent': thisYearExpense > 0 ? (e.value / thisYearExpense * 100) : 0.0,
         };
