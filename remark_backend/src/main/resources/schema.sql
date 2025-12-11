@@ -27,18 +27,19 @@ CREATE TABLE IF NOT EXISTS sms_code (
 -- 礼包码表：唯一索引保障并发核销，无需 FOR UPDATE
 CREATE TABLE IF NOT EXISTS gift_code (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  code CHAR(6) NOT NULL,
-  status TINYINT NOT NULL DEFAULT 0 COMMENT '0=unused,1=used,2=expired',
-  used_by BIGINT DEFAULT NULL,
-  used_at DATETIME DEFAULT NULL,
-  expire_at DATETIME DEFAULT NULL,
-  plan_type TINYINT NOT NULL DEFAULT 1 COMMENT '1=3元档',
-  duration_months INT NOT NULL DEFAULT 12,
-  version INT NOT NULL DEFAULT 0,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  code CHAR(8) NOT NULL COMMENT '礼包码，8位数字',
+  status TINYINT NOT NULL DEFAULT 0 COMMENT '0=unused未使用,1=used已使用,2=expired已过期',
+  used_by BIGINT DEFAULT NULL COMMENT '使用用户ID',
+  used_at DATETIME DEFAULT NULL COMMENT '使用时间',
+  expire_at DATETIME DEFAULT NULL COMMENT '礼包码过期时间',
+  plan_type TINYINT NOT NULL DEFAULT 1 COMMENT '套餐类型：1=3元档,2=5元档,3=10元档',
+  duration_months INT NOT NULL DEFAULT 12 COMMENT '有效期（月）',
+  version INT NOT NULL DEFAULT 0 COMMENT '版本号，用于乐观锁',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   UNIQUE KEY uk_gift_code (code),
-  INDEX idx_gift_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  INDEX idx_gift_status (status),
+  INDEX idx_gift_code_status (code, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='礼包码表';
 
 -- 账本表（支持多人账本与邀请码）
 CREATE TABLE IF NOT EXISTS book (

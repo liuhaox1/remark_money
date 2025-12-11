@@ -9,6 +9,7 @@ import '../providers/account_provider.dart';
 import '../services/sync_service.dart';
 import '../services/data_version_service.dart';
 import '../utils/error_handler.dart';
+import 'vip_purchase_page.dart';
 import 'dart:convert';
 import 'dart:async';
 
@@ -72,6 +73,12 @@ class _SyncPageState extends State<SyncPage> {
         _syncRecord = result.syncRecord;
         _userInfo = result.userInfo;
       });
+    } else if (!result.success && mounted) {
+      // 检查是否是付费相关错误
+      final error = result.error ?? '';
+      if (_isPaymentRequiredError(error)) {
+        _showVipPurchasePage();
+      }
     }
   }
 
@@ -152,7 +159,13 @@ class _SyncPageState extends State<SyncPage> {
       }
     } catch (e) {
       if (mounted && isManual) {
-        ErrorHandler.handleAsyncError(context, e);
+        // 检查是否是付费相关错误，如果是则显示VIP购买页面
+        final errorMsg = e.toString();
+        if (_isPaymentRequiredError(errorMsg)) {
+          _showVipPurchasePage();
+        } else {
+          ErrorHandler.handleAsyncError(context, e);
+        }
       }
     } finally {
       if (mounted) {
@@ -194,7 +207,14 @@ class _SyncPageState extends State<SyncPage> {
       );
 
       if (!result.success) {
-        throw Exception(result.error ?? '上传失败');
+        final error = result.error ?? '上传失败';
+        if (_isPaymentRequiredError(error)) {
+          if (mounted) {
+            _showVipPurchasePage();
+          }
+          return;
+        }
+        throw Exception(error);
       }
 
       // 检查超额警告
@@ -227,7 +247,14 @@ class _SyncPageState extends State<SyncPage> {
       );
 
       if (!result.success) {
-        throw Exception(result.error ?? '拉取失败');
+        final error = result.error ?? '拉取失败';
+        if (_isPaymentRequiredError(error)) {
+          if (mounted) {
+            _showVipPurchasePage();
+          }
+          return;
+        }
+        throw Exception(error);
       }
 
       final bills = result.bills ?? [];
@@ -302,7 +329,14 @@ class _SyncPageState extends State<SyncPage> {
           );
 
           if (!result.success) {
-            throw Exception(result.error ?? '增量上传失败');
+            final error = result.error ?? '增量上传失败';
+            if (_isPaymentRequiredError(error)) {
+              if (mounted) {
+                _showVipPurchasePage();
+              }
+              return;
+            }
+            throw Exception(error);
           }
 
           if (result.quotaWarning != null && mounted) {
@@ -325,6 +359,14 @@ class _SyncPageState extends State<SyncPage> {
           for (final billMap in bills) {
             await _handleConflict(billMap);
           }
+        }
+      } else {
+        final error = downloadResult.error ?? '增量拉取失败';
+        if (_isPaymentRequiredError(error)) {
+          if (mounted) {
+            _showVipPurchasePage();
+          }
+          return;
         }
       }
 
@@ -566,6 +608,24 @@ class _SyncPageState extends State<SyncPage> {
       // 账户同步失败不影响其他数据同步
       debugPrint('Account sync failed: $e');
     }
+  }
+
+  /// 检查是否是付费相关错误
+  bool _isPaymentRequiredError(String error) {
+    return error.contains('无云端同步权限') ||
+        error.contains('付费已过期') ||
+        error.contains('数据量超限') ||
+        error.contains('请升级套餐') ||
+        error.contains('无权限') ||
+        error.contains('需要付费');
+  }
+
+  /// 显示VIP购买页面
+  void _showVipPurchasePage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const VipPurchasePage()),
+    );
   }
 
   @override

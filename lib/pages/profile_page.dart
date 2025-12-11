@@ -17,8 +17,10 @@ import '../providers/record_provider.dart';
 import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/auth_service.dart';
+import '../services/book_service.dart';
 import 'account_settings_page.dart';
 import 'sync_page.dart';
+import 'vip_purchase_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
 
@@ -182,11 +184,21 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _joinBookByCodeStub(String code) async {
-    // TODO: 接入后端接口 /api/book/join
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-    ErrorHandler.showSuccess(
-        context, '已提交加入请求（体验模式，未接入后端）：$code');
+    final bookService = BookService();
+    try {
+      await bookService.joinBook(code);
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, '已成功加入账本');
+    } catch (e) {
+      if (!mounted) return;
+      // 检查是否是付费相关错误
+      final errorMsg = e.toString();
+      if (_isPaymentRequiredError(errorMsg)) {
+        _showVipPurchasePage();
+      } else {
+        ErrorHandler.handleAsyncError(context, e);
+      }
+    }
   }
 
   Future<void> _goLogin() async {
@@ -1324,8 +1336,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _showUpgradeToMultiBookDialog(BuildContext context, String bookId) async {
     final cs = Theme.of(context).colorScheme;
-    // TODO: 调用后端API升级为多人账本
-    final inviteCode = _generateInviteCode(); // 临时生成，实际应从服务器获取
+    final bookService = BookService();
+    
+    try {
+      // 调用后端API升级为多人账本
+      final result = await bookService.createMultiBook(bookId);
+      final inviteCode = result['inviteCode'] as String? ?? _generateInviteCode();
     
     await showDialog(
       context: context,
@@ -1386,6 +1402,39 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
+    );
+    } catch (e) {
+      // 检查是否是付费相关错误
+      final errorMsg = e.toString();
+      if (_isPaymentRequiredError(errorMsg)) {
+        if (mounted) {
+          _showVipPurchasePage();
+        }
+      } else {
+        if (mounted) {
+          ErrorHandler.handleAsyncError(context, e);
+        }
+      }
+    }
+  }
+
+  /// 检查是否是付费相关错误
+  bool _isPaymentRequiredError(String error) {
+    return error.contains('无权限') ||
+        error.contains('需要付费') ||
+        error.contains('请升级') ||
+        error.contains('VIP') ||
+        error.contains('会员') ||
+        error.contains('无云端同步权限') ||
+        error.contains('付费已过期') ||
+        error.contains('数据量超限');
+  }
+
+  /// 显示VIP购买页面
+  void _showVipPurchasePage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const VipPurchasePage()),
     );
   }
 

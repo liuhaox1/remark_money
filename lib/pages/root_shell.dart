@@ -7,6 +7,7 @@ import '../l10n/app_strings.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
+import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
 import '../services/sync_service.dart';
@@ -49,7 +50,8 @@ class _RootShellState extends State<RootShell> {
     // 登录时自动同步（延迟执行，确保context和providers已准备好）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        Future.delayed(const Duration(milliseconds: 500), () {
+        // 增加延迟，确保所有providers都已加载完成
+        Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) {
             _performLoginSync();
           }
@@ -66,11 +68,19 @@ class _RootShellState extends State<RootShell> {
       final isValid = await _authService.isTokenValid();
       if (!isValid || !mounted) return;
 
-      final bookProvider = context.read<BookProvider>();
-      if (!bookProvider.loaded) {
-        // 如果BookProvider还没加载，等待一下
-        await Future.delayed(const Duration(milliseconds: 200));
-        if (!mounted) return;
+      // 使用 Provider.of 并添加 listen: false，确保能正确访问
+      final bookProvider = Provider.of<BookProvider>(context, listen: false);
+      
+      // 如果BookProvider还没加载，等待并重试
+      int retryCount = 0;
+      while (!bookProvider.loaded && retryCount < 10 && mounted) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        retryCount++;
+      }
+      
+      if (!mounted || !bookProvider.loaded) {
+        debugPrint('BookProvider not loaded after retries, skipping sync');
+        return;
       }
       
       final bookId = bookProvider.activeBookId;
@@ -88,12 +98,14 @@ class _RootShellState extends State<RootShell> {
             // 版本号不同，触发同步（静默）
             // 这里可以调用sync_page的同步逻辑，但为了简化，先只查询状态
             // 实际的同步会在sync_page的定时器中自动执行
+            debugPrint('Version mismatch: local=$localVersion, server=$serverVersion');
           }
         }
       });
-    } catch (e) {
-      // 静默失败，不显示错误
+    } catch (e, stackTrace) {
+      // 静默失败，不显示错误，但记录详细日志
       debugPrint('Login sync failed: $e');
+      debugPrint('Stack trace: $stackTrace');
     }
   }
 
@@ -133,8 +145,9 @@ class _RootShellState extends State<RootShell> {
     // 确保所有providers都已加载
     final bookProvider = context.watch<BookProvider>();
     final recordProvider = context.watch<RecordProvider>();
+    final categoryProvider = context.watch<CategoryProvider>();
     
-    if (!bookProvider.loaded || !recordProvider.loaded) {
+    if (!bookProvider.loaded || !recordProvider.loaded || !categoryProvider.loaded) {
       return Scaffold(
         body: Center(
           child: CircularProgressIndicator(),

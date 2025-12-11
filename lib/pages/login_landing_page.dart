@@ -54,7 +54,8 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
     );
     if (result == true && mounted) {
       // 登录成功，等待一下确保token已保存，然后导航
-      await Future.delayed(const Duration(milliseconds: 100));
+      // 增加延迟，确保token已完全保存到SharedPreferences
+      await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
       // 使用pushAndRemoveUntil清除所有路由并导航到RootShell
       Navigator.of(context).pushAndRemoveUntil(
