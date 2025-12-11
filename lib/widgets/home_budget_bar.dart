@@ -259,16 +259,53 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
 
     final remainingColor =
         remaining >= 0 ? AppColors.success : AppColors.danger;
+    final usedPercent = total > 0 ? (used / total * 100) : 0.0;
+    final isWarning = usedPercent >= 80;
+    final isDanger = usedPercent >= 100;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          AppStrings.homeBudgetMonthTitle,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              AppStrings.homeBudgetMonthTitle,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (isWarning)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDanger 
+                      ? AppColors.danger.withOpacity(0.1)
+                      : Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isDanger ? Icons.warning : Icons.info_outline,
+                      size: 14,
+                      color: isDanger ? AppColors.danger : Colors.orange,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isDanger ? '已超支' : '预算预警',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDanger ? AppColors.danger : Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 6),
         Text(
@@ -280,26 +317,89 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          AppStrings.homeBudgetUsedAndTotal(used, total),
-          style: TextStyle(
-            fontSize: 12,
-            color: cs.onSurface.withOpacity(0.7),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              AppStrings.homeBudgetUsedAndTotal(used, total),
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.onSurface.withOpacity(0.7),
+              ),
+            ),
+            Text(
+              '已用 ${usedPercent.toStringAsFixed(1)}%',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isWarning 
+                    ? (isDanger ? AppColors.danger : Colors.orange)
+                    : cs.onSurface.withOpacity(0.7),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         BudgetProgress(total: total, used: used),
         if (daysLeft > 0 && remaining > 0)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              AppStrings.homeBudgetTodaySuggestion(
-                daysLeft,
-                dailyAllowance,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    AppStrings.homeBudgetTodaySuggestion(
+                      daysLeft,
+                      dailyAllowance,
+                    ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                ),
+                if (isWarning)
+                  Text(
+                    isDanger 
+                        ? '建议控制支出'
+                        : '建议合理规划',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDanger ? AppColors.danger : Colors.orange,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (isDanger && daysLeft > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.danger.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              style: TextStyle(
-                fontSize: 12,
-                color: cs.onSurface.withOpacity(0.7),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: AppColors.danger,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '本月预算已超支，剩余${daysLeft}天建议控制支出',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

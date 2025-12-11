@@ -40,7 +40,6 @@ import '../widgets/week_strip.dart';
 
 import 'add_record_page.dart';
 import 'voice_record_page.dart';
-
 import 'home_page_date_panel.dart';
 
 
@@ -183,6 +182,7 @@ class _HomePageState extends State<HomePage> {
     });
 
   }
+
   
   /// 异步加载月份统计数据
   Future<void> _loadMonthStats() async {
@@ -4761,6 +4761,7 @@ class _BalanceCard extends StatelessWidget {
   final VoidCallback onTapSearch;
 
   final VoidCallback? onTapVoice;
+
 
 
 

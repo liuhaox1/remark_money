@@ -9,6 +9,7 @@ import '../utils/date_utils.dart';
 import '../utils/validation_utils.dart';
 import '../utils/error_handler.dart';
 import '../services/data_version_service.dart';
+import '../services/user_stats_service.dart';
 import 'account_provider.dart';
 
 class RecordProvider extends ChangeNotifier {
@@ -151,6 +152,9 @@ class RecordProvider extends ChangeNotifier {
 
       // 数据修改时版本号+1
       await DataVersionService.incrementVersion(bookId);
+
+      // 更新用户统计
+      await UserStatsService.updateRecordStats(date);
 
       notifyListeners();
       return record;

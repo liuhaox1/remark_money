@@ -24,6 +24,7 @@ import 'sync_page.dart';
 import 'vip_purchase_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
+import '../widgets/user_stats_card.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -317,6 +318,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   reminderEnabled: reminderEnabled,
                   isLoggedIn: isLoggedIn,
                 ),
+                const SizedBox(height: 12),
+                const UserStatsCard(),
                 const SizedBox(height: 12),
                 _buildVipCard(context),
                 const SizedBox(height: 12),

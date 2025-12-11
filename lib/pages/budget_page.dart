@@ -804,6 +804,10 @@ class _BudgetPageState extends State<BudgetPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildTotalBudgetEditor(cs, bookId, isYear: !showPeriodPicker),
+                const SizedBox(height: 16),
+                _buildBudgetAlertCard(cs, data, isYearView),
+                const SizedBox(height: 16),
+                _buildBudgetAnalysisCard(context, cs, data, bookId, isYearView),
                 const SizedBox(height: 24),
                 const _SectionHeader(
                   title: AppStrings.spendCategoryBudget,
@@ -1615,3 +1619,257 @@ class _EditBudgetResult {
   final bool deleted;
   final double? value;
 }
+
+  /// 构建预算提醒卡片
+  Widget _buildBudgetAlertCard(
+    ColorScheme cs,
+    _BudgetViewData data,
+    bool isYearView,
+  ) {
+    if (data.totalBudget <= 0) return const SizedBox.shrink();
+
+    final usedPercent = (data.used / data.totalBudget * 100);
+    final remaining = data.totalBudget - data.used;
+    final now = DateTime.now();
+    final daysInPeriod = isYearView
+        ? DateTime(now.year, 12, 31).difference(DateTime(now.year, 1, 1)).inDays + 1
+        : DateTime(now.year, now.month + 1, 0).day;
+    final daysUsed = isYearView
+        ? now.difference(DateTime(now.year, 1, 1)).inDays + 1
+        : now.day;
+    final daysLeft = daysInPeriod - daysUsed;
+    final dailyAllowance = daysLeft > 0 ? remaining / daysLeft : 0;
+
+    String alertText = '';
+    Color alertColor = cs.primary;
+    IconData alertIcon = Icons.info_outline;
+
+    if (usedPercent >= 100) {
+      alertText = '预算已用完，建议控制支出';
+      alertColor = AppColors.danger;
+      alertIcon = Icons.warning;
+    } else if (usedPercent >= 80) {
+      alertText = '预算已用${usedPercent.toStringAsFixed(0)}%，剩余${daysLeft}天，建议控制支出';
+      alertColor = Colors.orange;
+      alertIcon = Icons.warning_amber;
+    } else if (usedPercent >= 50) {
+      alertText = '预算已用${usedPercent.toStringAsFixed(0)}%，剩余¥${remaining.toStringAsFixed(0)}';
+      alertColor = cs.primary;
+      alertIcon = Icons.info_outline;
+    } else {
+      return const SizedBox.shrink(); // 使用率低时不显示提醒
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: alertColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: alertColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(alertIcon, color: alertColor, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              alertText,
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+          if (dailyAllowance > 0 && daysLeft > 0)
+            Text(
+              '日均¥${dailyAllowance.toStringAsFixed(0)}',
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.onSurface.withOpacity(0.7),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建预算分析卡片
+  Widget _buildBudgetAnalysisCard(
+    BuildContext ctx,
+    ColorScheme cs,
+    _BudgetViewData data,
+    String bookId,
+    bool isYearView,
+  ) {
+    if (data.totalBudget <= 0) return const SizedBox.shrink();
+
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getBudgetAnalysisData(bookId, isYearView, ctx),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+
+        final analysisData = snapshot.data ?? {};
+        final lastPeriodUsed = analysisData['lastPeriodUsed'] as double? ?? 0;
+        final avgDailyExpense = analysisData['avgDailyExpense'] as double? ?? 0;
+        final predictedTotal = analysisData['predictedTotal'] as double? ?? 0;
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cs.surfaceVariant.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.analytics_outlined, size: 18, color: cs.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    '预算分析',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (lastPeriodUsed > 0) ...[
+                _buildAnalysisItem(
+                  cs,
+                  '上${isYearView ? '年' : '月'}支出',
+                  '¥${lastPeriodUsed.toStringAsFixed(0)}',
+                  data.used > lastPeriodUsed
+                      ? '比上${isYearView ? '年' : '月'}增加${((data.used - lastPeriodUsed) / lastPeriodUsed * 100).toStringAsFixed(1)}%'
+                      : '比上${isYearView ? '年' : '月'}减少${((lastPeriodUsed - data.used) / lastPeriodUsed * 100).toStringAsFixed(1)}%',
+                ),
+                const SizedBox(height: 6),
+              ],
+              if (avgDailyExpense > 0) ...[
+                _buildAnalysisItem(
+                  cs,
+                  '日均支出',
+                  '¥${avgDailyExpense.toStringAsFixed(0)}',
+                  '按此速度，${isYearView ? '年度' : '月度'}将支出¥${predictedTotal.toStringAsFixed(0)}',
+                ),
+                const SizedBox(height: 6),
+              ],
+              if (predictedTotal > data.totalBudget && data.totalBudget > 0)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline, size: 16, color: AppColors.danger),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '预测支出将超过预算，建议控制消费',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAnalysisItem(ColorScheme cs, String label, String value, String desc) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: cs.onSurface.withOpacity(0.7),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<Map<String, dynamic>> _getBudgetAnalysisData(String bookId, bool isYearView, BuildContext ctx) async {
+    final recordProvider = Provider.of<RecordProvider>(ctx, listen: false);
+    final now = DateTime.now();
+
+    if (isYearView) {
+      // 年度分析
+      final thisYearStart = DateTime(now.year, 1, 1);
+      final thisYearEnd = DateTime(now.year, 12, 31, 23, 59, 59);
+      final lastYearStart = DateTime(now.year - 1, 1, 1);
+      final lastYearEnd = DateTime(now.year - 1, 12, 31, 23, 59, 59);
+
+      final thisYearUsed = await recordProvider.periodExpense(
+        bookId: bookId,
+        start: thisYearStart,
+        end: now,
+      );
+      final lastYearUsed = await recordProvider.periodExpense(
+        bookId: bookId,
+        start: lastYearStart,
+        end: lastYearEnd,
+      );
+
+      final daysUsed = now.difference(thisYearStart).inDays + 1;
+      final avgDailyExpense = daysUsed > 0 ? thisYearUsed / daysUsed : 0;
+      final predictedTotal = avgDailyExpense * 365;
+
+      return {
+        'lastPeriodUsed': lastYearUsed,
+        'avgDailyExpense': avgDailyExpense,
+        'predictedTotal': predictedTotal,
+      };
+    } else {
+      // 月度分析
+      final thisMonthStart = DateTime(now.year, now.month, 1);
+      final thisMonthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+      final lastMonthStart = DateTime(now.year, now.month - 1, 1);
+      final lastMonthEnd = DateTime(now.year, now.month, 0, 23, 59, 59);
+
+      final thisMonthUsed = await recordProvider.periodExpense(
+        bookId: bookId,
+        start: thisMonthStart,
+        end: now,
+      );
+      final lastMonthUsed = await recordProvider.periodExpense(
+        bookId: bookId,
+        start: lastMonthStart,
+        end: lastMonthEnd,
+      );
+
+      final daysUsed = now.day;
+      final avgDailyExpense = daysUsed > 0 ? thisMonthUsed / daysUsed : 0;
+      final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+      final predictedTotal = avgDailyExpense * daysInMonth;
+
+      return {
+        'lastPeriodUsed': lastMonthUsed,
+        'avgDailyExpense': avgDailyExpense,
+        'predictedTotal': predictedTotal,
+      };
+    }
+  }

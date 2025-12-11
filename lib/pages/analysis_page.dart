@@ -6,10 +6,13 @@ import '../models/period_type.dart';
 import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
+import '../providers/category_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
+import '../utils/category_name_helper.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'add_record_page.dart';
 import 'bill_page.dart';
 
@@ -183,33 +186,67 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    // 可滚动内容区域：深度分析卡片 + 期间列表
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                        child: _PeriodList(
-                          year: _selectedYear,
-                          cs: cs,
-                          periodType: _periodType,
-                          months: visibleMonths,
-                          weeks: weekSummaries,
-                          hasYearRecords: hasYearRecords,
-                          onTapMonth: (month) => _openBillPage(
-                            context,
-                            bookId: bookId,
-                            year: _selectedYear,
-                            month: month,
-                          ),
-                          onTapYear: () => _openBillPage(
-                            context,
-                            bookId: bookId,
-                            year: _selectedYear,
-                          ),
-                          onTapWeek: (range) => _openBillPage(
-                            context,
-                            bookId: bookId,
-                            year: _selectedYear,
-                            weekRange: range,
-                          ),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          children: [
+                            // 深度分析卡片
+                            FutureBuilder<Map<String, dynamic>>(
+                              future: _loadDeepAnalysis(recordProvider, bookId, _selectedYear, context.read<CategoryProvider>()),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    child: Column(
+                                      children: [
+                                        _buildTrendAnalysisCard(cs, snapshot.data!),
+                                        const SizedBox(height: 12),
+                                        _buildCategoryAnalysisCard(cs, snapshot.data!),
+                                        const SizedBox(height: 12),
+                                        _buildInsightsCard(cs, snapshot.data!),
+                                        const SizedBox(height: 12),
+                                        _buildPredictionCard(cs, snapshot.data!),
+                                        const SizedBox(height: 12),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            // 期间列表
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                              child: _PeriodList(
+                                year: _selectedYear,
+                                cs: cs,
+                                periodType: _periodType,
+                                months: visibleMonths,
+                                weeks: weekSummaries,
+                                hasYearRecords: hasYearRecords,
+                                onTapMonth: (month) => _openBillPage(
+                                  context,
+                                  bookId: bookId,
+                                  year: _selectedYear,
+                                  month: month,
+                                ),
+                                onTapYear: () => _openBillPage(
+                                  context,
+                                  bookId: bookId,
+                                  year: _selectedYear,
+                                ),
+                                onTapWeek: (range) => _openBillPage(
+                                  context,
+                                  bookId: bookId,
+                                  year: _selectedYear,
+                                  weekRange: range,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -355,6 +392,481 @@ class _AnalysisPageState extends State<AnalysisPage> {
     };
   }
 
+  /// 加载深度分析数据
+  Future<Map<String, dynamic>> _loadDeepAnalysis(
+    RecordProvider recordProvider,
+    String bookId,
+    int year,
+    CategoryProvider categoryProvider,
+  ) async {
+    final now = DateTime.now();
+    final yearStart = DateTime(year, 1, 1);
+    final yearEnd = DateTime(year, 12, 31, 23, 59, 59);
+    
+    // 加载本年数据
+    final yearRecords = await recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: yearStart,
+      end: yearEnd,
+    );
+    
+    // 加载去年数据用于对比
+    final lastYearStart = DateTime(year - 1, 1, 1);
+    final lastYearEnd = DateTime(year - 1, 12, 31, 23, 59, 59);
+    final lastYearRecords = await recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: lastYearStart,
+      end: lastYearEnd,
+    );
+    
+    // 加载近6个月数据用于趋势分析
+    final sixMonthsAgo = now.subtract(const Duration(days: 180));
+    final recentRecords = await recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: sixMonthsAgo,
+      end: now,
+    );
+    
+    // 计算趋势数据（近6个月）
+    final trendData = <Map<String, dynamic>>[];
+    for (int i = 5; i >= 0; i--) {
+      final month = DateTime(now.year, now.month - i, 1);
+      final monthEnd = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+      final monthRecords = recentRecords.where((r) => 
+        r.date.isAfter(month.subtract(const Duration(days: 1))) &&
+        r.date.isBefore(monthEnd.add(const Duration(days: 1)))
+      ).toList();
+      
+      final income = monthRecords.where((r) => r.isIncome).fold<double>(0, (sum, r) => sum + r.amount);
+      final expense = monthRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
+      
+      trendData.add({
+        'month': '${month.month}月',
+        'income': income,
+        'expense': expense,
+        'balance': income - expense,
+      });
+    }
+    
+    // 计算分类数据
+    final categoryMap = <String, double>{};
+    for (final record in yearRecords.where((r) => r.isExpense)) {
+      categoryMap[record.categoryKey] = (categoryMap[record.categoryKey] ?? 0) + record.amount;
+    }
+    final categoryList = categoryMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
+    // 将分类key转换为中文名称
+    final categoryNameMap = <String, String>{};
+    for (final category in categoryProvider.categories) {
+      categoryNameMap[category.key] = category.name;
+    }
+    
+    // 计算同比数据
+    final thisYearExpense = yearRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
+    final lastYearExpense = lastYearRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
+    final yearOverYearChange = lastYearExpense > 0 
+        ? ((thisYearExpense - lastYearExpense) / lastYearExpense * 100)
+        : 0.0;
+    
+    // 计算月度平均
+    final avgMonthlyExpense = yearRecords.isNotEmpty 
+        ? thisYearExpense / 12 
+        : 0.0;
+    
+    // 预测本月总支出（基于当前月份和平均）
+    final currentMonth = DateTime.now();
+    final currentMonthStart = DateTime(currentMonth.year, currentMonth.month, 1);
+    final currentMonthEnd = DateTime(currentMonth.year, currentMonth.month + 1, 0, 23, 59, 59);
+    final currentMonthRecords = yearRecords.where((r) => 
+      r.date.isAfter(currentMonthStart.subtract(const Duration(days: 1))) &&
+      r.date.isBefore(currentMonthEnd.add(const Duration(days: 1))) &&
+      r.isExpense
+    ).toList();
+    final currentMonthExpense = currentMonthRecords.fold<double>(0, (sum, r) => sum + r.amount);
+    final daysPassed = currentMonth.day;
+    final totalDays = currentMonthEnd.day;
+    final predictedMonthExpense = daysPassed > 0 
+        ? (currentMonthExpense / daysPassed * totalDays)
+        : avgMonthlyExpense;
+    
+    // 生成洞察
+    final insights = <String>[];
+    if (yearOverYearChange > 10) {
+      insights.add('本年支出比去年增加${yearOverYearChange.toStringAsFixed(1)}%，建议控制支出');
+    } else if (yearOverYearChange < -10) {
+      insights.add('本年支出比去年减少${yearOverYearChange.abs().toStringAsFixed(1)}%，继续保持');
+    }
+    
+    if (categoryList.isNotEmpty) {
+      final topCategory = categoryList.first;
+      final topCategoryName = categoryNameMap[topCategory.key] ?? CategoryNameHelper.mapEnglishKeyToChinese(topCategory.key);
+      insights.add('$topCategoryName是您的主要支出类别，占比${(topCategory.value / thisYearExpense * 100).toStringAsFixed(1)}%');
+    }
+    
+    if (currentMonthExpense > avgMonthlyExpense * 1.2) {
+      insights.add('本月支出已超过月均支出20%，建议控制');
+    }
+    
+    return {
+      'trendData': trendData,
+      'categoryData': categoryList.take(10).map((e) {
+        final categoryName = categoryNameMap[e.key] ?? CategoryNameHelper.mapEnglishKeyToChinese(e.key);
+        return {
+          'category': categoryName,
+          'amount': e.value,
+          'percent': thisYearExpense > 0 ? (e.value / thisYearExpense * 100) : 0.0,
+        };
+      }).toList(),
+      'yearOverYearChange': yearOverYearChange,
+      'avgMonthlyExpense': avgMonthlyExpense,
+      'predictedMonthExpense': predictedMonthExpense,
+      'insights': insights,
+      'thisYearExpense': thisYearExpense,
+      'lastYearExpense': lastYearExpense,
+    };
+  }
+
+  /// 构建趋势分析卡片
+  Widget _buildTrendAnalysisCard(ColorScheme cs, Map<String, dynamic> data) {
+    final trendData = data['trendData'] as List<Map<String, dynamic>>? ?? [];
+    if (trendData.isEmpty) return const SizedBox.shrink();
+    
+    return Card(
+      color: cs.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.trending_up, color: cs.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '支出趋势',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: _buildTrendChart(trendData, cs),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: trendData.map((item) {
+                return Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        item['month'] as String,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '¥${(item['expense'] as double).toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建分类分析卡片
+  Widget _buildCategoryAnalysisCard(ColorScheme cs, Map<String, dynamic> data) {
+    final categoryData = data['categoryData'] as List<Map<String, dynamic>>? ?? [];
+    if (categoryData.isEmpty) return const SizedBox.shrink();
+    
+    return Card(
+      color: cs.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.pie_chart, color: cs.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '分类占比',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...categoryData.take(5).map((item) {
+              final percent = item['percent'] as double;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item['category'] as String,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: cs.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '¥${(item['amount'] as double).toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    LinearProgressIndicator(
+                      value: percent / 100,
+                      backgroundColor: cs.surfaceVariant,
+                      valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                      minHeight: 6,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${percent.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建消费洞察卡片
+  Widget _buildInsightsCard(ColorScheme cs, Map<String, dynamic> data) {
+    final insights = data['insights'] as List<String>? ?? [];
+    final yearOverYearChange = data['yearOverYearChange'] as double? ?? 0.0;
+    
+    if (insights.isEmpty && yearOverYearChange == 0) return const SizedBox.shrink();
+    
+    return Card(
+      color: cs.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.lightbulb_outline, color: cs.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '消费洞察',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (yearOverYearChange != 0)
+              _buildInsightItem(
+                cs,
+                yearOverYearChange > 0 
+                    ? '本年支出比去年${yearOverYearChange.toStringAsFixed(1)}%'
+                    : '本年支出比去年减少${yearOverYearChange.abs().toStringAsFixed(1)}%',
+                yearOverYearChange > 0 ? Icons.trending_up : Icons.trending_down,
+                yearOverYearChange > 0 ? Colors.orange : Colors.green,
+              ),
+            ...insights.map((insight) => _buildInsightItem(
+              cs,
+              insight,
+              Icons.info_outline,
+              cs.primary,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInsightItem(ColorScheme cs, String text, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                color: cs.onSurface.withOpacity(0.8),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建预测分析卡片
+  Widget _buildPredictionCard(ColorScheme cs, Map<String, dynamic> data) {
+    final predictedMonthExpense = data['predictedMonthExpense'] as double? ?? 0.0;
+    final avgMonthlyExpense = data['avgMonthlyExpense'] as double? ?? 0.0;
+    
+    if (predictedMonthExpense == 0 && avgMonthlyExpense == 0) return const SizedBox.shrink();
+    
+    final diff = predictedMonthExpense - avgMonthlyExpense;
+    final diffPercent = avgMonthlyExpense > 0 ? (diff / avgMonthlyExpense * 100) : 0.0;
+    
+    return Card(
+      color: cs.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.analytics_outlined, color: cs.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '预测分析',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '预测本月支出',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '¥${predictedMonthExpense.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '月均支出',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '¥${avgMonthlyExpense.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            if (diffPercent.abs() > 5)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: diffPercent > 0 
+                        ? Colors.orange.withOpacity(0.1)
+                        : Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        diffPercent > 0 ? Icons.warning_amber_outlined : Icons.check_circle_outline,
+                        size: 16,
+                        color: diffPercent > 0 ? Colors.orange : Colors.green,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          diffPercent > 0
+                              ? '预测本月支出将比月均高出${diffPercent.toStringAsFixed(1)}%，建议控制支出'
+                              : '预测本月支出将比月均低${diffPercent.abs().toStringAsFixed(1)}%，继续保持',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurface.withOpacity(0.8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<_WeekSummary> _buildWeekSummariesFromRecords(
     List<Record> records,
     int year,
@@ -459,6 +971,109 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     entries.sort((a, b) => b.start.compareTo(a.start));
     return entries;
+  }
+
+  /// 构建趋势图表
+  Widget _buildTrendChart(List<Map<String, dynamic>> data, ColorScheme cs) {
+    if (data.isEmpty) {
+      return Center(
+        child: Text(
+          '暂无数据',
+          style: TextStyle(color: cs.onSurface.withOpacity(0.6)),
+        ),
+      );
+    }
+
+    final maxExpense = data.map((e) => e['expense'] as double).reduce((a, b) => a > b ? a : b);
+    final minExpense = data.map((e) => e['expense'] as double).reduce((a, b) => a < b ? a : b);
+    final range = maxExpense - minExpense;
+    final interval = range > 0 ? (range / 5).ceilToDouble() : maxExpense / 5;
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: interval,
+          getDrawingHorizontalLine: (value) {
+            return FlLine(
+              color: cs.outline.withOpacity(0.2),
+              strokeWidth: 1,
+            );
+          },
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 && index < data.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      data[index]['month'] as String,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  );
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  '¥${value.toInt()}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: cs.onSurface.withOpacity(0.6),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(
+          show: true,
+          border: Border.all(color: cs.outline.withOpacity(0.2)),
+        ),
+        minX: 0,
+        maxX: (data.length - 1).toDouble(),
+        minY: 0,
+        maxY: maxExpense * 1.1,
+        lineBarsData: [
+          LineChartBarData(
+            spots: data.asMap().entries.map((entry) {
+              return FlSpot(entry.key.toDouble(), entry.value['expense'] as double);
+            }).toList(),
+            isCurved: true,
+            color: cs.primary,
+            barWidth: 3,
+            isStrokeCapRound: true,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              color: cs.primary.withOpacity(0.1),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -762,7 +1377,7 @@ class _PeriodList extends StatelessWidget {
         break;
     }
 
-    return ListView(children: children);
+    return Column(children: children);
   }
 }
 
