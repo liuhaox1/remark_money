@@ -2355,6 +2355,7 @@ class _HomePageState extends State<HomePage> {
                       label,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
                       ),
                     ),
                   );
@@ -2407,16 +2408,17 @@ class _HomePageState extends State<HomePage> {
                     ),
                     Row(
                       children: [
-                        const Text(
+                        Text(
                           '高级筛选',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
+                            color: cs.onSurface,
                           ),
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.close, size: 20),
+                          icon: Icon(Icons.close, size: 20, color: cs.onSurface),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
@@ -2442,7 +2444,7 @@ class _HomePageState extends State<HomePage> {
                                     summaryText,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: cs.onSurface.withOpacity(0.8),
+                                      color: cs.onSurface,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -3799,7 +3801,7 @@ class _HomeFilterSummaryBar extends StatelessWidget {
 
                 style: TextStyle(
                   fontSize: 11,
-                  color: cs.onSurface.withOpacity(0.78),
+                  color: cs.onSurface,
                 ),
 
                 maxLines: 2,
@@ -3811,20 +3813,17 @@ class _HomeFilterSummaryBar extends StatelessWidget {
             ),
 
             TextButton(
-
               onPressed: onClearAll,
-
+              style: TextButton.styleFrom(
+                foregroundColor: cs.primary,
+              ),
               child: Text(
-
                 '清空筛选',
-
                 style: TextStyle(
                   fontSize: 11,
                   color: cs.primary,
                 ),
-
               ),
-
             ),
 
           ],
