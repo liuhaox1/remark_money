@@ -1576,10 +1576,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       for (var month = 1; month <= 12; month++) {
         final monthDate = DateTime(widget.year, month, 1);
         final monthStats = await recordProvider.getMonthStatsAsync(monthDate, bookId);
+        // 确保支出值不为负数
+        final expense = max(0.0, monthStats.expense);
         entries.add(
           ChartEntry(
             label: '$month月',
-            value: monthStats.expense,
+            value: expense,
             color: cs.primary,
           ),
         );
@@ -1610,10 +1612,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final entries = <ChartEntry>[];
     for (final d in days) {
       final dayStats = await recordProvider.getDayStatsAsync(bookId, d);
+      // 确保支出值不为负数
+      final expense = max(0.0, dayStats.expense);
       entries.add(
         ChartEntry(
           label: _isWeekMode ? '${d.month}/${d.day}' : d.day.toString(),
-          value: dayStats.expense,
+          value: expense,
           color: cs.primary,
         ),
       );
@@ -1720,9 +1724,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
 
-    final periodCount = _isYearMode ? 12 : (_isWeekMode ? 7 : (_isMonthMode ? DateTime(widget.year, widget.month ?? 12, 0).day : 30));
+    // 根据实际的数据长度计算periodCount，而不是硬编码
+    final periodCount = dailyEntries.length;
+    
+    // 如果数据为空，使用默认值
+    final effectivePeriodCount = periodCount > 0 ? periodCount : 
+        (_isYearMode ? 12 : (_isWeekMode ? 7 : (_isMonthMode ? 
+            (widget.month != null ? DateTime(widget.year, widget.month! + 1, 0).day : 30) : 30)));
 
-    final avgExpense = periodCount > 0 ? totalExpense / periodCount : 0.0;
+    final avgExpense = effectivePeriodCount > 0 ? totalExpense / effectivePeriodCount : 0.0;
 
     final periodLabel = _isYearMode ? '本年' : (_isWeekMode ? '本周' : _isMonthMode ? '本月' : '本期');
 

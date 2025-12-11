@@ -49,5 +49,19 @@ public enum ErrorCode {
   public boolean isWarning() {
     return this == QUOTA_WARNING;
   }
+
+  /**
+   * 判断是否为错误（阻止操作）
+   */
+  public boolean isError() {
+    return this != SUCCESS && !isWarning();
+  }
+
+  /**
+   * 判断是否成功
+   */
+  public boolean isSuccess() {
+    return this == SUCCESS;
+  }
 }
 

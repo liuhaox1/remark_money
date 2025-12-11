@@ -7,7 +7,7 @@
     <result property="userId" column="user_id"/>
     <result property="bookId" column="book_id"/>
     <result property="deviceId" column="device_id"/>
-    <result property="lastSyncBillId" column="last_sync_bill_id"/>
+    <result property="lastSyncId" column="last_sync_id"/>
     <result property="lastSyncTime" column="last_sync_time"/>
     <result property="cloudBillCount" column="cloud_bill_count"/>
     <result property="syncDeviceId" column="sync_device_id"/>
@@ -22,15 +22,15 @@
   </select>
 
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO sync_record (user_id, book_id, device_id, last_sync_bill_id, last_sync_time,
+    INSERT INTO sync_record (user_id, book_id, device_id, last_sync_id, last_sync_time,
                             cloud_bill_count, sync_device_id, data_version, created_at, updated_at)
-    VALUES (#{userId}, #{bookId}, #{deviceId}, #{lastSyncBillId}, #{lastSyncTime},
+    VALUES (#{userId}, #{bookId}, #{deviceId}, #{lastSyncId}, #{lastSyncTime},
             #{cloudBillCount}, #{syncDeviceId}, #{dataVersion}, NOW(), NOW())
   </insert>
 
   <update id="update">
     UPDATE sync_record SET
-      last_sync_bill_id = #{lastSyncBillId},
+      last_sync_id = #{lastSyncId},
       last_sync_time = #{lastSyncTime},
       cloud_bill_count = #{cloudBillCount},
       sync_device_id = #{syncDeviceId},
@@ -40,12 +40,12 @@
   </update>
 
   <insert id="upsert">
-    INSERT INTO sync_record (user_id, book_id, device_id, last_sync_bill_id, last_sync_time,
+    INSERT INTO sync_record (user_id, book_id, device_id, last_sync_id, last_sync_time,
                             cloud_bill_count, sync_device_id, data_version, created_at, updated_at)
-    VALUES (#{userId}, #{bookId}, #{deviceId}, #{lastSyncBillId}, #{lastSyncTime},
+    VALUES (#{userId}, #{bookId}, #{deviceId}, #{lastSyncId}, #{lastSyncTime},
             #{cloudBillCount}, #{syncDeviceId}, #{dataVersion}, NOW(), NOW())
     ON DUPLICATE KEY UPDATE
-      last_sync_bill_id = VALUES(last_sync_bill_id),
+      last_sync_id = VALUES(last_sync_id),
       last_sync_time = VALUES(last_sync_time),
       cloud_bill_count = VALUES(cloud_bill_count),
       sync_device_id = VALUES(sync_device_id),

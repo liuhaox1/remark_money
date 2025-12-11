@@ -4,7 +4,6 @@
 
   <resultMap id="BillInfoResultMap" type="com.remark.money.entity.BillInfo">
     <id property="id" column="id"/>
-    <result property="billId" column="bill_id"/>
     <result property="userId" column="user_id"/>
     <result property="bookId" column="book_id"/>
     <result property="accountId" column="account_id"/>
@@ -21,46 +20,34 @@
     <result property="createdAt" column="created_at"/>
   </resultMap>
 
-  <select id="findByBillId" resultMap="BillInfoResultMap">
-    SELECT * FROM bill_info WHERE bill_id = #{billId}
-  </select>
-
   <select id="findById" resultMap="BillInfoResultMap">
     SELECT * FROM bill_info WHERE id = #{id}
   </select>
 
+  <select id="findByIds" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </select>
+
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO bill_info (bill_id, user_id, book_id, account_id, category_key, amount, direction,
+    INSERT INTO bill_info (user_id, book_id, account_id, category_key, amount, direction,
                           remark, attachment_url, bill_date, include_in_stats, pair_id, is_delete, update_time, created_at)
-    VALUES (#{billId}, #{userId}, #{bookId}, #{accountId}, #{categoryKey}, #{amount}, #{direction},
+    VALUES (#{userId}, #{bookId}, #{accountId}, #{categoryKey}, #{amount}, #{direction},
             #{remark}, #{attachmentUrl}, #{billDate}, #{includeInStats}, #{pairId}, #{isDelete}, NOW(), NOW())
   </insert>
 
-  <insert id="batchInsert">
-    INSERT INTO bill_info (bill_id, user_id, book_id, account_id, category_key, amount, direction,
+  <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO bill_info (user_id, book_id, account_id, category_key, amount, direction,
                           remark, attachment_url, bill_date, include_in_stats, pair_id, is_delete, update_time, created_at)
     VALUES
     <foreach collection="list" item="item" separator=",">
-      (#{item.billId}, #{item.userId}, #{item.bookId}, #{item.accountId}, #{item.categoryKey}, #{item.amount}, #{item.direction},
+      (#{item.userId}, #{item.bookId}, #{item.accountId}, #{item.categoryKey}, #{item.amount}, #{item.direction},
        #{item.remark}, #{item.attachmentUrl}, #{item.billDate}, #{item.includeInStats}, #{item.pairId}, #{item.isDelete}, NOW(), NOW())
     </foreach>
   </insert>
 
-  <update id="update">
-    UPDATE bill_info SET
-      account_id = #{accountId},
-      category_key = #{categoryKey},
-      amount = #{amount},
-      direction = #{direction},
-      remark = #{remark},
-      attachment_url = #{attachmentUrl},
-      bill_date = #{billDate},
-      include_in_stats = #{includeInStats},
-      pair_id = #{pairId},
-      is_delete = #{isDelete},
-      update_time = NOW()
-    WHERE bill_id = #{billId} AND user_id = #{userId}
-  </update>
 
   <update id="updateById">
     UPDATE bill_info SET
@@ -92,7 +79,7 @@
         pair_id = #{item.pairId},
         is_delete = #{item.isDelete},
         update_time = NOW()
-      WHERE bill_id = #{item.billId} AND user_id = #{item.userId}
+      WHERE id = #{item.id} AND user_id = #{item.userId}
     </foreach>
   </update>
 
@@ -104,20 +91,20 @@
   <select id="findAllByUserIdAndBookId" resultMap="BillInfoResultMap">
     SELECT * FROM bill_info
     WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
-    ORDER BY update_time ASC, bill_id ASC
+    ORDER BY update_time ASC, id ASC
     LIMIT #{limit} OFFSET #{offset}
   </select>
 
   <select id="findIncrementalByUserIdAndBookId" resultMap="BillInfoResultMap">
     SELECT * FROM bill_info
     WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
-      AND (update_time > #{lastSyncTime} OR (update_time = #{lastSyncTime} AND bill_id > #{lastSyncBillId}))
-    ORDER BY update_time ASC, bill_id ASC
+      AND (update_time > #{lastSyncTime} OR (update_time = #{lastSyncTime} AND id > #{lastSyncId}))
+    ORDER BY update_time ASC, id ASC
     LIMIT #{limit} OFFSET #{offset}
   </select>
 
-  <select id="findMaxBillIdByUserIdAndBookId" resultType="String">
-    SELECT MAX(bill_id) FROM bill_info
+  <select id="findMaxIdByUserIdAndBookId" resultType="Long">
+    SELECT MAX(id) FROM bill_info
     WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
   </select>
 

@@ -1,5 +1,6 @@
 package com.remark.money.controller;
 
+import com.remark.money.entity.AccountInfo;
 import com.remark.money.entity.BillInfo;
 import com.remark.money.entity.SyncRecord;
 import com.remark.money.service.SyncService;
@@ -177,7 +178,7 @@ public class SyncController {
       @RequestParam("deviceId") String deviceId,
       @RequestParam("bookId") String bookId,
       @RequestParam(value = "lastSyncTime", required = false) String lastSyncTimeStr,
-      @RequestParam(value = "lastSyncBillId", required = false) String lastSyncBillId,
+      @RequestParam(value = "lastSyncId", required = false) Long lastSyncId,
       @RequestParam(value = "offset", defaultValue = "0") int offset,
       @RequestParam(value = "limit", defaultValue = "100") int limit) {
     try {
@@ -188,7 +189,7 @@ public class SyncController {
       }
 
       SyncService.SyncResult result = syncService.incrementalDownload(
-          userId, bookId, deviceId, lastSyncTime, lastSyncBillId, offset, limit);
+          userId, bookId, deviceId, lastSyncTime, lastSyncId, offset, limit);
 
       Map<String, Object> response = new HashMap<>();
       if (result.isSuccess()) {
@@ -258,7 +259,6 @@ public class SyncController {
     if (serverIdObj instanceof Number) {
       bill.setId(((Number) serverIdObj).longValue());
     }
-    bill.setBillId((String) map.get("billId"));
     bill.setBookId((String) map.get("bookId"));
     bill.setAccountId((String) map.get("accountId"));
     bill.setCategoryKey((String) map.get("categoryKey"));
@@ -312,12 +312,147 @@ public class SyncController {
     map.put("userId", record.getUserId());
     map.put("bookId", record.getBookId());
     map.put("deviceId", record.getDeviceId());
-    map.put("lastSyncBillId", record.getLastSyncBillId());
+    map.put("lastSyncId", record.getLastSyncId());
     map.put("lastSyncTime", record.getLastSyncTime() != null
         ? record.getLastSyncTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null);
     map.put("cloudBillCount", record.getCloudBillCount());
     map.put("syncDeviceId", record.getSyncDeviceId());
     map.put("dataVersion", record.getDataVersion());
+    return map;
+  }
+
+  /**
+   * 上传账户数据
+   */
+  @PostMapping("/account/upload")
+  public ResponseEntity<Map<String, Object>> uploadAccounts(
+      @RequestHeader("Authorization") String token,
+      @RequestBody Map<String, Object> request) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> accountsData = (List<Map<String, Object>>) request.get("accounts");
+
+      List<AccountInfo> accounts = accountsData.stream()
+          .map(this::mapToAccountInfo)
+          .collect(Collectors.toList());
+
+      SyncService.AccountSyncResult result = syncService.uploadAccounts(userId, accounts);
+
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put("accounts", result.getAccounts().stream()
+            .map(this::convertAccountInfo)
+            .collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("Account upload error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "服务器错误: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
+  /**
+   * 下载账户数据
+   */
+  @GetMapping("/account/download")
+  public ResponseEntity<Map<String, Object>> downloadAccounts(
+      @RequestHeader("Authorization") String token) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      SyncService.AccountSyncResult result = syncService.downloadAccounts(userId);
+
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put("accounts", result.getAccounts().stream()
+            .map(this::convertAccountInfo)
+            .collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("Account download error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "服务器错误: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
+  private AccountInfo mapToAccountInfo(Map<String, Object> map) {
+    AccountInfo account = new AccountInfo();
+    // serverId 从客户端回传，用于更新
+    Object serverIdObj = map.get("serverId");
+    if (serverIdObj instanceof Number) {
+      account.setId(((Number) serverIdObj).longValue());
+    }
+    // accountId 是客户端临时ID（首次上传时使用）
+    account.setAccountId((String) map.get("id"));
+    account.setName((String) map.get("name"));
+    account.setKind((String) map.get("kind"));
+    account.setSubtype((String) map.get("subtype"));
+    account.setType((String) map.get("type"));
+    account.setIcon((String) map.get("icon"));
+    account.setIncludeInTotal(((Number) map.getOrDefault("includeInTotal", 1)).intValue());
+    account.setIncludeInOverview(((Number) map.getOrDefault("includeInOverview", 1)).intValue());
+    account.setCurrency((String) map.getOrDefault("currency", "CNY"));
+    account.setSortOrder(((Number) map.getOrDefault("sortOrder", 0)).intValue());
+    account.setInitialBalance(new java.math.BigDecimal(map.getOrDefault("initialBalance", 0).toString()));
+    account.setCurrentBalance(new java.math.BigDecimal(map.getOrDefault("currentBalance", 0).toString()));
+    account.setCounterparty((String) map.get("counterparty"));
+    if (map.get("interestRate") != null) {
+      account.setInterestRate(new java.math.BigDecimal(map.get("interestRate").toString()));
+    }
+    if (map.get("dueDate") != null) {
+      account.setDueDate(LocalDateTime.parse((String) map.get("dueDate"), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    account.setNote((String) map.get("note"));
+    account.setBrandKey((String) map.get("brandKey"));
+    if (map.get("updateTime") != null) {
+      account.setUpdateTime(LocalDateTime.parse((String) map.get("updateTime"), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    return account;
+  }
+
+  private Map<String, Object> convertAccountInfo(AccountInfo account) {
+    Map<String, Object> map = new HashMap<>();
+    map.put("id", account.getId()); // 服务器ID（serverId）
+    map.put("name", account.getName());
+    map.put("kind", account.getKind());
+    map.put("subtype", account.getSubtype());
+    map.put("type", account.getType());
+    map.put("icon", account.getIcon());
+    map.put("includeInTotal", account.getIncludeInTotal());
+    map.put("includeInOverview", account.getIncludeInOverview());
+    map.put("currency", account.getCurrency());
+    map.put("sortOrder", account.getSortOrder());
+    map.put("initialBalance", account.getInitialBalance());
+    map.put("currentBalance", account.getCurrentBalance());
+    map.put("counterparty", account.getCounterparty());
+    map.put("interestRate", account.getInterestRate());
+    if (account.getDueDate() != null) {
+      map.put("dueDate", account.getDueDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    map.put("note", account.getNote());
+    map.put("brandKey", account.getBrandKey());
+    if (account.getUpdateTime() != null) {
+      map.put("updateTime", account.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    if (account.getCreatedAt() != null) {
+      map.put("createdAt", account.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
     return map;
   }
 }

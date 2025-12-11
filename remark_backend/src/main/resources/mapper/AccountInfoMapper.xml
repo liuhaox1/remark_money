@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.remark.money.mapper.AccountInfoMapper">
+
+  <resultMap id="AccountInfoResultMap" type="com.remark.money.entity.AccountInfo">
+    <id property="id" column="id"/>
+    <result property="userId" column="user_id"/>
+    <result property="accountId" column="account_id"/>
+    <result property="name" column="name"/>
+    <result property="kind" column="kind"/>
+    <result property="subtype" column="subtype"/>
+    <result property="type" column="type"/>
+    <result property="icon" column="icon"/>
+    <result property="includeInTotal" column="include_in_total"/>
+    <result property="includeInOverview" column="include_in_overview"/>
+    <result property="currency" column="currency"/>
+    <result property="sortOrder" column="sort_order"/>
+    <result property="initialBalance" column="initial_balance"/>
+    <result property="currentBalance" column="current_balance"/>
+    <result property="counterparty" column="counterparty"/>
+    <result property="interestRate" column="interest_rate"/>
+    <result property="dueDate" column="due_date"/>
+    <result property="note" column="note"/>
+    <result property="brandKey" column="brand_key"/>
+    <result property="updateTime" column="update_time"/>
+    <result property="createdAt" column="created_at"/>
+  </resultMap>
+
+  <select id="findById" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info WHERE id = #{id}
+  </select>
+
+  <select id="findByIds" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info WHERE id IN
+    <foreach item="id" collection="ids" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </select>
+
+  <select id="findByUserIdAndAccountId" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info WHERE user_id = #{userId} AND account_id = #{accountId} LIMIT 1
+  </select>
+
+  <select id="findAllByUserId" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info WHERE user_id = #{userId} ORDER BY sort_order ASC, id ASC
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
+                            include_in_total, include_in_overview, currency, sort_order,
+                            initial_balance, current_balance, counterparty, interest_rate,
+                            due_date, note, brand_key, update_time, created_at)
+    VALUES (#{userId}, #{accountId}, #{name}, #{kind}, #{subtype}, #{type}, #{icon},
+            #{includeInTotal}, #{includeInOverview}, #{currency}, #{sortOrder},
+            #{initialBalance}, #{currentBalance}, #{counterparty}, #{interestRate},
+            #{dueDate}, #{note}, #{brandKey}, NOW(), NOW())
+  </insert>
+
+  <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
+                            include_in_total, include_in_overview, currency, sort_order,
+                            initial_balance, current_balance, counterparty, interest_rate,
+                            due_date, note, brand_key, update_time, created_at)
+    VALUES
+    <foreach collection="list" item="item" separator=",">
+      (#{item.userId}, #{item.accountId}, #{item.name}, #{item.kind}, #{item.subtype}, #{item.type}, #{item.icon},
+       #{item.includeInTotal}, #{item.includeInOverview}, #{item.currency}, #{item.sortOrder},
+       #{item.initialBalance}, #{item.currentBalance}, #{item.counterparty}, #{item.interestRate},
+       #{item.dueDate}, #{item.note}, #{item.brandKey}, NOW(), NOW())
+    </foreach>
+  </insert>
+
+  <update id="updateById">
+    UPDATE account_info SET
+      name = #{name},
+      kind = #{kind},
+      subtype = #{subtype},
+      type = #{type},
+      icon = #{icon},
+      include_in_total = #{includeInTotal},
+      include_in_overview = #{includeInOverview},
+      currency = #{currency},
+      sort_order = #{sortOrder},
+      initial_balance = #{initialBalance},
+      current_balance = #{currentBalance},
+      counterparty = #{counterparty},
+      interest_rate = #{interestRate},
+      due_date = #{dueDate},
+      note = #{note},
+      brand_key = #{brandKey},
+      update_time = NOW()
+    WHERE id = #{id} AND user_id = #{userId}
+  </update>
+
+  <update id="batchUpdate">
+    <foreach collection="list" item="item" separator=";">
+      UPDATE account_info SET
+        name = #{item.name},
+        kind = #{item.kind},
+        subtype = #{item.subtype},
+        type = #{item.type},
+        icon = #{item.icon},
+        include_in_total = #{item.includeInTotal},
+        include_in_overview = #{item.includeInOverview},
+        currency = #{item.currency},
+        sort_order = #{item.sortOrder},
+        initial_balance = #{item.initialBalance},
+        current_balance = #{item.currentBalance},
+        counterparty = #{item.counterparty},
+        interest_rate = #{item.interestRate},
+        due_date = #{item.dueDate},
+        note = #{item.note},
+        brand_key = #{item.brandKey},
+        update_time = NOW()
+      WHERE id = #{item.id} AND user_id = #{item.userId}
+    </foreach>
+  </update>
+
+</mapper>
+

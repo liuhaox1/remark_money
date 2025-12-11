@@ -7,7 +7,7 @@ public class SyncRecord {
   private Long userId;
   private String bookId;
   private String deviceId;
-  private String lastSyncBillId;
+  private Long lastSyncId;
   private LocalDateTime lastSyncTime;
   private Integer cloudBillCount;
   private String syncDeviceId;
@@ -48,12 +48,12 @@ public class SyncRecord {
     this.deviceId = deviceId;
   }
 
-  public String getLastSyncBillId() {
-    return lastSyncBillId;
+  public Long getLastSyncId() {
+    return lastSyncId;
   }
 
-  public void setLastSyncBillId(String lastSyncBillId) {
-    this.lastSyncBillId = lastSyncBillId;
+  public void setLastSyncId(Long lastSyncId) {
+    this.lastSyncId = lastSyncId;
   }
 
   public LocalDateTime getLastSyncTime() {

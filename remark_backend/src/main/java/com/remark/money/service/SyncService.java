@@ -2,19 +2,21 @@ package com.remark.money.service;
 
 import com.remark.money.common.ErrorCode;
 import com.remark.money.common.QuotaResult;
+import com.remark.money.entity.AccountInfo;
 import com.remark.money.entity.BillInfo;
 import com.remark.money.entity.SyncRecord;
 import com.remark.money.entity.User;
+import com.remark.money.mapper.AccountInfoMapper;
 import com.remark.money.mapper.BillInfoMapper;
 import com.remark.money.mapper.SyncRecordMapper;
 import com.remark.money.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -25,11 +27,13 @@ public class SyncService {
   private final UserMapper userMapper;
   private final BillInfoMapper billInfoMapper;
   private final SyncRecordMapper syncRecordMapper;
+  private final AccountInfoMapper accountInfoMapper;
 
-  public SyncService(UserMapper userMapper, BillInfoMapper billInfoMapper, SyncRecordMapper syncRecordMapper) {
+  public SyncService(UserMapper userMapper, BillInfoMapper billInfoMapper, SyncRecordMapper syncRecordMapper, AccountInfoMapper accountInfoMapper) {
     this.userMapper = userMapper;
     this.billInfoMapper = billInfoMapper;
     this.syncRecordMapper = syncRecordMapper;
+    this.accountInfoMapper = accountInfoMapper;
   }
 
   /**
@@ -112,78 +116,100 @@ public class SyncService {
       return SyncResult.error(quotaResult.getMessage());
     }
 
-    // 批量Upsert
-    int successCount = 0;
-    int skipCount = 0;
-    String maxBillId = null;
-    List<BillInfo> processed = new java.util.ArrayList<>();
-
+    // 过滤转账记录并设置基础字段
+    List<BillInfo> validBills = new java.util.ArrayList<>();
     for (BillInfo bill : bills) {
-      // 过滤转账记录：includeInStats == 0 的记录不参与同步
       if (bill.getIncludeInStats() != null && bill.getIncludeInStats() == 0) {
-        skipCount++;
-        continue;
+        continue; // 跳过转账记录
       }
-      
       bill.setUserId(userId);
       bill.setBookId(bookId);
-      bill.setIsDelete(0); // 确保有效
+      bill.setIsDelete(0);
+      validBills.add(bill);
+    }
 
-      try {
-        BillInfo existing = null;
-        if (bill.getId() != null) {
-          existing = billInfoMapper.findById(bill.getId());
-        }
-        if (existing == null) {
-          existing = billInfoMapper.findByBillId(bill.getBillId());
-        }
-        if (existing != null) {
-          bill.setId(existing.getId()); // 统一使用服务器ID
-          // 冲突处理：服务器端时间为准
-          if (existing.getUpdateTime() != null && bill.getUpdateTime() != null
-              && existing.getUpdateTime().isAfter(bill.getUpdateTime())) {
-            // 服务器端更新，跳过客户端数据
-            skipCount++;
-            if (maxBillId == null || bill.getBillId().compareTo(maxBillId) > 0) {
-              maxBillId = bill.getBillId();
-            }
-            continue;
-          }
-          // 更新
-          if (bill.getId() != null) {
-            billInfoMapper.updateById(bill);
-          } else {
-            billInfoMapper.update(bill);
-          }
-        } else {
-          // 检查超限（新增时）
-          if (quotaResult.isSuccess() || quotaResult.isWarning()) {
-            QuotaResult newQuotaResult = checkQuotaLimit(userId, bookId, currentCount + 1);
-            if (newQuotaResult.isError()) {
-              skipCount++;
-              continue;
-            }
-          }
-          // 插入
-          billInfoMapper.insert(bill);
-          currentCount++;
-        }
-        processed.add(bill);
-        successCount++;
-        if (maxBillId == null || bill.getBillId().compareTo(maxBillId) > 0) {
-          maxBillId = bill.getBillId();
-        }
-      } catch (DuplicateKeyException e) {
-        // 账单ID重复，跳过
-        log.warn("Duplicate bill_id: {}", bill.getBillId());
-        skipCount++;
+    if (validBills.isEmpty()) {
+      return SyncResult.success(0, bills.size() - validBills.size(), 
+          getSyncRecord(userId, bookId, deviceId), new java.util.ArrayList<>());
+    }
+
+    // 批量查询：收集所有需要查询的id
+    List<Long> idsToQuery = new java.util.ArrayList<>();
+    for (BillInfo bill : validBills) {
+      if (bill.getId() != null) {
+        idsToQuery.add(bill.getId());
       }
     }
+
+    // 批量查询现有记录
+    java.util.Map<Long, BillInfo> existingMap = new java.util.HashMap<>();
+    if (!idsToQuery.isEmpty()) {
+      List<BillInfo> existingBills = billInfoMapper.findByIds(idsToQuery);
+      for (BillInfo existing : existingBills) {
+        existingMap.put(existing.getId(), existing);
+      }
+    }
+
+    // 分类处理：更新列表和插入列表
+    List<BillInfo> toUpdate = new java.util.ArrayList<>();
+    List<BillInfo> toInsert = new java.util.ArrayList<>();
+    int skipCount = bills.size() - validBills.size(); // 转账记录数量
+    Long maxId = null;
+
+    for (BillInfo bill : validBills) {
+      BillInfo existing = bill.getId() != null ? existingMap.get(bill.getId()) : null;
+      
+      if (existing != null) {
+        // 冲突处理：服务器端时间为准
+        if (existing.getUpdateTime() != null && bill.getUpdateTime() != null
+            && existing.getUpdateTime().isAfter(bill.getUpdateTime())) {
+          skipCount++;
+          if (maxId == null || existing.getId() > maxId) {
+            maxId = existing.getId();
+          }
+          continue;
+        }
+        // 需要更新
+        bill.setId(existing.getId());
+        toUpdate.add(bill);
+        if (maxId == null || bill.getId() > maxId) {
+          maxId = bill.getId();
+        }
+      } else {
+        // 检查超限（新增时）
+        if (quotaResult.isSuccess() || quotaResult.isWarning()) {
+          QuotaResult newQuotaResult = checkQuotaLimit(userId, bookId, currentCount + toInsert.size() + 1);
+          if (newQuotaResult.isError()) {
+            skipCount++;
+            continue;
+          }
+        }
+        // 需要插入
+        toInsert.add(bill);
+      }
+    }
+
+    // 批量更新
+    if (!toUpdate.isEmpty()) {
+      billInfoMapper.batchUpdate(toUpdate);
+    }
+
+    // 批量插入
+    if (!toInsert.isEmpty()) {
+      billInfoMapper.batchInsert(toInsert);
+      currentCount += toInsert.size();
+    }
+
+    // 合并处理结果
+    List<BillInfo> processed = new java.util.ArrayList<>();
+    processed.addAll(toUpdate);
+    processed.addAll(toInsert);
+    int successCount = processed.size();
 
     // 更新同步记录（最后一批时）
     if (batchNum == totalBatches) {
       int finalCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
-      updateSyncRecord(userId, bookId, deviceId, maxBillId, LocalDateTime.now(), finalCount);
+      updateSyncRecord(userId, bookId, deviceId, maxId, LocalDateTime.now(), finalCount);
     }
 
     return SyncResult.success(successCount, skipCount, getSyncRecord(userId, bookId, deviceId), processed);
@@ -220,71 +246,99 @@ public class SyncService {
       return SyncResult.error(quotaResult.getMessage());
     }
 
-    int successCount = 0;
-    int skipCount = 0;
-    String maxBillId = null;
-    List<BillInfo> processed = new java.util.ArrayList<>();
-
+    // 过滤转账记录并设置基础字段
+    List<BillInfo> validBills = new java.util.ArrayList<>();
     for (BillInfo bill : bills) {
-      // 过滤转账记录：includeInStats == 0 的记录不参与同步
       if (bill.getIncludeInStats() != null && bill.getIncludeInStats() == 0) {
-        skipCount++;
-        continue;
+        continue; // 跳过转账记录
       }
-      
       bill.setUserId(userId);
       bill.setBookId(bookId);
       bill.setIsDelete(bill.getIsDelete() != null ? bill.getIsDelete() : 0);
+      validBills.add(bill);
+    }
 
-      try {
-        BillInfo existing = null;
-        if (bill.getId() != null) {
-          existing = billInfoMapper.findById(bill.getId());
-        }
-        if (existing == null) {
-          existing = billInfoMapper.findByBillId(bill.getBillId());
-        }
-        if (existing != null) {
-          bill.setId(existing.getId()); // 统一使用服务器ID
-          // 冲突处理
-          if (existing.getUpdateTime() != null && bill.getUpdateTime() != null
-              && existing.getUpdateTime().isAfter(bill.getUpdateTime())) {
-            skipCount++;
-            continue;
-          }
-          if (bill.getId() != null) {
-            billInfoMapper.updateById(bill);
-          } else {
-            billInfoMapper.update(bill);
-          }
-        } else {
-          // 新增时检查超限
-          if ((quotaResult.isSuccess() || quotaResult.isWarning()) && bill.getIsDelete() == 0) {
-            QuotaResult newQuotaResult = checkQuotaLimit(userId, bookId, currentCount + 1);
-            if (newQuotaResult.isError()) {
-              skipCount++;
-              continue;
-            }
-          }
-          billInfoMapper.insert(bill);
-          if (bill.getIsDelete() == 0) {
-            currentCount++;
-          }
-        }
-        processed.add(bill);
-        successCount++;
-        if (maxBillId == null || bill.getBillId().compareTo(maxBillId) > 0) {
-          maxBillId = bill.getBillId();
-        }
-      } catch (DuplicateKeyException e) {
-        log.warn("Duplicate bill_id: {}", bill.getBillId());
-        skipCount++;
+    if (validBills.isEmpty()) {
+      return SyncResult.success(0, bills.size(), 
+          getSyncRecord(userId, bookId, deviceId), new java.util.ArrayList<>());
+    }
+
+    // 批量查询：收集所有需要查询的id
+    List<Long> idsToQuery = new java.util.ArrayList<>();
+    for (BillInfo bill : validBills) {
+      if (bill.getId() != null) {
+        idsToQuery.add(bill.getId());
       }
     }
 
+    // 批量查询现有记录
+    java.util.Map<Long, BillInfo> existingMap = new java.util.HashMap<>();
+    if (!idsToQuery.isEmpty()) {
+      List<BillInfo> existingBills = billInfoMapper.findByIds(idsToQuery);
+      for (BillInfo existing : existingBills) {
+        existingMap.put(existing.getId(), existing);
+      }
+    }
+
+    // 分类处理：更新列表和插入列表
+    List<BillInfo> toUpdate = new java.util.ArrayList<>();
+    List<BillInfo> toInsert = new java.util.ArrayList<>();
+    int skipCount = bills.size() - validBills.size(); // 转账记录数量
+    Long maxId = null;
+
+    for (BillInfo bill : validBills) {
+      BillInfo existing = bill.getId() != null ? existingMap.get(bill.getId()) : null;
+      
+      if (existing != null) {
+        // 冲突处理：服务器端时间为准
+        if (existing.getUpdateTime() != null && bill.getUpdateTime() != null
+            && existing.getUpdateTime().isAfter(bill.getUpdateTime())) {
+          skipCount++;
+          if (maxId == null || existing.getId() > maxId) {
+            maxId = existing.getId();
+          }
+          continue;
+        }
+        // 需要更新
+        bill.setId(existing.getId());
+        toUpdate.add(bill);
+        if (maxId == null || bill.getId() > maxId) {
+          maxId = bill.getId();
+        }
+      } else {
+        // 检查超限（新增时）
+        if ((quotaResult.isSuccess() || quotaResult.isWarning()) && bill.getIsDelete() == 0) {
+          QuotaResult newQuotaResult = checkQuotaLimit(userId, bookId, currentCount + toInsert.size() + 1);
+          if (newQuotaResult.isError()) {
+            skipCount++;
+            continue;
+          }
+        }
+        // 需要插入
+        toInsert.add(bill);
+      }
+    }
+
+    // 批量更新
+    if (!toUpdate.isEmpty()) {
+      billInfoMapper.batchUpdate(toUpdate);
+    }
+
+    // 批量插入
+    if (!toInsert.isEmpty()) {
+      billInfoMapper.batchInsert(toInsert);
+      currentCount += toInsert.size();
+    }
+
+    // 合并处理结果
+    List<BillInfo> processed = new java.util.ArrayList<>();
+    processed.addAll(toUpdate);
+    processed.addAll(toInsert);
+    int successCount = processed.size();
+
     // 更新同步记录
     int finalCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
-    updateSyncRecord(userId, bookId, deviceId, maxBillId, LocalDateTime.now(), finalCount);
+    updateSyncRecord(userId, bookId, deviceId, maxId, LocalDateTime.now(), finalCount);
 
     return SyncResult.success(successCount, skipCount, getSyncRecord(userId, bookId, deviceId), processed);
   }
@@ -293,7 +347,7 @@ public class SyncService {
    * 增量拉取
    */
   public SyncResult incrementalDownload(Long userId, String bookId, String deviceId,
-                                       LocalDateTime lastSyncTime, String lastSyncBillId,
+                                       LocalDateTime lastSyncTime, Long lastSyncId,
                                        int offset, int limit) {
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError != null) {
@@ -301,7 +355,7 @@ public class SyncService {
     }
 
     List<BillInfo> bills = billInfoMapper.findIncrementalByUserIdAndBookId(
-        userId, bookId, lastSyncTime, lastSyncBillId, offset, limit);
+        userId, bookId, lastSyncTime, lastSyncId, offset, limit);
     SyncRecord syncRecord = getSyncRecord(userId, bookId, deviceId);
 
     return SyncResult.success(bills, syncRecord);
@@ -344,15 +398,112 @@ public class SyncService {
    * 更新同步记录（包含版本号）
    */
   private void updateSyncRecord(Long userId, String bookId, String deviceId,
-                                String lastSyncBillId, LocalDateTime lastSyncTime, int cloudBillCount) {
+                                Long lastSyncId, LocalDateTime lastSyncTime, int cloudBillCount) {
     SyncRecord record = getSyncRecord(userId, bookId, deviceId);
-    record.setLastSyncBillId(lastSyncBillId);
+    record.setLastSyncId(lastSyncId);
     record.setLastSyncTime(lastSyncTime);
     record.setCloudBillCount(cloudBillCount);
     record.setSyncDeviceId(deviceId);
     // 同步后版本号+1
     record.setDataVersion((record.getDataVersion() != null ? record.getDataVersion() : 1L) + 1);
     syncRecordMapper.upsert(record);
+  }
+
+  /**
+   * 上传账户数据
+   */
+  @Transactional
+  public AccountSyncResult uploadAccounts(Long userId, List<AccountInfo> accounts) {
+    // 权限校验
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return AccountSyncResult.error(permissionError.getMessage());
+    }
+
+    List<AccountInfo> toInsert = new ArrayList<>();
+    List<AccountInfo> toUpdate = new ArrayList<>();
+    List<AccountInfo> processed = new ArrayList<>();
+
+    for (AccountInfo account : accounts) {
+      account.setUserId(userId);
+
+      // 如果客户端提供了serverId，尝试查找现有记录
+      AccountInfo existing = null;
+      if (account.getId() != null) {
+        existing = accountInfoMapper.findById(account.getId());
+      }
+
+      // 如果通过serverId找不到，尝试通过临时accountId查找（首次上传）
+      if (existing == null && account.getAccountId() != null) {
+        existing = accountInfoMapper.findByUserIdAndAccountId(userId, account.getAccountId());
+      }
+
+      if (existing != null) {
+        // 冲突处理：服务器时间优先
+        if (existing.getUpdateTime() != null && account.getUpdateTime() != null
+            && existing.getUpdateTime().isAfter(account.getUpdateTime())) {
+          processed.add(existing);
+          continue;
+        }
+        account.setId(existing.getId());
+        toUpdate.add(account);
+      } else {
+        toInsert.add(account);
+      }
+    }
+
+    // 批量操作
+    if (!toUpdate.isEmpty()) {
+      accountInfoMapper.batchUpdate(toUpdate);
+      processed.addAll(toUpdate);
+    }
+    if (!toInsert.isEmpty()) {
+      accountInfoMapper.batchInsert(toInsert);
+      processed.addAll(toInsert);
+    }
+
+    return AccountSyncResult.success(processed);
+  }
+
+  /**
+   * 下载账户数据
+   */
+  public AccountSyncResult downloadAccounts(Long userId) {
+    // 权限校验
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return AccountSyncResult.error(permissionError.getMessage());
+    }
+
+    List<AccountInfo> accounts = accountInfoMapper.findAllByUserId(userId);
+    return AccountSyncResult.success(accounts);
+  }
+
+  /**
+   * 账户同步结果封装类
+   */
+  public static class AccountSyncResult {
+    private boolean success;
+    private String error;
+    private List<AccountInfo> accounts;
+
+    public static AccountSyncResult error(String error) {
+      AccountSyncResult result = new AccountSyncResult();
+      result.success = false;
+      result.error = error;
+      return result;
+    }
+
+    public static AccountSyncResult success(List<AccountInfo> accounts) {
+      AccountSyncResult result = new AccountSyncResult();
+      result.success = true;
+      result.accounts = accounts;
+      return result;
+    }
+
+    public boolean isSuccess() { return success; }
+    public String getError() { return error; }
+    public List<AccountInfo> getAccounts() { return accounts; }
   }
 
   /**

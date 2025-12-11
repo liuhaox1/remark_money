@@ -154,7 +154,7 @@ class SyncService {
   Future<SyncResult> incrementalDownload({
     required String bookId,
     String? lastSyncTime,
-    String? lastSyncBillId,
+    int? lastSyncId,
     int offset = 0,
     int limit = 100,
   }) async {
@@ -168,8 +168,8 @@ class SyncService {
     if (lastSyncTime != null) {
       url += '&lastSyncTime=$lastSyncTime';
     }
-    if (lastSyncBillId != null) {
-      url += '&lastSyncBillId=$lastSyncBillId';
+    if (lastSyncId != null) {
+      url += '&lastSyncId=$lastSyncId';
     }
 
     final resp = await http.get(
@@ -305,7 +305,11 @@ class SyncService {
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     if (data['success'] == true) {
-      return SyncResult.success();
+      // 返回处理后的账户列表（包含服务器ID）
+      final processedAccounts = (data['accounts'] as List?)
+          ?.map((e) => e as Map<String, dynamic>)
+          .toList() ?? [];
+      return SyncResult.success(accounts: processedAccounts);
     } else {
       return SyncResult.error(data['error'] as String? ?? '上传失败');
     }
@@ -343,7 +347,7 @@ class SyncRecord {
   final int? userId;
   final String? bookId;
   final String? deviceId;
-  final String? lastSyncBillId;
+  final int? lastSyncId;
   final String? lastSyncTime;
   final int? cloudBillCount;
   final String? syncDeviceId;
@@ -353,7 +357,7 @@ class SyncRecord {
     this.userId,
     this.bookId,
     this.deviceId,
-    this.lastSyncBillId,
+    this.lastSyncId,
     this.lastSyncTime,
     this.cloudBillCount,
     this.syncDeviceId,
@@ -365,7 +369,7 @@ class SyncRecord {
       userId: json['userId'] as int?,
       bookId: json['bookId'] as String?,
       deviceId: json['deviceId'] as String?,
-      lastSyncBillId: json['lastSyncBillId'] as String?,
+      lastSyncId: json['lastSyncId'] as int?,
       lastSyncTime: json['lastSyncTime'] as String?,
       cloudBillCount: json['cloudBillCount'] as int?,
       syncDeviceId: json['syncDeviceId'] as String?,

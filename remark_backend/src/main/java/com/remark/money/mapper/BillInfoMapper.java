@@ -10,11 +10,11 @@ import java.util.List;
 @Mapper
 public interface BillInfoMapper {
 
-  // 根据bill_id查询
-  BillInfo findByBillId(@Param("billId") String billId);
-
   // 根据id查询
   BillInfo findById(@Param("id") Long id);
+
+  // 批量根据id查询
+  List<BillInfo> findByIds(@Param("ids") List<Long> ids);
 
   // 插入账单
   void insert(BillInfo billInfo);
@@ -42,17 +42,17 @@ public interface BillInfoMapper {
       @Param("limit") int limit
   );
 
-  // 增量拉取：查询update_time > lastSyncTime 且 bill_id > lastSyncBillId 的账单
+  // 增量拉取：查询update_time > lastSyncTime 且 id > lastSyncId 的账单
   List<BillInfo> findIncrementalByUserIdAndBookId(
       @Param("userId") Long userId,
       @Param("bookId") String bookId,
       @Param("lastSyncTime") LocalDateTime lastSyncTime,
-      @Param("lastSyncBillId") String lastSyncBillId,
+      @Param("lastSyncId") Long lastSyncId,
       @Param("offset") int offset,
       @Param("limit") int limit
   );
 
-  // 查询用户的最大bill_id（用于全量同步）
-  String findMaxBillIdByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
+  // 查询用户的最大id（用于全量同步）
+  Long findMaxIdByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
 }
 

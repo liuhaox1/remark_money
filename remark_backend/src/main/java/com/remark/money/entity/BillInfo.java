@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 
 public class BillInfo {
   private Long id;
-  private String billId;
   private Long userId;
   private String bookId;
   private String accountId;
@@ -28,14 +27,6 @@ public class BillInfo {
 
   public void setId(Long id) {
     this.id = id;
-  }
-
-  public String getBillId() {
-    return billId;
-  }
-
-  public void setBillId(String billId) {
-    this.billId = billId;
   }
 
   public Long getUserId() {

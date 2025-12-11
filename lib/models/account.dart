@@ -40,6 +40,7 @@ enum AccountSubtype {
 class Account {
   const Account({
     required this.id,
+    this.serverId,
     required this.name,
     required this.kind,
     this.subtype = 'cash',
@@ -61,6 +62,7 @@ class Account {
   });
 
   final String id;
+  final int? serverId; // 服务器自增ID
   final String name;
   final AccountKind kind;
   final String subtype;
@@ -86,6 +88,7 @@ class Account {
 
   Account copyWith({
     String? id,
+    int? serverId,
     String? name,
     AccountKind? kind,
     String? subtype,
@@ -107,6 +110,7 @@ class Account {
   }) {
     return Account(
       id: id ?? this.id,
+      serverId: serverId ?? this.serverId,
       name: name ?? this.name,
       kind: kind ?? this.kind,
       subtype: subtype ?? this.subtype,
@@ -130,7 +134,8 @@ class Account {
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
+      'id': id, // 客户端临时ID（首次上传时使用）
+      'serverId': serverId, // 服务器ID（如果已同步）
       'name': name,
       'category': kind.name,
       'kind': kind.name,
@@ -174,8 +179,13 @@ class Account {
         0;
 
     final rawType = map['type'] as String?;
+    // 服务器返回时，id是serverId（int），需要生成临时ID
+    // 客户端上传时，id是临时ID（String），serverId是已同步的服务器ID
+    final serverId = map['id'] is int ? map['id'] as int? : map['serverId'] as int?;
+    final clientId = map['id'] is String ? map['id'] as String? : null;
     return Account(
-      id: map['id'] as String,
+      id: clientId ?? (serverId != null ? 'server_$serverId' : _generateTempId()),
+      serverId: serverId,
       name: map['name'] as String,
       kind: parsedKind,
       subtype: map['subtype'] as String? ?? _mapLegacySubtype(rawType),
@@ -210,6 +220,11 @@ class Account {
 
   factory Account.fromJson(String source) =>
       Account.fromMap(json.decode(source) as Map<String, dynamic>);
+}
+
+String _generateTempId() {
+  return DateTime.now().millisecondsSinceEpoch.toString() + 
+      (100000 + (DateTime.now().microsecond % 900000)).toString();
 }
 
 String _mapLegacySubtype(String? rawType) {

@@ -399,7 +399,7 @@ class _SyncPageState extends State<SyncPage> {
       final downloadResult = await _syncService.incrementalDownload(
         bookId: bookId,
         lastSyncTime: _syncRecord?.lastSyncTime,
-        lastSyncBillId: _syncRecord?.lastSyncBillId,
+        lastSyncId: _syncRecord?.lastSyncId,
       );
 
       if (downloadResult.success) {
@@ -537,8 +537,7 @@ class _SyncPageState extends State<SyncPage> {
   /// Record转Map
   Map<String, dynamic> _recordToMap(Record record) {
     return {
-      'billId': record.id,
-      'serverId': record.serverId,
+      'serverId': record.serverId, // 只传serverId，服务器不再需要billId
       'bookId': record.bookId,
       'accountId': record.accountId,
       'categoryKey': record.categoryKey,
@@ -555,9 +554,11 @@ class _SyncPageState extends State<SyncPage> {
 
   /// Map转Record
   Record _mapToRecord(Map<String, dynamic> map) {
+    // 服务器返回的id作为serverId，客户端生成临时id用于本地存储
+    final serverId = map['id'] as int?;
     return Record(
-      id: map['billId'] as String,
-      serverId: map['serverId'] as int?,
+      id: serverId != null ? 'server_$serverId' : _generateTempId(),
+      serverId: serverId,
       amount: (map['amount'] as num).toDouble(),
       remark: map['remark'] as String? ?? '',
       date: DateTime.parse(map['billDate'] as String),
@@ -574,14 +575,28 @@ class _SyncPageState extends State<SyncPage> {
 
   /// 回填服务器ID到本地记录
   Future<void> _applyServerIds(List<Map<String, dynamic>> bills) async {
+    if (!mounted) return;
     final recordProvider = context.read<RecordProvider>();
     for (final bill in bills) {
-      final billId = bill['billId'] as String?;
       final serverId = bill['id'] as int? ?? bill['serverId'] as int?;
-      if (billId != null && serverId != null) {
-        await recordProvider.setServerId(billId, serverId);
+      if (serverId != null) {
+        // 通过serverId查找本地记录并更新
+        final records = recordProvider.records;
+        try {
+          final localRecord = records.firstWhere((r) => r.serverId == serverId);
+          if (localRecord.serverId != serverId) {
+            await recordProvider.setServerId(localRecord.id, serverId);
+          }
+        } catch (e) {
+          // 本地不存在该记录，跳过（可能是新下载的记录）
+        }
       }
     }
+  }
+
+  String _generateTempId() {
+    return DateTime.now().millisecondsSinceEpoch.toString() + 
+        (100000 + (DateTime.now().microsecond % 900000)).toString();
   }
 
   /// 同步预算数据
@@ -636,41 +651,85 @@ class _SyncPageState extends State<SyncPage> {
       final accountProvider = context.read<AccountProvider>();
       final accounts = accountProvider.accounts;
       
-      // 上传账户数据
+      // 上传账户数据（使用临时ID）
       final accountsData = accounts.map((a) => a.toMap()).toList();
       
       final uploadResult = await _syncService.uploadAccounts(
         accounts: accountsData,
       );
       
-      if (uploadResult.success) {
-        // 下载云端账户数据（如果有更新）
-        final downloadResult = await _syncService.downloadAccounts();
-        if (downloadResult.success && downloadResult.accounts != null && 
-            downloadResult.accounts!.isNotEmpty) {
-          // 更新本地账户数据（合并策略：云端优先）
-          final cloudAccounts = downloadResult.accounts!;
-          for (final accountMap in cloudAccounts) {
-            try {
-              final account = Account.fromMap(accountMap);
-              // 检查本地是否存在
-              final existing = accountProvider.byId(account.id);
-              if (existing == null) {
-                // 新增账户
-                await accountProvider.addAccount(account, bookId: bookId);
-              } else {
-                // 更新账户（使用云端数据）
+      if (uploadResult.success && uploadResult.accounts != null) {
+        // 应用服务器返回的serverId到本地账户
+        await _applyAccountServerIds(uploadResult.accounts!);
+      }
+      
+      // 下载云端账户数据（如果有更新）
+      final downloadResult = await _syncService.downloadAccounts();
+      if (downloadResult.success && downloadResult.accounts != null && 
+          downloadResult.accounts!.isNotEmpty) {
+        // 更新本地账户数据（合并策略：云端优先）
+        final cloudAccounts = downloadResult.accounts!;
+        for (final accountMap in cloudAccounts) {
+          try {
+            // 服务器返回的id是serverId，需要转换为Account对象
+            final serverId = accountMap['id'] as int?;
+            if (serverId == null) continue;
+            
+            // 通过serverId查找本地账户
+            final existingAccount = accounts.firstWhere(
+              (a) => a.serverId == serverId,
+              orElse: () => Account.fromMap(accountMap),
+            );
+            
+            // 如果本地存在，更新serverId；否则创建新账户
+            if (existingAccount.serverId == null) {
+              // 更新本地账户的serverId
+              final updatedAccount = existingAccount.copyWith(serverId: serverId);
+              await accountProvider.updateAccount(updatedAccount, bookId: bookId);
+            } else {
+              // 检查是否需要更新（云端时间更新）
+              final cloudUpdateTime = accountMap['updateTime'] != null
+                  ? DateTime.tryParse(accountMap['updateTime'])
+                  : null;
+              if (cloudUpdateTime != null && 
+                  (existingAccount.updatedAt == null || 
+                   cloudUpdateTime.isAfter(existingAccount.updatedAt!))) {
+                // 使用云端数据更新
+                final account = Account.fromMap(accountMap);
                 await accountProvider.updateAccount(account, bookId: bookId);
               }
-            } catch (e) {
-              debugPrint('Failed to sync account: $e');
             }
+          } catch (e) {
+            debugPrint('Failed to sync account: $e');
           }
         }
       }
     } catch (e) {
       // 账户同步失败不影响其他数据同步
       debugPrint('Account sync failed: $e');
+    }
+  }
+
+  /// 应用服务器返回的serverId到本地账户
+  Future<void> _applyAccountServerIds(List<Map<String, dynamic>> accounts) async {
+    if (!mounted) return;
+    final accountProvider = context.read<AccountProvider>();
+    
+    for (final accountMap in accounts) {
+      final serverId = accountMap['id'] as int?;
+      final tempId = accountMap['id'] as String?; // 客户端临时ID（首次上传时）
+      
+      if (serverId == null) continue;
+      
+      // 通过临时ID查找本地账户
+      if (tempId != null) {
+        final existingAccount = accountProvider.byId(tempId);
+        if (existingAccount != null && existingAccount.serverId == null) {
+          // 更新本地账户的serverId
+          final updatedAccount = existingAccount.copyWith(serverId: serverId);
+          await accountProvider.updateAccount(updatedAccount);
+        }
+      }
     }
   }
 

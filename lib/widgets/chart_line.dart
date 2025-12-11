@@ -20,10 +20,13 @@ class ChartLine extends StatelessWidget {
 
     final spots = <FlSpot>[];
     double maxValue = 0;
+    double minValue = 0; // 确保最小值至少为0
     for (var i = 0; i < entries.length; i++) {
       final entry = entries[i];
-      maxValue = math.max(maxValue, entry.value);
-      spots.add(FlSpot(i.toDouble(), entry.value));
+      final value = math.max(0.0, entry.value).toDouble(); // 确保值不为负数并转换为double
+      maxValue = math.max(maxValue, value);
+      minValue = math.min(minValue, value);
+      spots.add(FlSpot(i.toDouble(), value));
     }
 
     // 计算合适的Y轴最大值
@@ -155,7 +158,7 @@ class ChartLine extends StatelessWidget {
           ],
           minX: 0,
           maxX: entries.isEmpty ? 0 : math.max(0, (entries.length - 1).toDouble()), // 确保X轴范围覆盖所有数据点，30天数据：0-29
-          minY: 0,
+          minY: math.min(0, minValue), // 如果数据中有负数，允许显示；否则为0
           maxY: maxY,
           lineTouchData: LineTouchData(
             enabled: false,

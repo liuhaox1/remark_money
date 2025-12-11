@@ -69,7 +69,6 @@ CREATE TABLE IF NOT EXISTS book_member (
 -- 账单表（云端同步）
 CREATE TABLE IF NOT EXISTS bill_info (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  bill_id VARCHAR(64) NOT NULL COMMENT '客户端生成的唯一ID',
   user_id BIGINT NOT NULL,
   book_id VARCHAR(64) NOT NULL,
   account_id VARCHAR(64) NOT NULL,
@@ -84,10 +83,8 @@ CREATE TABLE IF NOT EXISTS bill_info (
   is_delete TINYINT NOT NULL DEFAULT 0 COMMENT '0=有效,1=已删除',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_bill_id (bill_id),
   INDEX idx_user_book (user_id, book_id),
   INDEX idx_user_update (user_id, update_time),
-  INDEX idx_user_bill_id (user_id, bill_id),
   INDEX idx_delete (is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -109,9 +106,9 @@ CREATE TABLE IF NOT EXISTS budget_info (
 
 -- 账户表（云端同步）
 CREATE TABLE IF NOT EXISTS account_info (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '服务器自增ID',
   user_id BIGINT NOT NULL,
-  account_id VARCHAR(64) NOT NULL COMMENT '客户端生成的唯一ID',
+  account_id VARCHAR(64) NULL COMMENT '客户端生成的临时ID（仅用于首次上传匹配）',
   name VARCHAR(128) NOT NULL COMMENT '账户名称',
   kind VARCHAR(16) NOT NULL COMMENT '账户类型: asset, liability, lend',
   subtype VARCHAR(32) DEFAULT 'cash' COMMENT '账户子类型',
@@ -130,8 +127,8 @@ CREATE TABLE IF NOT EXISTS account_info (
   brand_key VARCHAR(64) DEFAULT NULL COMMENT '品牌标识',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_user_account (user_id, account_id),
-  INDEX idx_user_account (user_id, account_id)
+  INDEX idx_user_account_id (user_id, account_id),
+  INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 同步记录表
@@ -140,7 +137,7 @@ CREATE TABLE IF NOT EXISTS sync_record (
   user_id BIGINT NOT NULL,
   book_id VARCHAR(64) NOT NULL,
   device_id VARCHAR(64) NOT NULL COMMENT '设备唯一标识',
-  last_sync_bill_id VARCHAR(64) DEFAULT NULL COMMENT '上次同步的最大bill_id',
+  last_sync_id BIGINT DEFAULT NULL COMMENT '上次同步的最大id',
   last_sync_time DATETIME DEFAULT NULL COMMENT '上次同步时间',
   cloud_bill_count INT NOT NULL DEFAULT 0 COMMENT '云端账单数量（is_delete=0）',
   sync_device_id VARCHAR(64) DEFAULT NULL COMMENT '最后同步的设备ID',
@@ -150,4 +147,89 @@ CREATE TABLE IF NOT EXISTS sync_record (
   UNIQUE KEY uk_user_book_device (user_id, book_id, device_id),
   INDEX idx_user_book (user_id, book_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================================
+-- 数据库迁移脚本（从旧版本升级到新版本）
+-- ============================================================================
+-- 执行时间：2025-12-11
+-- 说明：移除 bill_id 字段，改为只使用自增 id
+-- 注意：以下迁移脚本仅用于从旧版本数据库升级，新数据库直接使用上面的 CREATE TABLE 即可
+
+-- 检查并删除 bill_id 相关索引和字段
+SET @db_name = DATABASE();
+
+-- 1. 删除 bill_id 的唯一索引（如果存在）
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS 
+    WHERE TABLE_SCHEMA = @db_name 
+      AND TABLE_NAME = 'bill_info' 
+      AND INDEX_NAME = 'uk_bill_id'
+);
+SET @sql = IF(@index_exists > 0, 'ALTER TABLE bill_info DROP INDEX uk_bill_id', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS 
+    WHERE TABLE_SCHEMA = @db_name 
+      AND TABLE_NAME = 'bill_info' 
+      AND INDEX_NAME = 'idx_user_bill_id'
+);
+SET @sql = IF(@index_exists > 0, 'ALTER TABLE bill_info DROP INDEX idx_user_bill_id', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 2. 删除 bill_info 表的 bill_id 字段（如果存在）
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS 
+    WHERE TABLE_SCHEMA = @db_name 
+      AND TABLE_NAME = 'bill_info' 
+      AND COLUMN_NAME = 'bill_id'
+);
+SET @sql = IF(@column_exists > 0, 'ALTER TABLE bill_info DROP COLUMN bill_id', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 3. 修改 sync_record 表：添加 last_sync_id 字段（如果不存在）
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS 
+    WHERE TABLE_SCHEMA = @db_name 
+      AND TABLE_NAME = 'sync_record' 
+      AND COLUMN_NAME = 'last_sync_id'
+);
+SET @sql = IF(@column_exists = 0, 
+    'ALTER TABLE sync_record ADD COLUMN last_sync_id BIGINT NULL COMMENT ''上次同步的最大id'' AFTER device_id', 
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 4. 迁移现有数据：将 last_sync_bill_id 转换为 last_sync_id（如果有对应的记录）
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS 
+    WHERE TABLE_SCHEMA = @db_name 
+      AND TABLE_NAME = 'sync_record' 
+      AND COLUMN_NAME = 'last_sync_bill_id'
+);
+SET @sql = IF(@column_exists > 0,
+    'UPDATE sync_record sr SET sr.last_sync_id = (SELECT MAX(bi.id) FROM bill_info bi WHERE bi.user_id = sr.user_id AND bi.book_id = sr.book_id AND bi.is_delete = 0 AND bi.include_in_stats = 1) WHERE sr.last_sync_bill_id IS NOT NULL',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 5. 删除旧的 last_sync_bill_id 字段（如果存在）
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS 
+    WHERE TABLE_SCHEMA = @db_name 
+      AND TABLE_NAME = 'sync_record' 
+      AND COLUMN_NAME = 'last_sync_bill_id'
+);
+SET @sql = IF(@column_exists > 0, 'ALTER TABLE sync_record DROP COLUMN last_sync_bill_id', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
