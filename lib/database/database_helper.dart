@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 1;
+const int _databaseVersion = 2;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -114,6 +114,10 @@ class DatabaseHelper {
       case 1:
         // 初始版本，已在 _onCreate 中处理
         break;
+      case 2:
+        // 为 records 表增加 server_id 字段（用于存储服务器自增ID）
+        await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN server_id INTEGER');
+        break;
       // 未来版本升级逻辑
       default:
         break;
@@ -126,6 +130,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${Tables.records} (
         id TEXT PRIMARY KEY,
+        server_id INTEGER,
         book_id TEXT NOT NULL,
         category_key TEXT NOT NULL,
         account_id TEXT NOT NULL,

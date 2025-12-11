@@ -1,5 +1,7 @@
 package com.remark.money.service;
 
+import com.remark.money.common.ErrorCode;
+import com.remark.money.common.QuotaResult;
 import com.remark.money.entity.BillInfo;
 import com.remark.money.entity.SyncRecord;
 import com.remark.money.entity.User;
@@ -32,22 +34,22 @@ public class SyncService {
 
   /**
    * 权限校验：检查用户是否有云端同步权限
-   * @return null=有权限, 非null=错误信息
+   * @return null=有权限, 非null=错误码
    */
-  public String checkSyncPermission(Long userId) {
+  public ErrorCode checkSyncPermission(Long userId) {
     User user = userMapper.findById(userId);
     if (user == null) {
-      return "用户不存在";
+      return ErrorCode.USER_NOT_FOUND;
     }
 
     // 免费用户
     if (user.getPayType() == null || user.getPayType() == 0) {
-      return "无云端同步权限，请先开通付费服务";
+      return ErrorCode.NO_SYNC_PERMISSION;
     }
 
     // 付费过期
     if (user.getPayExpire() != null && user.getPayExpire().isBefore(LocalDateTime.now())) {
-      return "付费已过期，请续费";
+      return ErrorCode.PAYMENT_EXPIRED;
     }
 
     return null; // 有权限
@@ -55,12 +57,12 @@ public class SyncService {
 
   /**
    * 检查数据量是否超限
-   * @return null=未超限, 非null=超限提示信息
+   * @return QuotaResult，包含错误码和消息参数
    */
-  public String checkQuotaLimit(Long userId, String bookId, int currentCount) {
+  public QuotaResult checkQuotaLimit(Long userId, String bookId, int currentCount) {
     User user = userMapper.findById(userId);
     if (user == null || user.getPayType() == null) {
-      return "用户信息异常";
+      return QuotaResult.error(ErrorCode.USER_INFO_ERROR);
     }
 
     int limit;
@@ -72,21 +74,22 @@ public class SyncService {
         limit = 50000;
         break;
       case 3: // 10元档
-        return null; // 不限
+        return QuotaResult.success(); // 不限
       default:
-        return "套餐类型异常";
+        return QuotaResult.error(ErrorCode.PLAN_TYPE_ERROR);
     }
 
     if (currentCount >= limit) {
-      return String.format("数据量超限，当前套餐最多%d条，请升级套餐", limit);
+      return QuotaResult.error(ErrorCode.QUOTA_EXCEEDED, limit);
     }
 
     // 80% 预警
     if (currentCount >= limit * 0.8) {
       log.warn("User {} quota warning: {}/{}", userId, currentCount, limit);
+      return QuotaResult.warning(ErrorCode.QUOTA_WARNING);
     }
 
-    return null;
+    return QuotaResult.success();
   }
 
   /**
@@ -95,33 +98,47 @@ public class SyncService {
   @Transactional
   public SyncResult fullUpload(Long userId, String bookId, String deviceId, List<BillInfo> bills, int batchNum, int totalBatches) {
     // 权限校验
-    String permissionError = checkSyncPermission(userId);
+    ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError != null) {
-      return SyncResult.error(permissionError);
+      return SyncResult.error(permissionError.getMessage());
     }
 
     // 统计当前云端账单数
     int currentCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
 
     // 检查超限（3元/5元用户）
-    String quotaError = checkQuotaLimit(userId, bookId, currentCount);
-    if (quotaError != null && !quotaError.contains("预警")) {
-      return SyncResult.error(quotaError);
+    QuotaResult quotaResult = checkQuotaLimit(userId, bookId, currentCount);
+    if (quotaResult.isError()) {
+      return SyncResult.error(quotaResult.getMessage());
     }
 
     // 批量Upsert
     int successCount = 0;
     int skipCount = 0;
     String maxBillId = null;
+    List<BillInfo> processed = new java.util.ArrayList<>();
 
     for (BillInfo bill : bills) {
+      // 过滤转账记录：includeInStats == 0 的记录不参与同步
+      if (bill.getIncludeInStats() != null && bill.getIncludeInStats() == 0) {
+        skipCount++;
+        continue;
+      }
+      
       bill.setUserId(userId);
       bill.setBookId(bookId);
       bill.setIsDelete(0); // 确保有效
 
       try {
-        BillInfo existing = billInfoMapper.findByBillId(bill.getBillId());
+        BillInfo existing = null;
+        if (bill.getId() != null) {
+          existing = billInfoMapper.findById(bill.getId());
+        }
+        if (existing == null) {
+          existing = billInfoMapper.findByBillId(bill.getBillId());
+        }
         if (existing != null) {
+          bill.setId(existing.getId()); // 统一使用服务器ID
           // 冲突处理：服务器端时间为准
           if (existing.getUpdateTime() != null && bill.getUpdateTime() != null
               && existing.getUpdateTime().isAfter(bill.getUpdateTime())) {
@@ -133,12 +150,16 @@ public class SyncService {
             continue;
           }
           // 更新
-          billInfoMapper.update(bill);
+          if (bill.getId() != null) {
+            billInfoMapper.updateById(bill);
+          } else {
+            billInfoMapper.update(bill);
+          }
         } else {
           // 检查超限（新增时）
-          if (quotaError == null) {
-            String newQuotaError = checkQuotaLimit(userId, bookId, currentCount + 1);
-            if (newQuotaError != null && !newQuotaError.contains("预警")) {
+          if (quotaResult.isSuccess() || quotaResult.isWarning()) {
+            QuotaResult newQuotaResult = checkQuotaLimit(userId, bookId, currentCount + 1);
+            if (newQuotaResult.isError()) {
               skipCount++;
               continue;
             }
@@ -147,6 +168,7 @@ public class SyncService {
           billInfoMapper.insert(bill);
           currentCount++;
         }
+        processed.add(bill);
         successCount++;
         if (maxBillId == null || bill.getBillId().compareTo(maxBillId) > 0) {
           maxBillId = bill.getBillId();
@@ -164,16 +186,16 @@ public class SyncService {
       updateSyncRecord(userId, bookId, deviceId, maxBillId, LocalDateTime.now(), finalCount);
     }
 
-    return SyncResult.success(successCount, skipCount, getSyncRecord(userId, bookId, deviceId));
+    return SyncResult.success(successCount, skipCount, getSyncRecord(userId, bookId, deviceId), processed);
   }
 
   /**
    * 全量拉取：分批返回所有有效账单
    */
   public SyncResult fullDownload(Long userId, String bookId, String deviceId, int offset, int limit) {
-    String permissionError = checkSyncPermission(userId);
+    ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError != null) {
-      return SyncResult.error(permissionError);
+      return SyncResult.error(permissionError.getMessage());
     }
 
     List<BillInfo> bills = billInfoMapper.findAllByUserIdAndBookId(userId, bookId, offset, limit);
@@ -187,41 +209,59 @@ public class SyncService {
    */
   @Transactional
   public SyncResult incrementalUpload(Long userId, String bookId, String deviceId, List<BillInfo> bills) {
-    String permissionError = checkSyncPermission(userId);
+    ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError != null) {
-      return SyncResult.error(permissionError);
+      return SyncResult.error(permissionError.getMessage());
     }
 
     int currentCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
-    String quotaError = checkQuotaLimit(userId, bookId, currentCount);
-    if (quotaError != null && !quotaError.contains("预警")) {
-      return SyncResult.error(quotaError);
+    QuotaResult quotaResult = checkQuotaLimit(userId, bookId, currentCount);
+    if (quotaResult.isError()) {
+      return SyncResult.error(quotaResult.getMessage());
     }
 
     int successCount = 0;
     int skipCount = 0;
     String maxBillId = null;
+    List<BillInfo> processed = new java.util.ArrayList<>();
 
     for (BillInfo bill : bills) {
+      // 过滤转账记录：includeInStats == 0 的记录不参与同步
+      if (bill.getIncludeInStats() != null && bill.getIncludeInStats() == 0) {
+        skipCount++;
+        continue;
+      }
+      
       bill.setUserId(userId);
       bill.setBookId(bookId);
       bill.setIsDelete(bill.getIsDelete() != null ? bill.getIsDelete() : 0);
 
       try {
-        BillInfo existing = billInfoMapper.findByBillId(bill.getBillId());
+        BillInfo existing = null;
+        if (bill.getId() != null) {
+          existing = billInfoMapper.findById(bill.getId());
+        }
+        if (existing == null) {
+          existing = billInfoMapper.findByBillId(bill.getBillId());
+        }
         if (existing != null) {
+          bill.setId(existing.getId()); // 统一使用服务器ID
           // 冲突处理
           if (existing.getUpdateTime() != null && bill.getUpdateTime() != null
               && existing.getUpdateTime().isAfter(bill.getUpdateTime())) {
             skipCount++;
             continue;
           }
-          billInfoMapper.update(bill);
+          if (bill.getId() != null) {
+            billInfoMapper.updateById(bill);
+          } else {
+            billInfoMapper.update(bill);
+          }
         } else {
           // 新增时检查超限
-          if (quotaError == null && bill.getIsDelete() == 0) {
-            String newQuotaError = checkQuotaLimit(userId, bookId, currentCount + 1);
-            if (newQuotaError != null && !newQuotaError.contains("预警")) {
+          if ((quotaResult.isSuccess() || quotaResult.isWarning()) && bill.getIsDelete() == 0) {
+            QuotaResult newQuotaResult = checkQuotaLimit(userId, bookId, currentCount + 1);
+            if (newQuotaResult.isError()) {
               skipCount++;
               continue;
             }
@@ -231,6 +271,7 @@ public class SyncService {
             currentCount++;
           }
         }
+        processed.add(bill);
         successCount++;
         if (maxBillId == null || bill.getBillId().compareTo(maxBillId) > 0) {
           maxBillId = bill.getBillId();
@@ -245,7 +286,7 @@ public class SyncService {
     int finalCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
     updateSyncRecord(userId, bookId, deviceId, maxBillId, LocalDateTime.now(), finalCount);
 
-    return SyncResult.success(successCount, skipCount, getSyncRecord(userId, bookId, deviceId));
+    return SyncResult.success(successCount, skipCount, getSyncRecord(userId, bookId, deviceId), processed);
   }
 
   /**
@@ -254,9 +295,9 @@ public class SyncService {
   public SyncResult incrementalDownload(Long userId, String bookId, String deviceId,
                                        LocalDateTime lastSyncTime, String lastSyncBillId,
                                        int offset, int limit) {
-    String permissionError = checkSyncPermission(userId);
+    ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError != null) {
-      return SyncResult.error(permissionError);
+      return SyncResult.error(permissionError.getMessage());
     }
 
     List<BillInfo> bills = billInfoMapper.findIncrementalByUserIdAndBookId(
@@ -270,9 +311,9 @@ public class SyncService {
    * 查询同步状态
    */
   public SyncResult queryStatus(Long userId, String bookId, String deviceId) {
-    String permissionError = checkSyncPermission(userId);
+    ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError != null) {
-      return SyncResult.error(permissionError);
+      return SyncResult.error(permissionError.getMessage());
     }
 
     SyncRecord syncRecord = getSyncRecord(userId, bookId, deviceId);
@@ -342,12 +383,13 @@ public class SyncService {
       return result;
     }
 
-    public static SyncResult success(int successCount, int skipCount, SyncRecord syncRecord) {
+    public static SyncResult success(int successCount, int skipCount, SyncRecord syncRecord, List<BillInfo> bills) {
       SyncResult result = new SyncResult();
       result.success = true;
       result.successCount = successCount;
       result.skipCount = skipCount;
       result.syncRecord = syncRecord;
+      result.bills = bills;
       return result;
     }
 

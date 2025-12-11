@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
+import '../services/sync_version_cache_service.dart';
+import '../providers/book_provider.dart';
 import 'login_landing_page.dart';
 
 class AccountSettingsPage extends StatefulWidget {
@@ -30,8 +33,44 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     });
   }
 
+
+  Future<void> _handleLogin() async {
+    final result = await Navigator.pushNamed(context, '/login');
+    if (result == true) {
+      await _refreshToken();
+      if (!mounted) return;
+      
+      // 登录成功后，拉取并缓存版本号
+      try {
+        final bookProvider = Provider.of<BookProvider>(context, listen: false);
+        final bookId = bookProvider.activeBookId;
+        if (bookId.isNotEmpty) {
+          final cacheService = SyncVersionCacheService();
+          await cacheService.fetchAndCacheVersion(bookId);
+        }
+      } catch (e) {
+        // 忽略版本号拉取失败，不影响登录流程
+      }
+      
+      Navigator.pop(context, true);
+    }
+  }
+  
   Future<void> _handleLogout() async {
     await _authService.clearToken();
+    
+    // 退出登录时清除版本号缓存
+    try {
+      final bookProvider = Provider.of<BookProvider>(context, listen: false);
+      final bookId = bookProvider.activeBookId;
+      if (bookId.isNotEmpty) {
+        final cacheService = SyncVersionCacheService();
+        await cacheService.clearCache(bookId);
+      }
+    } catch (e) {
+      // 忽略清除缓存失败
+    }
+    
     await _refreshToken();
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -41,15 +80,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       MaterialPageRoute(builder: (_) => const LoginLandingPage()),
       (route) => false, // 清除所有之前的路由
     );
-  }
-
-  Future<void> _handleLogin() async {
-    final result = await Navigator.pushNamed(context, '/login');
-    if (result == true) {
-      await _refreshToken();
-      if (!mounted) return;
-      Navigator.pop(context, true);
-    }
   }
 
   @override

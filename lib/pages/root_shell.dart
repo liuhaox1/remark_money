@@ -11,6 +11,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
 import '../services/sync_service.dart';
+import '../services/sync_version_cache_service.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
@@ -60,7 +61,7 @@ class _RootShellState extends State<RootShell> {
     });
   }
 
-  /// 登录时自动同步
+  /// 登录时拉取版本号并缓存（不再每次打开都请求服务器）
   Future<void> _performLoginSync() async {
     if (!mounted) return;
     
@@ -79,42 +80,20 @@ class _RootShellState extends State<RootShell> {
       }
       
       if (!mounted || !bookProvider.loaded) {
-        debugPrint('BookProvider not loaded after retries, skipping sync');
+        debugPrint('BookProvider not loaded after retries, skipping version fetch');
         return;
       }
       
       final bookId = bookProvider.activeBookId;
       if (bookId.isEmpty || !mounted) return;
 
-      // 静默同步，不显示错误提示
-      await _syncService.queryStatus(bookId: bookId).then((result) async {
-        if (!mounted) return;
-        if (result.success && result.syncRecord != null) {
-          // 检查版本号，如果不同则同步
-          final localVersion = await _getLocalVersion(bookId);
-          final serverVersion = result.syncRecord!.dataVersion ?? 0;
-          
-          if (localVersion != serverVersion) {
-            // 版本号不同，触发同步（静默）
-            // 这里可以调用sync_page的同步逻辑，但为了简化，先只查询状态
-            // 实际的同步会在sync_page的定时器中自动执行
-            debugPrint('Version mismatch: local=$localVersion, server=$serverVersion');
-          }
-        }
-      });
+      // 登录时拉取版本号并缓存（静默执行，不显示错误）
+      final cacheService = SyncVersionCacheService();
+      await cacheService.fetchAndCacheVersion(bookId);
     } catch (e, stackTrace) {
       // 静默失败，不显示错误，但记录详细日志
-      debugPrint('Login sync failed: $e');
+      debugPrint('Login version fetch failed: $e');
       debugPrint('Stack trace: $stackTrace');
-    }
-  }
-
-  Future<int> _getLocalVersion(String bookId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getInt('data_version_$bookId') ?? 0;
-    } catch (_) {
-      return 0;
     }
   }
 

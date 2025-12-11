@@ -126,6 +126,7 @@ class RecordRepositoryDb {
       
       final map = {
         'id': record.id,
+        'server_id': record.serverId,
         'book_id': record.bookId,
         'category_key': record.categoryKey,
         'account_id': record.accountId,
@@ -172,6 +173,26 @@ class RecordRepositoryDb {
       return await loadRecords(bookId: record.bookId);
     } catch (e, stackTrace) {
       debugPrint('[RecordRepositoryDb] update failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// 更新 serverId（用于同步回填服务器自增ID）
+  Future<void> updateServerId(String billId, int serverId) async {
+    try {
+      final db = await _dbHelper.database;
+      await db.update(
+        Tables.records,
+        {
+          'server_id': serverId,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        },
+        where: 'id = ?',
+        whereArgs: [billId],
+      );
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] updateServerId failed: $e');
       debugPrint('Stack trace: $stackTrace');
       rethrow;
     }
@@ -555,6 +576,7 @@ class RecordRepositoryDb {
   Record _mapToRecord(Map<String, dynamic> map) {
     return Record(
       id: map['id'] as String,
+      serverId: map['server_id'] as int?,
       bookId: map['book_id'] as String,
       categoryKey: map['category_key'] as String,
       accountId: map['account_id'] as String,

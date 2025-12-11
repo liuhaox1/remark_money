@@ -69,6 +69,7 @@ public class SyncController {
         response.put("successCount", result.getSuccessCount());
         response.put("skipCount", result.getSkipCount());
         response.put("syncRecord", convertSyncRecord(result.getSyncRecord()));
+        response.put("bills", result.getBills());
         if (result.getQuotaWarning() != null) {
           response.put("quotaWarning", result.getQuotaWarning());
         }
@@ -148,6 +149,7 @@ public class SyncController {
         response.put("successCount", result.getSuccessCount());
         response.put("skipCount", result.getSkipCount());
         response.put("syncRecord", convertSyncRecord(result.getSyncRecord()));
+        response.put("bills", result.getBills());
         if (result.getQuotaWarning() != null) {
           response.put("quotaWarning", result.getQuotaWarning());
         }
@@ -251,6 +253,11 @@ public class SyncController {
    */
   private BillInfo mapToBillInfo(Map<String, Object> map) {
     BillInfo bill = new BillInfo();
+    // serverId 从客户端回传，用于幂等/更新
+    Object serverIdObj = map.get("serverId");
+    if (serverIdObj instanceof Number) {
+      bill.setId(((Number) serverIdObj).longValue());
+    }
     bill.setBillId((String) map.get("billId"));
     bill.setBookId((String) map.get("bookId"));
     bill.setAccountId((String) map.get("accountId"));

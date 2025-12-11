@@ -13,6 +13,9 @@ public interface BillInfoMapper {
   // 根据bill_id查询
   BillInfo findByBillId(@Param("billId") String billId);
 
+  // 根据id查询
+  BillInfo findById(@Param("id") Long id);
+
   // 插入账单
   void insert(BillInfo billInfo);
 
@@ -21,6 +24,9 @@ public interface BillInfoMapper {
 
   // 更新账单（Upsert逻辑）
   void update(BillInfo billInfo);
+
+  // 根据id更新账单
+  void updateById(BillInfo billInfo);
 
   // 批量更新
   void batchUpdate(@Param("list") List<BillInfo> list);

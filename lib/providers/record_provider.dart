@@ -226,6 +226,30 @@ class RecordProvider extends ChangeNotifier {
     }
   }
 
+  /// 回填服务器ID（serverId），用于同步后写回本地
+  Future<void> setServerId(String billId, int serverId) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      await dbRepo.updateServerId(billId, serverId);
+      // 更新缓存中的记录
+      final index = _recentRecordsCache.indexWhere((r) => r.id == billId);
+      if (index != -1) {
+        _recentRecordsCache[index] = _recentRecordsCache[index].copyWith(serverId: serverId);
+      }
+      _clearCache();
+    } else {
+      // SharedPreferences 版本：更新内存缓存并持久化
+      final index = _recentRecordsCache.indexWhere((r) => r.id == billId);
+      if (index != -1) {
+        _recentRecordsCache[index] = _recentRecordsCache[index].copyWith(serverId: serverId);
+        final list = await _repository.update(_recentRecordsCache[index]);
+        _recentRecordsCache
+          ..clear()
+          ..addAll(list);
+      }
+    }
+  }
+
   Future<void> deleteRecord(
     String id, {
     AccountProvider? accountProvider,

@@ -4,6 +4,8 @@ enum TransactionDirection { out, income }
 
 class Record {
   final String id;
+  /// 服务器自增ID（同步成功后由后端下发），本地新建时为空
+  final int? serverId;
 
   /// 金额为绝对值，方向由 [direction] 控制。
   final double amount;
@@ -18,6 +20,7 @@ class Record {
 
   const Record({
     required this.id,
+    this.serverId,
     required this.amount,
     required this.remark,
     required this.date,
@@ -31,6 +34,7 @@ class Record {
 
   Record copyWith({
     String? id,
+    int? serverId,
     double? amount,
     String? remark,
     DateTime? date,
@@ -43,6 +47,7 @@ class Record {
   }) {
     return Record(
       id: id ?? this.id,
+      serverId: serverId ?? this.serverId,
       amount: amount ?? this.amount,
       remark: remark ?? this.remark,
       date: date ?? this.date,
@@ -58,6 +63,7 @@ class Record {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'serverId': serverId,
       'amount': amount,
       'remark': remark,
       'date': date.toIso8601String(),
@@ -96,6 +102,7 @@ class Record {
 
     return Record(
       id: map['id'] as String,
+      serverId: map['serverId'] as int?,
       amount: rawAmount,
       remark: map['remark'] as String,
       date: DateTime.parse(map['date'] as String),

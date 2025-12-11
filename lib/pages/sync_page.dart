@@ -8,7 +8,9 @@ import '../providers/budget_provider.dart';
 import '../providers/account_provider.dart';
 import '../services/sync_service.dart';
 import '../services/data_version_service.dart';
+import '../services/sync_version_cache_service.dart';
 import '../utils/error_handler.dart';
+import '../repository/repository_factory.dart';
 import 'vip_purchase_page.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -22,6 +24,7 @@ class SyncPage extends StatefulWidget {
 
 class _SyncPageState extends State<SyncPage> {
   final SyncService _syncService = SyncService();
+  final SyncVersionCacheService _versionCacheService = SyncVersionCacheService();
   bool _isSyncing = false;
   String _statusText = '准备同步';
   SyncRecord? _syncRecord;
@@ -103,9 +106,22 @@ class _SyncPageState extends State<SyncPage> {
         return;
       }
 
-      // 检查版本号：如果版本号相同，不需要同步
+      // 检查版本号：先尝试使用缓存的版本号，如果缓存不存在或过期，再请求服务器
       final localVersion = await DataVersionService.getVersion(bookId);
-      final serverVersion = _syncRecord?.dataVersion ?? 0;
+      int? serverVersion = _syncRecord?.dataVersion;
+      
+      // 如果_syncRecord中没有版本号，尝试从缓存获取
+      if (serverVersion == null || serverVersion == 0) {
+        serverVersion = await _versionCacheService.getCachedVersion(bookId);
+      }
+      
+      // 如果缓存也没有，才请求服务器（但只在手动同步时请求，自动同步时跳过）
+      if (serverVersion == null && isManual) {
+        await _loadStatus();
+        serverVersion = _syncRecord?.dataVersion ?? 0;
+      } else {
+        serverVersion ??= 0;
+      }
       
       if (localVersion == serverVersion && _syncRecord != null && 
           _syncRecord!.lastSyncTime != null && 
@@ -124,7 +140,17 @@ class _SyncPageState extends State<SyncPage> {
 
       if (!hasSyncRecord) {
         // 首次同步：检查本地是否有数据
-        final localRecords = recordProvider.records;
+        // 使用异步方法查询所有记录（包括数据库中的全部记录，不只是缓存）
+        List<Record> localRecords;
+        if (RepositoryFactory.isUsingDatabase) {
+          final dbRepo = RepositoryFactory.createRecordRepository();
+          localRecords = await dbRepo.loadRecords(bookId: bookId);
+        } else {
+          localRecords = recordProvider.records;
+        }
+        
+        // 过滤掉转账记录（includeInStats == false 的记录不参与同步）
+        localRecords = localRecords.where((r) => r.includeInStats).toList();
         final hasLocalData = localRecords.isNotEmpty;
 
         if (hasLocalData) {
@@ -183,8 +209,11 @@ class _SyncPageState extends State<SyncPage> {
       _statusText = '正在上传数据...';
     });
 
+    // 过滤掉转账记录（includeInStats == false 的记录不参与同步）
+    final filteredRecords = records.where((r) => r.includeInStats).toList();
+
     // 转换为Map格式
-    final bills = records.map((r) => _recordToMap(r)).toList();
+    final bills = filteredRecords.map((r) => _recordToMap(r)).toList();
 
     // 分批上传（每批500条）
     const batchSize = 500;
@@ -215,6 +244,11 @@ class _SyncPageState extends State<SyncPage> {
           return;
         }
         throw Exception(error);
+      }
+
+      // 回填服务器ID
+      if (result.bills != null && result.bills!.isNotEmpty) {
+        await _applyServerIds(result.bills!);
       }
 
       // 检查超额警告
@@ -317,9 +351,20 @@ class _SyncPageState extends State<SyncPage> {
       // 1. 上传增量（本地修改的）
       if (_syncRecord?.lastSyncTime != null) {
         final lastSyncTime = DateTime.parse(_syncRecord!.lastSyncTime!);
-        final localRecords = recordProvider.records
-            .where((r) => r.date.isAfter(lastSyncTime))
-            .toList();
+        
+        // 查询所有记录（不只是缓存），过滤掉转账记录
+        List<Record> localRecords;
+        if (RepositoryFactory.isUsingDatabase) {
+          final dbRepo = RepositoryFactory.createRecordRepository();
+          final allRecords = await dbRepo.loadRecords(bookId: bookId);
+          localRecords = allRecords
+              .where((r) => r.includeInStats && r.date.isAfter(lastSyncTime))
+              .toList();
+        } else {
+          localRecords = recordProvider.records
+              .where((r) => r.includeInStats && r.date.isAfter(lastSyncTime))
+              .toList();
+        }
 
         if (localRecords.isNotEmpty) {
           final bills = localRecords.map((r) => _recordToMap(r)).toList();
@@ -338,6 +383,11 @@ class _SyncPageState extends State<SyncPage> {
             }
             throw Exception(error);
           }
+
+        // 回填服务器ID
+        if (result.bills != null && result.bills!.isNotEmpty) {
+          await _applyServerIds(result.bills!);
+        }
 
           if (result.quotaWarning != null && mounted) {
             _showQuotaWarning(result.quotaWarning!);
@@ -488,6 +538,7 @@ class _SyncPageState extends State<SyncPage> {
   Map<String, dynamic> _recordToMap(Record record) {
     return {
       'billId': record.id,
+      'serverId': record.serverId,
       'bookId': record.bookId,
       'accountId': record.accountId,
       'categoryKey': record.categoryKey,
@@ -506,6 +557,7 @@ class _SyncPageState extends State<SyncPage> {
   Record _mapToRecord(Map<String, dynamic> map) {
     return Record(
       id: map['billId'] as String,
+      serverId: map['serverId'] as int?,
       amount: (map['amount'] as num).toDouble(),
       remark: map['remark'] as String? ?? '',
       date: DateTime.parse(map['billDate'] as String),
@@ -518,6 +570,18 @@ class _SyncPageState extends State<SyncPage> {
       includeInStats: (map['includeInStats'] as int? ?? 1) == 1,
       pairId: map['pairId'] as String?,
     );
+  }
+
+  /// 回填服务器ID到本地记录
+  Future<void> _applyServerIds(List<Map<String, dynamic>> bills) async {
+    final recordProvider = context.read<RecordProvider>();
+    for (final bill in bills) {
+      final billId = bill['billId'] as String?;
+      final serverId = bill['id'] as int? ?? bill['serverId'] as int?;
+      if (billId != null && serverId != null) {
+        await recordProvider.setServerId(billId, serverId);
+      }
+    }
   }
 
   /// 同步预算数据

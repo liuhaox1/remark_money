@@ -59,6 +59,9 @@ class SyncService {
       return SyncResult.success(
         successCount: data['successCount'] as int? ?? 0,
         skipCount: data['skipCount'] as int? ?? 0,
+        bills: (data['bills'] as List?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList(),
         syncRecord: data['syncRecord'] != null
             ? SyncRecord.fromJson(data['syncRecord'] as Map<String, dynamic>)
             : null,
@@ -134,6 +137,9 @@ class SyncService {
       return SyncResult.success(
         successCount: data['successCount'] as int? ?? 0,
         skipCount: data['skipCount'] as int? ?? 0,
+        bills: (data['bills'] as List?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList(),
         syncRecord: data['syncRecord'] != null
             ? SyncRecord.fromJson(data['syncRecord'] as Map<String, dynamic>)
             : null,
