@@ -140,30 +140,6 @@ class _UserStatsCardState extends State<UserStatsCard> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    label: '本月记账',
-                    value: '${_stats!.thisMonthCount}条',
-                    icon: Icons.receipt_long,
-                    color: cs.tertiary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    label: '累计记录',
-                    value: '${_stats!.totalRecords}条',
-                    icon: Icons.list_alt,
-                    color: cs.primaryContainer,
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
