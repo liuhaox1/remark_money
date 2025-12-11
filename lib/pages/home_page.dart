@@ -3336,6 +3336,13 @@ Future<Set<String>?> _openAccountMultiSelector({
         onDayChanged: (day) {
 
           setState(() => _selectedDay = day);
+          // 切换日期时清除缓存，确保收入/支出与所选月份同步
+          _clearCache();
+          _cachedMonthIncome = null;
+          _cachedMonthExpense = null;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _loadMonthStats();
+          });
 
         },
 
