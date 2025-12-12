@@ -1514,6 +1514,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           initialPeriodType: widget.periodType,
           initialStartDate: date,
           initialEndDate: date,
+          dayMode: true,
+          dayModeDate: date,
         ),
       ),
     );

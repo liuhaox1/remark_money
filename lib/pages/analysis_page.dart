@@ -14,7 +14,8 @@ import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
-import 'package:fl_chart/fl_chart.dart';
+import '../widgets/chart_entry.dart';
+import '../widgets/chart_line.dart';
 import 'add_record_page.dart';
 import 'bill_page.dart';
 import 'report_detail_page.dart';
@@ -466,44 +467,91 @@ class _AnalysisPageState extends State<AnalysisPage> {
     
     // 根据 periodType 生成趋势数据
     final trendData = <Map<String, dynamic>>[];
-    
+    final compareTrendData = <Map<String, dynamic>>[];
+
+    DateTime anchor = now;
+    if (year != now.year) {
+      anchor = DateTime(year, 12, 31, 23, 59, 59);
+    }
+
     if (periodType == PeriodType.year) {
-      // 年模式：生成12个月的数据
+      // 年模式：12个月月趋势 + 去年同比
       for (int month = 1; month <= 12; month++) {
         final monthDate = DateTime(year, month, 1);
-        final monthStats = await recordProvider.getMonthStatsAsync(monthDate, bookId);
-        
+        final monthStats =
+            await recordProvider.getMonthStatsAsync(monthDate, bookId);
+        final expense = math.max(0.0, monthStats.expense);
         trendData.add({
-          'month': '$month月',
+          'label': '$month月',
           'income': monthStats.income,
-          'expense': math.max(0.0, monthStats.expense), // 确保支出不为负数
+          'expense': expense,
           'balance': monthStats.income - monthStats.expense,
         });
+
+        final lastYearMonthDate = DateTime(year - 1, month, 1);
+        final lastStats =
+            await recordProvider.getMonthStatsAsync(lastYearMonthDate, bookId);
+        compareTrendData.add({
+          'label': '$month月',
+          'expense': math.max(0.0, lastStats.expense),
+        });
       }
-    } else {
-      // 月/周模式：生成近6个月的数据
-      final sixMonthsAgo = now.subtract(const Duration(days: 180));
+    } else if (periodType == PeriodType.month) {
+      // 月账单：近6个月月趋势
+      final sixMonthsAgo = DateTime(anchor.year, anchor.month - 5, 1);
       final recentRecords = await recordProvider.recordsForPeriodAsync(
         bookId,
         start: sixMonthsAgo,
-        end: now,
+        end: anchor,
       );
-      
+
       for (int i = 5; i >= 0; i--) {
-        final month = DateTime(now.year, now.month - i, 1);
-        final monthEnd = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
-        final monthRecords = recentRecords.where((r) => 
-          r.date.isAfter(month.subtract(const Duration(days: 1))) &&
-          r.date.isBefore(monthEnd.add(const Duration(days: 1)))
-        ).toList();
-        
-        final income = monthRecords.where((r) => r.isIncome).fold<double>(0, (sum, r) => sum + r.amount);
-        final expense = monthRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
-        
+        final month = DateTime(anchor.year, anchor.month - i, 1);
+        final monthEnd =
+            DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+        final monthRecords = recentRecords.where((r) =>
+            r.date.isAfter(month.subtract(const Duration(days: 1))) &&
+            r.date.isBefore(monthEnd.add(const Duration(days: 1)))).toList();
+
+        final income = monthRecords
+            .where((r) => r.isIncome)
+            .fold<double>(0, (sum, r) => sum + r.amount);
+        final expense = monthRecords
+            .where((r) => r.isExpense)
+            .fold<double>(0, (sum, r) => sum + r.amount);
         trendData.add({
-          'month': '${month.month}月',
+          'label': '${month.month}月',
           'income': income,
-          'expense': math.max(0.0, expense), // 确保支出不为负数
+          'expense': math.max(0.0, expense),
+          'balance': income - expense,
+        });
+      }
+    } else {
+      // 周报：近8周周趋势（按周汇总）
+      final start = anchor.subtract(const Duration(days: 7 * 7));
+      final recentRecords = await recordProvider.recordsForPeriodAsync(
+        bookId,
+        start: start,
+        end: anchor,
+      );
+
+      DateTime weekStart = DateUtilsX.startOfWeek(anchor);
+      for (int i = 7; i >= 0; i--) {
+        final ws = weekStart.subtract(Duration(days: 7 * i));
+        final we = ws.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+        final weekRecords = recentRecords.where((r) =>
+            !r.date.isBefore(ws) && !r.date.isAfter(we)).toList();
+        final expense = weekRecords
+            .where((r) => r.isExpense)
+            .fold<double>(0, (sum, r) => sum + r.amount);
+        final income = weekRecords
+            .where((r) => r.isIncome)
+            .fold<double>(0, (sum, r) => sum + r.amount);
+        final label = '${ws.month}/${ws.day}';
+        trendData.add({
+          'label': label,
+          'income': income,
+          'expense': math.max(0.0, expense),
           'balance': income - expense,
         });
       }
@@ -584,6 +632,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     
     return {
       'trendData': trendData,
+      'compareTrendData': compareTrendData,
       'categoryData': categoryList.take(10).map((e) {
         return {
           'category': e.key,
@@ -604,7 +653,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
   Widget _buildTrendAnalysisCard(ColorScheme cs, Map<String, dynamic> data) {
     final trendData = data['trendData'] as List<Map<String, dynamic>>? ?? [];
     if (trendData.isEmpty) return const SizedBox.shrink();
-    
+    final compareTrendData =
+        data['compareTrendData'] as List<Map<String, dynamic>>? ?? [];
+     
     return Card(
       color: cs.surface,
       child: Padding(
@@ -629,35 +680,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: _buildTrendChart(trendData, cs),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: trendData.map((item) {
-                return Expanded(
-                  child: Column(
-                    children: [
-                      Text(
-                        item['month'] as String,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '¥${(item['expense'] as double).toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
+              child: _buildTrendChart(trendData, compareTrendData, cs),
             ),
           ],
         ),
@@ -1046,6 +1069,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return entries;
   }
 
+  /*
   /// 构建趋势图表
   Widget _buildTrendChart(List<Map<String, dynamic>> data, ColorScheme cs) {
     if (data.isEmpty) {
@@ -1161,6 +1185,82 @@ class _AnalysisPageState extends State<AnalysisPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+  */
+
+  /// 构建趋势图表
+  Widget _buildTrendChart(
+    List<Map<String, dynamic>> data,
+    List<Map<String, dynamic>> compareData,
+    ColorScheme cs,
+  ) {
+    if (data.isEmpty) {
+      return Center(
+        child: Text(
+          '暂无数据',
+          style: TextStyle(color: cs.onSurface.withOpacity(0.6)),
+        ),
+      );
+    }
+
+    final entries = data
+        .map(
+          (e) => ChartEntry(
+            label: (e['label'] as String?) ?? '',
+            value: (e['expense'] as num?)?.toDouble() ?? 0.0,
+            color: cs.primary,
+          ),
+        )
+        .toList();
+
+    final compareEntries = compareData
+        .map(
+          (e) => ChartEntry(
+            label: (e['label'] as String?) ?? '',
+            value: (e['expense'] as num?)?.toDouble() ?? 0.0,
+            color: cs.outline,
+          ),
+        )
+        .toList();
+
+    Set<int> findAnomalyIndices(List<ChartEntry> list) {
+      if (list.length < 3) return const <int>{};
+      final values = list.map((e) => math.max(0.0, e.value)).toList();
+      final mean = values.reduce((a, b) => a + b) / values.length;
+      final variance =
+          values.map((v) => (v - mean) * (v - mean)).reduce((a, b) => a + b) /
+              values.length;
+      final std = math.sqrt(variance);
+      final anomalies = <int>{};
+      for (var i = 0; i < values.length; i++) {
+        if (values[i] > 0 && values[i] >= mean + 3 * std) {
+          anomalies.add(i);
+        }
+      }
+      final sorted = values.asMap().entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      if (sorted.length >= 2 && sorted.first.value > sorted[1].value * 2) {
+        anomalies.add(sorted.first.key);
+      }
+      return anomalies;
+    }
+
+    final values = entries.map((e) => math.max(0.0, e.value)).toList();
+    final avgY =
+        values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+    final anomalyIndices = findAnomalyIndices(entries);
+
+    return SizedBox(
+      height: 200,
+      width: double.infinity,
+      child: ChartLine(
+        entries: entries,
+        compareEntries: compareEntries.isEmpty ? null : compareEntries,
+        avgY: avgY > 0 ? avgY : null,
+        highlightIndices: anomalyIndices.isEmpty ? null : anomalyIndices,
+        bottomLabelBuilder: (index, entry) => entry.label,
       ),
     );
   }

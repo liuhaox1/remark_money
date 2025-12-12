@@ -40,6 +40,8 @@ class BillPage extends StatefulWidget {
     this.initialPeriodType,
     this.initialStartDate,
     this.initialEndDate,
+    this.dayMode = false,
+    this.dayModeDate,
   });
 
   final int? initialYear;
@@ -49,6 +51,8 @@ class BillPage extends StatefulWidget {
   final PeriodType? initialPeriodType;
   final DateTime? initialStartDate;
   final DateTime? initialEndDate;
+  final bool dayMode;
+  final DateTime? dayModeDate;
 
   @override
   State<BillPage> createState() => _BillPageState();
@@ -131,6 +135,14 @@ class _BillPageState extends State<BillPage> {
     if (widget.initialStartDate != null || widget.initialEndDate != null) {
       _startDate = widget.initialStartDate;
       _endDate = widget.initialEndDate;
+    }
+
+    if (widget.dayMode) {
+      _periodType = PeriodType.month;
+      if (_startDate == null && widget.dayModeDate != null) {
+        _startDate = widget.dayModeDate;
+        _endDate = widget.dayModeDate;
+      }
     }
   }
 
@@ -693,6 +705,35 @@ class _BillPageState extends State<BillPage> {
     final bookId = bookProvider.activeBookId;
     final bookName =
         bookProvider.activeBook?.name ?? AppStrings.defaultBook;
+
+    if (widget.dayMode) {
+      final date = widget.dayModeDate ?? _startDate ?? DateTime.now();
+      final dateTitle = DateUtilsX.ymd(date);
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('$dateTitle 明细'),
+        ),
+        body: Column(
+          children: [
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  AppStrings.currentBookLabel(bookName),
+                  style: TextStyle(fontSize: 11, color: cs.outline),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _buildMonthBill2(context, cs, bookId),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
