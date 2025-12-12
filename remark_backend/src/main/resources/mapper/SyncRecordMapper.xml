@@ -17,7 +17,19 @@
   </resultMap>
 
   <select id="findByUserBookDevice" resultMap="SyncRecordResultMap">
-    SELECT * FROM sync_record
+    SELECT
+      id,
+      user_id,
+      book_id,
+      device_id,
+      last_sync_id,
+      last_sync_time,
+      cloud_bill_count,
+      sync_device_id,
+      data_version,
+      created_at,
+      updated_at
+    FROM sync_record
     WHERE user_id = #{userId} AND book_id = #{bookId} AND device_id = #{deviceId}
   </select>
 
@@ -54,4 +66,3 @@
   </insert>
 
 </mapper>
-

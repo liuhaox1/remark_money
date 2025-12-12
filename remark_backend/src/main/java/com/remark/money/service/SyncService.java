@@ -412,8 +412,11 @@ public class SyncService {
   public SyncResult queryStatus(Long userId, String bookId, String deviceId) {
     assertBookMember(userId, bookId);
     SyncRecord syncRecord = getSyncRecord(userId, bookId, deviceId);
+    // 当前阶段同步默认开放，不需要每次查询用户信息；避免高频接口重复查 user 表
+    if (isSyncAlwaysEnabled()) {
+      return SyncResult.success(syncRecord, null);
+    }
     User user = userMapper.findById(userId);
-
     return SyncResult.success(syncRecord, user);
   }
 

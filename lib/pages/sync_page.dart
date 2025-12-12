@@ -13,7 +13,6 @@ import '../services/sync_version_cache_service.dart';
 import '../utils/error_handler.dart';
 import '../repository/repository_factory.dart';
 import 'vip_purchase_page.dart';
-import 'dart:async';
 
 class SyncPage extends StatefulWidget {
   const SyncPage({super.key});
@@ -28,15 +27,15 @@ class _SyncPageState extends State<SyncPage> {
   bool _isSyncing = false;
   String _statusText = '准备同步';
   SyncRecord? _syncRecord;
-  Timer? _syncTimer;
 
   @override
   void initState() {
     super.initState();
     _loadStatus().then((_) {
-      // 加载状态后，如果已登录且有同步记录，自动触发同步
-      if (mounted && _syncRecord != null && _syncRecord!.lastSyncTime != null) {
-        // 延迟一下，让用户看到状态
+      // 仅在用户进入同步页时做一次自动同步，避免后台轮询造成高频请求
+      if (mounted &&
+          _syncRecord != null &&
+          _syncRecord!.lastSyncTime != null) {
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
             _performAutoSync();
@@ -44,24 +43,11 @@ class _SyncPageState extends State<SyncPage> {
         });
       }
     });
-    // 启动30秒定时同步
-    _startPeriodicSync();
   }
 
   @override
   void dispose() {
-    _syncTimer?.cancel();
     super.dispose();
-  }
-
-  /// 启动定时同步（30秒一次）
-  void _startPeriodicSync() {
-    _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted && !_isSyncing) {
-        _performAutoSync();
-      }
-    });
   }
 
   Future<void> _loadStatus() async {
