@@ -15,9 +15,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   BuildContext? _context;
   StreamSubscription<String>? _outboxSub;
   Timer? _debounce;
+  Timer? _metaDebounce;
   final Set<String> _pendingBooks = <String>{};
   bool _syncing = false;
   bool _started = false;
+  int _lastMetaSyncMs = 0;
 
   void start(BuildContext context) {
     if (_started) return;
@@ -33,12 +35,15 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     final activeBookId = context.read<BookProvider>().activeBookId;
     if (activeBookId.isNotEmpty) {
       requestSync(activeBookId);
+      requestMetaSync(activeBookId);
     }
   }
 
   void stop() {
     _debounce?.cancel();
     _debounce = null;
+    _metaDebounce?.cancel();
+    _metaDebounce = null;
     _pendingBooks.clear();
     _outboxSub?.cancel();
     _outboxSub = null;
@@ -52,6 +57,27 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _pendingBooks.add(bookId);
     _debounce?.cancel();
     _debounce = Timer(const Duration(seconds: 3), _flush);
+  }
+
+  void requestMetaSync(String bookId) {
+    if (bookId.isEmpty) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // 元数据同步限频：至少间隔 10 分钟，避免账户同步造成大量 SQL
+    if (now - _lastMetaSyncMs < 10 * 60 * 1000) return;
+    _metaDebounce?.cancel();
+    _metaDebounce = Timer(const Duration(seconds: 2), () async {
+      final ctx = _context;
+      if (ctx == null || _syncing) return;
+      _syncing = true;
+      try {
+        await SyncEngine().syncMeta(ctx, bookId);
+        _lastMetaSyncMs = DateTime.now().millisecondsSinceEpoch;
+      } catch (e) {
+        debugPrint('[BackgroundSyncManager] meta sync failed: $e');
+      } finally {
+        _syncing = false;
+      }
+    });
   }
 
   Future<void> _flush() async {
@@ -84,6 +110,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
         final activeBookId = ctx.read<BookProvider>().activeBookId;
         if (activeBookId.isNotEmpty) {
           requestSync(activeBookId);
+          requestMetaSync(activeBookId);
         }
       }
     }

@@ -37,8 +37,22 @@
     </foreach>
   </select>
 
+  <select id="findByUserIdAndIds" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info WHERE user_id = #{userId} AND id IN
+    <foreach item="id" collection="ids" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </select>
+
   <select id="findByUserIdAndAccountId" resultMap="AccountInfoResultMap">
     SELECT * FROM account_info WHERE user_id = #{userId} AND account_id = #{accountId} LIMIT 1
+  </select>
+
+  <select id="findByUserIdAndAccountIds" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info WHERE user_id = #{userId} AND account_id IN
+    <foreach item="id" collection="accountIds" open="(" separator="," close=")">
+      #{id}
+    </foreach>
   </select>
 
   <select id="findAllByUserId" resultMap="AccountInfoResultMap">
@@ -93,28 +107,111 @@
   </update>
 
   <update id="batchUpdate">
-    <foreach collection="list" item="item" separator=";">
-      UPDATE account_info SET
-        name = #{item.name},
-        kind = #{item.kind},
-        subtype = #{item.subtype},
-        type = #{item.type},
-        icon = #{item.icon},
-        include_in_total = #{item.includeInTotal},
-        include_in_overview = #{item.includeInOverview},
-        currency = #{item.currency},
-        sort_order = #{item.sortOrder},
-        initial_balance = #{item.initialBalance},
-        current_balance = #{item.currentBalance},
-        counterparty = #{item.counterparty},
-        interest_rate = #{item.interestRate},
-        due_date = #{item.dueDate},
-        note = #{item.note},
-        brand_key = #{item.brandKey},
-        update_time = NOW()
-      WHERE id = #{item.id} AND user_id = #{item.userId}
-    </foreach>
+    <bind name="userId" value="list[0].userId"/>
+    UPDATE account_info
+    SET
+      name = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.name}
+        </foreach>
+        ELSE name
+      END,
+      kind = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.kind}
+        </foreach>
+        ELSE kind
+      END,
+      subtype = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.subtype}
+        </foreach>
+        ELSE subtype
+      END,
+      type = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.type}
+        </foreach>
+        ELSE type
+      END,
+      icon = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.icon}
+        </foreach>
+        ELSE icon
+      END,
+      include_in_total = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.includeInTotal}
+        </foreach>
+        ELSE include_in_total
+      END,
+      include_in_overview = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.includeInOverview}
+        </foreach>
+        ELSE include_in_overview
+      END,
+      currency = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.currency}
+        </foreach>
+        ELSE currency
+      END,
+      sort_order = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.sortOrder}
+        </foreach>
+        ELSE sort_order
+      END,
+      initial_balance = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.initialBalance}
+        </foreach>
+        ELSE initial_balance
+      END,
+      current_balance = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.currentBalance}
+        </foreach>
+        ELSE current_balance
+      END,
+      counterparty = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.counterparty}
+        </foreach>
+        ELSE counterparty
+      END,
+      interest_rate = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.interestRate}
+        </foreach>
+        ELSE interest_rate
+      END,
+      due_date = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.dueDate}
+        </foreach>
+        ELSE due_date
+      END,
+      note = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.note}
+        </foreach>
+        ELSE note
+      END,
+      brand_key = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.brandKey}
+        </foreach>
+        ELSE brand_key
+      END,
+      update_time = NOW()
+    WHERE user_id = #{userId}
+      AND id IN
+      <foreach item="item" collection="list" open="(" separator="," close=")">
+        #{item.id}
+      </foreach>
   </update>
 
 </mapper>
-

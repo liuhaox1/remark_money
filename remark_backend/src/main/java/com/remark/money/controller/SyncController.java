@@ -405,10 +405,10 @@ public class SyncController {
     account.setSubtype((String) map.get("subtype"));
     account.setType((String) map.get("type"));
     account.setIcon((String) map.get("icon"));
-    account.setIncludeInTotal(((Number) map.getOrDefault("includeInTotal", 1)).intValue());
-    account.setIncludeInOverview(((Number) map.getOrDefault("includeInOverview", 1)).intValue());
+    account.setIncludeInTotal(asInt(map.get("includeInTotal"), 1));
+    account.setIncludeInOverview(asInt(map.get("includeInOverview"), 1));
     account.setCurrency((String) map.getOrDefault("currency", "CNY"));
-    account.setSortOrder(((Number) map.getOrDefault("sortOrder", 0)).intValue());
+    account.setSortOrder(asInt(map.get("sortOrder"), 0));
     account.setInitialBalance(new java.math.BigDecimal(map.getOrDefault("initialBalance", 0).toString()));
     account.setCurrentBalance(new java.math.BigDecimal(map.getOrDefault("currentBalance", 0).toString()));
     account.setCounterparty((String) map.get("counterparty"));
@@ -424,6 +424,28 @@ public class SyncController {
       account.setUpdateTime(LocalDateTime.parse((String) map.get("updateTime"), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     }
     return account;
+  }
+
+  private int asInt(Object value, int defaultValue) {
+    if (value == null) return defaultValue;
+    if (value instanceof Number) {
+      return ((Number) value).intValue();
+    }
+    if (value instanceof Boolean) {
+      return ((Boolean) value) ? 1 : 0;
+    }
+    if (value instanceof String) {
+      String s = ((String) value).trim();
+      if (s.isEmpty()) return defaultValue;
+      if ("true".equalsIgnoreCase(s)) return 1;
+      if ("false".equalsIgnoreCase(s)) return 0;
+      try {
+        return Integer.parseInt(s);
+      } catch (NumberFormatException ignored) {
+        return defaultValue;
+      }
+    }
+    return defaultValue;
   }
 
   private Map<String, Object> convertAccountInfo(AccountInfo account) {
@@ -456,4 +478,3 @@ public class SyncController {
     return map;
   }
 }
-

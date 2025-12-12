@@ -1862,6 +1862,13 @@ class _BillPageState extends State<BillPage> {
       required ColorScheme cs,
       bool highlight = false,
     }) {
+      final titleColor = highlight ? cs.onPrimary : cs.primary;
+      final subtitleColor =
+          highlight ? cs.onPrimary.withOpacity(0.88) : cs.outline;
+      final bodyColor = highlight
+          ? cs.onPrimary.withOpacity(0.92)
+          : cs.onSurface.withOpacity(0.75);
+
       return Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1899,7 +1906,7 @@ class _BillPageState extends State<BillPage> {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: cs.primary,
+                color: titleColor,
               ),
             ),
           if (subtitle != null) ...[
@@ -1908,7 +1915,7 @@ class _BillPageState extends State<BillPage> {
               subtitle,
               style: TextStyle(
                 fontSize: 12,
-                color: cs.outline,
+                color: subtitleColor,
               ),
             ),
           ],
@@ -1918,7 +1925,7 @@ class _BillPageState extends State<BillPage> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.normal,
-              color: cs.onSurface.withOpacity(0.75),
+              color: bodyColor,
             ),
           )
         ],
@@ -3178,7 +3185,10 @@ class _BillPageState extends State<BillPage> {
     List<Record> records,
     Map<String, Category> categoryMap,
   ) {
-    var filtered = records;
+    // 账单明细只展示“收支记录”，不展示转账/借还款等不计入统计的记录
+    var filtered = records
+        .where((r) => r.includeInStats && !r.categoryKey.startsWith('transfer'))
+        .toList();
 
     // 关键词搜索
     final keyword = _searchKeyword.trim().toLowerCase();

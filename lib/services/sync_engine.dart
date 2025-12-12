@@ -41,9 +41,17 @@ class SyncEngine {
     final status = await _syncService.queryStatus(bookId: bookId);
     if (!status.success) return;
 
+    final localVersion = await DataVersionService.getVersion(bookId);
     final syncRecord = status.syncRecord;
+    final serverVersion = syncRecord?.dataVersion ?? 0;
     final hasEverSynced = syncRecord?.lastSyncTime != null &&
         (syncRecord!.lastSyncTime?.isNotEmpty ?? false);
+
+    // 无本地变更且服务器版本不变：直接跳过（不上传/不下载）
+    final pending = await _outbox.loadPending(bookId, limit: 1);
+    if (pending.isEmpty && hasEverSynced && localVersion == serverVersion) {
+      return;
+    }
 
     // 首次：尽量减少重复/冲突。云端有数据时先拉取，再上传本地修改队列。
     if (!hasEverSynced) {
@@ -59,21 +67,33 @@ class SyncEngine {
       }
     }
 
+    SyncRecord? latest = syncRecord;
+
     // 1) 先上传本地 outbox（包含历史修改/删除）
-    await _uploadOutbox(context, bookId);
+    latest = await _uploadOutbox(context, bookId) ?? latest;
 
     // 2) 再拉取云端增量（解决多设备）
-    await _downloadIncremental(context, bookId);
+    latest = await _downloadIncremental(
+          context,
+          bookId,
+          lastSyncTime: latest?.lastSyncTime,
+          lastSyncId: latest?.lastSyncId,
+        ) ??
+        latest;
 
-    // 3) 预算/账户同步（轻量，失败不影响账单）
+    // 3) 用服务器版本统一本地版本，避免重复触发
+    if (latest?.dataVersion != null) {
+      await DataVersionService.syncVersion(bookId, latest!.dataVersion!);
+    }
+  }
+
+  /// 同步“元数据”（预算/账户等低频数据）。
+  /// 设计为低频触发：登录后、前台唤醒、进入资产页等场景。
+  Future<void> syncMeta(BuildContext context, String bookId) async {
+    final tokenValid = await _authService.isTokenValid();
+    if (!tokenValid) return;
     await _syncBudget(context, bookId);
     await _syncAccounts(context, bookId);
-
-    // 4) 用服务器版本统一本地版本，避免重复触发
-    final refreshed = await _syncService.queryStatus(bookId: bookId);
-    if (refreshed.success && refreshed.syncRecord?.dataVersion != null) {
-      await DataVersionService.syncVersion(bookId, refreshed.syncRecord!.dataVersion!);
-    }
   }
 
   Future<int> _estimateLocalCount(String bookId) async {
@@ -176,17 +196,19 @@ class SyncEngine {
     }
   }
 
-  Future<void> _uploadOutbox(BuildContext context, String bookId) async {
+  Future<SyncRecord?> _uploadOutbox(BuildContext context, String bookId) async {
+    SyncRecord? latest;
     while (true) {
       final pending = await _outbox.loadPending(bookId, limit: 200);
-      if (pending.isEmpty) return;
+      if (pending.isEmpty) return latest;
 
       final bills = pending.map((e) => e.payload).toList();
       final result = await _syncService.incrementalUpload(bookId: bookId, bills: bills);
       if (!result.success) {
         debugPrint('[SyncEngine] incrementalUpload failed: ${result.error}');
-        return;
+        return latest;
       }
+      latest = result.syncRecord ?? latest;
 
       // 回填 serverId：优先用 serverId 精确匹配，否则在本批 outbox 的 localId 上匹配
       if (result.bills != null && result.bills!.isNotEmpty) {
@@ -201,20 +223,21 @@ class SyncEngine {
     }
   }
 
-  Future<void> _downloadIncremental(BuildContext context, String bookId) async {
-    final status = await _syncService.queryStatus(bookId: bookId);
-    if (!status.success) return;
-    final syncRecord = status.syncRecord;
-
+  Future<SyncRecord?> _downloadIncremental(
+    BuildContext context,
+    String bookId, {
+    String? lastSyncTime,
+    int? lastSyncId,
+  }) async {
     final downloadResult = await _syncService.incrementalDownload(
       bookId: bookId,
-      lastSyncTime: syncRecord?.lastSyncTime,
-      lastSyncId: syncRecord?.lastSyncId,
+      lastSyncTime: lastSyncTime,
+      lastSyncId: lastSyncId,
     );
-    if (!downloadResult.success) return;
+    if (!downloadResult.success) return null;
 
     final bills = downloadResult.bills ?? [];
-    if (bills.isEmpty) return;
+    if (bills.isEmpty) return downloadResult.syncRecord;
 
     final recordProvider = context.read<RecordProvider>();
     final accountProvider = context.read<AccountProvider>();
@@ -230,6 +253,8 @@ class SyncEngine {
         }
       });
     });
+
+    return downloadResult.syncRecord;
   }
 
   Map<String, dynamic> _recordToMap(Record record) {
@@ -518,9 +543,8 @@ class SyncEngine {
   Future<void> _syncAccounts(BuildContext context, String bookId) async {
     try {
       final accountProvider = context.read<AccountProvider>();
-      final accountsData = accountProvider.accounts.map((a) => a.toMap()).toList();
-      final uploadResult = await _syncService.uploadAccounts(accounts: accountsData);
-      if (!uploadResult.success) return;
+      // 元数据以服务器为准：不在后台做全量上传，避免频繁SQL与覆盖风险
+      // 账户的新增/修改应走专用服务接口（成功后再刷新）。
 
       final downloadResult = await _syncService.downloadAccounts();
       if (!downloadResult.success || downloadResult.accounts == null) return;

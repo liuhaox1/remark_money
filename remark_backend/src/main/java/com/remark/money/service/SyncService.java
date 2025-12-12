@@ -17,8 +17,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class SyncService {
@@ -41,11 +45,11 @@ public class SyncService {
 
   /**
    * 权限校验：检查用户是否有云端同步权限
-   * @return null=有权限, 非null=错误码
+   * @return ErrorCode.SUCCESS=有权限, 其他=错误码
    */
   public ErrorCode checkSyncPermission(Long userId) {
     // 当前阶段不区分付费/免费，同步默认开放
-    if (isSyncAlwaysEnabled()) return null;
+    if (isSyncAlwaysEnabled()) return ErrorCode.SUCCESS;
     User user = userMapper.findById(userId);
     if (user == null) {
       return ErrorCode.USER_NOT_FOUND;
@@ -61,7 +65,7 @@ public class SyncService {
       return ErrorCode.PAYMENT_EXPIRED;
     }
 
-    return null; // 有权限
+    return ErrorCode.SUCCESS;
   }
 
   /**
@@ -144,7 +148,7 @@ public class SyncService {
     assertBookMember(userId, bookId);
     // 权限校验
     ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError != null) {
+    if (permissionError.isError()) {
       return SyncResult.error(permissionError.getMessage());
     }
 
@@ -284,7 +288,7 @@ public class SyncService {
   public SyncResult incrementalUpload(Long userId, String bookId, String deviceId, List<BillInfo> bills) {
     assertBookMember(userId, bookId);
     ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError != null) {
+    if (permissionError.isError()) {
       return SyncResult.error(permissionError.getMessage());
     }
 
@@ -403,7 +407,51 @@ public class SyncService {
         : billInfoMapper.findIncrementalByUserIdAndBookId(userId, bookId, lastSyncTime, lastSyncId, offset, limit);
     SyncRecord syncRecord = getSyncRecord(userId, bookId, deviceId);
 
+    // 推进该设备的下载游标：避免同一批增量反复被拉取
+    if (bills != null && !bills.isEmpty()) {
+      LocalDateTime maxTime = lastSyncTime;
+      Long maxId = lastSyncId;
+      for (BillInfo b : bills) {
+        if (b.getUpdateTime() == null) continue;
+        if (maxTime == null || b.getUpdateTime().isAfter(maxTime)) {
+          maxTime = b.getUpdateTime();
+          maxId = b.getId();
+          continue;
+        }
+        if (b.getUpdateTime().isEqual(maxTime)) {
+          if (maxId == null || (b.getId() != null && b.getId() > maxId)) {
+            maxId = b.getId();
+          }
+        }
+      }
+      // 不提升 dataVersion（下载不应改变数据版本），只更新游标
+      updateSyncCursor(
+          userId,
+          bookId,
+          deviceId,
+          maxId,
+          maxTime,
+          syncRecord.getCloudBillCount() != null ? syncRecord.getCloudBillCount() : 0
+      );
+      syncRecord = getSyncRecord(userId, bookId, deviceId);
+    }
+
     return SyncResult.success(bills, syncRecord);
+  }
+
+  /**
+   * 更新同步游标（不增加 dataVersion）
+   */
+  private void updateSyncCursor(Long userId, String bookId, String deviceId,
+                                Long lastSyncId, LocalDateTime lastSyncTime, int cloudBillCount) {
+    SyncRecord record = getSyncRecord(userId, bookId, deviceId);
+    record.setLastSyncId(lastSyncId);
+    record.setLastSyncTime(lastSyncTime);
+    record.setCloudBillCount(cloudBillCount);
+    record.setSyncDeviceId(deviceId);
+    // 关键：不 bump dataVersion
+    record.setDataVersion(record.getDataVersion() != null ? record.getDataVersion() : 1L);
+    syncRecordMapper.upsert(record);
   }
 
   /**
@@ -468,18 +516,34 @@ public class SyncService {
     List<AccountInfo> toUpdate = new ArrayList<>();
     List<AccountInfo> processed = new ArrayList<>();
 
+    // 预加载：避免 N+1 查询
+    Set<Long> incomingIds = accounts.stream()
+        .map(AccountInfo::getId)
+        .filter(id -> id != null && id > 0)
+        .collect(Collectors.toSet());
+    Map<Long, AccountInfo> existingById = incomingIds.isEmpty()
+        ? new HashMap<>()
+        : accountInfoMapper.findByUserIdAndIds(userId, incomingIds).stream()
+            .collect(Collectors.toMap(AccountInfo::getId, a -> a));
+
+    Set<String> incomingAccountIds = accounts.stream()
+        .map(AccountInfo::getAccountId)
+        .filter(id -> id != null && !id.trim().isEmpty())
+        .collect(Collectors.toSet());
+    Map<String, AccountInfo> existingByAccountId = incomingAccountIds.isEmpty()
+        ? new HashMap<>()
+        : accountInfoMapper.findByUserIdAndAccountIds(userId, incomingAccountIds).stream()
+            .collect(Collectors.toMap(AccountInfo::getAccountId, a -> a));
+
     for (AccountInfo account : accounts) {
       account.setUserId(userId);
 
-      // 如果客户端提供了serverId，尝试查找现有记录
       AccountInfo existing = null;
       if (account.getId() != null) {
-        existing = accountInfoMapper.findById(account.getId());
+        existing = existingById.get(account.getId());
       }
-
-      // 如果通过serverId找不到，尝试通过临时accountId查找（首次上传）
       if (existing == null && account.getAccountId() != null) {
-        existing = accountInfoMapper.findByUserIdAndAccountId(userId, account.getAccountId());
+        existing = existingByAccountId.get(account.getAccountId());
       }
 
       if (existing != null) {

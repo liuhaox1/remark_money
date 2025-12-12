@@ -264,33 +264,7 @@ class _ProfilePageState extends State<ProfilePage> {
             constraints: const BoxConstraints(maxWidth: 430),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              children: [
-                // 本地存储提示
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: cs.primary.withOpacity(0.25), width: 1),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.info_outline,
-                          size: 18, color: cs.primary.withOpacity(0.9)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '数据默认保存在本地；登录后会自动备份到云端，无需手动操作。',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: cs.onSurface.withOpacity(0.85),
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              children: [                
                 const SizedBox(height: 12),
                 _buildHeaderCard(
                   context,

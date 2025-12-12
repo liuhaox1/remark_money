@@ -16,8 +16,14 @@ public interface AccountInfoMapper {
   // 批量根据id查询
   List<AccountInfo> findByIds(@Param("ids") Set<Long> ids);
 
+  // 批量根据 userId + ids 查询（防止越权/误匹配）
+  List<AccountInfo> findByUserIdAndIds(@Param("userId") Long userId, @Param("ids") Set<Long> ids);
+
   // 根据userId和accountId查询（用于匹配客户端临时ID）
   AccountInfo findByUserIdAndAccountId(@Param("userId") Long userId, @Param("accountId") String accountId);
+
+  // 批量根据 userId + accountId 查询（用于去 N+1）
+  List<AccountInfo> findByUserIdAndAccountIds(@Param("userId") Long userId, @Param("accountIds") Set<String> accountIds);
 
   // 查询用户所有账户
   List<AccountInfo> findAllByUserId(@Param("userId") Long userId);
@@ -34,4 +40,3 @@ public interface AccountInfoMapper {
   // 批量更新
   void batchUpdate(@Param("list") List<AccountInfo> list);
 }
-
