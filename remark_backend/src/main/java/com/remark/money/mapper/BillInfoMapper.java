@@ -34,9 +34,17 @@ public interface BillInfoMapper {
   // 查询用户的有效账单数量（is_delete=0）
   int countByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
 
+  int countByBookId(@Param("bookId") String bookId);
+
   // 全量拉取：查询用户所有有效账单，按update_time排序
   List<BillInfo> findAllByUserIdAndBookId(
       @Param("userId") Long userId,
+      @Param("bookId") String bookId,
+      @Param("offset") int offset,
+      @Param("limit") int limit
+  );
+
+  List<BillInfo> findAllByBookId(
       @Param("bookId") String bookId,
       @Param("offset") int offset,
       @Param("limit") int limit
@@ -52,7 +60,16 @@ public interface BillInfoMapper {
       @Param("limit") int limit
   );
 
+  List<BillInfo> findIncrementalByBookId(
+      @Param("bookId") String bookId,
+      @Param("lastSyncTime") LocalDateTime lastSyncTime,
+      @Param("lastSyncId") Long lastSyncId,
+      @Param("offset") int offset,
+      @Param("limit") int limit
+  );
+
   // 查询用户的最大id（用于全量同步）
   Long findMaxIdByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
-}
 
+  Long findMaxIdByBookId(@Param("bookId") String bookId);
+}

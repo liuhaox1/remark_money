@@ -119,6 +119,42 @@ class RecordRepositoryDb {
   }
 
   /// 保存记录（插入或更新）
+  /// 根据 serverId 加载记录（用于云端去重/合并）
+  Future<Record?> loadRecordByServerId(int serverId, {required String bookId}) async {
+    try {
+      final db = await _dbHelper.database;
+      final maps = await db.query(
+        Tables.records,
+        where: 'server_id = ? AND book_id = ?',
+        whereArgs: [serverId, bookId],
+        limit: 1,
+      );
+      if (maps.isEmpty) return null;
+      return _mapToRecord(maps.first);
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] loadRecordByServerId failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// 迁移账本ID（升级为多人账本时使用）
+  Future<void> migrateBookId(String oldBookId, String newBookId) async {
+    try {
+      final db = await _dbHelper.database;
+      await db.update(
+        Tables.records,
+        {'book_id': newBookId},
+        where: 'book_id = ?',
+        whereArgs: [oldBookId],
+      );
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] migrateBookId failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   Future<Record> saveRecord(Record record) async {
     try {
       final db = await _dbHelper.database;
@@ -591,4 +627,3 @@ class RecordRepositoryDb {
     );
   }
 }
-

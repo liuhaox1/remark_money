@@ -262,12 +262,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             const emptyText = AppStrings.emptyPeriodRecords;
 
             String? weeklySummaryText;
-            if (_isWeekMode && hasData) {
-              final currentExpense = expense;
-              final currentRange = range;
-              
-              // 使用异步方法获取上一周的支出
-              final prevExpense = data['prevWeekExpense'] as double? ?? 0.0;
+              if (_isWeekMode && hasData) {
+                final currentExpense = expense;
+                
+                // 使用异步方法获取上一周的支出
+                final prevExpense = data['prevWeekExpense'] as double? ?? 0.0;
               final diff = currentExpense - prevExpense;
               final topCategory = expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
 
@@ -3084,6 +3083,5 @@ class _DailyTrendStatItem extends StatelessWidget {
   }
 
 }
-
 
 

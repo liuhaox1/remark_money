@@ -8,6 +8,7 @@ import com.remark.money.entity.SyncRecord;
 import com.remark.money.entity.User;
 import com.remark.money.mapper.AccountInfoMapper;
 import com.remark.money.mapper.BillInfoMapper;
+import com.remark.money.mapper.BookMemberMapper;
 import com.remark.money.mapper.SyncRecordMapper;
 import com.remark.money.mapper.UserMapper;
 import org.slf4j.Logger;
@@ -28,12 +29,14 @@ public class SyncService {
   private final BillInfoMapper billInfoMapper;
   private final SyncRecordMapper syncRecordMapper;
   private final AccountInfoMapper accountInfoMapper;
+  private final BookMemberMapper bookMemberMapper;
 
-  public SyncService(UserMapper userMapper, BillInfoMapper billInfoMapper, SyncRecordMapper syncRecordMapper, AccountInfoMapper accountInfoMapper) {
+  public SyncService(UserMapper userMapper, BillInfoMapper billInfoMapper, SyncRecordMapper syncRecordMapper, AccountInfoMapper accountInfoMapper, BookMemberMapper bookMemberMapper) {
     this.userMapper = userMapper;
     this.billInfoMapper = billInfoMapper;
     this.syncRecordMapper = syncRecordMapper;
     this.accountInfoMapper = accountInfoMapper;
+    this.bookMemberMapper = bookMemberMapper;
   }
 
   /**
@@ -41,6 +44,8 @@ public class SyncService {
    * @return null=有权限, 非null=错误码
    */
   public ErrorCode checkSyncPermission(Long userId) {
+    // 当前阶段不区分付费/免费，同步默认开放
+    if (isSyncAlwaysEnabled()) return null;
     User user = userMapper.findById(userId);
     if (user == null) {
       return ErrorCode.USER_NOT_FOUND;
@@ -64,6 +69,7 @@ public class SyncService {
    * @return QuotaResult，包含错误码和消息参数
    */
   public QuotaResult checkQuotaLimit(Long userId, String bookId, int currentCount) {
+    if (isSyncAlwaysEnabled()) return QuotaResult.success();
     User user = userMapper.findById(userId);
     if (user == null || user.getPayType() == null) {
       return QuotaResult.error(ErrorCode.USER_INFO_ERROR);
@@ -96,11 +102,46 @@ public class SyncService {
     return QuotaResult.success();
   }
 
+  private boolean isSyncAlwaysEnabled() {
+    return true;
+  }
+
+  private boolean isServerBook(String bookId) {
+    if (bookId == null) return false;
+    try {
+      Long.parseLong(bookId);
+      return true;
+    } catch (NumberFormatException e) {
+      return false;
+    }
+  }
+
+  private void assertBookMember(Long userId, String bookId) {
+    if (!isServerBook(bookId)) return;
+    Long bid = Long.parseLong(bookId);
+    if (bookMemberMapper.find(bid, userId) == null) {
+      throw new IllegalArgumentException("无权限访问该多人账本");
+    }
+  }
+
+  private int countBills(Long userId, String bookId) {
+    return isServerBook(bookId)
+        ? billInfoMapper.countByBookId(bookId)
+        : billInfoMapper.countByUserIdAndBookId(userId, bookId);
+  }
+
+  private Long findMaxBillId(Long userId, String bookId) {
+    return isServerBook(bookId)
+        ? billInfoMapper.findMaxIdByBookId(bookId)
+        : billInfoMapper.findMaxIdByUserIdAndBookId(userId, bookId);
+  }
+
   /**
    * 全量上传：批量Upsert账单
    */
   @Transactional
   public SyncResult fullUpload(Long userId, String bookId, String deviceId, List<BillInfo> bills, int batchNum, int totalBatches) {
+    assertBookMember(userId, bookId);
     // 权限校验
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError != null) {
@@ -108,7 +149,7 @@ public class SyncService {
     }
 
     // 统计当前云端账单数
-    int currentCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
+    int currentCount = countBills(userId, bookId);
 
     // 检查超限（3元/5元用户）
     QuotaResult quotaResult = checkQuotaLimit(userId, bookId, currentCount);
@@ -158,6 +199,12 @@ public class SyncService {
 
     for (BillInfo bill : validBills) {
       BillInfo existing = bill.getId() != null ? existingMap.get(bill.getId()) : null;
+      if (existing != null && existing.getBookId() != null && !existing.getBookId().equals(bookId)) {
+        existing = null;
+      }
+      if (existing != null && existing.getBookId() != null && !existing.getBookId().equals(bookId)) {
+        existing = null;
+      }
       
       if (existing != null) {
         // 冲突处理：服务器端时间为准
@@ -170,6 +217,8 @@ public class SyncService {
           continue;
         }
         // 需要更新
+        bill.setUserId(existing.getUserId());
+        bill.setUserId(existing.getUserId());
         bill.setId(existing.getId());
         toUpdate.add(bill);
         if (maxId == null || bill.getId() > maxId) {
@@ -208,7 +257,7 @@ public class SyncService {
 
     // 更新同步记录（最后一批时）
     if (batchNum == totalBatches) {
-      int finalCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
+      int finalCount = countBills(userId, bookId);
       updateSyncRecord(userId, bookId, deviceId, maxId, LocalDateTime.now(), finalCount);
     }
 
@@ -219,12 +268,10 @@ public class SyncService {
    * 全量拉取：分批返回所有有效账单
    */
   public SyncResult fullDownload(Long userId, String bookId, String deviceId, int offset, int limit) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError != null) {
-      return SyncResult.error(permissionError.getMessage());
-    }
-
-    List<BillInfo> bills = billInfoMapper.findAllByUserIdAndBookId(userId, bookId, offset, limit);
+    assertBookMember(userId, bookId);
+    List<BillInfo> bills = isServerBook(bookId)
+        ? billInfoMapper.findAllByBookId(bookId, offset, limit)
+        : billInfoMapper.findAllByUserIdAndBookId(userId, bookId, offset, limit);
     SyncRecord syncRecord = getSyncRecord(userId, bookId, deviceId);
 
     return SyncResult.success(bills, syncRecord);
@@ -235,12 +282,13 @@ public class SyncService {
    */
   @Transactional
   public SyncResult incrementalUpload(Long userId, String bookId, String deviceId, List<BillInfo> bills) {
+    assertBookMember(userId, bookId);
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError != null) {
       return SyncResult.error(permissionError.getMessage());
     }
 
-    int currentCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
+    int currentCount = countBills(userId, bookId);
     QuotaResult quotaResult = checkQuotaLimit(userId, bookId, currentCount);
     if (quotaResult.isError()) {
       return SyncResult.error(quotaResult.getMessage());
@@ -337,7 +385,7 @@ public class SyncService {
     int successCount = processed.size();
 
     // 更新同步记录
-    int finalCount = billInfoMapper.countByUserIdAndBookId(userId, bookId);
+    int finalCount = countBills(userId, bookId);
     updateSyncRecord(userId, bookId, deviceId, maxId, LocalDateTime.now(), finalCount);
 
     return SyncResult.success(successCount, skipCount, getSyncRecord(userId, bookId, deviceId), processed);
@@ -349,13 +397,10 @@ public class SyncService {
   public SyncResult incrementalDownload(Long userId, String bookId, String deviceId,
                                        LocalDateTime lastSyncTime, Long lastSyncId,
                                        int offset, int limit) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError != null) {
-      return SyncResult.error(permissionError.getMessage());
-    }
-
-    List<BillInfo> bills = billInfoMapper.findIncrementalByUserIdAndBookId(
-        userId, bookId, lastSyncTime, lastSyncId, offset, limit);
+    assertBookMember(userId, bookId);
+    List<BillInfo> bills = isServerBook(bookId)
+        ? billInfoMapper.findIncrementalByBookId(bookId, lastSyncTime, lastSyncId, offset, limit)
+        : billInfoMapper.findIncrementalByUserIdAndBookId(userId, bookId, lastSyncTime, lastSyncId, offset, limit);
     SyncRecord syncRecord = getSyncRecord(userId, bookId, deviceId);
 
     return SyncResult.success(bills, syncRecord);
@@ -365,11 +410,7 @@ public class SyncService {
    * 查询同步状态
    */
   public SyncResult queryStatus(Long userId, String bookId, String deviceId) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError != null) {
-      return SyncResult.error(permissionError.getMessage());
-    }
-
+    assertBookMember(userId, bookId);
     SyncRecord syncRecord = getSyncRecord(userId, bookId, deviceId);
     User user = userMapper.findById(userId);
 
@@ -564,4 +605,3 @@ public class SyncService {
     public void setQuotaWarning(String quotaWarning) { this.quotaWarning = quotaWarning; }
   }
 }
-

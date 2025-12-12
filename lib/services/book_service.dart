@@ -13,8 +13,8 @@ class BookService {
     return await _authService.loadToken();
   }
 
-  /// 升级为多人账本
-  Future<Map<String, dynamic>> createMultiBook(String bookId) async {
+  /// 创建多人账本（服务器端自增ID）
+  Future<Map<String, dynamic>> createMultiBook(String name) async {
     final token = await _getToken();
     if (token == null) {
       throw Exception('未登录');
@@ -27,7 +27,7 @@ class BookService {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        'bookId': bookId,
+        'name': name,
       }),
     );
 
@@ -36,11 +36,10 @@ class BookService {
       final error = data['error'] as String? ?? '操作失败';
       throw Exception(error);
     }
-
     return data;
   }
 
-  /// 刷新邀请码
+  /// 刷新邀请码（仅多人账本）
   Future<Map<String, dynamic>> refreshInviteCode(String bookId) async {
     final token = await _getToken();
     if (token == null) {
@@ -54,7 +53,7 @@ class BookService {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        'bookId': bookId,
+        'bookId': int.parse(bookId),
       }),
     );
 
@@ -63,11 +62,10 @@ class BookService {
       final error = data['error'] as String? ?? '操作失败';
       throw Exception(error);
     }
-
     return data;
   }
 
-  /// 加入账本
+  /// 加入多人账本
   Future<Map<String, dynamic>> joinBook(String inviteCode) async {
     final token = await _getToken();
     if (token == null) {
@@ -81,7 +79,7 @@ class BookService {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        'inviteCode': inviteCode,
+        'code': inviteCode,
       }),
     );
 
@@ -90,8 +88,34 @@ class BookService {
       final error = data['error'] as String? ?? '操作失败';
       throw Exception(error);
     }
-
     return data;
   }
-}
 
+  /// 拉取服务器端多人账本列表
+  Future<List<Map<String, dynamic>>> listBooks() async {
+    final token = await _getToken();
+    if (token == null) {
+      throw Exception('未登录');
+    }
+
+    final resp = await http.get(
+      _uri('/api/book/list'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(resp.body);
+    if (resp.statusCode >= 400) {
+      final error = (data is Map<String, dynamic>)
+          ? (data['error'] as String? ?? '操作失败')
+          : '操作失败';
+      throw Exception(error);
+    }
+
+    if (data is List) {
+      return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    return const [];
+  }
+}

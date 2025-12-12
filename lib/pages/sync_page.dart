@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:provider/provider.dart';
 import '../models/record.dart';
 import '../models/account.dart';
@@ -296,21 +297,14 @@ class _SyncPageState extends State<SyncPage> {
       // 转换为Record并保存到本地
       for (final billMap in bills) {
         try {
-          final record = _mapToRecord(billMap);
-          await recordProvider.addRecord(
-            amount: record.amount,
-            remark: record.remark,
-            date: record.date,
-            categoryKey: record.categoryKey,
-            bookId: record.bookId,
-            accountId: record.accountId,
-            direction: record.direction,
-            includeInStats: record.includeInStats,
+          await _applyCloudBill(
+            billMap,
+            recordProvider: recordProvider,
             accountProvider: accountProvider,
           );
         } catch (e) {
           // 忽略单个记录错误，继续处理
-          print('Failed to add record: $e');
+          if (kDebugMode) debugPrint('Failed to add record: $e');
         }
       }
 
@@ -443,67 +437,14 @@ class _SyncPageState extends State<SyncPage> {
     // 暂时直接使用云端数据
     final recordProvider = context.read<RecordProvider>();
     try {
-      final record = _mapToRecord(billMap);
-      // 检查本地是否存在
-      final existing = recordProvider.records.firstWhere(
-        (r) => r.id == record.id,
-        orElse: () => record,
+      await _applyCloudBill(
+        billMap,
+        recordProvider: recordProvider,
+        accountProvider: context.read(),
       );
-
-      if (existing.id != record.id || existing.date != record.date) {
-        // 有冲突，显示差异提示
-        if (mounted) {
-          _showConflictDialog(billMap, existing);
-        }
-      } else {
-        // 无冲突，直接更新
-        // TODO: 更新本地记录
-      }
     } catch (e) {
-      print('Conflict handling error: $e');
+      if (kDebugMode) debugPrint('Conflict handling error: $e');
     }
-  }
-
-  /// 显示冲突对话框
-  void _showConflictDialog(Map<String, dynamic> cloudBill, Record localRecord) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          title: Text('发现云端更新', style: TextStyle(color: cs.onSurface)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('同一账单在其他设备更新过，已用云端版本覆盖本地。', 
-                  style: TextStyle(color: cs.onSurface)),
-              const SizedBox(height: 16),
-              Text('差异对比：', 
-                  style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('金额：本地 ${localRecord.amount} → 云端 ${cloudBill['amount']}', 
-                  style: TextStyle(color: cs.onSurface)),
-              Text('备注：本地 ${localRecord.remark} → 云端 ${cloudBill['remark'] ?? ''}', 
-                  style: TextStyle(color: cs.onSurface)),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('接受云端版本', style: TextStyle(color: cs.primary)),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                // TODO: 以本地为准并重试上传
-              },
-              child: Text('以本地为准', style: TextStyle(color: cs.onSurface)),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   /// 显示超额警告
@@ -573,6 +514,81 @@ class _SyncPageState extends State<SyncPage> {
   }
 
   /// 回填服务器ID到本地记录
+  Future<Record?> _findLocalByServerId(
+    int serverId, {
+    required String bookId,
+    required RecordProvider recordProvider,
+  }) async {
+    if (RepositoryFactory.isUsingDatabase) {
+      final repo = RepositoryFactory.createRecordRepository() as dynamic;
+      try {
+        final Record? found =
+            await repo.loadRecordByServerId(serverId, bookId: bookId);
+        if (found != null) return found;
+      } catch (_) {}
+    }
+    try {
+      return recordProvider.records.firstWhere(
+        (r) => r.serverId == serverId && r.bookId == bookId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _applyCloudBill(
+    Map<String, dynamic> billMap, {
+    required RecordProvider recordProvider,
+    required AccountProvider accountProvider,
+  }) async {
+    final serverId = billMap['id'] as int? ?? billMap['serverId'] as int?;
+    if (serverId == null) return;
+    final isDelete = (billMap['isDelete'] as int? ?? 0) == 1;
+    final bookId = billMap['bookId'] as String? ?? '';
+
+    final existing =
+        await _findLocalByServerId(serverId, bookId: bookId, recordProvider: recordProvider);
+
+    if (isDelete) {
+      if (existing != null) {
+        await recordProvider.deleteRecord(existing.id, accountProvider: accountProvider);
+      }
+      return;
+    }
+
+    final cloudRecord = _mapToRecord(billMap);
+    if (existing != null) {
+      final updated = existing.copyWith(
+        serverId: serverId,
+        amount: cloudRecord.amount,
+        remark: cloudRecord.remark,
+        date: cloudRecord.date,
+        categoryKey: cloudRecord.categoryKey,
+        bookId: cloudRecord.bookId,
+        accountId: cloudRecord.accountId,
+        direction: cloudRecord.direction,
+        includeInStats: cloudRecord.includeInStats,
+        pairId: cloudRecord.pairId,
+      );
+      await recordProvider.updateRecord(updated, accountProvider: accountProvider);
+      return;
+    }
+
+    final created = await recordProvider.addRecord(
+      amount: cloudRecord.amount,
+      remark: cloudRecord.remark,
+      date: cloudRecord.date,
+      categoryKey: cloudRecord.categoryKey,
+      bookId: cloudRecord.bookId,
+      accountId: cloudRecord.accountId,
+      direction: cloudRecord.direction,
+      includeInStats: cloudRecord.includeInStats,
+      pairId: cloudRecord.pairId,
+      accountProvider: accountProvider,
+    );
+    await recordProvider.setServerId(created.id, serverId);
+  }
+
   Future<void> _applyServerIds(List<Map<String, dynamic>> bills) async {
     if (!mounted) return;
     final recordProvider = context.read<RecordProvider>();

@@ -16,6 +16,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
+import '../models/book.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
 import '../services/gift_code_service.dart';
@@ -142,17 +143,15 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final giftCodeService = GiftCodeService();
       final result = await giftCodeService.redeem(code);
-      
+
       if (!mounted) return;
-      
-      // 关闭加载提示
-      Navigator.pop(context);
-      
+      Navigator.pop(context); // 关闭加载提示
+
       if (result.success) {
-        // 显示成功消息
-        String message = result.message;
+        var message = result.message;
         if (result.payExpire != null) {
-          final expireStr = '${result.payExpire!.year}-${result.payExpire!.month.toString().padLeft(2, '0')}-${result.payExpire!.day.toString().padLeft(2, '0')}';
+          final expireStr =
+              '${result.payExpire!.year}-${result.payExpire!.month.toString().padLeft(2, '0')}-${result.payExpire!.day.toString().padLeft(2, '0')}';
           message += '\n付费到期时间：$expireStr';
         }
         ErrorHandler.showSuccess(context, message);
@@ -161,12 +160,9 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } catch (e) {
       if (!mounted) return;
-      
-      // 关闭加载提示
-      Navigator.pop(context);
-      
-      // 显示错误消息
-      String errorMsg = e.toString().replaceFirst('Exception: ', '');
+      Navigator.pop(context); // 关闭加载提示
+
+      var errorMsg = e.toString().replaceFirst('Exception: ', '');
       if (errorMsg.contains('未登录')) {
         errorMsg = '未登录，请先登录';
       } else if (errorMsg.contains('格式不正确')) {
@@ -237,7 +233,13 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _joinBookByCodeStub(String code) async {
     final bookService = BookService();
     try {
-      await bookService.joinBook(code);
+      final result = await bookService.joinBook(code);
+      final serverBookId =
+          (result['id'] as num?)?.toInt().toString() ?? '';
+      final name = result['name'] as String? ?? '多人账本';
+      if (mounted && serverBookId.isNotEmpty) {
+        await context.read<BookProvider>().addServerBook(serverBookId, name);
+      }
       if (!mounted) return;
       ErrorHandler.showSuccess(context, '已成功加入账本');
     } catch (e) {
@@ -1291,7 +1293,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final controller = TextEditingController(text: initialName);
     final formKey = GlobalKey<FormState>();
     final bookProvider = context.read<BookProvider>();
-    final book = bookProvider.books.firstWhere((b) => b.id == id);
     
     // 检查是否已登录
     final loggedIn = _token != null && _token!.isNotEmpty;

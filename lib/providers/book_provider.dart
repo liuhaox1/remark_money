@@ -103,6 +103,47 @@ class BookProvider extends ChangeNotifier {
     }
   }
 
+  /// 添加一个服务器端多人账本（id 为服务器自增ID的字符串）
+  Future<void> addServerBook(String id, String name) async {
+    if (_books.any((b) => b.id == id)) return;
+    try {
+      final book = Book(id: id, name: name);
+      _books.add(book);
+      await _repository.saveBooks(_books);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BookProvider.addServerBook', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// 将本地账本升级为服务器多人账本（迁移记录 bookId 并替换本地Book id）
+  Future<void> upgradeLocalBookToServer(String oldBookId, String newBookId) async {
+    final index = _books.indexWhere((b) => b.id == oldBookId);
+    if (index == -1) return;
+    try {
+      final name = _books[index].name;
+      _books[index] = Book(id: newBookId, name: name);
+      if (_activeBookId == oldBookId) {
+        _activeBookId = newBookId;
+        await _repository.saveActiveBookId(newBookId);
+      }
+      await _repository.saveBooks(_books);
+
+      if (RepositoryFactory.isUsingDatabase) {
+        final repo = RepositoryFactory.createRecordRepository() as dynamic;
+        try {
+          await repo.migrateBookId(oldBookId, newBookId);
+        } catch (_) {}
+      }
+
+      notifyListeners();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('BookProvider.upgradeLocalBookToServer', e, stackTrace);
+      rethrow;
+    }
+  }
+
   String _generateId() {
     final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
     final random = _random.nextInt(1 << 20).toRadixString(16);

@@ -88,6 +88,11 @@
     WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
   </select>
 
+  <select id="countByBookId" resultType="int">
+    SELECT COUNT(*) FROM bill_info
+    WHERE book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
+  </select>
+
   <select id="findAllByUserIdAndBookId" resultMap="BillInfoResultMap">
     SELECT * FROM bill_info
     WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
@@ -95,9 +100,24 @@
     LIMIT #{limit} OFFSET #{offset}
   </select>
 
+  <select id="findAllByBookId" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info
+    WHERE book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
+    ORDER BY update_time ASC, id ASC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
   <select id="findIncrementalByUserIdAndBookId" resultMap="BillInfoResultMap">
     SELECT * FROM bill_info
-    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND include_in_stats = 1
+      AND (update_time > #{lastSyncTime} OR (update_time = #{lastSyncTime} AND id > #{lastSyncId}))
+    ORDER BY update_time ASC, id ASC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="findIncrementalByBookId" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info
+    WHERE book_id = #{bookId} AND include_in_stats = 1
       AND (update_time > #{lastSyncTime} OR (update_time = #{lastSyncTime} AND id > #{lastSyncId}))
     ORDER BY update_time ASC, id ASC
     LIMIT #{limit} OFFSET #{offset}
@@ -108,5 +128,9 @@
     WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
   </select>
 
-</mapper>
+  <select id="findMaxIdByBookId" resultType="Long">
+    SELECT MAX(id) FROM bill_info
+    WHERE book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
+  </select>
 
+</mapper>
