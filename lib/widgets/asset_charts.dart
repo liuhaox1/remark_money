@@ -6,7 +6,6 @@ import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/book_provider.dart';
-import '../utils/date_utils.dart';
 import '../theme/app_tokens.dart';
 import '../l10n/app_strings.dart';
 import '../pages/account_detail_page.dart';
@@ -739,4 +738,3 @@ class _DayNetWorth {
 
   _DayNetWorth({required this.date, required this.netWorth});
 }
-

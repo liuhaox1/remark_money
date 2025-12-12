@@ -10,14 +10,12 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
-import '../services/sync_service.dart';
 import '../services/sync_version_cache_service.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../utils/error_handler.dart';
 import '../utils/validators.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'account_detail_page.dart';
 import 'add_account_type_page.dart';
@@ -35,7 +33,6 @@ class RootShell extends StatefulWidget {
 
 class _RootShellState extends State<RootShell> {
   int _index = 0;
-  final SyncService _syncService = SyncService();
   final AuthService _authService = const AuthService();
 
   late final List<Widget> _pages = [
@@ -528,7 +525,6 @@ class _AccountGroupPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,6 +599,7 @@ class _AccountTile extends StatelessWidget {
       ),
     ) ?? false;
 
+    if (!context.mounted) return;
     if (!confirmed) return;
 
     try {
@@ -622,7 +619,6 @@ class _AccountTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDebt = account.kind == AccountKind.liability;
     final hasIssue = _hasBalanceIssue(account);
     final amountColor = cs.onSurface;
     final icon = _iconForAccount(account);
@@ -1240,9 +1236,9 @@ Future<AccountKind?> _startAddAccountFlow(BuildContext context) async {
     context,
     MaterialPageRoute(builder: (_) => const AddAccountTypePage()),
   );
+  if (!context.mounted) return null;
   if (createdKind == null) return null;
 
-  final assetAfter = accountProvider.byKind(AccountKind.asset).length;
   final hasDebtAfter = accountProvider.byKind(AccountKind.liability).isNotEmpty;
   if (createdKind == AccountKind.asset &&
       assetBefore == 0 &&

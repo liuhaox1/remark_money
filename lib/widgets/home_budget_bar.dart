@@ -509,6 +509,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
   }
 }
 
+// ignore: unused_element
 class _HomeBudgetStat extends StatelessWidget {
   const _HomeBudgetStat({
     required this.label,
@@ -527,7 +528,7 @@ class _HomeBudgetStat extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
-          color: cs.surfaceVariant.withOpacity(0.25),
+          color: cs.surfaceContainerHighest.withOpacity(0.25),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(

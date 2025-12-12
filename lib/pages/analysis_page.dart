@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
@@ -8,7 +10,6 @@ import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/category_provider.dart';
-import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
 import '../widgets/book_selector_button.dart';
@@ -195,7 +196,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           children: [
                             // 深度分析卡片
                             FutureBuilder<Map<String, dynamic>>(
-                              future: _loadDeepAnalysis(recordProvider, bookId, _selectedYear, context.read<CategoryProvider>()),
+                              future: _loadDeepAnalysis(recordProvider, bookId, _selectedYear, _periodType, context.read<CategoryProvider>()),
                               builder: (context, snapshot) {
                                 if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
                                   return Padding(
@@ -398,6 +399,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     RecordProvider recordProvider,
     String bookId,
     int year,
+    PeriodType periodType,
     CategoryProvider categoryProvider,
   ) async {
     final now = DateTime.now();
@@ -420,33 +422,49 @@ class _AnalysisPageState extends State<AnalysisPage> {
       end: lastYearEnd,
     );
     
-    // 加载近6个月数据用于趋势分析
-    final sixMonthsAgo = now.subtract(const Duration(days: 180));
-    final recentRecords = await recordProvider.recordsForPeriodAsync(
-      bookId,
-      start: sixMonthsAgo,
-      end: now,
-    );
-    
-    // 计算趋势数据（近6个月）
+    // 根据 periodType 生成趋势数据
     final trendData = <Map<String, dynamic>>[];
-    for (int i = 5; i >= 0; i--) {
-      final month = DateTime(now.year, now.month - i, 1);
-      final monthEnd = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
-      final monthRecords = recentRecords.where((r) => 
-        r.date.isAfter(month.subtract(const Duration(days: 1))) &&
-        r.date.isBefore(monthEnd.add(const Duration(days: 1)))
-      ).toList();
+    
+    if (periodType == PeriodType.year) {
+      // 年模式：生成12个月的数据
+      for (int month = 1; month <= 12; month++) {
+        final monthDate = DateTime(year, month, 1);
+        final monthStats = await recordProvider.getMonthStatsAsync(monthDate, bookId);
+        
+        trendData.add({
+          'month': '$month月',
+          'income': monthStats.income,
+          'expense': math.max(0.0, monthStats.expense), // 确保支出不为负数
+          'balance': monthStats.income - monthStats.expense,
+        });
+      }
+    } else {
+      // 月/周模式：生成近6个月的数据
+      final sixMonthsAgo = now.subtract(const Duration(days: 180));
+      final recentRecords = await recordProvider.recordsForPeriodAsync(
+        bookId,
+        start: sixMonthsAgo,
+        end: now,
+      );
       
-      final income = monthRecords.where((r) => r.isIncome).fold<double>(0, (sum, r) => sum + r.amount);
-      final expense = monthRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
-      
-      trendData.add({
-        'month': '${month.month}月',
-        'income': income,
-        'expense': expense,
-        'balance': income - expense,
-      });
+      for (int i = 5; i >= 0; i--) {
+        final month = DateTime(now.year, now.month - i, 1);
+        final monthEnd = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+        final monthRecords = recentRecords.where((r) => 
+          r.date.isAfter(month.subtract(const Duration(days: 1))) &&
+          r.date.isBefore(monthEnd.add(const Duration(days: 1)))
+        ).toList();
+        
+        final income = monthRecords.where((r) => r.isIncome).fold<double>(0, (sum, r) => sum + r.amount);
+        final expense = monthRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
+        
+        trendData.add({
+          'month': '${month.month}月',
+          'income': income,
+          'expense': math.max(0.0, expense), // 确保支出不为负数
+          'balance': income - expense,
+        });
+      }
     }
     
     // 将分类key转换为中文名称
@@ -665,7 +683,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     const SizedBox(height: 6),
                     LinearProgressIndicator(
                       value: percent / 100,
-                      backgroundColor: cs.surfaceVariant,
+                      backgroundColor: cs.surfaceContainerHighest,
                       valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
                       minHeight: 6,
                       borderRadius: BorderRadius.circular(3),
@@ -1027,21 +1045,37 @@ class _AnalysisPageState extends State<AnalysisPage> {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 30,
+              interval: 1.0, // 设置间隔为1，避免重复
               getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < data.length) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      data[index]['month'] as String,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: cs.onSurface.withOpacity(0.6),
-                      ),
-                    ),
-                  );
+                // 使用严格的整数检查，避免浮点数精度问题
+                final roundedValue = value.round();
+                final diff = (value - roundedValue).abs();
+                
+                // 只有当 value 非常接近整数时才显示（容差0.01）
+                if (diff > 0.01) {
+                  return const SizedBox.shrink();
                 }
-                return const Text('');
+                
+                final index = roundedValue;
+                if (index < 0 || index >= data.length) {
+                  return const SizedBox.shrink();
+                }
+                
+                // 确保每个索引只显示一次：检查 value 是否真的等于 index
+                if ((value - index).abs() > 0.1) {
+                  return const SizedBox.shrink();
+                }
+                
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    data[index]['month'] as String,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: cs.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                );
               },
             ),
           ),

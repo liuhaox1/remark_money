@@ -9,7 +9,6 @@ import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
-import '../utils/text_style_extensions.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 
 class AccountDetailPage extends StatelessWidget {
@@ -172,6 +171,7 @@ class AccountDetailPage extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   void _openTransferSheet(BuildContext context, Account account) {
     final amountCtrl = TextEditingController();
     String? toAccountId;
@@ -306,6 +306,7 @@ class AccountDetailPage extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   void _openBorrowSheet(BuildContext context, Account account) {
     final amountCtrl = TextEditingController();
     String? assetAccountId;
@@ -398,6 +399,7 @@ class AccountDetailPage extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   void _openRepaySheet(BuildContext context, Account account) {
     final principalCtrl = TextEditingController();
     final interestCtrl = TextEditingController();
@@ -507,6 +509,7 @@ class AccountDetailPage extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   void _openLendSheet(BuildContext context, Account account) {
     final amountCtrl = TextEditingController();
     String? assetAccountId;
@@ -599,6 +602,7 @@ class AccountDetailPage extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   void _openReceiveSheet(BuildContext context, Account account) {
     final amountCtrl = TextEditingController();
     String? assetAccountId;

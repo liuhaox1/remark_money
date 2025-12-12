@@ -298,7 +298,7 @@ class _TodayPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: isTodaySelected
               ? cs.primary.withOpacity(0.12)
-              : cs.surfaceVariant.withOpacity(0.3),
+              : cs.surfaceContainerHighest.withOpacity(0.3),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(

@@ -1,7 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
-import 'chart_bar.dart';
+import 'chart_entry.dart';
 
 class ChartPie extends StatelessWidget {
   const ChartPie({

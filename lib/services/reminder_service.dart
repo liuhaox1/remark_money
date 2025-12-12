@@ -1,5 +1,4 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:async';
 import 'user_stats_service.dart';
 
 /// 记账提醒服务
@@ -8,7 +7,6 @@ class ReminderService {
   static const String _reminderTimeKey = 'reminder_time';
   static const String _lastReminderDateKey = 'last_reminder_date';
   
-  Timer? _reminderTimer;
 
   /// 检查是否需要提醒记账
   static Future<bool> shouldRemind() async {
@@ -89,4 +87,3 @@ class ReminderService {
     return prefs.getBool(_reminderEnabledKey) ?? false;
   }
 }
-

@@ -6,7 +6,6 @@ import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
-import '../utils/text_style_extensions.dart';
 
 class AccountFormPage extends StatefulWidget {
   const AccountFormPage({
@@ -1168,12 +1167,6 @@ class _AccountFormPageState extends State<AccountFormPage> {
       if (!mounted) return;
       ErrorHandler.handleAsyncError(context, e);
     }
-  }
-
-  void _showSnack(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
   }
 
   String _defaultName() {

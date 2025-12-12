@@ -44,7 +44,7 @@ class BudgetProgress extends StatelessWidget {
           child: LinearProgressIndicator(
             minHeight: 12,
             value: progress,
-            backgroundColor: cs.surfaceVariant.withOpacity(0.4),
+            backgroundColor: cs.surfaceContainerHighest.withOpacity(0.4),
             valueColor: AlwaysStoppedAnimation<Color>(
               progress >= 1 ? AppColors.danger : AppColors.primary(context),
             ),

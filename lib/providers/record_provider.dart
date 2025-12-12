@@ -23,8 +23,8 @@ class RecordProvider extends ChangeNotifier {
   static const int _maxCacheSize = 1000; // 最多缓存1000条最近记录
 
   // 统计缓存（使用数据库聚合查询的结果）
-  final Map<String, Map<int, Map<int, _MonthStats>>> _monthStatsCache = {};
-  final Map<String, Map<DateTime, _DayStats>> _dayStatsCache = {};
+  final Map<String, Map<int, Map<int, MonthStats>>> _monthStatsCache = {};
+  final Map<String, Map<DateTime, DayStats>> _dayStatsCache = {};
 
   final Random _random = Random();
 
@@ -686,7 +686,6 @@ class RecordProvider extends ChangeNotifier {
     }
 
     try {
-      final now = date ?? DateTime.now();
       // 仅调整账户余额，不写入交易记录
       // 资金流动：转出账户扣除转账金额，转入账户增加
       await accountProvider.adjustBalance(fromAccountId, -amount, bookId: bookId);
@@ -874,7 +873,7 @@ class RecordProvider extends ChangeNotifier {
   }
 
   /// 获取月份统计（使用数据库聚合查询或缓存）
-  _MonthStats _getMonthStats(DateTime month, String bookId) {
+  MonthStats _getMonthStats(DateTime month, String bookId) {
     // 检查缓存
     if (_monthStatsCache.containsKey(bookId)) {
       final yearMap = _monthStatsCache[bookId]!;
@@ -890,7 +889,7 @@ class RecordProvider extends ChangeNotifier {
     if (_isUsingDatabase) {
       // 异步查询，但这里需要同步返回，所以先返回0，然后异步更新缓存
       // 实际使用中应该使用 Future 版本
-      return const _MonthStats(income: 0, expense: 0);
+      return const MonthStats(income: 0, expense: 0);
     }
 
     // SharedPreferences 版本：从缓存计算
@@ -910,7 +909,7 @@ class RecordProvider extends ChangeNotifier {
       }
     }
 
-    final stats = _MonthStats(income: income, expense: expense);
+    final stats = MonthStats(income: income, expense: expense);
 
     final yearMap = _monthStatsCache.putIfAbsent(bookId, () => {});
     final monthMap = yearMap.putIfAbsent(month.year, () => {});
@@ -920,7 +919,7 @@ class RecordProvider extends ChangeNotifier {
   }
 
   /// 异步获取月份统计（使用数据库聚合查询）
-  Future<_MonthStats> getMonthStatsAsync(DateTime month, String bookId) async {
+  Future<MonthStats> getMonthStatsAsync(DateTime month, String bookId) async {
     // 检查缓存
     if (_monthStatsCache.containsKey(bookId)) {
       final yearMap = _monthStatsCache[bookId]!;
@@ -940,7 +939,7 @@ class RecordProvider extends ChangeNotifier {
         month: month.month,
       );
       
-      final result = _MonthStats(
+      final result = MonthStats(
         income: stats['income'] ?? 0.0,
         expense: stats['expense'] ?? 0.0,
       );
@@ -958,7 +957,7 @@ class RecordProvider extends ChangeNotifier {
   }
 
   /// 获取日期统计（使用数据库聚合查询或缓存）
-  _DayStats _getDayStats(String bookId, DateTime day) {
+  DayStats _getDayStats(String bookId, DateTime day) {
     // 检查缓存
     if (_dayStatsCache.containsKey(bookId)) {
       final dayMap = _dayStatsCache[bookId]!;
@@ -971,7 +970,7 @@ class RecordProvider extends ChangeNotifier {
     // 如果使用数据库，使用聚合查询
     if (_isUsingDatabase) {
       // 异步查询，但这里需要同步返回，所以先返回0
-      return const _DayStats(income: 0, expense: 0);
+      return const DayStats(income: 0, expense: 0);
     }
 
     // SharedPreferences 版本：从缓存计算
@@ -989,7 +988,7 @@ class RecordProvider extends ChangeNotifier {
       }
     }
 
-    final stats = _DayStats(income: income, expense: expense);
+    final stats = DayStats(income: income, expense: expense);
     final dayKey = DateTime(day.year, day.month, day.day);
 
     final dayMap = _dayStatsCache.putIfAbsent(bookId, () => {});
@@ -999,7 +998,7 @@ class RecordProvider extends ChangeNotifier {
   }
 
   /// 异步获取日期统计（使用数据库聚合查询）
-  Future<_DayStats> getDayStatsAsync(String bookId, DateTime day) async {
+  Future<DayStats> getDayStatsAsync(String bookId, DateTime day) async {
     // 检查缓存
     if (_dayStatsCache.containsKey(bookId)) {
       final dayMap = _dayStatsCache[bookId]!;
@@ -1013,7 +1012,7 @@ class RecordProvider extends ChangeNotifier {
       final dbRepo = _repository as dynamic;
       final stats = await dbRepo.getDayStats(bookId: bookId, day: day);
       
-      final result = _DayStats(
+      final result = DayStats(
         income: stats['income'] ?? 0.0,
         expense: stats['expense'] ?? 0.0,
       );
@@ -1055,17 +1054,16 @@ class RecordProvider extends ChangeNotifier {
   }
 }
 
-class _MonthStats {
+class MonthStats {
   final double income;
   final double expense;
 
-  const _MonthStats({required this.income, required this.expense});
+  const MonthStats({required this.income, required this.expense});
 }
 
-class _DayStats {
+class DayStats {
   final double income;
   final double expense;
 
-  const _DayStats({required this.income, required this.expense});
+  const DayStats({required this.income, required this.expense});
 }
-

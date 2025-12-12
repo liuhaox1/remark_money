@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 
+// ignore_for_file: deprecated_member_use
+
 /// 语音识别服务
 class SpeechService {
   final stt.SpeechToText _speech = stt.SpeechToText();
@@ -177,4 +179,3 @@ class SpeechService {
     _isListening = false;
   }
 }
-

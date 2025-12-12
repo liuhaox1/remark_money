@@ -16,14 +16,11 @@ import '../models/category.dart';
 import '../models/period_type.dart';
 import '../models/record.dart';
 import '../utils/csv_utils.dart';
-import '../utils/data_export_import.dart';
 import '../utils/records_export_bundle.dart';
 import '../utils/error_handler.dart';
-import '../utils/text_style_extensions.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -369,7 +366,6 @@ class _BillPageState extends State<BillPage> {
     
     final years = List<int>.generate(endYear - startYear + 1, (i) => startYear + i);
     final months = List<int>.generate(12, (i) => i + 1);
-    final days = List<int>.generate(31, (i) => i + 1);
     
     int yearIndex = years.indexOf(tempYear);
     int monthIndex = tempMonth - 1;

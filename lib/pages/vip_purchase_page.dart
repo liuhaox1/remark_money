@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 /// VIP购买页面
@@ -84,7 +82,6 @@ class _VipPurchasePageState extends State<VipPurchasePage>
       return;
     }
 
-    final selectedPlan = _plans[_selectedPlanIndex];
     // TODO: 调用支付接口
     ErrorHandler.showSuccess(context, '支付功能开发中，请稍后...');
   }
@@ -582,4 +579,3 @@ class _VipPurchasePageState extends State<VipPurchasePage>
     );
   }
 }
-

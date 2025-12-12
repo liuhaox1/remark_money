@@ -12,7 +12,6 @@ import '../services/sync_version_cache_service.dart';
 import '../utils/error_handler.dart';
 import '../repository/repository_factory.dart';
 import 'vip_purchase_page.dart';
-import 'dart:convert';
 import 'dart:async';
 
 class SyncPage extends StatefulWidget {
@@ -28,7 +27,6 @@ class _SyncPageState extends State<SyncPage> {
   bool _isSyncing = false;
   String _statusText = '准备同步';
   SyncRecord? _syncRecord;
-  Map<String, dynamic>? _userInfo;
   Timer? _syncTimer;
 
   @override
@@ -74,7 +72,6 @@ class _SyncPageState extends State<SyncPage> {
     if (result.success && mounted) {
       setState(() {
         _syncRecord = result.syncRecord;
-        _userInfo = result.userInfo;
       });
     } else if (!result.success && mounted) {
       // 检查是否是付费相关错误
@@ -100,7 +97,7 @@ class _SyncPageState extends State<SyncPage> {
       final bookId = bookProvider.activeBookId;
 
       if (bookId.isEmpty) {
-        if (isManual) {
+        if (isManual && mounted) {
           ErrorHandler.showError(context, '请先选择账本');
         }
         return;
@@ -127,7 +124,7 @@ class _SyncPageState extends State<SyncPage> {
           _syncRecord!.lastSyncTime != null && 
           _syncRecord!.lastSyncTime!.isNotEmpty) {
         // 版本号相同，不需要同步
-        if (isManual) {
+        if (isManual && mounted) {
           ErrorHandler.showSuccess(context, '数据已是最新版本');
         }
         return;
@@ -294,6 +291,8 @@ class _SyncPageState extends State<SyncPage> {
       final bills = result.bills ?? [];
       if (bills.isEmpty) break;
 
+      if (!mounted) return;
+      final accountProvider = context.read<AccountProvider>();
       // 转换为Record并保存到本地
       for (final billMap in bills) {
         try {
@@ -307,7 +306,7 @@ class _SyncPageState extends State<SyncPage> {
             accountId: record.accountId,
             direction: record.direction,
             includeInStats: record.includeInStats,
-            accountProvider: context.read(),
+            accountProvider: accountProvider,
           );
         } catch (e) {
           // 忽略单个记录错误，继续处理
@@ -809,4 +808,3 @@ class _SyncPageState extends State<SyncPage> {
     );
   }
 }
-

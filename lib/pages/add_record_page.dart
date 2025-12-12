@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -12,7 +11,6 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/account_provider.dart';
-import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
 import '../utils/validators.dart';
@@ -46,7 +44,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
   static const BorderRadius _kCategoryBorderRadius =
       BorderRadius.all(Radius.circular(16));
 
-  static bool _lastIsExpense = true;
   static String? _lastAccountId;
   static bool _lastIncludeInStats = true;
 
@@ -58,7 +55,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
   String? _selectedCategoryKey;
   String? _selectedAccountId;
   bool _includeInStats = true;
-  bool _showRemarkInput = false;
   String _amountExpression = '';
 
   // SharedPreferences / 数据库 两种实现共用相同方法签名
@@ -83,7 +79,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       _remarkCtrl.text = initial.remark;
     } else {
       // 新增模式：沿用上一次的记账偏好
-      _isExpense = _lastIsExpense = widget.isExpense;
+      _isExpense = widget.isExpense;
       _includeInStats = _lastIncludeInStats;
     }
     _loadTemplatesAndPlans();
@@ -1483,7 +1479,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
         ErrorHandler.showSuccess(context, '记录已更新');
       } else {
         // 新增记录
-        final record = await recordProvider.addRecord(
+        await recordProvider.addRecord(
           amount: amount,
           remark: remark,
           date: _selectedDate,
@@ -1525,7 +1521,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Future<void> _applyTemplate(RecordTemplate template) async {
     setState(() {
       _isExpense = template.direction == TransactionDirection.out;
-      _lastIsExpense = _isExpense;
       _selectedCategoryKey = template.categoryKey;
       _selectedAccountId = template.accountId;
       _includeInStats = template.includeInStats;

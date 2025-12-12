@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
-import 'root_shell.dart';
 
 /// 账号密码登录页面
 class LoginPage extends StatefulWidget {
@@ -129,4 +128,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-

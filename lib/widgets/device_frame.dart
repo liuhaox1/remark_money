@@ -38,7 +38,7 @@ class DeviceFrame extends StatelessWidget {
           width: width,
           height: height,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.background,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
             boxShadow: const [
               BoxShadow(

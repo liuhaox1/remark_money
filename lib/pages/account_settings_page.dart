@@ -36,6 +36,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
 
   Future<void> _handleLogin() async {
     final result = await Navigator.pushNamed(context, '/login');
+    if (!mounted) return;
     if (result == true) {
       await _refreshToken();
       if (!mounted) return;
@@ -52,12 +53,14 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
         // 忽略版本号拉取失败，不影响登录流程
       }
       
+      if (!mounted) return;
       Navigator.pop(context, true);
     }
   }
   
   Future<void> _handleLogout() async {
     await _authService.clearToken();
+    if (!mounted) return;
     
     // 退出登录时清除版本号缓存
     try {

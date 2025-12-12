@@ -126,8 +126,8 @@ class AddAccountTypePage extends StatelessWidget {
   }
 }
 
-class _AccountTypeOption {
-  const _AccountTypeOption({
+class AccountTypeOption {
+  const AccountTypeOption({
     required this.title,
     required this.subtitle,
     required this.kind,
@@ -144,8 +144,8 @@ class _AccountTypeOption {
   final Color color;
 }
 
-const List<_AccountTypeOption> _options = [
-  _AccountTypeOption(
+const List<AccountTypeOption> _options = [
+  AccountTypeOption(
     title: '现金',
     subtitle: '钱包/备用金等',
     kind: AccountKind.asset,
@@ -153,7 +153,7 @@ const List<_AccountTypeOption> _options = [
     icon: Icons.attach_money,
     color: Color(0xFF00C853),
   ),
-  _AccountTypeOption(
+  AccountTypeOption(
     title: '储蓄卡',
     subtitle: '借记卡/储蓄卡',
     kind: AccountKind.asset,
@@ -161,7 +161,7 @@ const List<_AccountTypeOption> _options = [
     icon: Icons.credit_card,
     color: Color(0xFFFFA000),
   ),
-  _AccountTypeOption(
+  AccountTypeOption(
     title: '信用卡',
     subtitle: '信用卡/花呗/白条等',
     kind: AccountKind.liability,
@@ -169,7 +169,7 @@ const List<_AccountTypeOption> _options = [
     icon: Icons.credit_card_rounded,
     color: Color(0xFFFFC400),
   ),
-  _AccountTypeOption(
+  AccountTypeOption(
     title: '虚拟账户',
     subtitle: '支付宝/微信等',
     kind: AccountKind.asset,
@@ -177,7 +177,7 @@ const List<_AccountTypeOption> _options = [
     icon: Icons.qr_code_2_outlined,
     color: Color(0xFFFFCA28),
   ),
-  _AccountTypeOption(
+  AccountTypeOption(
     title: '投资账户',
     subtitle: '股票/基金等',
     kind: AccountKind.asset,
@@ -185,7 +185,7 @@ const List<_AccountTypeOption> _options = [
     icon: Icons.trending_up,
     color: Color(0xFFFFB300),
   ),
-  _AccountTypeOption(
+  AccountTypeOption(
     title: '负债',
     subtitle: '贷款/借入等',
     kind: AccountKind.liability,
@@ -193,7 +193,7 @@ const List<_AccountTypeOption> _options = [
     icon: Icons.account_balance_wallet_outlined,
     color: Color(0xFFFF7043),
   ),
-  _AccountTypeOption(
+  AccountTypeOption(
     title: '自定义资产',
     subtitle: '其它资产账户',
     kind: AccountKind.asset,
@@ -206,7 +206,7 @@ const List<_AccountTypeOption> _options = [
 class BankSelectionPage extends StatelessWidget {
   const BankSelectionPage({super.key, required this.option});
 
-  final _AccountTypeOption option;
+  final AccountTypeOption option;
 
   @override
   Widget build(BuildContext context) {
@@ -282,7 +282,7 @@ class BankSelectionPage extends StatelessWidget {
 class CreditCardSelectionPage extends StatelessWidget {
   const CreditCardSelectionPage({super.key, required this.option});
 
-  final _AccountTypeOption option;
+  final AccountTypeOption option;
 
   @override
   Widget build(BuildContext context) {
@@ -401,7 +401,7 @@ const List<_VirtualAccountOption> _virtualOptions = [
 class VirtualAccountSelectionPage extends StatelessWidget {
   const VirtualAccountSelectionPage({super.key, required this.option});
 
-  final _AccountTypeOption option;
+  final AccountTypeOption option;
 
   @override
   Widget build(BuildContext context) {
@@ -515,7 +515,7 @@ const List<_InvestAccountOption> _investOptions = [
 class InvestAccountSelectionPage extends StatelessWidget {
   const InvestAccountSelectionPage({super.key, required this.option});
 
-  final _AccountTypeOption option;
+  final AccountTypeOption option;
 
   @override
   Widget build(BuildContext context) {

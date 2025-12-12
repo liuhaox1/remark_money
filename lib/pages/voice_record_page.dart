@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../models/record.dart';
 import '../providers/category_provider.dart';
@@ -227,20 +226,19 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
       includeInStats: true,
     );
 
-    if (mounted) {
-      final result = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AddRecordPage(
-            initialRecord: tempRecord,
-            isExpense: _parsedRecord!.isExpense,
-          ),
+    if (!mounted) return;
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddRecordPage(
+          initialRecord: tempRecord,
+          isExpense: _parsedRecord!.isExpense,
         ),
-      );
-
-      if (result == true) {
-        Navigator.pop(context);
-      }
+      ),
+    );
+    if (!mounted) return;
+    if (result == true) {
+      Navigator.pop(context);
     }
   }
 
@@ -493,4 +491,3 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
     );
   }
 }
-

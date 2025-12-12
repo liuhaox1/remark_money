@@ -46,7 +46,7 @@ import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
 import '../utils/error_handler.dart';
 
-import '../widgets/chart_bar.dart';
+import '../widgets/chart_entry.dart';
 
 import '../widgets/chart_line.dart';
 
