@@ -40,6 +40,8 @@ import '../providers/category_provider.dart';
 
 import '../providers/record_provider.dart';
 
+import '../providers/budget_provider.dart';
+
 import '../repository/category_repository.dart';
 
 import '../utils/date_utils.dart';
@@ -98,12 +100,20 @@ class ReportDetailPage extends StatefulWidget {
 
 }
 
+enum _CompareMode {
+  previousPeriod,
+  samePeriodLastYear,
+}
+
 
 
 class _ReportDetailPageState extends State<ReportDetailPage> {
 
   bool _showIncomeCategory = false;
-
+  _CompareMode _compareMode = _CompareMode.previousPeriod;
+  Future<Map<String, dynamic>>? _reportFuture;
+  String? _reportFutureBookId;
+  
   
 
   // 用于保存图片的 GlobalKey
@@ -137,6 +147,93 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     });
   }
 
+  @override
+  void didUpdateWidget(covariant ReportDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.bookId != widget.bookId ||
+        oldWidget.year != widget.year ||
+        oldWidget.month != widget.month ||
+        oldWidget.weekRange != widget.weekRange ||
+        oldWidget.periodType != widget.periodType) {
+      _reportFuture = null;
+      _reportFutureBookId = null;
+    }
+  }
+
+  void _ensureReportFuture(RecordProvider recordProvider, String bookId) {
+    if (_reportFuture == null || _reportFutureBookId != bookId) {
+      _reportFutureBookId = bookId;
+      _reportFuture = _loadReportData(recordProvider, bookId);
+    }
+  }
+
+  List<ChartEntry> _collapseTopEntries(
+    List<ChartEntry> entries,
+    ColorScheme cs, {
+    int topN = 5,
+  }) {
+    if (entries.length <= topN) return entries;
+    final top = entries.take(topN).toList();
+    final otherValue =
+        entries.skip(topN).fold<double>(0, (sum, e) => sum + e.value);
+    if (otherValue > 0) {
+      top.add(
+        ChartEntry(
+          label: '其他',
+          value: otherValue,
+          color: cs.outlineVariant,
+        ),
+      );
+    }
+    return top;
+  }
+
+  List<String> _buildInsights({
+    required bool hasData,
+    required double expense,
+    required double? expenseDiff,
+    required _PeriodComparison comparison,
+    required List<ChartEntry> rawEntries,
+    required _PeriodActivity activity,
+    double? totalBudget,
+    bool showBudgetSummary = false,
+  }) {
+    final insights = <String>[];
+    if (!hasData) return insights;
+
+    if (showBudgetSummary && totalBudget != null && totalBudget > 0) {
+      final percent = expense / totalBudget * 100;
+      if (percent >= 100) {
+        insights.add('本期支出已超出预算 ${percent.toStringAsFixed(0)}%');
+      } else if (percent >= 80) {
+        insights.add('本期支出已用预算 ${percent.toStringAsFixed(0)}%，注意控制节奏');
+      }
+    }
+
+    if (comparison.hasData && expenseDiff != null && comparison.balance > 0) {
+      final diffPercent = expenseDiff / comparison.balance * 100;
+      if (diffPercent.abs() >= 30) {
+        final verb = diffPercent >= 0 ? '增加' : '减少';
+        insights.add('支出较上期$verb ${diffPercent.abs().toStringAsFixed(0)}%');
+      }
+    }
+
+    if (rawEntries.isNotEmpty) {
+      final top = rawEntries.first;
+      final topShare = rawEntries.fold<double>(0, (s, e) => s + e.value) == 0
+          ? 0
+          : top.value / rawEntries.fold<double>(0, (s, e) => s + e.value);
+      if (topShare >= 0.5) {
+        insights.add('支出主要集中在“${top.label}”，占比 ${(topShare * 100).toStringAsFixed(0)}%');
+      }
+    }
+
+    if (activity.activeDays <= 3) {
+      insights.add('本期记账天数较少，可能存在漏记');
+    }
+
+    return insights.take(3).toList();
+  }
 
 
   @override
@@ -154,6 +251,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final categoryProvider = context.watch<CategoryProvider>();
 
     final bookProvider = context.watch<BookProvider>();
+
+    final budgetProvider = context.watch<BudgetProvider>();
 
     // 检查加载状态
     if (!recordProvider.loaded || !categoryProvider.loaded || !bookProvider.loaded) {
@@ -192,8 +291,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 
     // 使用 FutureBuilder 异步加载报表数据（支持100万条记录）
+    _ensureReportFuture(recordProvider, bookId);
+
     return FutureBuilder<Map<String, dynamic>>(
-      future: _loadReportData(recordProvider, bookId),
+      future: _reportFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
@@ -222,8 +323,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         final income = data['income'] as double? ?? 0.0;
         final expense = data['expense'] as double? ?? 0.0;
         final balance = income - expense;
-        final comparison = data['comparison'] as _PeriodComparison? ?? _PeriodComparison(balance: 0, hasData: false);
-        final expenseDiff = comparison.hasData ? expense - comparison.balance : null;
+        final prevComparison = data['prevComparison'] as _PeriodComparison? ??
+            _PeriodComparison(balance: 0, hasData: false);
+        final yoyComparison = data['yoyComparison'] as _PeriodComparison? ??
+            _PeriodComparison(balance: 0, hasData: false);
+        final selectedComparison =
+            _compareMode == _CompareMode.previousPeriod ? prevComparison : yoyComparison;
+        final expenseDiff = selectedComparison.hasData
+            ? expense - selectedComparison.balance
+            : null;
         final range = _periodRange();
         final hasData = records.isNotEmpty;
 
@@ -241,11 +349,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           isIncome: true,
         );
 
-        final distributionEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
-        final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
+        final rawEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
+        final distributionEntries = _collapseTopEntries(rawEntries, cs);
+        final rankingEntries = rawEntries;
 
-        final ranking = List<ChartEntry>.from(rankingEntries)
-          ..sort((a, b) => b.value.compareTo(a.value));
+        final ranking = List<ChartEntry>.from(rawEntries);
 
         // 趋势图：月/周模式显示日趋势，年模式显示月趋势
         // 使用 FutureBuilder 单独加载日趋势数据（需要 context）
@@ -276,6 +384,33 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 topCategory: topCategory,
               );
             }
+
+            double? totalBudget;
+            var showBudgetSummary = false;
+            var overspend = false;
+            if (budgetProvider.loaded && !_isYearMode) {
+              final entry = budgetProvider.budgetForBook(bookId);
+              final currentBudgetRange =
+                  budgetProvider.currentPeriodRange(bookId, DateTime.now());
+              if (DateUtilsX.isSameDay(range.start, currentBudgetRange.start) &&
+                  DateUtilsX.isSameDay(range.end, currentBudgetRange.end) &&
+                  entry.total > 0) {
+                totalBudget = entry.total;
+                showBudgetSummary = true;
+                overspend = expense > entry.total;
+              }
+            }
+
+            final insights = _buildInsights(
+              hasData: hasData,
+              expense: expense,
+              expenseDiff: expenseDiff,
+              comparison: selectedComparison,
+              rawEntries: rawEntries,
+              activity: activity,
+              totalBudget: totalBudget,
+              showBudgetSummary: showBudgetSummary,
+            );
 
             return Scaffold(
               backgroundColor:
@@ -312,7 +447,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                           expense: expense,
                           balance: balance,
                           expenseDiff: expenseDiff,
-                          comparison: comparison,
+                          comparison: selectedComparison,
+                          compareMode: _compareMode,
+                          onCompareModeChanged: !_isYearMode
+                              ? (mode) => setState(() => _compareMode = mode)
+                              : null,
+                          totalBudget: totalBudget,
+                          showBudgetSummary: showBudgetSummary,
+                          overspend: overspend,
+                          insights: insights,
                           hasData: hasData,
                           weeklySummaryText: weeklySummaryText,
                           onViewDetail: () => _openBillDetail(context, range, bookName),
@@ -362,9 +505,21 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     required double balance,
 
     required double? expenseDiff,
-
+ 
     required _PeriodComparison comparison,
 
+    required _CompareMode compareMode,
+
+    ValueChanged<_CompareMode>? onCompareModeChanged,
+
+    double? totalBudget,
+
+    bool showBudgetSummary = false,
+
+    bool overspend = false,
+
+    required List<String> insights,
+ 
     required bool hasData,
 
     String? weeklySummaryText,
@@ -414,13 +569,23 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     expense: expense,
 
                     balance: balance,
-
+ 
                     balanceDiff: expenseDiff,
-
+ 
                     hasComparison: comparison.hasData,
-
+ 
                     hasData: hasData,
 
+                    compareMode: compareMode,
+
+                    onCompareModeChanged: onCompareModeChanged,
+
+                    totalBudget: totalBudget,
+
+                    showBudgetSummary: showBudgetSummary,
+
+                    overspend: overspend,
+ 
                     weeklySummaryText: weeklySummaryText,
 
                     onViewDetail: onViewDetail ?? (() =>
@@ -432,6 +597,29 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   ),
 
                   const SizedBox(height: 16),
+
+                  if (insights.isNotEmpty) ...[
+                    _SectionCard(
+                      title: '本期洞察',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final text in insights)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                '• $text',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: cs.onSurface.withOpacity(0.8),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   if (!hasData)
 
@@ -679,56 +867,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
                     const SizedBox(height: 16),
 
-                    // 支出排行TOP3
-
-                    if (ranking.isNotEmpty)
-
-                      _SectionCard(
-
-                        title: _showIncomeCategory
-
-                            ? '收入排行'
-
-                            : AppStrings.expenseRanking,
-
-                        child: Column(
-
-                          crossAxisAlignment: CrossAxisAlignment.start,
-
-                          children: [
-
-                            for (var i = 0; i < ranking.take(3).length; i++)
-
-                              Padding(
-
-                                padding: EdgeInsets.only(
-
-                                  bottom: i < 2 ? 16 : 0,
-
-                                ),
-
-                                child: _RankingItem(
-
-                                  rank: i + 1,
-
-                                  entry: ranking[i],
-
-                                  categoryProvider: categoryProvider,
-
-                                  cs: cs,
-
-                                ),
-
-                              ),
-
-                          ],
-
-                        ),
-
-                      ),
-
-                    if (ranking.isNotEmpty) const SizedBox(height: 16),
-
                     _SectionCard(
 
                       title: _isYearMode ? '月趋势' : AppStrings.dailyTrend,
@@ -918,6 +1056,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       final recordProvider = context.read<RecordProvider>();
       final categoryProvider = context.read<CategoryProvider>();
       final bookProvider = context.read<BookProvider>();
+      final budgetProvider = context.read<BudgetProvider>();
 
       final bookId = widget.bookId;
 
@@ -945,10 +1084,19 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       final income = reportData['income'] as double? ?? 0.0;
       final expense = reportData['expense'] as double? ?? 0.0;
       final balance = income - expense;
-      final comparison = reportData['comparison'] as _PeriodComparison? ?? _PeriodComparison(balance: 0, hasData: false);
-      final expenseDiff = comparison.hasData ? expense - comparison.balance : null;
+      final prevComparison = reportData['prevComparison'] as _PeriodComparison? ??
+          _PeriodComparison(balance: 0, hasData: false);
+      final yoyComparison = reportData['yoyComparison'] as _PeriodComparison? ??
+          _PeriodComparison(balance: 0, hasData: false);
+      final selectedComparison =
+          _compareMode == _CompareMode.previousPeriod ? prevComparison : yoyComparison;
+      final expenseDiff = selectedComparison.hasData
+          ? expense - selectedComparison.balance
+          : null;
       final currentRange = range;
       final hasData = records.isNotEmpty;
+      final activity = reportData['activity'] as _PeriodActivity? ??
+          _PeriodActivity(recordCount: 0, activeDays: 0, streak: 0);
 
       // 构建分类条目
       final expenseEntries = _buildCategoryEntries(
@@ -963,16 +1111,42 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         cs,
         isIncome: true,
       );
-      final distributionEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
-      final rankingEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
-      final ranking = List<ChartEntry>.from(rankingEntries)
-        ..sort((a, b) => b.value.compareTo(a.value));
+      final rawEntries = _showIncomeCategory ? incomeEntries : expenseEntries;
+      final distributionEntries = _collapseTopEntries(rawEntries, cs);
+      final rankingEntries = rawEntries;
+      final ranking = List<ChartEntry>.from(rawEntries);
+
+      double? totalBudget;
+      var showBudgetSummary = false;
+      var overspend = false;
+      if (budgetProvider.loaded && !_isYearMode) {
+        final entry = budgetProvider.budgetForBook(bookId);
+        final currentBudgetRange =
+            budgetProvider.currentPeriodRange(bookId, DateTime.now());
+        if (DateUtilsX.isSameDay(currentRange.start, currentBudgetRange.start) &&
+            DateUtilsX.isSameDay(currentRange.end, currentBudgetRange.end) &&
+            entry.total > 0) {
+          totalBudget = entry.total;
+          showBudgetSummary = true;
+          overspend = expense > entry.total;
+        }
+      }
+
+      final insights = _buildInsights(
+        hasData: hasData,
+        expense: expense,
+        expenseDiff: expenseDiff,
+        comparison: selectedComparison,
+        rawEntries: rawEntries,
+        activity: activity,
+        totalBudget: totalBudget,
+        showBudgetSummary: showBudgetSummary,
+      );
       final totalExpenseValue = distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
       final totalRankingValue = rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
 
       // 加载日趋势数据
       final dailyEntries = await _buildDailyEntriesAsync(recordProvider, bookId);
-      final activity = reportData['activity'] as _PeriodActivity? ?? _PeriodActivity(recordCount: 0, activeDays: 0, streak: 0);
       const emptyText = AppStrings.emptyPeriodRecords;
 
       String? weeklySummaryText;
@@ -1006,10 +1180,16 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             range: currentRange,
             income: income,
             expense: expense,
-            balance: balance,
-            expenseDiff: expenseDiff,
-            comparison: comparison,
-            hasData: hasData,
+             balance: balance,
+             expenseDiff: expenseDiff,
+             comparison: selectedComparison,
+             compareMode: _compareMode,
+             onCompareModeChanged: null,
+             totalBudget: totalBudget,
+             showBudgetSummary: showBudgetSummary,
+             overspend: overspend,
+             insights: insights,
+             hasData: hasData,
             weeklySummaryText: weeklySummaryText,
             onViewDetail: null,
             showViewDetailButton: false,
@@ -1339,7 +1519,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     }
 
     // 加载对比数据
-    final comparison = await _previousBalanceAsync(recordProvider, bookId);
+    final prevComparison = await _previousBalanceAsync(recordProvider, bookId);
+    final yoyComparison =
+        await _samePeriodLastYearExpenseAsync(recordProvider, bookId);
 
     // 加载活动数据
     final activity = await _periodActivityAsync(recordProvider, bookId);
@@ -1364,7 +1546,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       'records': records,
       'income': income,
       'expense': expense,
-      'comparison': comparison,
+      'prevComparison': prevComparison,
+      'yoyComparison': yoyComparison,
       'activity': activity,
       'dailyEntries': dailyEntries,
       'prevWeekExpense': prevWeekExpense ?? 0.0,
@@ -1428,6 +1611,53 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return _PeriodComparison(
       balance: monthStats.expense,
       hasData: monthRecords.isNotEmpty,
+    );
+  }
+
+  Future<_PeriodComparison> _samePeriodLastYearExpenseAsync(
+    RecordProvider recordProvider,
+    String bookId,
+  ) async {
+    if (_isYearMode) {
+      return _previousBalanceAsync(recordProvider, bookId);
+    }
+
+    if (_isMonthMode) {
+      final month = widget.month ?? DateTime.now().month;
+      final lastYearMonth = DateTime(widget.year - 1, month, 1);
+      final stats =
+          await recordProvider.getMonthStatsAsync(lastYearMonth, bookId);
+      final monthRecords = await recordProvider.recordsForMonthAsync(
+        bookId,
+        lastYearMonth.year,
+        lastYearMonth.month,
+      );
+      return _PeriodComparison(
+        balance: stats.expense,
+        hasData: monthRecords.isNotEmpty,
+      );
+    }
+
+    final currentRange = _periodRange();
+    final lastYearStart = DateUtilsX.startOfWeek(
+        currentRange.start.subtract(const Duration(days: 364)));
+    final lastYearRange = DateTimeRange(
+      start: lastYearStart,
+      end: lastYearStart.add(const Duration(days: 6)),
+    );
+    final expense = await recordProvider.periodExpense(
+      bookId: bookId,
+      start: lastYearRange.start,
+      end: lastYearRange.end,
+    );
+    final records = await recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: lastYearRange.start,
+      end: lastYearRange.end,
+    );
+    return _PeriodComparison(
+      balance: expense,
+      hasData: records.isNotEmpty,
     );
   }
 
@@ -2000,6 +2230,16 @@ class _PeriodHeaderCard extends StatelessWidget {
 
     required this.hasData,
 
+    required this.compareMode,
+
+    this.onCompareModeChanged,
+
+    this.totalBudget,
+
+    this.showBudgetSummary = false,
+
+    this.overspend = false,
+
     this.weeklySummaryText,
 
     this.onViewDetail,
@@ -2032,9 +2272,19 @@ class _PeriodHeaderCard extends StatelessWidget {
 
   final bool hasComparison;
 
-    final bool hasData;
+  final bool hasData;
 
-    final String? weeklySummaryText;
+  final _CompareMode compareMode;
+
+  final ValueChanged<_CompareMode>? onCompareModeChanged;
+
+  final double? totalBudget;
+
+  final bool showBudgetSummary;
+
+  final bool overspend;
+
+  final String? weeklySummaryText;
 
     final VoidCallback? onViewDetail;
 
@@ -2187,9 +2437,28 @@ class _PeriodHeaderCard extends StatelessWidget {
             ],
 
           ),
-
+ 
           const SizedBox(height: 12),
 
+          if (onCompareModeChanged != null) ...[
+            SegmentedButton<_CompareMode>(
+              segments: const [
+                ButtonSegment(
+                  value: _CompareMode.previousPeriod,
+                  label: Text('上期对比'),
+                ),
+                ButtonSegment(
+                  value: _CompareMode.samePeriodLastYear,
+                  label: Text('去年同期'),
+                ),
+              ],
+              selected: {compareMode},
+              onSelectionChanged: (value) =>
+                  onCompareModeChanged?.call(value.first),
+            ),
+            const SizedBox(height: 12),
+          ],
+ 
           Row(
 
             children: [
@@ -2303,9 +2572,34 @@ class _PeriodHeaderCard extends StatelessWidget {
               ),
 
             ],
-
+ 
           ),
 
+          if (showBudgetSummary && totalBudget != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  Icons.savings_outlined,
+                  size: 16,
+                  color: overspend ? cs.error : cs.primary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '本期预算 ${_formatAmount(totalBudget!)} · 已用 ${(expense / totalBudget! * 100).toStringAsFixed(0)}%',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: overspend
+                          ? cs.error
+                          : cs.onSurface.withOpacity(0.7),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+ 
         ],
 
       ),
@@ -2328,9 +2622,13 @@ class _PeriodHeaderCard extends StatelessWidget {
 
             : '\u672c\u6708';
 
-    final compareLabel =
-
-        periodType == PeriodType.year ? '上年' : periodType == PeriodType.week ? '上周' : '上月';
+    final compareLabel = compareMode == _CompareMode.samePeriodLastYear
+        ? '去年同期'
+        : (periodType == PeriodType.year
+            ? '上年'
+            : periodType == PeriodType.week
+                ? '上周'
+                : '上月');
 
     if (!hasData) {
 
@@ -2741,7 +3039,7 @@ class _PeriodComparison {
 
 
 // 排行项组件
-
+// ignore: unused_element
 class _RankingItem extends StatelessWidget {
 
   const _RankingItem({
@@ -3083,5 +3381,3 @@ class _DailyTrendStatItem extends StatelessWidget {
   }
 
 }
-
-

@@ -17,6 +17,7 @@ import '../widgets/period_selector.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'add_record_page.dart';
 import 'bill_page.dart';
+import 'report_detail_page.dart';
 
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});
@@ -229,23 +230,40 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                 months: visibleMonths,
                                 weeks: weekSummaries,
                                 hasYearRecords: hasYearRecords,
-                                onTapMonth: (month) => _openBillPage(
-                                  context,
-                                  bookId: bookId,
-                                  year: _selectedYear,
-                                  month: month,
-                                ),
-                                onTapYear: () => _openBillPage(
-                                  context,
-                                  bookId: bookId,
-                                  year: _selectedYear,
-                                ),
-                                onTapWeek: (range) => _openBillPage(
-                                  context,
-                                  bookId: bookId,
-                                  year: _selectedYear,
-                                  weekRange: range,
-                                ),
+                                 onTapMonth: (month) => _openBillPage(
+                                   context,
+                                   bookId: bookId,
+                                   year: _selectedYear,
+                                   month: month,
+                                 ),
+                                 onTapMonthReport: (month) => _openReportDetail(
+                                   context,
+                                   bookId: bookId,
+                                   year: _selectedYear,
+                                   month: month,
+                                 ),
+                                 onTapYear: () => _openBillPage(
+                                   context,
+                                   bookId: bookId,
+                                   year: _selectedYear,
+                                 ),
+                                 onTapYearReport: () => _openReportDetail(
+                                   context,
+                                   bookId: bookId,
+                                   year: _selectedYear,
+                                 ),
+                                 onTapWeek: (range) => _openBillPage(
+                                   context,
+                                   bookId: bookId,
+                                   year: _selectedYear,
+                                   weekRange: range,
+                                 ),
+                                 onTapWeekReport: (range) => _openReportDetail(
+                                   context,
+                                   bookId: bookId,
+                                   year: _selectedYear,
+                                   weekRange: range,
+                                 ),
                               ),
                             ),
                           ],
@@ -277,6 +295,30 @@ class _AnalysisPageState extends State<AnalysisPage> {
               month != null ? DateTime(year, month, 1) : null,
           initialRange: weekRange,
           initialPeriodType: weekRange != null
+              ? PeriodType.week
+              : month != null
+                  ? PeriodType.month
+                  : PeriodType.year,
+        ),
+      ),
+    );
+  }
+
+  void _openReportDetail(
+    BuildContext context, {
+    required String bookId,
+    required int year,
+    int? month,
+    DateTimeRange? weekRange,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReportDetailPage(
+          bookId: bookId,
+          year: year,
+          month: month,
+          weekRange: weekRange,
+          periodType: weekRange != null
               ? PeriodType.week
               : month != null
                   ? PeriodType.month
@@ -1280,6 +1322,9 @@ class _PeriodList extends StatelessWidget {
     required this.onTapMonth,
     required this.onTapYear,
     required this.onTapWeek,
+    this.onTapMonthReport,
+    this.onTapYearReport,
+    this.onTapWeekReport,
   });
 
   final int year;
@@ -1291,6 +1336,9 @@ class _PeriodList extends StatelessWidget {
   final ValueChanged<int> onTapMonth;
   final VoidCallback onTapYear;
   final ValueChanged<DateTimeRange> onTapWeek;
+  final ValueChanged<int>? onTapMonthReport;
+  final VoidCallback? onTapYearReport;
+  final ValueChanged<DateTimeRange>? onTapWeekReport;
 
   @override
   Widget build(BuildContext context) {
@@ -1362,10 +1410,11 @@ class _PeriodList extends StatelessWidget {
               balance: income - expense,
               cs: cs,
               hasData: true,
-              highlight: true,
-              tag: AppStrings.yearReport,
-              onTap: onTapYear,
-            ),
+               highlight: true,
+               tag: AppStrings.yearReport,
+               onTap: onTapYear,
+               onTapReport: onTapYearReport,
+             ),
           );
         }
         break;
@@ -1389,9 +1438,12 @@ class _PeriodList extends StatelessWidget {
                 emptyHint: m.isCurrentMonth
                     ? AppStrings.currentMonthEmpty
                     : '无记录',
-                highlight: m.isCurrentMonth || m.hasRecords,
-                onTap: () => onTapMonth(m.month),
-              ),
+                  highlight: m.isCurrentMonth || m.hasRecords,
+                  onTap: () => onTapMonth(m.month),
+                  onTapReport: onTapMonthReport != null
+                      ? () => onTapMonthReport!(m.month)
+                      : null,
+                ),
             );
           }
         }
@@ -1417,6 +1469,9 @@ class _PeriodList extends StatelessWidget {
                 tag: w.isCurrentWeek ? '本周' : null,
                 highlight: w.isCurrentWeek || w.hasRecords,
                 onTap: () => onTapWeek(range),
+                onTapReport: onTapWeekReport != null
+                    ? () => onTapWeekReport!(range)
+                    : null,
               ),
             );
           }
@@ -1437,6 +1492,7 @@ class _PeriodTile extends StatelessWidget {
     required this.balance,
     required this.cs,
     required this.onTap,
+    this.onTapReport,
     this.highlight = false,
     this.hasData = true,
     this.emptyHint,
@@ -1450,6 +1506,7 @@ class _PeriodTile extends StatelessWidget {
   final double balance;
   final ColorScheme cs;
   final VoidCallback onTap;
+  final VoidCallback? onTapReport;
   final bool highlight;
   final bool hasData;
   final String? emptyHint;
@@ -1570,6 +1627,14 @@ class _PeriodTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (onTapReport != null)
+              IconButton(
+                tooltip: '查看报告',
+                icon: const Icon(Icons.assessment_outlined, size: 18),
+                onPressed: onTapReport,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
             const SizedBox(width: 8),
             Icon(
               Icons.chevron_right,
