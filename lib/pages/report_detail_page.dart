@@ -359,10 +359,21 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         // 使用 FutureBuilder 单独加载日趋势数据（需要 context）
         final activity = data['activity'] as _PeriodActivity? ?? _PeriodActivity(recordCount: 0, activeDays: 0, streak: 0);
         
-        return FutureBuilder<List<ChartEntry>>(
-          future: _buildDailyEntriesAsync(recordProvider, bookId),
+        return FutureBuilder<List<List<ChartEntry>>>(
+          future: Future.wait([
+            _buildDailyEntriesAsync(recordProvider, bookId),
+            _buildCompareEntriesAsync(recordProvider, bookId),
+          ]),
           builder: (context, dailySnapshot) {
-            final dailyEntries = dailySnapshot.data ?? [];
+            final dailyEntries =
+                dailySnapshot.data != null && dailySnapshot.data!.isNotEmpty
+                    ? dailySnapshot.data![0]
+                    : <ChartEntry>[];
+            final compareEntries =
+                dailySnapshot.data != null && dailySnapshot.data!.length > 1
+                    ? dailySnapshot.data![1]
+                    : <ChartEntry>[];
+            final anomalyIndices = _findAnomalyIndices(dailyEntries);
 
             final totalExpenseValue = distributionEntries.fold<double>(0, (sum, e) => sum + e.value);
             final totalRankingValue = rankingEntries.fold<double>(0, (sum, e) => sum + e.value);
@@ -464,11 +475,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                           totalExpenseValue: totalExpenseValue,
                           ranking: ranking,
                           totalRankingValue: totalRankingValue,
-                          categoryProvider: categoryProvider,
-                          dailyEntries: dailyEntries,
-                          activity: activity,
-                          emptyText: emptyText,
-                        ),
+                           categoryProvider: categoryProvider,
+                           dailyEntries: dailyEntries,
+                           compareDailyEntries: compareEntries,
+                           anomalyIndices: anomalyIndices,
+                           records: records,
+                           activity: activity,
+                           emptyText: emptyText,
+                         ),
                       ),
                     ),
                   ),
@@ -537,8 +551,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     required double totalRankingValue,
 
     required CategoryProvider categoryProvider,
-
+ 
     required List<ChartEntry> dailyEntries,
+
+    required List<ChartEntry> compareDailyEntries,
+
+    required Set<int> anomalyIndices,
+
+    required List<Record> records,
 
     required _PeriodActivity activity,
 
@@ -936,13 +956,13 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                             )
 
                           : _buildDailyTrendContent(
-
                               dailyEntries: dailyEntries,
-
+                              compareEntries: compareDailyEntries,
+                              anomalyIndices: anomalyIndices,
+                              records: records,
                               totalExpense: expense,
-
+                              budgetY: showBudgetSummary ? totalBudget : null,
                               cs: cs,
-
                             ),
 
                     ),
@@ -1148,7 +1168,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       // 加载日趋势数据
       final dailyEntries = await _buildDailyEntriesAsync(recordProvider, bookId);
       const emptyText = AppStrings.emptyPeriodRecords;
-
+      final compareDailyEntries =
+          await _buildCompareEntriesAsync(recordProvider, bookId);
+      final anomalyIndices = _findAnomalyIndices(dailyEntries);
+ 
       String? weeklySummaryText;
       if (_isWeekMode && hasData) {
         final prevExpense = reportData['prevWeekExpense'] as double? ?? 0.0;
@@ -1195,13 +1218,16 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             showViewDetailButton: false,
             distributionEntries: distributionEntries,
             totalExpenseValue: totalExpenseValue,
-            ranking: ranking,
-            totalRankingValue: totalRankingValue,
-            categoryProvider: categoryProvider,
-            dailyEntries: dailyEntries,
-            activity: activity,
-            emptyText: emptyText,
-          ),
+             ranking: ranking,
+             totalRankingValue: totalRankingValue,
+             categoryProvider: categoryProvider,
+             dailyEntries: dailyEntries,
+             compareDailyEntries: compareDailyEntries,
+             anomalyIndices: anomalyIndices,
+             records: records,
+             activity: activity,
+             emptyText: emptyText,
+           ),
         ),
       );
 
@@ -1472,6 +1498,25 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     );
 
+  }
+
+  void _openBillDetailForDate(DateTime date) {
+    final range = _periodRange();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BillPage(
+          initialYear: widget.year,
+          initialMonth: _isMonthMode
+              ? DateTime(range.start.year, range.start.month, 1)
+              : null,
+          initialShowYearMode: _isYearMode,
+          initialRange: _isWeekMode ? range : null,
+          initialPeriodType: widget.periodType,
+          initialStartDate: date,
+          initialEndDate: date,
+        ),
+      ),
+    );
   }
 
 
@@ -1855,6 +1900,99 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return entries;
   }
 
+  Future<List<ChartEntry>> _buildCompareEntriesAsync(
+    RecordProvider recordProvider,
+    String bookId,
+  ) async {
+    final cs = Theme.of(context).colorScheme;
+
+    if (_isYearMode) return const <ChartEntry>[];
+
+    final currentRange = _periodRange();
+    DateTimeRange compareRange;
+
+    if (_compareMode == _CompareMode.samePeriodLastYear) {
+      if (_isMonthMode) {
+        final month = widget.month ?? DateTime.now().month;
+        final start = DateTime(widget.year - 1, month, 1);
+        final end = DateTime(widget.year - 1, month + 1, 0);
+        compareRange = DateTimeRange(start: start, end: end);
+      } else {
+        final start = DateUtilsX.startOfWeek(
+          currentRange.start.subtract(const Duration(days: 364)),
+        );
+        compareRange = DateTimeRange(
+          start: start,
+          end: start.add(const Duration(days: 6)),
+        );
+      }
+    } else {
+      if (_isMonthMode) {
+        final start = DateTime(currentRange.start.year, currentRange.start.month - 1, 1);
+        final end = DateTime(start.year, start.month + 1, 0);
+        compareRange = DateTimeRange(start: start, end: end);
+      } else {
+        final start =
+            DateUtilsX.startOfWeek(currentRange.start).subtract(const Duration(days: 7));
+        compareRange = DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
+      }
+    }
+
+    DateTime start = currentRange.start;
+    DateTime end = currentRange.end;
+    if (_isMonthMode) {
+      start = DateTime(start.year, start.month, 1);
+      end = DateTime(start.year, start.month + 1, 0);
+    } else {
+      start = DateUtilsX.startOfWeek(start);
+      end = start.add(const Duration(days: 6));
+    }
+
+    final dayCount = end.difference(start).inDays + 1;
+    final entries = <ChartEntry>[];
+    for (var i = 0; i < dayCount; i++) {
+      final currentDay = start.add(Duration(days: i));
+      final compareDay = compareRange.start.add(Duration(days: i));
+      double value = 0.0;
+      if (!compareDay.isAfter(compareRange.end)) {
+        final stats = await recordProvider.getDayStatsAsync(bookId, compareDay);
+        value = max(0.0, stats.expense);
+      }
+      entries.add(
+        ChartEntry(
+          label: _isWeekMode ? '${currentDay.month}/${currentDay.day}' : currentDay.day.toString(),
+          value: value,
+          color: cs.outline,
+        ),
+      );
+    }
+
+    return entries;
+  }
+
+  Set<int> _findAnomalyIndices(List<ChartEntry> entries) {
+    if (entries.length < 3) return const <int>{};
+    final values = entries.map((e) => max(0.0, e.value)).toList();
+    final mean = values.reduce((a, b) => a + b) / values.length;
+    final variance = values
+            .map((v) => (v - mean) * (v - mean))
+            .reduce((a, b) => a + b) /
+        values.length;
+    final std = sqrt(variance);
+    final anomalies = <int>{};
+    for (var i = 0; i < values.length; i++) {
+      if (values[i] > 0 && values[i] >= mean + 3 * std) {
+        anomalies.add(i);
+      }
+    }
+    final sorted = values.asMap().entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (sorted.length >= 2 && sorted.first.value > sorted[1].value * 2) {
+      anomalies.add(sorted.first.key);
+    }
+    return anomalies;
+  }
+
 
 
   // 构建趋势内容（包含统计摘要和图表）：日趋势或月趋势
@@ -1863,7 +2001,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     required List<ChartEntry> dailyEntries,
 
+    required List<ChartEntry> compareEntries,
+
+    required Set<int> anomalyIndices,
+
+    required List<Record> records,
+
     required double totalExpense,
+
+    double? budgetY,
 
     required ColorScheme cs,
 
@@ -1875,7 +2021,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     DateTime? maxDate;
 
+    final compareLabel =
+        _compareMode == _CompareMode.samePeriodLastYear ? '去年同期' : '上期';
+
     
+
+    final categoryProvider = context.read<CategoryProvider>();
 
     if (_isYearMode) {
 
@@ -1965,6 +2116,61 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     final periodLabel = _isYearMode ? '本年' : (_isWeekMode ? '本周' : _isMonthMode ? '本月' : '本期');
 
+    List<_AnomalyInfo> anomalyInfos = const [];
+    if (anomalyIndices.isNotEmpty && !_isYearMode) {
+      final baseRange = _periodRange();
+      var start = baseRange.start;
+      if (_isMonthMode) {
+        start = DateTime(start.year, start.month, 1);
+      } else if (_isWeekMode) {
+        start = DateUtilsX.startOfWeek(start);
+      }
+      anomalyInfos = anomalyIndices
+          .where((i) => i >= 0 && i < dailyEntries.length)
+          .map((i) {
+        final day = start.add(Duration(days: i));
+        final dayRecords = records
+            .where((r) =>
+                r.isExpense &&
+                DateUtilsX.isSameDay(r.date, day) &&
+                r.includeInStats)
+            .toList();
+        final byCat = <String, double>{};
+        for (final r in dayRecords) {
+          byCat[r.categoryKey] = (byCat[r.categoryKey] ?? 0) + r.expenseValue;
+        }
+        String topCatName = AppStrings.unknown;
+        double topCatValue = 0;
+        if (byCat.isNotEmpty) {
+          final top = byCat.entries.reduce((a, b) => a.value >= b.value ? a : b);
+          topCatValue = top.value;
+          final cat = categoryProvider.categories.firstWhere(
+            (c) => c.key == top.key,
+            orElse: () => Category(
+              key: top.key,
+              name: CategoryNameHelper.unknownCategoryName,
+              icon: Icons.category_outlined,
+              isExpense: true,
+            ),
+          );
+          topCatName = cat.name;
+        }
+        Record? topRecord;
+        if (dayRecords.isNotEmpty) {
+          dayRecords.sort((a, b) => b.expenseValue.compareTo(a.expenseValue));
+          topRecord = dayRecords.first;
+        }
+        return _AnomalyInfo(
+          index: i,
+          date: day,
+          amount: dailyEntries[i].value,
+          topCategoryName: topCatName,
+          topCategoryAmount: topCatValue,
+          topRecordRemark: topRecord?.remark,
+        );
+      }).toList();
+    }
+
 
 
     return Column(
@@ -2037,14 +2243,96 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
         const SizedBox(height: 16),
 
-        // 图表：年模式不需要横向滚动，月/周模式需要
+        Row(
+          children: [
+            _LegendDot(
+              color: dailyEntries.isNotEmpty
+                  ? dailyEntries.first.color
+                  : cs.primary,
+            ),
+            const SizedBox(width: 6),
+            const Text('本期'),
+            if (compareEntries.isNotEmpty) ...[
+              const SizedBox(width: 12),
+              _LegendDot(color: cs.outline, dashed: true),
+              const SizedBox(width: 6),
+              Text(compareLabel),
+            ],
+            if (budgetY != null) ...[
+              const SizedBox(width: 12),
+              _LegendDot(color: cs.primary.withOpacity(0.8), dashed: true),
+              const SizedBox(width: 6),
+              const Text('预算线'),
+            ],
+            if (anomalyIndices.isNotEmpty) ...[
+              const SizedBox(width: 12),
+              _LegendDot(color: cs.error),
+              const SizedBox(width: 6),
+              const Text('异常点'),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
 
+        // 图表：年模式不需要横向滚动，月/周模式需要
         SizedBox(
           height: 200,
           width: double.infinity,
-          child: ChartLine(entries: dailyEntries),
+          child: ChartLine(
+            entries: dailyEntries,
+            compareEntries: compareEntries,
+            budgetY: budgetY,
+            avgY: avgExpense,
+            highlightIndices: anomalyIndices,
+            bottomLabelBuilder:
+                _isYearMode ? (index, entry) => entry.label : null,
+          ),
         ),
         const SizedBox(height: 12),
+
+        if (anomalyIndices.isNotEmpty) ...[
+          Text(
+            '异常点通常来自大额单笔或某类集中支出，可到明细中查看原因。',
+            style: TextStyle(
+              fontSize: 12,
+              color: cs.onSurface.withOpacity(0.7),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        if (anomalyInfos.isNotEmpty) ...[
+          _SectionCard(
+            title: '异常点来源',
+            child: Column(
+              children: [
+                for (final info in anomalyInfos)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(
+                      '${DateUtilsX.ymd(info.date)} · ${_formatAmount(info.amount)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '主要来自 ${info.topCategoryName} ${_formatAmount(info.topCategoryAmount)}'
+                      '${(info.topRecordRemark != null && info.topRecordRemark!.isNotEmpty) ? '，如：${info.topRecordRemark}' : ''}',
+                      style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () => _openBillDetailForDate(info.date),
+                      child: const Text('查看明细'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
 
         Text(
 
@@ -2994,6 +3282,24 @@ class _AchievementRow extends StatelessWidget {
 
 
 
+class _AnomalyInfo {
+  const _AnomalyInfo({
+    required this.index,
+    required this.date,
+    required this.amount,
+    required this.topCategoryName,
+    required this.topCategoryAmount,
+    required this.topRecordRemark,
+  });
+
+  final int index;
+  final DateTime date;
+  final double amount;
+  final String topCategoryName;
+  final double topCategoryAmount;
+  final String? topRecordRemark;
+}
+
 class _PeriodActivity {
 
   _PeriodActivity({
@@ -3014,6 +3320,29 @@ class _PeriodActivity {
 
   final int streak;
 
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({
+    required this.color,
+    this.dashed = false,
+  });
+
+  final Color color;
+  final bool dashed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        color: dashed ? Colors.transparent : color,
+        border: Border.all(color: color, width: 1.5),
+        shape: BoxShape.circle,
+      ),
+    );
+  }
 }
 
 

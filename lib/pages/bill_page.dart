@@ -38,6 +38,8 @@ class BillPage extends StatefulWidget {
     this.initialShowYearMode,
     this.initialRange,
     this.initialPeriodType,
+    this.initialStartDate,
+    this.initialEndDate,
   });
 
   final int? initialYear;
@@ -45,6 +47,8 @@ class BillPage extends StatefulWidget {
   final bool? initialShowYearMode;
   final DateTimeRange? initialRange;
   final PeriodType? initialPeriodType;
+  final DateTime? initialStartDate;
+  final DateTime? initialEndDate;
 
   @override
   State<BillPage> createState() => _BillPageState();
@@ -122,6 +126,11 @@ class _BillPageState extends State<BillPage> {
       } else {
       _selectedYear = widget.initialYear!;
       }
+    }
+
+    if (widget.initialStartDate != null || widget.initialEndDate != null) {
+      _startDate = widget.initialStartDate;
+      _endDate = widget.initialEndDate;
     }
   }
 

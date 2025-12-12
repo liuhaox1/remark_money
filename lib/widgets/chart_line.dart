@@ -8,9 +8,19 @@ class ChartLine extends StatelessWidget {
   const ChartLine({
     super.key,
     required this.entries,
+    this.compareEntries,
+    this.budgetY,
+    this.avgY,
+    this.highlightIndices,
+    this.bottomLabelBuilder,
   });
 
   final List<ChartEntry> entries;
+  final List<ChartEntry>? compareEntries;
+  final double? budgetY;
+  final double? avgY;
+  final Set<int>? highlightIndices;
+  final String? Function(int index, ChartEntry entry)? bottomLabelBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -18,15 +28,35 @@ class ChartLine extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final spots = <FlSpot>[];
+    List<FlSpot> buildSpots(List<ChartEntry> list) {
+      final result = <FlSpot>[];
+      for (var i = 0; i < list.length; i++) {
+        final value = math.max(0.0, list[i].value).toDouble();
+        result.add(FlSpot(i.toDouble(), value));
+      }
+      return result;
+    }
+
+    final spots = buildSpots(entries);
+    final compareSpots =
+        compareEntries != null && compareEntries!.isNotEmpty
+            ? buildSpots(compareEntries!)
+            : null;
+
     double maxValue = 0;
     double minValue = 0; // 确保最小值至少为0
-    for (var i = 0; i < entries.length; i++) {
-      final entry = entries[i];
-      final value = math.max(0.0, entry.value).toDouble(); // 确保值不为负数并转换为double
-      maxValue = math.max(maxValue, value);
-      minValue = math.min(minValue, value);
-      spots.add(FlSpot(i.toDouble(), value));
+    for (final s in spots) {
+      maxValue = math.max(maxValue, s.y);
+      minValue = math.min(minValue, s.y);
+    }
+    if (compareSpots != null) {
+      for (final s in compareSpots) {
+        maxValue = math.max(maxValue, s.y);
+        minValue = math.min(minValue, s.y);
+      }
+    }
+    if (budgetY != null) {
+      maxValue = math.max(maxValue, budgetY!);
     }
 
     // 计算合适的Y轴最大值
@@ -49,7 +79,8 @@ class ChartLine extends StatelessWidget {
     }
 
     final cs = Theme.of(context).colorScheme;
-    final color = entries.isNotEmpty ? entries.first.color : cs.primary;
+    final color = entries.first.color;
+    final compareColor = cs.outline;
 
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4, left: 4, right: 4),
@@ -108,6 +139,20 @@ class ChartLine extends StatelessWidget {
                   if (index < 0 || index >= entries.length) {
                     return const SizedBox.shrink();
                   }
+                  if (bottomLabelBuilder != null) {
+                    final label = bottomLabelBuilder!(index, entries[index]);
+                    if (label == null || label.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    );
+                  }
+
                   final day = index + 1;
                   // 显示关键日期：1, 5, 10, 15, 20, 25, 30 等，以及最后一天
                   if (day == 1 || 
@@ -142,9 +187,12 @@ class ChartLine extends StatelessWidget {
               dotData: FlDotData(
                 show: true,
                 getDotPainter: (spot, percent, barData, index) {
+                  final isHighlight =
+                      highlightIndices != null &&
+                          highlightIndices!.contains(index);
                   return FlDotCirclePainter(
-                    radius: 3.5,
-                    color: color,
+                    radius: isHighlight ? 5 : 3.5,
+                    color: isHighlight ? cs.error : color,
                     strokeWidth: 2,
                     strokeColor: cs.surface,
                   );
@@ -155,11 +203,63 @@ class ChartLine extends StatelessWidget {
                 color: color.withOpacity(0.15),
               ),
             ),
+            if (compareSpots != null)
+              LineChartBarData(
+                spots: compareSpots,
+                isCurved: false,
+                color: compareColor,
+                barWidth: 2,
+                dashArray: [6, 4],
+                dotData: const FlDotData(show: false),
+                belowBarData: BarAreaData(show: false),
+              ),
           ],
           minX: 0,
           maxX: entries.isEmpty ? 0 : math.max(0, (entries.length - 1).toDouble()), // 确保X轴范围覆盖所有数据点，30天数据：0-29
           minY: math.min(0, minValue), // 如果数据中有负数，允许显示；否则为0
           maxY: maxY,
+          extraLinesData: (budgetY != null || avgY != null)
+              ? ExtraLinesData(
+                  horizontalLines: [
+                    if (budgetY != null)
+                      HorizontalLine(
+                        y: budgetY!,
+                        color: cs.primary.withOpacity(0.6),
+                        strokeWidth: 1.5,
+                        dashArray: [6, 4],
+                        label: HorizontalLineLabel(
+                          show: true,
+                          alignment: Alignment.topRight,
+                          padding: const EdgeInsets.only(right: 4, bottom: 2),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: cs.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          labelResolver: (_) => '预算',
+                        ),
+                      ),
+                    if (avgY != null)
+                      HorizontalLine(
+                        y: avgY!,
+                        color: cs.outline.withOpacity(0.6),
+                        strokeWidth: 1,
+                        dashArray: [3, 3],
+                        label: HorizontalLineLabel(
+                          show: true,
+                          alignment: Alignment.topLeft,
+                          padding: const EdgeInsets.only(left: 4, bottom: 2),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: cs.outline,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          labelResolver: (_) => '均值',
+                        ),
+                      ),
+                  ],
+                )
+              : null,
           lineTouchData: LineTouchData(
             enabled: false,
           ),
@@ -168,4 +268,3 @@ class ChartLine extends StatelessWidget {
     );
   }
 }
-
