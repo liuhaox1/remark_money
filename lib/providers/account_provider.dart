@@ -147,10 +147,19 @@ class AccountProvider extends ChangeNotifier {
     }
   }
 
+  /// 云端覆盖本地账户列表（用于透明同步）。
+  /// 不递增版本号，避免同步回环。
+  Future<void> replaceFromCloud(List<Map<String, dynamic>> cloudAccounts) async {
+    _accounts
+      ..clear()
+      ..addAll(cloudAccounts.map(Account.fromMap));
+    await _repository.saveAccounts(_accounts);
+    notifyListeners();
+  }
+
   String _generateId() {
     final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
     final random = _random.nextInt(1 << 20).toRadixString(16);
     return '$timestamp-$random';
   }
 }
-

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 客户端修改数据时版本号+1，同步后与服务器版本统一
 class DataVersionService {
   static const String _keyPrefix = 'data_version_';
+  static bool _suppressIncrement = false;
 
   /// 获取指定账本的数据版本号
   static Future<int> getVersion(String bookId) async {
@@ -19,6 +20,9 @@ class DataVersionService {
 
   /// 版本号+1（客户端修改数据时调用）
   static Future<int> incrementVersion(String bookId) async {
+    if (_suppressIncrement) {
+      return await getVersion(bookId);
+    }
     final current = await getVersion(bookId);
     final newVersion = current + 1;
     await setVersion(bookId, newVersion);
@@ -29,5 +33,14 @@ class DataVersionService {
   static Future<void> syncVersion(String bookId, int serverVersion) async {
     await setVersion(bookId, serverVersion);
   }
-}
 
+  static Future<T> runWithoutIncrement<T>(Future<T> Function() action) async {
+    final prev = _suppressIncrement;
+    _suppressIncrement = true;
+    try {
+      return await action();
+    } finally {
+      _suppressIncrement = prev;
+    }
+  }
+}

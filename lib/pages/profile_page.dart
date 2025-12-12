@@ -21,7 +21,6 @@ import '../services/auth_service.dart';
 import '../services/book_service.dart';
 import '../services/gift_code_service.dart';
 import 'account_settings_page.dart';
-import 'sync_page.dart';
 import 'vip_purchase_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
@@ -69,23 +68,6 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _logout() async {
     await _authService.clearToken();
     await _loadToken();
-  }
-
-  Future<void> _handleCloudSync() async {
-    if (_loadingToken) return;
-    final loggedIn = _token != null && _token!.isNotEmpty;
-    if (loggedIn) {
-      // 已登录：跳转云端同步页
-      if (mounted) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SyncPage()),
-        );
-      }
-      return;
-    }
-    // 未登录直接跳转登录页
-    await _goLogin();
   }
 
   Future<void> _showGiftCodeDialog() async {
@@ -300,7 +282,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '当前数据仅保存在本地。登录后可开启云端同步与多人账本。',
+                          '数据默认保存在本地；登录后会自动备份到云端，无需手动操作。',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: cs.onSurface.withOpacity(0.85),
                               ),
@@ -399,11 +381,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }) {
     final cs = Theme.of(context).colorScheme;
     final actions = [
-      _ProfileAction(
-        icon: Icons.cloud_sync_outlined,
-        label: '云端同步',
-        onTap: _handleCloudSync,
-      ),
       _ProfileAction(
         icon: Icons.card_giftcard_outlined,
         label: '兑换礼包码',

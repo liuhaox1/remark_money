@@ -10,6 +10,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
 import '../services/sync_version_cache_service.dart';
+import '../services/background_sync_manager.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
@@ -51,6 +52,8 @@ class _RootShellState extends State<RootShell> {
         Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) {
             _performLoginSync();
+            // 启动透明后台同步
+            BackgroundSyncManager.instance.start(context);
           }
         });
       }
@@ -95,6 +98,7 @@ class _RootShellState extends State<RootShell> {
 
   @override
   void dispose() {
+    BackgroundSyncManager.instance.stop();
     super.dispose();
   }
 

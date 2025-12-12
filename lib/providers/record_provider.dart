@@ -10,6 +10,7 @@ import '../utils/validation_utils.dart';
 import '../utils/error_handler.dart';
 import '../services/data_version_service.dart';
 import '../services/user_stats_service.dart';
+import '../services/sync_outbox_service.dart';
 import 'account_provider.dart';
 
 class RecordProvider extends ChangeNotifier {
@@ -153,6 +154,9 @@ class RecordProvider extends ChangeNotifier {
       // 数据修改时版本号+1
       await DataVersionService.incrementVersion(bookId);
 
+      // 记录到同步发件箱（透明后台同步）
+      await SyncOutboxService.instance.enqueueUpsert(record);
+
       // 更新用户统计
       await UserStatsService.updateRecordStats(date);
 
@@ -218,6 +222,9 @@ class RecordProvider extends ChangeNotifier {
 
       // 数据修改时版本号+1
       await DataVersionService.incrementVersion(updated.bookId);
+
+      // 记录到同步发件箱（透明后台同步）
+      await SyncOutboxService.instance.enqueueUpsert(updated);
 
       notifyListeners();
     } catch (e, stackTrace) {
@@ -287,6 +294,9 @@ class RecordProvider extends ChangeNotifier {
         await _applyAccountDelta(accountProvider, old, reverse: true);
         // 数据修改时版本号+1
         await DataVersionService.incrementVersion(old.bookId);
+
+        // 记录到同步发件箱（透明后台同步）
+        await SyncOutboxService.instance.enqueueDelete(old);
       }
 
       notifyListeners();

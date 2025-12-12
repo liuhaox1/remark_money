@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 2;
+const int _databaseVersion = 3;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -30,6 +30,7 @@ class Tables {
   static const String reminders = 'reminders';
   static const String appSettings = 'app_settings';
   static const String migrationLog = 'migration_log';
+  static const String syncOutbox = 'sync_outbox';
 }
 
 /// 数据库管理类
@@ -118,6 +119,23 @@ class DatabaseHelper {
         // 为 records 表增加 server_id 字段（用于存储服务器自增ID）
         await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN server_id INTEGER');
         break;
+      case 3:
+        // 增加同步发件箱表：用于透明后台同步
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS ${Tables.syncOutbox} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id TEXT NOT NULL,
+            op TEXT NOT NULL,
+            record_id TEXT,
+            server_id INTEGER,
+            payload TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+          )
+        ''');
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_created ON ${Tables.syncOutbox}(book_id, created_at)',
+        );
+        break;
       // 未来版本升级逻辑
       default:
         break;
@@ -144,6 +162,19 @@ class DatabaseHelper {
         FOREIGN KEY (book_id) REFERENCES ${Tables.books}(id),
         FOREIGN KEY (category_key) REFERENCES ${Tables.categories}(key),
         FOREIGN KEY (account_id) REFERENCES ${Tables.accounts}(id)
+      )
+    ''');
+
+    // 同步发件箱（本地修改队列）：用于透明后台同步
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${Tables.syncOutbox} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        book_id TEXT NOT NULL,
+        op TEXT NOT NULL,
+        record_id TEXT,
+        server_id INTEGER,
+        payload TEXT NOT NULL,
+        created_at INTEGER NOT NULL
       )
     ''');
 
@@ -287,6 +318,11 @@ class DatabaseHelper {
 
     // 记录模板表索引
     await db.execute('CREATE INDEX IF NOT EXISTS idx_templates_last_used ON ${Tables.recordTemplates}(last_used_at)');
+
+    // 同步发件箱索引
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_created ON ${Tables.syncOutbox}(book_id, created_at)',
+    );
   }
 
   /// 从 SharedPreferences 迁移数据
@@ -661,5 +697,3 @@ class DatabaseHelper {
     await prefs.setBool('use_shared_preferences', true);
   }
 }
-
-
