@@ -24,12 +24,19 @@ class BudgetPage extends StatefulWidget {
   State<BudgetPage> createState() => _BudgetPageState();
 }
 
-class _BudgetPageState extends State<BudgetPage> {
+class _BudgetPageState extends State<BudgetPage>
+    with SingleTickerProviderStateMixin {
   int _initialTabIndex = 0;
   bool _tabIndexInitialized = false;
 
   final TextEditingController _totalCtrl = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  TabController? _tabController;
+
+  String? _viewDataKey;
+  Future<Map<String, _BudgetViewData>>? _viewDataFuture;
+  Map<String, _BudgetViewData>? _viewDataCache;
 
   // 统一的金额输入过滤器：仅允许数字和小数点
   static final TextInputFormatter _digitsAndDotFormatter =
@@ -38,19 +45,22 @@ class _BudgetPageState extends State<BudgetPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_tabIndexInitialized) return;
-
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is String) {
-      _initialTabIndex = args == 'year' ? 1 : 0;
+    if (!_tabIndexInitialized) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String) {
+        _initialTabIndex = args == 'year' ? 1 : 0;
+      }
+      _tabIndexInitialized = true;
     }
-    _tabIndexInitialized = true;
+    _tabController ??=
+        TabController(length: 2, vsync: this, initialIndex: _initialTabIndex);
   }
 
   @override
   void dispose() {
     _totalCtrl.dispose();
     _scrollController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
@@ -630,9 +640,18 @@ class _BudgetPageState extends State<BudgetPage> {
     final today = DateTime(now.year, now.month, now.day);
     final budgetEntry = budgetProvider.budgetForBook(bookId);
 
-    // 使用 FutureBuilder 异步加载预算数据
-    return FutureBuilder<Map<String, _BudgetViewData>>(
-      future: Future.wait([
+    final recordChangeCounter =
+        context.select<RecordProvider, int>((p) => p.changeCounter);
+    final budgetChangeCounter =
+        context.select<BudgetProvider, int>((p) => p.changeCounter);
+
+    final nextKey = '$bookId:${today.millisecondsSinceEpoch ~/ 86400000}:'
+        '${budgetEntry.total}:${budgetEntry.annualTotal}:${budgetEntry.periodStartDay}:'
+        '${budgetEntry.categoryBudgets.length}:${budgetEntry.annualCategoryBudgets.length}:'
+        '$recordChangeCounter:$budgetChangeCounter';
+    if (_viewDataKey != nextKey || _viewDataFuture == null) {
+      _viewDataKey = nextKey;
+      _viewDataFuture = Future.wait([
         _buildViewData(
           view: _BudgetView.month,
           bookId: bookId,
@@ -650,11 +669,18 @@ class _BudgetPageState extends State<BudgetPage> {
           today: today,
         ),
       ]).then((results) => {
-        'month': results[0],
-        'year': results[1],
-      }),
+            'month': results[0],
+            'year': results[1],
+          });
+    }
+
+    // 使用 FutureBuilder 异步加载预算数据
+    return FutureBuilder<Map<String, _BudgetViewData>>(
+      future: _viewDataFuture,
+      initialData: _viewDataCache,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+        if (snapshot.connectionState != ConnectionState.done &&
+            snapshot.data == null) {
           return Scaffold(
             backgroundColor: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
             appBar: AppBar(
@@ -665,8 +691,12 @@ class _BudgetPageState extends State<BudgetPage> {
           );
         }
 
-        final monthData = snapshot.data?['month'];
-        final yearData = snapshot.data?['year'];
+        final data = snapshot.data ?? _viewDataCache;
+        if (data != null && snapshot.connectionState == ConnectionState.done) {
+          _viewDataCache = data;
+        }
+        final monthData = data?['month'];
+        final yearData = data?['year'];
         
         if (monthData == null || yearData == null) {
           return Scaffold(
@@ -679,15 +709,13 @@ class _BudgetPageState extends State<BudgetPage> {
           );
         }
 
-        return DefaultTabController(
-      length: 2,
-      initialIndex: _initialTabIndex,
-      child: Scaffold(
+        return Scaffold(
         backgroundColor:
             isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
         appBar: AppBar(
           title: const Text(AppStrings.budget),
-          bottom: const TabBar(
+          bottom: TabBar(
+            controller: _tabController,
             tabs: [
               Tab(text: AppStrings.tabMonth),
               Tab(text: AppStrings.tabYear),
@@ -721,6 +749,7 @@ class _BudgetPageState extends State<BudgetPage> {
                   ),
                   Expanded(
                     child: TabBarView(
+                      controller: _tabController,
                       children: [
                         _buildTabContent(
                           cs: cs,
@@ -746,7 +775,6 @@ class _BudgetPageState extends State<BudgetPage> {
             ),
           ),
         ),
-      ),
       );
       },
     );

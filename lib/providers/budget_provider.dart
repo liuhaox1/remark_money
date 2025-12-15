@@ -17,12 +17,20 @@ class BudgetProvider extends ChangeNotifier {
   bool _loaded = false;
   bool get loaded => _loaded;
 
+  int _changeCounter = 0;
+  int get changeCounter => _changeCounter;
+
+  void _notifyChanged() {
+    _changeCounter++;
+    notifyListeners();
+  }
+
   Future<void> load() async {
     if (_loaded) return;
     try {
       _budgetStore = await _repository.loadBudget();
       _loaded = true;
-      notifyListeners();
+      _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.load', e, stackTrace);
       _loaded = false;
@@ -57,7 +65,7 @@ class BudgetProvider extends ChangeNotifier {
       await _repository.saveBudget(_budgetStore);
       // 数据修改时版本号+1
       await DataVersionService.incrementVersion(bookId);
-      notifyListeners();
+      _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.updateBudgetForBook', e, stackTrace);
       rethrow;
@@ -165,7 +173,7 @@ class BudgetProvider extends ChangeNotifier {
       await _repository.saveBudget(_budgetStore);
       // 数据修改时版本号+1
       await DataVersionService.incrementVersion(bookId);
-      notifyListeners();
+      _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.resetBudgetForBook', e, stackTrace);
       rethrow;

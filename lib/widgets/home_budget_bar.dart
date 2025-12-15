@@ -21,6 +21,10 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
 
   _HomeBudgetView _view = _HomeBudgetView.month;
 
+  String? _usedKey;
+  Future<_BudgetUsedData>? _usedFuture;
+  _BudgetUsedData? _usedCache;
+
   @override
   void initState() {
     super.initState();
@@ -56,12 +60,45 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
     );
   }
 
+  void _ensureUsedFuture({
+    required RecordProvider recordProvider,
+    required String bookId,
+    required DateTime today,
+    required DateTimeRange monthPeriod,
+    required int recordChangeCounter,
+  }) {
+    final yearStart = DateTime(today.year, 1, 1);
+    final yearEnd = DateTime(today.year, 12, 31);
+    final key = '$bookId:'
+        '${monthPeriod.start.millisecondsSinceEpoch}:${monthPeriod.end.millisecondsSinceEpoch}:'
+        '${yearStart.millisecondsSinceEpoch}:${yearEnd.millisecondsSinceEpoch}:'
+        '$recordChangeCounter';
+    if (_usedKey == key && _usedFuture != null) return;
+    _usedKey = key;
+    _usedFuture = Future.wait<double>([
+      recordProvider.periodExpense(
+        bookId: bookId,
+        start: monthPeriod.start,
+        end: monthPeriod.end,
+      ),
+      recordProvider.periodExpense(
+        bookId: bookId,
+        start: yearStart,
+        end: yearEnd,
+      ),
+    ]).then((values) {
+      return _BudgetUsedData(monthUsed: values[0], yearUsed: values[1]);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final budgetProvider = context.watch<BudgetProvider>();
     final recordProvider = context.read<RecordProvider>();
+    final recordChangeCounter =
+        context.select<RecordProvider, int>((p) => p.changeCounter);
     final bookProvider = context.watch<BookProvider>();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -72,54 +109,55 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
     // 月度预算数据
     final monthPeriod = budgetProvider.currentPeriodRange(bookId, today);
     final monthTotal = budgetEntry.total;
-    // 使用 FutureBuilder 异步加载月度支出数据
-    return FutureBuilder<double>(
-      future: recordProvider.periodExpense(
-        bookId: bookId,
-        start: monthPeriod.start,
-        end: monthPeriod.end,
-      ),
-      builder: (context, monthSnapshot) {
-        if (monthSnapshot.connectionState != ConnectionState.done) {
-          return const SizedBox.shrink();
+    _ensureUsedFuture(
+      recordProvider: recordProvider,
+      bookId: bookId,
+      today: today,
+      monthPeriod: monthPeriod,
+      recordChangeCounter: recordChangeCounter,
+    );
+
+    return FutureBuilder<_BudgetUsedData>(
+      future: _usedFuture,
+      initialData: _usedCache,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData) {
+          _usedCache = snapshot.data;
         }
-        final monthUsed = monthSnapshot.data ?? 0.0;
+
+        final used = snapshot.data ?? _usedCache;
+        final monthUsed = used?.monthUsed ?? 0.0;
+        final yearUsed = used?.yearUsed ?? 0.0;
+        final showLoadingOverlay =
+            snapshot.connectionState == ConnectionState.waiting &&
+                _usedCache != null;
+
         final monthRemaining = monthTotal - monthUsed;
         final monthToday = today.isBefore(monthPeriod.start)
             ? monthPeriod.start
             : (today.isAfter(monthPeriod.end) ? monthPeriod.end : today);
-        final rawMonthDaysLeft = monthPeriod.end.difference(monthToday).inDays + 1;
+        final rawMonthDaysLeft =
+            monthPeriod.end.difference(monthToday).inDays + 1;
         final monthDaysLeft = rawMonthDaysLeft < 0 ? 0 : rawMonthDaysLeft;
         final monthDailyAllowance =
             monthDaysLeft > 0 ? monthRemaining / monthDaysLeft : 0.0;
 
-        // 使用 FutureBuilder 异步加载年度支出数据
-        return FutureBuilder<double>(
-          future: recordProvider.periodExpense(
-            bookId: bookId,
-            start: DateTime(today.year, 1, 1),
-            end: DateTime(today.year, 12, 31),
-          ),
-          builder: (context, yearSnapshot) {
-            if (yearSnapshot.connectionState != ConnectionState.done) {
-              return const SizedBox.shrink();
-            }
-            final yearTotal = budgetEntry.annualTotal;
-            final yearUsed = yearSnapshot.data ?? 0.0;
-            final yearRemaining = yearTotal - yearUsed;
-            final yearStart = DateTime(today.year, 1, 1);
-            final yearEnd = DateTime(today.year, 12, 31);
-            final yearToday = today.isBefore(yearStart)
-                ? yearStart
-                : (today.isAfter(yearEnd) ? yearEnd : today);
-            final totalYearDays = yearEnd.difference(yearStart).inDays + 1;
-            final elapsedYearDays = yearToday.difference(yearStart).inDays + 1;
-            final usedPercent = yearTotal > 0 ? (yearUsed / yearTotal * 100) : 0.0;
-            final timePercent =
-                totalYearDays > 0 ? (elapsedYearDays / totalYearDays * 100) : 0.0;
-            final usageAheadOfTime = usedPercent > timePercent + 10.0;
+        final yearTotal = budgetEntry.annualTotal;
+        final yearRemaining = yearTotal - yearUsed;
+        final yearStart = DateTime(today.year, 1, 1);
+        final yearEnd = DateTime(today.year, 12, 31);
+        final yearToday = today.isBefore(yearStart)
+            ? yearStart
+            : (today.isAfter(yearEnd) ? yearEnd : today);
+        final totalYearDays = yearEnd.difference(yearStart).inDays + 1;
+        final elapsedYearDays = yearToday.difference(yearStart).inDays + 1;
+        final usedPercent = yearTotal > 0 ? (yearUsed / yearTotal * 100) : 0.0;
+        final timePercent =
+            totalYearDays > 0 ? (elapsedYearDays / totalYearDays * 100) : 0.0;
+        final usageAheadOfTime = usedPercent > timePercent + 10.0;
 
-    return Padding(
+        final card = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         padding: const EdgeInsets.all(18),
@@ -204,7 +242,17 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         ),
       ),
     );
-          },
+        if (!showLoadingOverlay) return card;
+        return Stack(
+          children: [
+            card,
+            const Positioned(
+              left: 16,
+              right: 16,
+              top: 0,
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          ],
         );
       },
     );
@@ -507,6 +555,16 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
       ],
     );
   }
+}
+
+class _BudgetUsedData {
+  const _BudgetUsedData({
+    required this.monthUsed,
+    required this.yearUsed,
+  });
+
+  final double monthUsed;
+  final double yearUsed;
 }
 
 // ignore: unused_element

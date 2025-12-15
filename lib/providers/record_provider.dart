@@ -35,6 +35,14 @@ class RecordProvider extends ChangeNotifier {
   bool _loaded = false;
   bool get loaded => _loaded;
 
+  int _changeCounter = 0;
+  int get changeCounter => _changeCounter;
+
+  void _notifyChanged() {
+    _changeCounter++;
+    notifyListeners();
+  }
+
   // 检查是否使用数据库
   bool get _isUsingDatabase => RepositoryFactory.isUsingDatabase;
 
@@ -68,7 +76,7 @@ class RecordProvider extends ChangeNotifier {
       }
       
       _loaded = true;
-      notifyListeners();
+      _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.load', e, stackTrace);
       _loaded = false;
@@ -160,7 +168,7 @@ class RecordProvider extends ChangeNotifier {
       // 更新用户统计
       await UserStatsService.updateRecordStats(date);
 
-      notifyListeners();
+      _notifyChanged();
       return record;
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.addRecord', e, stackTrace);
@@ -226,7 +234,7 @@ class RecordProvider extends ChangeNotifier {
       // 记录到同步发件箱（透明后台同步）
       await SyncOutboxService.instance.enqueueUpsert(updated);
 
-      notifyListeners();
+      _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.updateRecord', e, stackTrace);
       rethrow;
@@ -342,7 +350,7 @@ class RecordProvider extends ChangeNotifier {
         await SyncOutboxService.instance.enqueueDelete(old);
       }
 
-      notifyListeners();
+      _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.deleteRecord', e, stackTrace);
       rethrow;
@@ -689,7 +697,7 @@ class RecordProvider extends ChangeNotifier {
         }
         
         _clearCache();
-        notifyListeners();
+        _notifyChanged();
       }
 
       return ImportResult(

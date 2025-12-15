@@ -44,6 +44,19 @@ class _DatePanelState extends State<DatePanel>
   late DateTime _selectedDay = widget.selectedDay;
   late int _currentYear = widget.selectedDay.year;
   late int _currentMonth = widget.selectedDay.month;
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,9 +64,7 @@ class _DatePanelState extends State<DatePanel>
     final cs = theme.colorScheme;
     final weekday = DateUtilsX.weekdayShort(_selectedDay);
 
-    return DefaultTabController(
-      length: 3,
-      child: Padding(
+    return Padding(
         padding: EdgeInsets.only(
           left: 16,
           right: 16,
@@ -82,6 +93,7 @@ class _DatePanelState extends State<DatePanel>
             ),
             const SizedBox(height: 12),
             TabBar(
+              controller: _tabController,
               indicatorColor: cs.primary,
               labelColor: cs.primary,
               unselectedLabelColor: cs.onSurface.withOpacity(0.65),
@@ -95,6 +107,7 @@ class _DatePanelState extends State<DatePanel>
             SizedBox(
               height: 420,
               child: TabBarView(
+                controller: _tabController,
                 children: [
                   _buildDayTab(context),
                   _buildWeekTab(context),
@@ -104,7 +117,6 @@ class _DatePanelState extends State<DatePanel>
             ),
           ],
         ),
-      ),
     );
   }
 

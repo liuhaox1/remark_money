@@ -64,6 +64,18 @@ class _BillPageState extends State<BillPage> {
   late DateTime _selectedMonth;
   late DateTimeRange _selectedWeek;
 
+  String? _yearStatsKey;
+  Future<List<Map<String, double>>>? _yearStatsFuture;
+  List<Map<String, double>>? _yearStatsCache;
+
+  String? _monthRecordsKey;
+  Future<List<Record>>? _monthRecordsFuture;
+  List<Record>? _monthRecordsCache;
+
+  String? _weekRecordsKey;
+  Future<List<Record>>? _weekRecordsFuture;
+  List<Record>? _weekRecordsCache;
+
   // 搜索相关
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -687,6 +699,8 @@ class _BillPageState extends State<BillPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final recordProvider = context.watch<RecordProvider>();
+    final recordChangeCounter =
+        context.select<RecordProvider, int>((p) => p.changeCounter);
     final categoryProvider = context.watch<CategoryProvider>();
     final bookProvider = context.watch<BookProvider>();
 
@@ -728,7 +742,14 @@ class _BillPageState extends State<BillPage> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: _buildMonthBill2(context, cs, bookId),
+              child: _buildMonthBill2(
+                context,
+                cs,
+                bookId,
+                recordProvider: recordProvider,
+                categoryProvider: categoryProvider,
+                recordChangeCounter: recordChangeCounter,
+              ),
             ),
           ],
         ),
@@ -889,10 +910,30 @@ class _BillPageState extends State<BillPage> {
 
           Expanded(
             child: _periodType == PeriodType.year
-                ? _buildYearBill(context, cs, bookId)
+                ? _buildYearBill(
+                    context,
+                    cs,
+                    bookId,
+                    recordProvider: recordProvider,
+                    recordChangeCounter: recordChangeCounter,
+                  )
                 : _periodType == PeriodType.month
-                    ? _buildMonthBill2(context, cs, bookId)
-                    : _buildWeekBill(context, cs, bookId),
+                    ? _buildMonthBill2(
+                        context,
+                        cs,
+                        bookId,
+                        recordProvider: recordProvider,
+                        categoryProvider: categoryProvider,
+                        recordChangeCounter: recordChangeCounter,
+                      )
+                    : _buildWeekBill(
+                        context,
+                        cs,
+                        bookId,
+                        recordProvider: recordProvider,
+                        categoryProvider: categoryProvider,
+                        recordChangeCounter: recordChangeCounter,
+                      ),
           ),
         ],
       ),
@@ -1482,23 +1523,40 @@ class _BillPageState extends State<BillPage> {
   // ======================================================
   // 📘 年度账单（展示 12 个月收入/支出/结余）
   // ======================================================
-  Widget _buildYearBill(BuildContext context, ColorScheme cs, String bookId) {
-    final recordProvider = context.watch<RecordProvider>();
+  Widget _buildYearBill(
+    BuildContext context,
+    ColorScheme cs,
+    String bookId, {
+    required RecordProvider recordProvider,
+    required int recordChangeCounter,
+  }) {
+    _ensureYearStatsFuture(
+      recordProvider: recordProvider,
+      bookId: bookId,
+      recordChangeCounter: recordChangeCounter,
+    );
     final months = DateUtilsX.monthsInYear(_selectedYear);
 
     // 使用 FutureBuilder 异步加载统计数据（支持100万条记录）
     return FutureBuilder<List<Map<String, double>>>(
-      future: _loadYearStats(recordProvider, bookId, months),
+      future: _yearStatsFuture,
+      initialData: _yearStatsCache,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
         if (snapshot.hasError) {
           return Center(child: Text('加载失败: ${snapshot.error}'));
         }
 
-        final monthStats = snapshot.data ?? [];
+        final monthStats = snapshot.data ?? const <Map<String, double>>[];
+        if (snapshot.connectionState == ConnectionState.done) {
+          _yearStatsCache = monthStats;
+        }
+        final showLoadingOverlay =
+            snapshot.connectionState == ConnectionState.waiting &&
+                (_yearStatsCache?.isNotEmpty ?? false);
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            monthStats.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
         double totalIncome = 0;
         double totalExpense = 0;
 
@@ -1555,9 +1613,21 @@ class _BillPageState extends State<BillPage> {
 
         items.addAll(monthItems);
 
-        return ListView(
+        final list = ListView(
           padding: const EdgeInsets.all(12),
           children: items,
+        );
+        if (!showLoadingOverlay) return list;
+        return Stack(
+          children: [
+            list,
+            const Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          ],
         );
       },
     );
@@ -1580,9 +1650,70 @@ class _BillPageState extends State<BillPage> {
     return stats;
   }
 
-  Widget _buildWeekBill(BuildContext context, ColorScheme cs, String bookId) {
-    final recordProvider = context.watch<RecordProvider>();
-    final categoryProvider = context.watch<CategoryProvider>();
+  void _ensureYearStatsFuture({
+    required RecordProvider recordProvider,
+    required String bookId,
+    required int recordChangeCounter,
+  }) {
+    final key = '$bookId:${_selectedYear}:$recordChangeCounter';
+    if (_yearStatsKey == key && _yearStatsFuture != null) return;
+    _yearStatsKey = key;
+    final months = DateUtilsX.monthsInYear(_selectedYear);
+    _yearStatsFuture = _loadYearStats(recordProvider, bookId, months);
+  }
+
+  void _ensureMonthRecordsFuture({
+    required RecordProvider recordProvider,
+    required String bookId,
+    required int recordChangeCounter,
+  }) {
+    final monthStart = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
+    final monthEnd =
+        DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0, 23, 59, 59);
+    final key =
+        '$bookId:${monthStart.millisecondsSinceEpoch}:${monthEnd.millisecondsSinceEpoch}:$recordChangeCounter';
+    if (_monthRecordsKey == key && _monthRecordsFuture != null) return;
+    _monthRecordsKey = key;
+    _monthRecordsFuture = recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: monthStart,
+      end: monthEnd,
+    );
+  }
+
+  void _ensureWeekRecordsFuture({
+    required RecordProvider recordProvider,
+    required String bookId,
+    required int recordChangeCounter,
+  }) {
+    final start = _selectedWeek.start;
+    final end = _selectedWeek.end
+        .add(const Duration(days: 1))
+        .subtract(const Duration(seconds: 1));
+    final key =
+        '$bookId:${start.millisecondsSinceEpoch}:${end.millisecondsSinceEpoch}:$recordChangeCounter';
+    if (_weekRecordsKey == key && _weekRecordsFuture != null) return;
+    _weekRecordsKey = key;
+    _weekRecordsFuture = recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: start,
+      end: end,
+    );
+  }
+
+  Widget _buildWeekBill(
+    BuildContext context,
+    ColorScheme cs,
+    String bookId, {
+    required RecordProvider recordProvider,
+    required CategoryProvider categoryProvider,
+    required int recordChangeCounter,
+  }) {
+    _ensureWeekRecordsFuture(
+      recordProvider: recordProvider,
+      bookId: bookId,
+      recordChangeCounter: recordChangeCounter,
+    );
     final categoryMap = {
       for (final c in categoryProvider.categories) c.key: c,
     };
@@ -1593,21 +1724,24 @@ class _BillPageState extends State<BillPage> {
     
     // 使用 FutureBuilder 异步加载周记录（支持100万条记录）
     return FutureBuilder<List<Record>>(
-      future: recordProvider.recordsForPeriodAsync(
-        bookId,
-        start: _selectedWeek.start,
-        end: _selectedWeek.end.add(const Duration(days: 1)).subtract(const Duration(seconds: 1)),
-      ),
+      future: _weekRecordsFuture,
+      initialData: _weekRecordsCache,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
         if (snapshot.hasError) {
           return Center(child: Text('加载失败: ${snapshot.error}'));
         }
 
-        final allWeekRecords = snapshot.data ?? [];
+        final allWeekRecords = snapshot.data ?? const <Record>[];
+        if (snapshot.connectionState == ConnectionState.done) {
+          _weekRecordsCache = allWeekRecords;
+        }
+        final showLoadingOverlay =
+            snapshot.connectionState == ConnectionState.waiting &&
+                (_weekRecordsCache?.isNotEmpty ?? false);
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            allWeekRecords.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
         double totalIncome = 0;
         double totalExpense = 0;
         int emptyDays = 0;
@@ -1690,9 +1824,21 @@ class _BillPageState extends State<BillPage> {
           ),
         );
 
-        return ListView(
+        final list = ListView(
           padding: const EdgeInsets.all(12),
           children: items,
+        );
+        if (!showLoadingOverlay) return list;
+        return Stack(
+          children: [
+            list,
+            const Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          ],
         );
       },
     );
@@ -1704,35 +1850,41 @@ class _BillPageState extends State<BillPage> {
   Widget _buildMonthBill2(
     BuildContext context,
     ColorScheme cs,
-    String bookId,
-  ) {
+    String bookId, {
+    required RecordProvider recordProvider,
+    required CategoryProvider categoryProvider,
+    required int recordChangeCounter,
+  }) {
     final days = DateUtilsX.daysInMonth(_selectedMonth);
-    final recordProvider = context.watch<RecordProvider>();
-    final categoryProvider = context.watch<CategoryProvider>();
+    _ensureMonthRecordsFuture(
+      recordProvider: recordProvider,
+      bookId: bookId,
+      recordChangeCounter: recordChangeCounter,
+    );
     final categoryMap = {
       for (final c in categoryProvider.categories) c.key: c,
     };
 
     // 使用 FutureBuilder 异步加载月记录（支持100万条记录）
-    final monthStart = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
-    final monthEnd = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0, 23, 59, 59);
-    
     return FutureBuilder<List<Record>>(
-      future: recordProvider.recordsForPeriodAsync(
-        bookId,
-        start: monthStart,
-        end: monthEnd,
-      ),
+      future: _monthRecordsFuture,
+      initialData: _monthRecordsCache,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
         if (snapshot.hasError) {
           return Center(child: Text('加载失败: ${snapshot.error}'));
         }
 
-        final allMonthRecords = snapshot.data ?? [];
+        final allMonthRecords = snapshot.data ?? const <Record>[];
+        if (snapshot.connectionState == ConnectionState.done) {
+          _monthRecordsCache = allMonthRecords;
+        }
+        final showLoadingOverlay =
+            snapshot.connectionState == ConnectionState.waiting &&
+                (_monthRecordsCache?.isNotEmpty ?? false);
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            allMonthRecords.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
         double totalIncome = 0;
         double totalExpense = 0;
         double maxDailyExpense = 0;
@@ -1842,9 +1994,21 @@ class _BillPageState extends State<BillPage> {
           }
         }
 
-        return ListView(
+        final list = ListView(
           padding: const EdgeInsets.all(12),
           children: items,
+        );
+        if (!showLoadingOverlay) return list;
+        return Stack(
+          children: [
+            list,
+            const Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          ],
         );
       },
     );
