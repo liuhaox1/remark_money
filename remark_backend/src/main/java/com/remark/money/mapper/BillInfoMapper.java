@@ -13,8 +13,18 @@ public interface BillInfoMapper {
   // 根据id查询
   BillInfo findById(@Param("id") Long id);
 
+  // v2 scoped lookups (avoid cross-book/user leakage)
+  BillInfo findByIdForUserAndBook(@Param("userId") Long userId, @Param("bookId") String bookId, @Param("id") Long id);
+
+  BillInfo findByIdForBook(@Param("bookId") String bookId, @Param("id") Long id);
+
   // 批量根据id查询
   List<BillInfo> findByIds(@Param("ids") List<Long> ids);
+
+  // v2 scoped batch lookup
+  List<BillInfo> findByIdsForUserAndBook(@Param("userId") Long userId, @Param("bookId") String bookId, @Param("ids") List<Long> ids);
+
+  List<BillInfo> findByIdsForBook(@Param("bookId") String bookId, @Param("ids") List<Long> ids);
 
   // 插入账单
   void insert(BillInfo billInfo);
@@ -72,4 +82,34 @@ public interface BillInfoMapper {
   Long findMaxIdByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
 
   Long findMaxIdByBookId(@Param("bookId") String bookId);
+
+  // v2: optimistic-lock update (single-user book)
+  int updateWithExpectedVersionByUserIdAndBookId(
+      @Param("userId") Long userId,
+      @Param("bookId") String bookId,
+      @Param("expectedVersion") Long expectedVersion,
+      @Param("bill") BillInfo bill
+  );
+
+  // v2: optimistic-lock update (multi-user/shared book)
+  int updateWithExpectedVersionByBookId(
+      @Param("bookId") String bookId,
+      @Param("expectedVersion") Long expectedVersion,
+      @Param("bill") BillInfo bill
+  );
+
+  // v2: optimistic-lock soft delete (single-user book)
+  int softDeleteWithExpectedVersionByUserIdAndBookId(
+      @Param("userId") Long userId,
+      @Param("bookId") String bookId,
+      @Param("id") Long id,
+      @Param("expectedVersion") Long expectedVersion
+  );
+
+  // v2: optimistic-lock soft delete (multi-user/shared book)
+  int softDeleteWithExpectedVersionByBookId(
+      @Param("bookId") String bookId,
+      @Param("id") Long id,
+      @Param("expectedVersion") Long expectedVersion
+  );
 }

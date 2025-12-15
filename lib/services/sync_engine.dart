@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -13,6 +11,8 @@ import 'auth_service.dart';
 import 'data_version_service.dart';
 import 'sync_outbox_service.dart';
 import 'sync_service.dart';
+import 'sync_v2_conflict_store.dart';
+import 'sync_v2_cursor_store.dart';
 
 class SyncEngine {
   SyncEngine({
@@ -30,61 +30,18 @@ class SyncEngine {
   Future<void> syncActiveBook(BuildContext context) async {
     final bookId = context.read<BookProvider>().activeBookId;
     if (bookId.isEmpty) return;
-    await syncBook(context, bookId);
+    await syncBookV2(context, bookId);
   }
 
   Future<void> syncBook(BuildContext context, String bookId) async {
+    await syncBookV2(context, bookId);
+  }
+
+  Future<void> syncBookV2(BuildContext context, String bookId) async {
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
-
-    // 取一次状态；后续根据返回的 syncRecord 游标做增量
-    final status = await _syncService.queryStatus(bookId: bookId);
-    if (!status.success) return;
-
-    final localVersion = await DataVersionService.getVersion(bookId);
-    final syncRecord = status.syncRecord;
-    final serverVersion = syncRecord?.dataVersion ?? 0;
-    final hasEverSynced = syncRecord?.lastSyncTime != null &&
-        (syncRecord!.lastSyncTime?.isNotEmpty ?? false);
-
-    // 无本地变更且服务器版本不变：直接跳过（不上传/不下载）
-    final pending = await _outbox.loadPending(bookId, limit: 1);
-    if (pending.isEmpty && hasEverSynced && localVersion == serverVersion) {
-      return;
-    }
-
-    // 首次：尽量减少重复/冲突。云端有数据时先拉取，再上传本地修改队列。
-    if (!hasEverSynced) {
-      final cloudCount = syncRecord?.cloudBillCount ?? 0;
-      final localCount = await _estimateLocalCount(bookId);
-
-      if (cloudCount > 0) {
-        await _fullDownload(context, bookId);
-      } else if (localCount > 0) {
-        await _fullUpload(context, bookId);
-      } else {
-        // 两边都空：不做事
-      }
-    }
-
-    SyncRecord? latest = syncRecord;
-
-    // 1) 先上传本地 outbox（包含历史修改/删除）
-    latest = await _uploadOutbox(context, bookId) ?? latest;
-
-    // 2) 再拉取云端增量（解决多设备）
-    latest = await _downloadIncremental(
-          context,
-          bookId,
-          lastSyncTime: latest?.lastSyncTime,
-          lastSyncId: latest?.lastSyncId,
-        ) ??
-        latest;
-
-    // 3) 用服务器版本统一本地版本，避免重复触发
-    if (latest?.dataVersion != null) {
-      await DataVersionService.syncVersion(bookId, latest!.dataVersion!);
-    }
+    await _uploadOutboxV2(context, bookId);
+    await _pullV2(context, bookId);
   }
 
   /// 同步“元数据”（预算/账户等低频数据）。
@@ -96,192 +53,158 @@ class SyncEngine {
     await _syncAccounts(context, bookId);
   }
 
-  Future<int> _estimateLocalCount(String bookId) async {
-    try {
-      if (RepositoryFactory.isUsingDatabase) {
-        final repo = RepositoryFactory.createRecordRepository() as dynamic;
-        final list = await repo.loadRecords(bookId: bookId);
-        return (list as List<Record>).where((r) => r.includeInStats).length;
+  Future<void> _uploadOutboxV2(BuildContext context, String bookId) async {
+    final recordProvider = context.read<RecordProvider>();
+
+    while (true) {
+      final pending = await _outbox.loadPending(bookId, limit: 200);
+      if (pending.isEmpty) return;
+
+      final ops = pending.map((e) => e.payload).toList(growable: false);
+      final resp = await _syncService.v2Push(bookId: bookId, ops: ops);
+      if (resp['success'] != true) {
+        debugPrint('[SyncEngine] v2Push failed: ${resp['error']}');
+        return;
       }
-    } catch (_) {}
-    return 0;
-  }
 
-  Future<void> _fullUpload(BuildContext context, String bookId) async {
-    try {
-      List<Record> localRecords;
-      if (RepositoryFactory.isUsingDatabase) {
-        final repo = RepositoryFactory.createRecordRepository() as dynamic;
-        localRecords = (await repo.loadRecords(bookId: bookId)) as List<Record>;
-      } else {
-        localRecords = context.read<RecordProvider>().recordsForBook(bookId);
+      final results = (resp['results'] as List? ?? const [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList();
+      final resultByOpId = <String, Map<String, dynamic>>{};
+      for (final r in results) {
+        final opId = r['opId'] as String?;
+        if (opId != null) resultByOpId[opId] = r;
       }
-      localRecords = localRecords.where((r) => r.includeInStats).toList();
-      if (localRecords.isEmpty) return;
 
-      final bills = localRecords.map(_recordToMap).toList();
-
-      const batchSize = 300;
-      final totalBatches = (bills.length / batchSize).ceil();
-
-      for (int i = 0; i < totalBatches; i++) {
-        final start = i * batchSize;
-        final end = math.min(start + batchSize, bills.length);
-        final batch = bills.sublist(start, end);
-        final result = await _syncService.fullUpload(
-          bookId: bookId,
-          bills: batch,
-          batchNum: i + 1,
-          totalBatches: totalBatches,
-        );
-        if (!result.success) {
-          debugPrint('[SyncEngine] fullUpload failed: ${result.error}');
-          return;
+      final toDelete = <SyncOutboxItem>[];
+      for (final item in pending) {
+        final opId = item.payload['opId'] as String?;
+        if (opId == null) {
+          final syntheticOpId = 'missing-opid-${DateTime.now().microsecondsSinceEpoch}';
+          await SyncV2ConflictStore.addConflict(bookId, {
+            'opId': syntheticOpId,
+            'localOp': item.payload,
+            'error': 'missing opId in outbox payload',
+          });
+          toDelete.add(item);
+          continue;
+        }
+        final r = resultByOpId[opId];
+        if (r == null) {
+          // 服务端未返回该 opId 的结果：避免本次 sync 内死循环重试
+          debugPrint('[SyncEngine] v2Push missing result for opId=$opId');
+          continue;
         }
 
-        // 尝试用“字段匹配”回填 serverId（批次内匹配，避免全表扫描）
-        if (result.bills != null && result.bills!.isNotEmpty) {
-          await _applyServerIdsFromUploadedBatch(
-            context,
-            localRecords: localRecords,
-            uploadedBatch: batch,
-            returnedBills: result.bills!,
-          );
+        final status = r['status'] as String?;
+        if (status == 'applied') {
+          final type = item.payload['type'] as String?;
+          if (type == 'upsert') {
+            final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
+            final localId = bill?['localId'] as String?;
+            final serverId = r['serverId'] as int?;
+            final version = r['version'] as int?;
+            if (localId != null && serverId != null) {
+              await recordProvider.setServerSyncState(
+                localId,
+                serverId: serverId,
+                serverVersion: version,
+              );
+            }
+          }
+          toDelete.add(item);
+        } else if (status == 'conflict') {
+          await SyncV2ConflictStore.addConflict(bookId, {
+            'opId': opId,
+            'localOp': item.payload,
+            'serverId': r['serverId'],
+            'serverVersion': r['version'],
+            'serverBill': r['serverBill'],
+          });
+          toDelete.add(item);
+        } else {
+          // error/unknown：落盘并删除，避免无限重试压服务端
+          await SyncV2ConflictStore.addConflict(bookId, {
+            'opId': opId,
+            'localOp': item.payload,
+            'serverId': r['serverId'],
+            'serverVersion': r['version'],
+            'error': r['error'] ?? 'status=$status',
+          });
+          toDelete.add(item);
         }
       }
 
-      // 全量上传后，outbox 里的 upsert 很可能已包含相同数据；此处不强制清空，后续增量会幂等更新
-    } catch (e) {
-      debugPrint('[SyncEngine] fullUpload exception: $e');
+      // 无进展保护：避免 while(true) 无限循环
+      if (toDelete.isEmpty) {
+        debugPrint('[SyncEngine] v2Push made no progress; stop this cycle');
+        return;
+      }
+
+      await _outbox.deleteItems(bookId, toDelete);
+
+      // 如果还有未处理项（缺结果等），留待下一次触发，避免本次循环内反复重试
+      if (toDelete.length < pending.length) return;
     }
   }
 
-  Future<void> _fullDownload(BuildContext context, String bookId) async {
-    try {
-      final recordProvider = context.read<RecordProvider>();
-      final accountProvider = context.read<AccountProvider>();
+  Future<void> _pullV2(BuildContext context, String bookId) async {
+    var cursor = await SyncV2CursorStore.getLastChangeId(bookId);
 
-      int offset = 0;
-      const limit = 200;
-      while (true) {
-        final result = await _syncService.fullDownload(
-          bookId: bookId,
-          offset: offset,
-          limit: limit,
-        );
-        if (!result.success) {
-          debugPrint('[SyncEngine] fullDownload failed: ${result.error}');
-          return;
-        }
-        final bills = result.bills ?? [];
-        if (bills.isEmpty) break;
+    while (true) {
+      final prevCursor = cursor;
+      final resp = await _syncService.v2Pull(
+        bookId: bookId,
+        afterChangeId: cursor == 0 ? null : cursor,
+        limit: 200,
+      );
+      if (resp['success'] != true) {
+        debugPrint('[SyncEngine] v2Pull failed: ${resp['error']}');
+        return;
+      }
 
+      final next = resp['nextChangeId'] as int? ?? cursor;
+      final changes = (resp['changes'] as List? ?? const [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList(growable: false);
+
+      if (changes.isNotEmpty) {
+        final recordProvider = context.read<RecordProvider>();
+        final accountProvider = context.read<AccountProvider>();
         await _outbox.runSuppressed(() async {
           await DataVersionService.runWithoutIncrement(() async {
-            for (final billMap in bills) {
+            for (final c in changes) {
+              final bill = (c['bill'] as Map?)?.cast<String, dynamic>();
+              if (bill == null) continue;
               await _applyCloudBill(
-                billMap,
+                bill,
                 recordProvider: recordProvider,
                 accountProvider: accountProvider,
               );
             }
           });
         });
-
-        if (!(result.hasMore ?? false)) break;
-        offset += limit;
       }
-    } catch (e) {
-      debugPrint('[SyncEngine] fullDownload exception: $e');
+
+      cursor = next;
+      await SyncV2CursorStore.setLastChangeId(bookId, cursor);
+
+      final hasMore = resp['hasMore'] as bool? ?? false;
+      if (hasMore && next == prevCursor && changes.isEmpty) {
+        debugPrint('[SyncEngine] v2Pull hasMore but cursor not advanced; stop to avoid loop');
+        return;
+      }
+      if (!hasMore) break;
     }
-  }
-
-  Future<SyncRecord?> _uploadOutbox(BuildContext context, String bookId) async {
-    SyncRecord? latest;
-    while (true) {
-      final pending = await _outbox.loadPending(bookId, limit: 200);
-      if (pending.isEmpty) return latest;
-
-      final bills = pending.map((e) => e.payload).toList();
-      final result = await _syncService.incrementalUpload(bookId: bookId, bills: bills);
-      if (!result.success) {
-        debugPrint('[SyncEngine] incrementalUpload failed: ${result.error}');
-        return latest;
-      }
-      latest = result.syncRecord ?? latest;
-
-      // 回填 serverId：优先用 serverId 精确匹配，否则在本批 outbox 的 localId 上匹配
-      if (result.bills != null && result.bills!.isNotEmpty) {
-        await _applyServerIdsFromOutboxBatch(
-          context,
-          outboxItems: pending,
-          returnedBills: result.bills!,
-        );
-      }
-
-      await _outbox.deleteItems(bookId, pending);
-    }
-  }
-
-  Future<SyncRecord?> _downloadIncremental(
-    BuildContext context,
-    String bookId, {
-    String? lastSyncTime,
-    int? lastSyncId,
-  }) async {
-    final downloadResult = await _syncService.incrementalDownload(
-      bookId: bookId,
-      lastSyncTime: lastSyncTime,
-      lastSyncId: lastSyncId,
-    );
-    if (!downloadResult.success) return null;
-
-    final bills = downloadResult.bills ?? [];
-    if (bills.isEmpty) return downloadResult.syncRecord;
-
-    final recordProvider = context.read<RecordProvider>();
-    final accountProvider = context.read<AccountProvider>();
-
-    await _outbox.runSuppressed(() async {
-      await DataVersionService.runWithoutIncrement(() async {
-        for (final billMap in bills) {
-          await _applyCloudBill(
-            billMap,
-            recordProvider: recordProvider,
-            accountProvider: accountProvider,
-          );
-        }
-      });
-    });
-
-    return downloadResult.syncRecord;
-  }
-
-  Map<String, dynamic> _recordToMap(Record record) {
-    final now = DateTime.now();
-    return {
-      'localId': record.id,
-      'serverId': record.serverId,
-      'bookId': record.bookId,
-      'accountId': record.accountId,
-      'categoryKey': record.categoryKey,
-      'amount': record.amount,
-      'direction': record.direction == TransactionDirection.income ? 1 : 0,
-      'remark': record.remark,
-      'billDate': record.date.toIso8601String(),
-      'includeInStats': record.includeInStats ? 1 : 0,
-      'pairId': record.pairId,
-      'isDelete': 0,
-      // 这里是“同步写入时间”，用于服务器冲突处理；不使用账单日期
-      'updateTime': now.toIso8601String(),
-    };
   }
 
   Record _mapToRecord(Map<String, dynamic> map) {
     final serverId = map['id'] as int? ?? map['serverId'] as int?;
+    final serverVersion = map['version'] as int? ?? map['serverVersion'] as int?;
     return Record(
       id: serverId != null ? 'server_$serverId' : _generateTempId(),
       serverId: serverId,
+      serverVersion: serverVersion,
       amount: (map['amount'] as num).toDouble(),
       remark: map['remark'] as String? ?? '',
       date: DateTime.parse(map['billDate'] as String),
@@ -331,6 +254,8 @@ class SyncEngine {
     final serverId = billMap['id'] as int? ?? billMap['serverId'] as int?;
     if (serverId == null) return;
     final isDelete = (billMap['isDelete'] as int? ?? 0) == 1;
+    final serverVersion =
+        billMap['version'] as int? ?? billMap['serverVersion'] as int?;
     final bookId = billMap['bookId'] as String? ?? '';
 
     final existing = await _findLocalByServerId(
@@ -338,6 +263,13 @@ class SyncEngine {
       bookId: bookId,
       recordProvider: recordProvider,
     );
+
+    if (existing != null &&
+        serverVersion != null &&
+        existing.serverVersion != null &&
+        serverVersion <= existing.serverVersion!) {
+      return;
+    }
 
     if (isDelete) {
       if (existing != null) {
@@ -350,6 +282,7 @@ class SyncEngine {
     if (existing != null) {
       final updated = existing.copyWith(
         serverId: serverId,
+        serverVersion: serverVersion,
         amount: cloudRecord.amount,
         remark: cloudRecord.remark,
         date: cloudRecord.date,
@@ -376,122 +309,11 @@ class SyncEngine {
       pairId: cloudRecord.pairId,
       accountProvider: accountProvider,
     );
-    await recordProvider.setServerId(created.id, serverId);
-  }
-
-  bool _matchPayloadToRecord(Map<String, dynamic> payload, Record record) {
-    return (payload['bookId'] as String?) == record.bookId &&
-        (payload['accountId'] as String?) == record.accountId &&
-        (payload['categoryKey'] as String?) == record.categoryKey &&
-        ((payload['amount'] as num?)?.toDouble() ?? -1) == record.amount &&
-        ((payload['direction'] as int?) ?? -1) ==
-            (record.direction == TransactionDirection.income ? 1 : 0) &&
-        (payload['remark'] as String? ?? '') == record.remark &&
-        (payload['pairId'] as String?) == record.pairId &&
-        DateTime.tryParse(payload['billDate'] as String? ?? '')
-                ?.isAtSameMomentAs(record.date) ==
-            true;
-  }
-
-  bool _matchReturnedBillToPayload(
-    Map<String, dynamic> bill,
-    Map<String, dynamic> payload,
-  ) {
-    final billDate = DateTime.tryParse(bill['billDate'] as String? ?? '');
-    final payloadDate = DateTime.tryParse(payload['billDate'] as String? ?? '');
-    return (bill['bookId'] as String?) == (payload['bookId'] as String?) &&
-        (bill['accountId'] as String?) == (payload['accountId'] as String?) &&
-        (bill['categoryKey'] as String?) == (payload['categoryKey'] as String?) &&
-        ((bill['amount'] as num?)?.toDouble() ?? -1) ==
-            ((payload['amount'] as num?)?.toDouble() ?? -2) &&
-        (bill['direction'] as int?) == (payload['direction'] as int?) &&
-        (bill['remark'] as String? ?? '') == (payload['remark'] as String? ?? '') &&
-        (bill['pairId'] as String?) == (payload['pairId'] as String?) &&
-        (billDate != null &&
-            payloadDate != null &&
-            billDate.isAtSameMomentAs(payloadDate));
-  }
-
-  Future<void> _applyServerIdsFromOutboxBatch(
-    BuildContext context, {
-    required List<SyncOutboxItem> outboxItems,
-    required List<Map<String, dynamic>> returnedBills,
-  }) async {
-    final recordProvider = context.read<RecordProvider>();
-
-    final candidates = <SyncOutboxItem>[
-      for (final item in outboxItems)
-        if (item.op == SyncOutboxOp.upsert &&
-            (item.payload['serverId'] as int?) == null)
-          item
-    ];
-
-    for (final bill in returnedBills) {
-      final serverId = bill['id'] as int? ?? bill['serverId'] as int?;
-      if (serverId == null) continue;
-
-      // 用 outbox payload 做字段匹配回填
-      SyncOutboxItem? matched;
-      for (final c in candidates) {
-        if (_matchReturnedBillToPayload(bill, c.payload)) {
-          matched = c;
-          break;
-        }
-      }
-      if (matched != null) {
-        final localRecordId = matched.payload['localId'] as String?;
-        if (localRecordId != null) {
-          await recordProvider.setServerId(localRecordId, serverId);
-        }
-        candidates.remove(matched);
-      }
-    }
-  }
-
-  Future<void> _applyServerIdsFromUploadedBatch(
-    BuildContext context, {
-    required List<Record> localRecords,
-    required List<Map<String, dynamic>> uploadedBatch,
-    required List<Map<String, dynamic>> returnedBills,
-  }) async {
-    final recordProvider = context.read<RecordProvider>();
-
-    // 用本批上传的 payload 作为候选，匹配回填
-    final candidates = <Map<String, dynamic>>[
-      for (final p in uploadedBatch)
-        if ((p['serverId'] as int?) == null) p,
-    ];
-    final recordById = {for (final r in localRecords) r.id: r};
-
-    for (final bill in returnedBills) {
-      final serverId = bill['id'] as int? ?? bill['serverId'] as int?;
-      if (serverId == null) continue;
-
-      final localId = bill['localId'] as String?;
-      if (localId != null && localId.isNotEmpty) {
-        await recordProvider.setServerId(localId, serverId);
-        continue;
-      }
-
-      Map<String, dynamic>? matched;
-      for (final c in candidates) {
-        final lid = c['localId'] as String?;
-        if (lid == null) continue;
-        final record = recordById[lid];
-        if (record == null) continue;
-        if (_matchPayloadToRecord(c, record)) {
-          matched = c;
-          break;
-        }
-      }
-      if (matched != null) {
-        final lid = matched['localId'] as String?;
-        if (lid != null) {
-          await recordProvider.setServerId(lid, serverId);
-        }
-        candidates.remove(matched);
-      }
-    }
+    await recordProvider.setServerSyncState(
+      created.id,
+      serverId: serverId,
+      serverVersion: serverVersion,
+    );
   }
 
   Future<void> _syncBudget(BuildContext context, String bookId) async {

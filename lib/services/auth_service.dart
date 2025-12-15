@@ -32,6 +32,30 @@ class AuthService {
 
   Uri _uri(String path) => Uri.parse('$kApiBaseUrl$path');
 
+  Future<void> _clearSyncV2LocalState(SharedPreferences prefs) async {
+    final keys = prefs.getKeys().toList(growable: false);
+    for (final k in keys) {
+      if (k.startsWith('sync_v2_last_change_id_') || k.startsWith('sync_v2_conflicts_')) {
+        await prefs.remove(k);
+      }
+    }
+  }
+
+  Future<void> _saveAuth({required String token, int? userId}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final prevUserId = prefs.getInt('auth_user_id');
+
+    // 仅在“账号变化”时清理 v2 游标/冲突，避免同账号重新登录（token 变化）导致全量重拉。
+    if (prevUserId != null && userId != null && prevUserId != userId) {
+      await _clearSyncV2LocalState(prefs);
+    }
+
+    await prefs.setString('auth_token', token);
+    if (userId != null) {
+      await prefs.setInt('auth_user_id', userId);
+    }
+  }
+
   Future<void> sendSmsCode(String phone) async {
     final resp = await http.post(
       _uri('/api/auth/send-sms-code'),
@@ -57,7 +81,10 @@ class AuthService {
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final result = AuthResult.fromJson(data);
-    await _saveToken(result.token);
+    await _saveAuth(
+      token: result.token,
+      userId: (result.user['id'] as num?)?.toInt(),
+    );
     return result;
   }
 
@@ -72,7 +99,10 @@ class AuthService {
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final result = AuthResult.fromJson(data);
-    await _saveToken(result.token);
+    await _saveAuth(
+      token: result.token,
+      userId: (result.user['id'] as num?)?.toInt(),
+    );
     return result;
   }
 
@@ -103,6 +133,8 @@ class AuthService {
   Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
+    await prefs.remove('auth_user_id');
+    await _clearSyncV2LocalState(prefs);
   }
 
   /// 注册：使用账号和密码注册
@@ -149,7 +181,10 @@ class AuthService {
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final result = AuthResult.fromJson(data);
-    await _saveToken(result.token);
+    await _saveAuth(
+      token: result.token,
+      userId: (result.user['id'] as num?)?.toInt(),
+    );
     return result;
   }
 
@@ -160,4 +195,3 @@ class AuthService {
     await _saveToken(fakeToken);
   }
 }
-

@@ -2135,7 +2135,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             .where((r) =>
                 r.isExpense &&
                 DateUtilsX.isSameDay(r.date, day) &&
-                r.includeInStats)
+                r.includeInStats &&
+                !r.categoryKey.startsWith('transfer'))
             .toList();
         final byCat = <String, double>{};
         for (final r in dayRecords) {

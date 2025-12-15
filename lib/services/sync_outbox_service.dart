@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,6 +54,7 @@ class SyncOutboxService {
 
   static const String _prefsKeyPrefix = 'sync_outbox_';
   static bool _suppressed = false;
+  final Random _random = Random();
 
   final StreamController<String> _bookChanges =
       StreamController<String>.broadcast();
@@ -77,6 +79,12 @@ class SyncOutboxService {
     }
   }
 
+  String _newOpId() {
+    final ts = DateTime.now().microsecondsSinceEpoch;
+    final r = _random.nextInt(1 << 32);
+    return '$ts-$r';
+  }
+
   Map<String, dynamic> _recordToBillPayload(Record record, {required int updateAtMs}) {
     return {
       'localId': record.id,
@@ -97,31 +105,17 @@ class SyncOutboxService {
     };
   }
 
-  Map<String, dynamic> _deletePayload(Record record, {required int updateAtMs}) {
-    return {
-      'localId': record.id,
-      'serverId': record.serverId,
-      'bookId': record.bookId,
-      'accountId': record.accountId,
-      'categoryKey': record.categoryKey,
-      'amount': record.amount,
-      'direction': record.direction == TransactionDirection.income ? 1 : 0,
-      'remark': record.remark,
-      'billDate': record.date.toIso8601String(),
-      'includeInStats': record.includeInStats ? 1 : 0,
-      'pairId': record.pairId,
-      'isDelete': 1,
-      'updateTime': DateTime.fromMillisecondsSinceEpoch(updateAtMs)
-          .toIso8601String(),
-    };
-  }
-
   Future<void> enqueueUpsert(Record record) async {
     if (_suppressed) return;
     if (!record.includeInStats) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
-    final payload = _recordToBillPayload(record, updateAtMs: now);
+    final payload = {
+      'opId': _newOpId(),
+      'type': 'upsert',
+      'expectedVersion': record.serverVersion,
+      'bill': _recordToBillPayload(record, updateAtMs: now),
+    };
     await _enqueue(
       bookId: record.bookId,
       op: SyncOutboxOp.upsert,
@@ -139,7 +133,12 @@ class SyncOutboxService {
     if (record.serverId == null) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
-    final payload = _deletePayload(record, updateAtMs: now);
+    final payload = {
+      'opId': _newOpId(),
+      'type': 'delete',
+      'serverId': record.serverId,
+      'expectedVersion': record.serverVersion,
+    };
     await _enqueue(
       bookId: record.bookId,
       op: SyncOutboxOp.delete,
@@ -202,21 +201,37 @@ class SyncOutboxService {
         orderBy: 'created_at ASC',
         limit: limit,
       );
-      return maps
-          .map(
-            (m) => SyncOutboxItem(
-              id: m['id'] as int?,
-              bookId: m['book_id'] as String,
-              op: SyncOutboxOp.values.firstWhere(
-                (e) => e.name == (m['op'] as String),
-                orElse: () => SyncOutboxOp.upsert,
-              ),
-              payload: (jsonDecode(m['payload'] as String) as Map)
-                  .cast<String, dynamic>(),
-              createdAtMs: m['created_at'] as int,
-            ),
-          )
-          .toList();
+      final items = <SyncOutboxItem>[];
+      for (final m in maps) {
+        final op = SyncOutboxOp.values.firstWhere(
+          (e) => e.name == (m['op'] as String),
+          orElse: () => SyncOutboxOp.upsert,
+        );
+        var payload =
+            (jsonDecode(m['payload'] as String) as Map).cast<String, dynamic>();
+        if (!payload.containsKey('opId')) {
+          payload = _normalizeLegacyPayload(payload, op: op);
+          final id = m['id'] as int?;
+          if (id != null) {
+            await db.update(
+              Tables.syncOutbox,
+              {'payload': jsonEncode(payload)},
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+          }
+        }
+        items.add(
+          SyncOutboxItem(
+            id: m['id'] as int?,
+            bookId: m['book_id'] as String,
+            op: op,
+            payload: payload,
+            createdAtMs: m['created_at'] as int,
+          ),
+        );
+      }
+      return items;
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -229,6 +244,26 @@ class SyncOutboxService {
       } catch (_) {}
     }
     return items;
+  }
+
+  Map<String, dynamic> _normalizeLegacyPayload(
+    Map<String, dynamic> legacy, {
+    required SyncOutboxOp op,
+  }) {
+    if (op == SyncOutboxOp.delete) {
+      return {
+        'opId': _newOpId(),
+        'type': 'delete',
+        'serverId': legacy['serverId'],
+        'expectedVersion': null,
+      };
+    }
+    return {
+      'opId': _newOpId(),
+      'type': 'upsert',
+      'expectedVersion': null,
+      'bill': legacy,
+    };
   }
 
   Future<void> deleteItems(String bookId, List<SyncOutboxItem> items) async {
@@ -258,4 +293,3 @@ class SyncOutboxService {
     await prefs.setStringList(key, remaining);
   }
 }
-

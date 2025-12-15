@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 3;
+const int _databaseVersion = 4;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -137,6 +137,10 @@ class DatabaseHelper {
         );
         break;
       // 未来版本升级逻辑
+      case 4:
+        // records: add server_version (v2 sync optimistic lock)
+        await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN server_version INTEGER');
+        break;
       default:
         break;
     }
@@ -145,14 +149,15 @@ class DatabaseHelper {
   /// 创建所有表
   Future<void> _createTables(sqflite.Database db) async {
     // 记录表
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS ${Tables.records} (
-        id TEXT PRIMARY KEY,
-        server_id INTEGER,
-        book_id TEXT NOT NULL,
-        category_key TEXT NOT NULL,
-        account_id TEXT NOT NULL,
-        amount REAL NOT NULL,
+	    await db.execute('''
+	      CREATE TABLE IF NOT EXISTS ${Tables.records} (
+	        id TEXT PRIMARY KEY,
+	        server_id INTEGER,
+	        server_version INTEGER,
+	        book_id TEXT NOT NULL,
+	        category_key TEXT NOT NULL,
+	        account_id TEXT NOT NULL,
+	        amount REAL NOT NULL,
         is_expense INTEGER NOT NULL,
         date INTEGER NOT NULL,
         remark TEXT,

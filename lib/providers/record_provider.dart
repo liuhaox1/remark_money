@@ -257,6 +257,49 @@ class RecordProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> setServerSyncState(
+    String billId, {
+    int? serverId,
+    int? serverVersion,
+  }) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      try {
+        await dbRepo.updateServerSyncState(
+          billId,
+          serverId: serverId,
+          serverVersion: serverVersion,
+        );
+      } catch (_) {
+        if (serverId != null) {
+          await dbRepo.updateServerId(billId, serverId);
+        }
+      }
+
+      final index = _recentRecordsCache.indexWhere((r) => r.id == billId);
+      if (index != -1) {
+        _recentRecordsCache[index] = _recentRecordsCache[index].copyWith(
+          serverId: serverId ?? _recentRecordsCache[index].serverId,
+          serverVersion: serverVersion ?? _recentRecordsCache[index].serverVersion,
+        );
+      }
+      _clearCache();
+      return;
+    }
+
+    final index = _recentRecordsCache.indexWhere((r) => r.id == billId);
+    if (index != -1) {
+      _recentRecordsCache[index] = _recentRecordsCache[index].copyWith(
+        serverId: serverId ?? _recentRecordsCache[index].serverId,
+        serverVersion: serverVersion ?? _recentRecordsCache[index].serverVersion,
+      );
+      final list = await _repository.update(_recentRecordsCache[index]);
+      _recentRecordsCache
+        ..clear()
+        ..addAll(list);
+    }
+  }
+
   Future<void> deleteRecord(
     String id, {
     AccountProvider? accountProvider,

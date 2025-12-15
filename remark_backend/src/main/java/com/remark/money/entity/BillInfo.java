@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 public class BillInfo {
   private Long id;
+  private Long version; // optimistic lock version (server-managed)
   private Long userId;
   private String bookId;
   private String accountId;
@@ -125,6 +126,14 @@ public class BillInfo {
     this.isDelete = isDelete;
   }
 
+  public Long getVersion() {
+    return version;
+  }
+
+  public void setVersion(Long version) {
+    this.version = version;
+  }
+
   public LocalDateTime getUpdateTime() {
     return updateTime;
   }
@@ -141,4 +150,3 @@ public class BillInfo {
     this.createdAt = createdAt;
   }
 }
-

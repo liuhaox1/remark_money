@@ -9,7 +9,6 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
-import '../services/sync_version_cache_service.dart';
 import '../services/background_sync_manager.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
@@ -83,12 +82,8 @@ class _RootShellState extends State<RootShell> {
         return;
       }
       
-      final bookId = bookProvider.activeBookId;
-      if (bookId.isEmpty || !mounted) return;
-
-      // 登录时拉取版本号并缓存（静默执行，不显示错误）
-      final cacheService = SyncVersionCacheService();
-      await cacheService.fetchAndCacheVersion(bookId);
+      // v2 透明同步下不再调用 v1 /api/sync/status/query，避免触发 sync_record 频繁查询。
+      // 登录后后台同步由 BackgroundSyncManager 负责。
     } catch (e, stackTrace) {
       // 静默失败，不显示错误，但记录详细日志
       debugPrint('Login version fetch failed: $e');

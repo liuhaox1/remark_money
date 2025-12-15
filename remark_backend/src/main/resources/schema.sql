@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS bill_info (
   is_delete TINYINT NOT NULL DEFAULT 0 COMMENT '0=有效,1=已删除',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  version BIGINT NOT NULL DEFAULT 1 COMMENT 'optimistic lock version (server-managed)',
   INDEX idx_user_book (user_id, book_id),
   INDEX idx_user_update (user_id, update_time),
   INDEX idx_delete (is_delete)
@@ -142,10 +143,52 @@ CREATE TABLE IF NOT EXISTS sync_record (
   cloud_bill_count INT NOT NULL DEFAULT 0 COMMENT '云端账单数量（is_delete=0）',
   sync_device_id VARCHAR(64) DEFAULT NULL COMMENT '最后同步的设备ID',
   data_version BIGINT NOT NULL DEFAULT 1 COMMENT '数据版本号，同步后统一',
+  last_change_id BIGINT NOT NULL DEFAULT 0 COMMENT 'v2 change cursor (bill_change_log.change_id)',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_book_device (user_id, book_id, device_id),
   INDEX idx_user_book (user_id, book_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- è´¦å•å˜æ›´æµï¼ˆv2 åŒæ­¥ç”¨ï¼‰
+CREATE TABLE IF NOT EXISTS bill_change_log (
+  change_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  book_id VARCHAR(64) NOT NULL,
+  scope_user_id BIGINT NOT NULL COMMENT '0=shared book, otherwise user_id for personal books',
+  bill_id BIGINT NOT NULL,
+  op TINYINT NOT NULL COMMENT '0=upsert,1=delete',
+  bill_version BIGINT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_book_scope_change (book_id, scope_user_id, change_id),
+  INDEX idx_bill (bill_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- åŒæ­¥æ“ä½œåŽ»é‡?ï¼ˆä¿è¯? push å¹‚ç­‰ï¼‰
+CREATE TABLE IF NOT EXISTS sync_op_dedup (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  op_id VARCHAR(64) NOT NULL,
+  status TINYINT NOT NULL DEFAULT 0 COMMENT '0=applied,1=conflict,2=error',
+  bill_id BIGINT DEFAULT NULL,
+  bill_version BIGINT DEFAULT NULL,
+  error VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_book_op (user_id, book_id, op_id),
+  INDEX idx_user_book (user_id, book_id),
+  INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- v2: scope bootstrap state (avoid repeated COUNT+bootstrap)
+CREATE TABLE IF NOT EXISTS sync_scope_state (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  book_id VARCHAR(64) NOT NULL,
+  scope_user_id BIGINT NOT NULL DEFAULT 0 COMMENT '0=shared book, otherwise user_id for personal books',
+  initialized TINYINT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_book_scope (book_id, scope_user_id),
+  INDEX idx_scope_init (scope_user_id, initialized)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================================
@@ -166,6 +209,62 @@ SET @index_exists = (
       AND INDEX_NAME = 'uk_bill_id'
 );
 SET @sql = IF(@index_exists > 0, 'ALTER TABLE bill_info DROP INDEX uk_bill_id', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 8. bill_change_log æ·»åŠ  scope_user_id å­—æ®µï¼ˆå¦‚æžœä¸å­˜åœ¨ï¼‰
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_change_log'
+      AND COLUMN_NAME = 'scope_user_id'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE bill_change_log ADD COLUMN scope_user_id BIGINT NOT NULL DEFAULT 0 COMMENT ''0=shared book, otherwise user_id for personal books'' AFTER book_id',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 9. bill_change_log ä¿®æ­£ç´¢å¼•ï¼ˆå¦‚æžœä¸å­˜åœ¨ï¼‰
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_change_log'
+      AND INDEX_NAME = 'idx_book_scope_change'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_book_scope_change ON bill_change_log(book_id, scope_user_id, change_id)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 6. bill_info æ·»åŠ  version å­—æ®µï¼ˆå¦‚æžœä¸å­˜åœ¨ï¼‰
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_info'
+      AND COLUMN_NAME = 'version'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE bill_info ADD COLUMN version BIGINT NOT NULL DEFAULT 1 COMMENT ''optimistic lock version'' AFTER created_at',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 7. sync_record æ·»åŠ  last_change_id å­—æ®µï¼ˆå¦‚æžœä¸å­˜åœ¨ï¼‰
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'sync_record'
+      AND COLUMN_NAME = 'last_change_id'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE sync_record ADD COLUMN last_change_id BIGINT NOT NULL DEFAULT 0 COMMENT ''v2 change cursor'' AFTER data_version',
+    'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -232,4 +331,3 @@ SET @sql = IF(@column_exists > 0, 'ALTER TABLE sync_record DROP COLUMN last_sync
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
-

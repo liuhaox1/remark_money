@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.remark.money.mapper.SyncOpDedupMapper">
+
+  <resultMap id="SyncOpDedupResultMap" type="com.remark.money.entity.SyncOpDedup">
+    <id property="id" column="id"/>
+    <result property="userId" column="user_id"/>
+    <result property="bookId" column="book_id"/>
+    <result property="opId" column="op_id"/>
+    <result property="status" column="status"/>
+    <result property="billId" column="bill_id"/>
+    <result property="billVersion" column="bill_version"/>
+    <result property="error" column="error"/>
+    <result property="createdAt" column="created_at"/>
+  </resultMap>
+
+  <select id="find" resultMap="SyncOpDedupResultMap">
+    SELECT id, user_id, book_id, op_id, status, bill_id, bill_version, error, created_at
+    FROM sync_op_dedup
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND op_id = #{opId}
+    LIMIT 1
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO sync_op_dedup (user_id, book_id, op_id, status, bill_id, bill_version, error, created_at)
+    VALUES (#{userId}, #{bookId}, #{opId}, #{status}, #{billId}, #{billVersion}, #{error}, NOW())
+  </insert>
+
+  <delete id="deleteBefore">
+    DELETE FROM sync_op_dedup WHERE created_at &lt; #{cutoff}
+  </delete>
+
+</mapper>

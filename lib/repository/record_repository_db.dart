@@ -163,6 +163,7 @@ class RecordRepositoryDb {
       final map = {
         'id': record.id,
         'server_id': record.serverId,
+        'server_version': record.serverVersion,
         'book_id': record.bookId,
         'category_key': record.categoryKey,
         'account_id': record.accountId,
@@ -235,6 +236,32 @@ class RecordRepositoryDb {
   }
 
   /// 删除记录
+  Future<void> updateServerSyncState(
+    String billId, {
+    int? serverId,
+    int? serverVersion,
+  }) async {
+    try {
+      final db = await _dbHelper.database;
+      final values = <String, Object?>{
+        if (serverId != null) 'server_id': serverId,
+        if (serverVersion != null) 'server_version': serverVersion,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      };
+      if (values.length <= 1) return;
+      await db.update(
+        Tables.records,
+        values,
+        where: 'id = ?',
+        whereArgs: [billId],
+      );
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] updateServerSyncState failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   Future<List<Record>> remove(String id, {String? bookId}) async {
     try {
       final db = await _dbHelper.database;
@@ -484,6 +511,7 @@ class RecordRepositoryDb {
           SUM(CASE WHEN is_expense = 1 AND include_in_stats = 1 THEN amount ELSE 0 END) as expense
         FROM ${Tables.records}
         WHERE book_id = ? AND date >= ? AND date <= ?
+          AND category_key NOT LIKE 'transfer%'
       ''', [bookId, start, end]);
 
       if (result.isEmpty) {
@@ -518,6 +546,7 @@ class RecordRepositoryDb {
           SUM(CASE WHEN is_expense = 1 AND include_in_stats = 1 THEN amount ELSE 0 END) as expense
         FROM ${Tables.records}
         WHERE book_id = ? AND date >= ? AND date <= ?
+          AND category_key NOT LIKE 'transfer%'
       ''', [bookId, start, end]);
 
       if (result.isEmpty) {
@@ -552,6 +581,7 @@ class RecordRepositoryDb {
           AND date <= ?
           AND is_expense = 1 
           AND include_in_stats = 1
+          AND category_key NOT LIKE 'transfer%'
       ''', [
         bookId,
         start.millisecondsSinceEpoch,
@@ -586,6 +616,7 @@ class RecordRepositoryDb {
           AND date <= ?
           AND is_expense = 1 
           AND include_in_stats = 1
+          AND category_key NOT LIKE 'transfer%'
         GROUP BY category_key
       ''', [
         bookId,
@@ -613,6 +644,7 @@ class RecordRepositoryDb {
     return Record(
       id: map['id'] as String,
       serverId: map['server_id'] as int?,
+      serverVersion: map['server_version'] as int?,
       bookId: map['book_id'] as String,
       categoryKey: map['category_key'] as String,
       accountId: map['account_id'] as String,

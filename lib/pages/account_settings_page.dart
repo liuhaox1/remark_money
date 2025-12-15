@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
 import '../services/auth_service.dart';
-import '../services/sync_version_cache_service.dart';
-import '../providers/book_provider.dart';
 import 'login_landing_page.dart';
 
 class AccountSettingsPage extends StatefulWidget {
@@ -40,18 +36,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     if (result == true) {
       await _refreshToken();
       if (!mounted) return;
-      
-      // 登录成功后，拉取并缓存版本号
-      try {
-        final bookProvider = Provider.of<BookProvider>(context, listen: false);
-        final bookId = bookProvider.activeBookId;
-        if (bookId.isNotEmpty) {
-          final cacheService = SyncVersionCacheService();
-          await cacheService.fetchAndCacheVersion(bookId);
-        }
-      } catch (e) {
-        // 忽略版本号拉取失败，不影响登录流程
-      }
+
+      // v2 透明同步下不再调用 v1 /api/sync/status/query，避免触发 sync_record 频繁查询。
       
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -61,18 +47,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   Future<void> _handleLogout() async {
     await _authService.clearToken();
     if (!mounted) return;
-    
-    // 退出登录时清除版本号缓存
-    try {
-      final bookProvider = Provider.of<BookProvider>(context, listen: false);
-      final bookId = bookProvider.activeBookId;
-      if (bookId.isNotEmpty) {
-        final cacheService = SyncVersionCacheService();
-        await cacheService.clearCache(bookId);
-      }
-    } catch (e) {
-      // 忽略清除缓存失败
-    }
+
+    // v2 透明同步下无需维护 v1 版本号缓存
     
     await _refreshToken();
     if (!mounted) return;

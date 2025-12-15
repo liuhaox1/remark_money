@@ -16,6 +16,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   StreamSubscription<String>? _outboxSub;
   Timer? _debounce;
   Timer? _metaDebounce;
+  Timer? _pollTimer;
   final Set<String> _pendingBooks = <String>{};
   bool _syncing = false;
   bool _started = false;
@@ -37,6 +38,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       requestSync(activeBookId);
       requestMetaSync(activeBookId);
     }
+
+    _startPollTimer();
   }
 
   void stop() {
@@ -44,12 +47,26 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _debounce = null;
     _metaDebounce?.cancel();
     _metaDebounce = null;
+    _pollTimer?.cancel();
+    _pollTimer = null;
     _pendingBooks.clear();
     _outboxSub?.cancel();
     _outboxSub = null;
     WidgetsBinding.instance.removeObserver(this);
     _context = null;
     _started = false;
+  }
+
+  void _startPollTimer() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      final ctx = _context;
+      if (ctx == null) return;
+      final activeBookId = ctx.read<BookProvider>().activeBookId;
+      if (activeBookId.isNotEmpty) {
+        requestSync(activeBookId);
+      }
+    });
   }
 
   void requestSync(String bookId) {
@@ -92,7 +109,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       final books = _pendingBooks.toList(growable: false);
       _pendingBooks.clear();
       for (final bookId in books) {
-        await engine.syncBook(ctx, bookId);
+        await engine.syncBookV2(ctx, bookId);
       }
     } catch (e) {
       debugPrint('[BackgroundSyncManager] sync failed: $e');
@@ -113,6 +130,10 @@ class BackgroundSyncManager with WidgetsBindingObserver {
           requestMetaSync(activeBookId);
         }
       }
+      _startPollTimer();
+    } else if (state == AppLifecycleState.paused) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
     }
   }
 }

@@ -246,7 +246,7 @@ class RemarkMoneyApp extends StatelessWidget {
           ),
             builder: (context, child) =>
                 DeviceFrame(child: child ?? const SizedBox.shrink()),
-            home: _AuthWrapper(),
+            home: const _AuthWrapper(),
             routes: {
               '/stats': (_) => const AnalysisPage(),
               '/bill': (_) => const BillPage(),
@@ -282,7 +282,7 @@ class _AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<_AuthWrapper> {
   final _authService = const AuthService();
-  bool _isChecking = true;
+  bool _isChecking = false;
   bool _isLoggedIn = false;
 
   @override
@@ -345,7 +345,7 @@ class _AuthWrapperState extends State<_AuthWrapper> {
     if (_isLoggedIn) {
       return const RootShell();
     } else {
-      return const LoginLandingPage();
+      return const RootShell();
     }
   }
 }

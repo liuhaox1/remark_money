@@ -26,204 +26,6 @@ class SyncService {
     return deviceId;
   }
 
-  /// 全量上传
-  Future<SyncResult> fullUpload({
-    required String bookId,
-    required List<Map<String, dynamic>> bills,
-    required int batchNum,
-    required int totalBatches,
-  }) async {
-    final token = await _getToken();
-    if (token == null) {
-      return SyncResult.error('未登录');
-    }
-
-    final deviceId = await _getDeviceId();
-    final resp = await http.post(
-      _uri('/api/sync/full/upload'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'deviceId': deviceId,
-        'bookId': bookId,
-        'batchNum': batchNum,
-        'totalBatches': totalBatches,
-        'bills': bills,
-      }),
-    );
-
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    if (data['success'] == true) {
-      return SyncResult.success(
-        successCount: data['successCount'] as int? ?? 0,
-        skipCount: data['skipCount'] as int? ?? 0,
-        bills: (data['bills'] as List?)
-                ?.map((e) => e as Map<String, dynamic>)
-                .toList(),
-        syncRecord: data['syncRecord'] != null
-            ? SyncRecord.fromJson(data['syncRecord'] as Map<String, dynamic>)
-            : null,
-        quotaWarning: data['quotaWarning'] as String?,
-      );
-    } else {
-      return SyncResult.error(data['error'] as String? ?? '上传失败');
-    }
-  }
-
-  /// 全量拉取
-  Future<SyncResult> fullDownload({
-    required String bookId,
-    int offset = 0,
-    int limit = 100,
-  }) async {
-    final token = await _getToken();
-    if (token == null) {
-      return SyncResult.error('未登录');
-    }
-
-    final deviceId = await _getDeviceId();
-    final resp = await http.get(
-      _uri('/api/sync/full/download?deviceId=$deviceId&bookId=$bookId&offset=$offset&limit=$limit'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    if (data['success'] == true) {
-      return SyncResult.success(
-        bills: (data['bills'] as List?)
-                ?.map((e) => e as Map<String, dynamic>)
-                .toList() ??
-            [],
-        syncRecord: data['syncRecord'] != null
-            ? SyncRecord.fromJson(data['syncRecord'] as Map<String, dynamic>)
-            : null,
-        hasMore: data['hasMore'] as bool? ?? false,
-      );
-    } else {
-      return SyncResult.error(data['error'] as String? ?? '拉取失败');
-    }
-  }
-
-  /// 增量上传
-  Future<SyncResult> incrementalUpload({
-    required String bookId,
-    required List<Map<String, dynamic>> bills,
-  }) async {
-    final token = await _getToken();
-    if (token == null) {
-      return SyncResult.error('未登录');
-    }
-
-    final deviceId = await _getDeviceId();
-    final resp = await http.post(
-      _uri('/api/sync/increment/upload'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'deviceId': deviceId,
-        'bookId': bookId,
-        'bills': bills,
-      }),
-    );
-
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    if (data['success'] == true) {
-      return SyncResult.success(
-        successCount: data['successCount'] as int? ?? 0,
-        skipCount: data['skipCount'] as int? ?? 0,
-        bills: (data['bills'] as List?)
-                ?.map((e) => e as Map<String, dynamic>)
-                .toList(),
-        syncRecord: data['syncRecord'] != null
-            ? SyncRecord.fromJson(data['syncRecord'] as Map<String, dynamic>)
-            : null,
-        quotaWarning: data['quotaWarning'] as String?,
-      );
-    } else {
-      return SyncResult.error(data['error'] as String? ?? '上传失败');
-    }
-  }
-
-  /// 增量拉取
-  Future<SyncResult> incrementalDownload({
-    required String bookId,
-    String? lastSyncTime,
-    int? lastSyncId,
-    int offset = 0,
-    int limit = 100,
-  }) async {
-    final token = await _getToken();
-    if (token == null) {
-      return SyncResult.error('未登录');
-    }
-
-    final deviceId = await _getDeviceId();
-    var url = '/api/sync/increment/download?deviceId=$deviceId&bookId=$bookId&offset=$offset&limit=$limit';
-    if (lastSyncTime != null) {
-      url += '&lastSyncTime=$lastSyncTime';
-    }
-    if (lastSyncId != null) {
-      url += '&lastSyncId=$lastSyncId';
-    }
-
-    final resp = await http.get(
-      _uri(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    if (data['success'] == true) {
-      return SyncResult.success(
-        bills: (data['bills'] as List?)
-                ?.map((e) => e as Map<String, dynamic>)
-                .toList() ??
-            [],
-        syncRecord: data['syncRecord'] != null
-            ? SyncRecord.fromJson(data['syncRecord'] as Map<String, dynamic>)
-            : null,
-        hasMore: data['hasMore'] as bool? ?? false,
-      );
-    } else {
-      return SyncResult.error(data['error'] as String? ?? '拉取失败');
-    }
-  }
-
-  /// 查询同步状态
-  Future<SyncResult> queryStatus({required String bookId}) async {
-    final token = await _getToken();
-    if (token == null) {
-      return SyncResult.error('未登录');
-    }
-
-    final deviceId = await _getDeviceId();
-    final resp = await http.get(
-      _uri('/api/sync/status/query?deviceId=$deviceId&bookId=$bookId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    if (data['success'] == true) {
-      return SyncResult.success(
-        syncRecord: data['syncRecord'] != null
-            ? SyncRecord.fromJson(data['syncRecord'] as Map<String, dynamic>)
-            : null,
-        userInfo: data['user'] as Map<String, dynamic>?,
-      );
-    } else {
-      return SyncResult.error(data['error'] as String? ?? '查询失败');
-    }
-  }
-
   /// 上传预算数据
   Future<SyncResult> uploadBudget({
     required String bookId,
@@ -341,90 +143,76 @@ class SyncService {
       return SyncResult.error(data['error'] as String? ?? '下载失败');
     }
   }
-}
 
-class SyncRecord {
-  final int? userId;
-  final String? bookId;
-  final String? deviceId;
-  final int? lastSyncId;
-  final String? lastSyncTime;
-  final int? cloudBillCount;
-  final String? syncDeviceId;
-  final int? dataVersion;
+  Future<Map<String, dynamic>> v2Push({
+    required String bookId,
+    required List<Map<String, dynamic>> ops,
+  }) async {
+    final token = await _getToken();
+    if (token == null) {
+      return {'success': false, 'error': 'not logged in'};
+    }
 
-  SyncRecord({
-    this.userId,
-    this.bookId,
-    this.deviceId,
-    this.lastSyncId,
-    this.lastSyncTime,
-    this.cloudBillCount,
-    this.syncDeviceId,
-    this.dataVersion,
-  });
-
-  factory SyncRecord.fromJson(Map<String, dynamic> json) {
-    return SyncRecord(
-      userId: json['userId'] as int?,
-      bookId: json['bookId'] as String?,
-      deviceId: json['deviceId'] as String?,
-      lastSyncId: json['lastSyncId'] as int?,
-      lastSyncTime: json['lastSyncTime'] as String?,
-      cloudBillCount: json['cloudBillCount'] as int?,
-      syncDeviceId: json['syncDeviceId'] as String?,
-      dataVersion: json['dataVersion'] as int?,
+    final resp = await http.post(
+      _uri('/api/sync/v2/push'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'bookId': bookId,
+        'ops': ops,
+      }),
     );
+
+    return (jsonDecode(resp.body) as Map).cast<String, dynamic>();
+  }
+
+  Future<Map<String, dynamic>> v2Pull({
+    required String bookId,
+    int? afterChangeId,
+    int limit = 200,
+  }) async {
+    final token = await _getToken();
+    if (token == null) {
+      return {'success': false, 'error': 'not logged in'};
+    }
+
+    var url = '/api/sync/v2/pull?bookId=$bookId&limit=$limit';
+    if (afterChangeId != null) {
+      url += '&afterChangeId=$afterChangeId';
+    }
+
+    final resp = await http.get(
+      _uri(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    return (jsonDecode(resp.body) as Map).cast<String, dynamic>();
   }
 }
 
 class SyncResult {
   final bool success;
   final String? error;
-  final List<Map<String, dynamic>>? bills;
-  final SyncRecord? syncRecord;
-  final Map<String, dynamic>? userInfo;
-  final int? successCount;
-  final int? skipCount;
-  final bool? hasMore;
-  final String? quotaWarning;
   final Map<String, dynamic>? budget;
   final List<Map<String, dynamic>>? accounts;
 
   SyncResult({
     required this.success,
     this.error,
-    this.bills,
-    this.syncRecord,
-    this.userInfo,
-    this.successCount,
-    this.skipCount,
-    this.hasMore,
-    this.quotaWarning,
     this.budget,
     this.accounts,
   });
 
   factory SyncResult.success({
-    List<Map<String, dynamic>>? bills,
-    SyncRecord? syncRecord,
-    Map<String, dynamic>? userInfo,
-    int? successCount,
-    int? skipCount,
-    bool? hasMore,
-    String? quotaWarning,
     Map<String, dynamic>? budget,
     List<Map<String, dynamic>>? accounts,
   }) {
     return SyncResult(
       success: true,
-      bills: bills,
-      syncRecord: syncRecord,
-      userInfo: userInfo,
-      successCount: successCount,
-      skipCount: skipCount,
-      hasMore: hasMore,
-      quotaWarning: quotaWarning,
       budget: budget,
       accounts: accounts,
     );
@@ -434,4 +222,3 @@ class SyncResult {
     return SyncResult(success: false, error: error);
   }
 }
-

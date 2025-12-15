@@ -16,6 +16,7 @@
     <result property="includeInStats" column="include_in_stats"/>
     <result property="pairId" column="pair_id"/>
     <result property="isDelete" column="is_delete"/>
+    <result property="version" column="version"/>
     <result property="updateTime" column="update_time"/>
     <result property="createdAt" column="created_at"/>
   </resultMap>
@@ -24,8 +25,30 @@
     SELECT * FROM bill_info WHERE id = #{id}
   </select>
 
+  <select id="findByIdForUserAndBook" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info WHERE id = #{id} AND user_id = #{userId} AND book_id = #{bookId}
+  </select>
+
+  <select id="findByIdForBook" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info WHERE id = #{id} AND book_id = #{bookId}
+  </select>
+
   <select id="findByIds" resultMap="BillInfoResultMap">
     SELECT * FROM bill_info WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </select>
+
+  <select id="findByIdsForUserAndBook" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info WHERE user_id = #{userId} AND book_id = #{bookId} AND id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </select>
+
+  <select id="findByIdsForBook" resultMap="BillInfoResultMap">
+    SELECT * FROM bill_info WHERE book_id = #{bookId} AND id IN
     <foreach collection="ids" item="id" open="(" separator="," close=")">
       #{id}
     </foreach>
@@ -132,5 +155,59 @@
     SELECT MAX(id) FROM bill_info
     WHERE book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
   </select>
+
+  <!-- v2 optimistic-lock update (single-user book) -->
+  <update id="updateWithExpectedVersionByUserIdAndBookId">
+    UPDATE bill_info SET
+      account_id = #{bill.accountId},
+      category_key = #{bill.categoryKey},
+      amount = #{bill.amount},
+      direction = #{bill.direction},
+      remark = #{bill.remark},
+      attachment_url = #{bill.attachmentUrl},
+      bill_date = #{bill.billDate},
+      include_in_stats = #{bill.includeInStats},
+      pair_id = #{bill.pairId},
+      is_delete = #{bill.isDelete},
+      version = version + 1,
+      update_time = NOW()
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND id = #{bill.id} AND version = #{expectedVersion}
+  </update>
+
+  <!-- v2 optimistic-lock update (multi-user/shared book) -->
+  <update id="updateWithExpectedVersionByBookId">
+    UPDATE bill_info SET
+      account_id = #{bill.accountId},
+      category_key = #{bill.categoryKey},
+      amount = #{bill.amount},
+      direction = #{bill.direction},
+      remark = #{bill.remark},
+      attachment_url = #{bill.attachmentUrl},
+      bill_date = #{bill.billDate},
+      include_in_stats = #{bill.includeInStats},
+      pair_id = #{bill.pairId},
+      is_delete = #{bill.isDelete},
+      version = version + 1,
+      update_time = NOW()
+    WHERE book_id = #{bookId} AND id = #{bill.id} AND version = #{expectedVersion}
+  </update>
+
+  <!-- v2 optimistic-lock soft delete (single-user book) -->
+  <update id="softDeleteWithExpectedVersionByUserIdAndBookId">
+    UPDATE bill_info SET
+      is_delete = 1,
+      version = version + 1,
+      update_time = NOW()
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND id = #{id} AND version = #{expectedVersion}
+  </update>
+
+  <!-- v2 optimistic-lock soft delete (multi-user/shared book) -->
+  <update id="softDeleteWithExpectedVersionByBookId">
+    UPDATE bill_info SET
+      is_delete = 1,
+      version = version + 1,
+      update_time = NOW()
+    WHERE book_id = #{bookId} AND id = #{id} AND version = #{expectedVersion}
+  </update>
 
 </mapper>

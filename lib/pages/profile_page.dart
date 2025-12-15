@@ -20,8 +20,10 @@ import '../models/book.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
 import '../services/gift_code_service.dart';
+import '../services/sync_v2_conflict_store.dart';
 import 'account_settings_page.dart';
 import 'vip_purchase_page.dart';
+import 'sync_conflicts_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
 import '../widgets/user_stats_card.dart';
@@ -252,9 +254,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
     final activeBookName = bookProvider.activeBook?.name ?? AppStrings.book;
     final bookCount = bookProvider.books.length;
-    final categoryCount = categoryProvider.categories.length;
-    final reminderEnabled = reminderProvider.enabled;
-    final isLoggedIn = (_token != null && _token!.isNotEmpty);
+	    final categoryCount = categoryProvider.categories.length;
+	    final reminderEnabled = reminderProvider.enabled;
+	    final isLoggedIn = (_token != null && _token!.isNotEmpty);
+	    final activeBookId = bookProvider.activeBookId;
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -266,6 +269,38 @@ class _ProfilePageState extends State<ProfilePage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [                
                 const SizedBox(height: 12),
+                if (!isLoggedIn) ...[
+                  _buildLoginHintCard(context),
+                  const SizedBox(height: 12),
+                ] else ...[
+	                  FutureBuilder<int>(
+	                    future: activeBookId.isNotEmpty
+	                        ? SyncV2ConflictStore.count(activeBookId)
+	                        : Future.value(0),
+	                    builder: (ctx, snap) {
+	                      final count = snap.data ?? 0;
+	                      if (count <= 0) return const SizedBox.shrink();
+	                      return InkWell(
+	                        borderRadius: BorderRadius.circular(16),
+	                        onTap: () {
+	                          Navigator.push(
+	                            context,
+	                            MaterialPageRoute(
+	                              builder: (_) => SyncConflictsPage(bookId: activeBookId),
+	                            ),
+	                          );
+	                        },
+	                        child: _buildInfoBanner(
+	                        ctx,
+	                        icon: Icons.sync_problem_outlined,
+	                        title: '同步冲突 $count 条',
+	                        subtitle: '已自动保留冲突记录（暂不自动覆盖），后续将提供处理入口',
+	                        ),
+	                      );
+	                    },
+	                  ),
+                  const SizedBox(height: 12),
+                ],
                 _buildHeaderCard(
                   context,
                   title: '设置',
@@ -344,6 +379,117 @@ class _ProfilePageState extends State<ProfilePage> {
               Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginHintCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      color: cs.surface,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: cs.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.person_outline, color: cs.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '未登录',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: cs.onSurface),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '现在可以直接记账：数据默认保存在本机，离线也可用。\n登录后会在后台自动同步到云端，支持多设备与多人账本，不需要手动点“同步”。',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: cs.onSurface.withOpacity(0.75), height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _goLogin,
+                    child: const Text('登录'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _openAccountSettings(false),
+                    child: const Text('账户设置'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoBanner(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      color: cs.surface,
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(icon, color: cs.tertiary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(color: cs.onSurface),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
