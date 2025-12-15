@@ -142,6 +142,11 @@ class _HomePageState extends State<HomePage> {
 
   Set<String> _filterAccountIds = <String>{};
 
+  DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  DateTime _endOfDay(DateTime d) =>
+      DateTime(d.year, d.month, d.day, 23, 59, 59, 999);
+
   DateTime? _startDate; // 日期范围开始
 
   DateTime? _endDate; // 日期范围结束
@@ -490,7 +495,7 @@ class _HomePageState extends State<HomePage> {
 
         final start = DateTime(now.year, now.month, 1);
 
-        final end = DateTime(now.year, now.month + 1, 0);
+        final end = _endOfDay(DateTime(now.year, now.month + 1, 0));
 
         return DateTimeRange(start: start, end: end);
 
@@ -498,7 +503,7 @@ class _HomePageState extends State<HomePage> {
 
         final start = DateTime(now.year, now.month - 2, 1);
 
-        final end = DateTime(now.year, now.month + 1, 0);
+        final end = _endOfDay(DateTime(now.year, now.month + 1, 0));
 
         return DateTimeRange(start: start, end: end);
 
@@ -506,7 +511,7 @@ class _HomePageState extends State<HomePage> {
 
         final start = DateTime(now.year, 1, 1);
 
-        final end = DateTime(now.year, 12, 31);
+        final end = _endOfDay(DateTime(now.year, 12, 31));
 
         return DateTimeRange(start: start, end: end);
 
@@ -516,15 +521,15 @@ class _HomePageState extends State<HomePage> {
 
           start: DateTime(2000, 1, 1),
 
-          end: DateTime(2100, 12, 31),
+          end: _endOfDay(DateTime(2100, 12, 31)),
 
         );
 
       case HomeTimeRangeType.custom:
 
-        final start = _startDate ?? now;
+        final start = _startOfDay(_startDate ?? now);
 
-        final end = _endDate ?? now;
+        final end = _endOfDay(_endDate ?? now);
 
         return DateTimeRange(start: start, end: end);
 
@@ -1192,19 +1197,19 @@ class _HomePageState extends State<HomePage> {
 
       case 'today':
 
-        return DateTimeRange(start: now, end: now);
+        return DateTimeRange(start: _startOfDay(now), end: _endOfDay(now));
 
       case 'thisWeek':
 
-        final start = now.subtract(Duration(days: now.weekday - 1));
+        final start = _startOfDay(now.subtract(Duration(days: now.weekday - 1)));
 
-        return DateTimeRange(start: start, end: now);
+        return DateTimeRange(start: start, end: _endOfDay(now));
 
       case 'thisMonth':
 
         final start = DateTime(now.year, now.month, 1);
 
-        final end = DateTime(now.year, now.month + 1, 0);
+        final end = _endOfDay(DateTime(now.year, now.month + 1, 0));
 
         return DateTimeRange(start: start, end: end);
 
@@ -1212,7 +1217,7 @@ class _HomePageState extends State<HomePage> {
 
         final start = DateTime(now.year, now.month - 1, 1);
 
-        final end = DateTime(now.year, now.month, 0);
+        final end = _endOfDay(DateTime(now.year, now.month, 0));
 
         return DateTimeRange(start: start, end: end);
 
@@ -1220,7 +1225,7 @@ class _HomePageState extends State<HomePage> {
 
         final start = DateTime(now.year, 1, 1);
 
-        final end = DateTime(now.year, 12, 31);
+        final end = _endOfDay(DateTime(now.year, 12, 31));
 
         return DateTimeRange(start: start, end: end);
 
@@ -2784,19 +2789,43 @@ class _HomePageState extends State<HomePage> {
                                 ErrorHandler.showError(context, '开始日期不能大于结束日期');
                                 return;
                               }
+                              final quickRange = quickDateKey != null
+                                  ? _getQuickDateRange(quickDateKey!)
+                                  : null;
+                              final startRaw = quickRange?.start ?? tempStartDate;
+                              final endRaw = quickRange?.end ?? tempEndDate;
+                              final normalizedStart =
+                                  startRaw == null ? null : _startOfDay(startRaw);
+                              final normalizedEnd =
+                                  endRaw == null ? null : _endOfDay(endRaw);
+
+                              final HomeTimeRangeType nextRangeType;
+                              DateTime? nextStartDate = normalizedStart;
+                              DateTime? nextEndDate = normalizedEnd;
+
+                              if (quickDateKey == 'thisMonth') {
+                                nextRangeType = HomeTimeRangeType.month;
+                                nextStartDate = null;
+                                nextEndDate = null;
+                              } else if (quickDateKey == 'thisYear') {
+                                nextRangeType = HomeTimeRangeType.year;
+                                nextStartDate = null;
+                                nextEndDate = null;
+                              } else if (nextStartDate != null || nextEndDate != null) {
+                                nextRangeType = HomeTimeRangeType.custom;
+                              } else {
+                                nextRangeType = _timeRangeType;
+                              }
+
                               setState(() {
                                 _filterCategoryKeys = tempCategoryKeys;
                                 _filterAccountIds = tempAccountIds;
                                 _filterIncomeExpense = tempIncomeExpense;
                                 _minAmount = min;
                                 _maxAmount = max;
-                                _startDate = quickDateKey != null
-                                    ? _getQuickDateRange(quickDateKey!)?.start
-                                    : tempStartDate;
-                                _endDate = quickDateKey != null
-                                    ? _getQuickDateRange(quickDateKey!)?.end
-                                    : tempEndDate;
-                                _timeRangeType = HomeTimeRangeType.custom;
+                                _startDate = nextStartDate;
+                                _endDate = nextEndDate;
+                                _timeRangeType = nextRangeType;
                               });
                               Navigator.pop(ctx);
                             },

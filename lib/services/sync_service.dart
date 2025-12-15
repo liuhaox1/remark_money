@@ -147,17 +147,23 @@ class SyncService {
   Future<Map<String, dynamic>> v2Push({
     required String bookId,
     required List<Map<String, dynamic>> ops,
+    String? reason,
   }) async {
     final token = await _getToken();
     if (token == null) {
       return {'success': false, 'error': 'not logged in'};
     }
 
+    final requestId = DateTime.now().microsecondsSinceEpoch.toString();
+    final deviceId = await _getDeviceId();
     final resp = await http.post(
       _uri('/api/sync/v2/push'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'X-Client-Request-Id': requestId,
+        'X-Device-Id': deviceId,
+        if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
       },
       body: jsonEncode({
         'bookId': bookId,
@@ -172,12 +178,15 @@ class SyncService {
     required String bookId,
     int? afterChangeId,
     int limit = 200,
+    String? reason,
   }) async {
     final token = await _getToken();
     if (token == null) {
       return {'success': false, 'error': 'not logged in'};
     }
 
+    final requestId = DateTime.now().microsecondsSinceEpoch.toString();
+    final deviceId = await _getDeviceId();
     var url = '/api/sync/v2/pull?bookId=$bookId&limit=$limit';
     if (afterChangeId != null) {
       url += '&afterChangeId=$afterChangeId';
@@ -187,6 +196,9 @@ class SyncService {
       _uri(url),
       headers: {
         'Authorization': 'Bearer $token',
+        'X-Client-Request-Id': requestId,
+        'X-Device-Id': deviceId,
+        if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
       },
     );
 

@@ -1120,17 +1120,21 @@ class _EmptyAccounts extends StatelessWidget {
             color: cs.outline,
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             '从第一个账户开始，看清你的资产',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '添加你的现金、银行卡或借款账户，净资产一目了然。',
             textAlign: TextAlign.center,
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.72),
+            ),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(

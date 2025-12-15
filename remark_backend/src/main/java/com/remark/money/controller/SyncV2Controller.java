@@ -36,6 +36,9 @@ public class SyncV2Controller {
   @PostMapping("/push")
   public ResponseEntity<Map<String, Object>> push(
       @RequestHeader("Authorization") String token,
+      @RequestHeader(value = "X-Sync-Reason", required = false) String reason,
+      @RequestHeader(value = "X-Client-Request-Id", required = false) String requestId,
+      @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
       @RequestBody Map<String, Object> request) {
     try {
       Long userId = getUserIdFromToken(token);
@@ -43,6 +46,16 @@ public class SyncV2Controller {
       @SuppressWarnings("unchecked")
       List<Map<String, Object>> ops = (List<Map<String, Object>>) request.get("ops");
 
+      if (log.isDebugEnabled()) {
+        log.debug(
+            "SyncV2 push userId={} bookId={} ops={} reason={} reqId={} deviceId={}",
+            userId,
+            bookId,
+            ops == null ? 0 : ops.size(),
+            reason,
+            requestId,
+            deviceId);
+      }
       Map<String, Object> resp = syncV2Service.push(userId, bookId, ops);
       return ResponseEntity.ok(resp);
     } catch (Exception e) {
@@ -57,11 +70,25 @@ public class SyncV2Controller {
   @GetMapping("/pull")
   public ResponseEntity<Map<String, Object>> pull(
       @RequestHeader("Authorization") String token,
+      @RequestHeader(value = "X-Sync-Reason", required = false) String reason,
+      @RequestHeader(value = "X-Client-Request-Id", required = false) String requestId,
+      @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
       @RequestParam("bookId") String bookId,
       @RequestParam(value = "afterChangeId", required = false) Long afterChangeId,
       @RequestParam(value = "limit", defaultValue = "200") int limit) {
     try {
       Long userId = getUserIdFromToken(token);
+      if (log.isDebugEnabled()) {
+        log.debug(
+            "SyncV2 pull userId={} bookId={} afterChangeId={} limit={} reason={} reqId={} deviceId={}",
+            userId,
+            bookId,
+            afterChangeId,
+            limit,
+            reason,
+            requestId,
+            deviceId);
+      }
       Map<String, Object> resp = syncV2Service.pull(userId, bookId, afterChangeId, limit);
       return ResponseEntity.ok(resp);
     } catch (Exception e) {
@@ -73,4 +100,3 @@ public class SyncV2Controller {
     }
   }
 }
-

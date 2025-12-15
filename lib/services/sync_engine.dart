@@ -37,23 +37,35 @@ class SyncEngine {
     await syncBookV2(context, bookId);
   }
 
-  Future<void> syncBookV2(BuildContext context, String bookId) async {
+  Future<void> syncBookV2(
+    BuildContext context,
+    String bookId, {
+    String reason = 'unknown',
+  }) async {
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
-    await _uploadOutboxV2(context, bookId);
-    await _pullV2(context, bookId);
+    await _uploadOutboxV2(context, bookId, reason: reason);
+    await _pullV2(context, bookId, reason: reason);
   }
 
   /// 同步“元数据”（预算/账户等低频数据）。
   /// 设计为低频触发：登录后、前台唤醒、进入资产页等场景。
-  Future<void> syncMeta(BuildContext context, String bookId) async {
+  Future<void> syncMeta(
+    BuildContext context,
+    String bookId, {
+    String reason = 'unknown',
+  }) async {
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
-    await _syncBudget(context, bookId);
-    await _syncAccounts(context, bookId);
+    await _syncBudget(context, bookId, reason: reason);
+    await _syncAccounts(context, bookId, reason: reason);
   }
 
-  Future<void> _uploadOutboxV2(BuildContext context, String bookId) async {
+  Future<void> _uploadOutboxV2(
+    BuildContext context,
+    String bookId, {
+    required String reason,
+  }) async {
     final recordProvider = context.read<RecordProvider>();
 
     while (true) {
@@ -61,7 +73,11 @@ class SyncEngine {
       if (pending.isEmpty) return;
 
       final ops = pending.map((e) => e.payload).toList(growable: false);
-      final resp = await _syncService.v2Push(bookId: bookId, ops: ops);
+      final resp = await _syncService.v2Push(
+        bookId: bookId,
+        ops: ops,
+        reason: reason,
+      );
       if (resp['success'] != true) {
         debugPrint('[SyncEngine] v2Push failed: ${resp['error']}');
         return;
@@ -148,7 +164,11 @@ class SyncEngine {
     }
   }
 
-  Future<void> _pullV2(BuildContext context, String bookId) async {
+  Future<void> _pullV2(
+    BuildContext context,
+    String bookId, {
+    required String reason,
+  }) async {
     var cursor = await SyncV2CursorStore.getLastChangeId(bookId);
 
     while (true) {
@@ -157,6 +177,7 @@ class SyncEngine {
         bookId: bookId,
         afterChangeId: cursor == 0 ? null : cursor,
         limit: 200,
+        reason: reason,
       );
       if (resp['success'] != true) {
         debugPrint('[SyncEngine] v2Pull failed: ${resp['error']}');
@@ -316,8 +337,13 @@ class SyncEngine {
     );
   }
 
-  Future<void> _syncBudget(BuildContext context, String bookId) async {
+  Future<void> _syncBudget(
+    BuildContext context,
+    String bookId, {
+    required String reason,
+  }) async {
     try {
+      debugPrint('[SyncEngine] budget sync book=$bookId reason=$reason');
       final budgetProvider = context.read<BudgetProvider>();
       final budgetEntry = budgetProvider.budgetForBook(bookId);
       final budgetData = {
@@ -362,8 +388,13 @@ class SyncEngine {
     }
   }
 
-  Future<void> _syncAccounts(BuildContext context, String bookId) async {
+  Future<void> _syncAccounts(
+    BuildContext context,
+    String bookId, {
+    required String reason,
+  }) async {
     try {
+      debugPrint('[SyncEngine] account sync book=$bookId reason=$reason');
       final accountProvider = context.read<AccountProvider>();
       // 元数据以服务器为准：不在后台做全量上传，避免频繁SQL与覆盖风险
       // 账户的新增/修改应走专用服务接口（成功后再刷新）。
