@@ -31,13 +31,63 @@ class _AnalysisPageState extends State<AnalysisPage> {
   int _selectedYear = DateTime.now().year;
   PeriodType _periodType = PeriodType.month;
 
+  String? _yearAnalysisKey;
+  Future<Map<String, dynamic>>? _yearAnalysisFuture;
+  Map<String, dynamic>? _yearAnalysisCache;
+
+  String? _deepAnalysisKey;
+  Future<Map<String, dynamic>>? _deepAnalysisFuture;
+  final Map<String, Map<String, dynamic>> _deepAnalysisCacheByKey = {};
+
+  void _ensureYearAnalysisFuture({
+    required RecordProvider recordProvider,
+    required String bookId,
+    required List<DateTime> months,
+    required bool isCurrentYear,
+    required DateTime now,
+    required int recordChangeCounter,
+  }) {
+    final key = '$bookId:${_selectedYear}:$recordChangeCounter:${isCurrentYear ? 1 : 0}';
+    if (_yearAnalysisKey == key && _yearAnalysisFuture != null) return;
+    _yearAnalysisKey = key;
+    _yearAnalysisFuture =
+        _loadYearAnalysisData(recordProvider, bookId, months, isCurrentYear, now);
+  }
+
+  void _ensureDeepAnalysisFuture({
+    required RecordProvider recordProvider,
+    required CategoryProvider categoryProvider,
+    required String bookId,
+    required int recordChangeCounter,
+    required int categorySignature,
+  }) {
+    final key =
+        '$bookId:${_selectedYear}:${_periodType.name}:$recordChangeCounter:$categorySignature';
+    if (_deepAnalysisKey == key && _deepAnalysisFuture != null) return;
+    _deepAnalysisKey = key;
+    _deepAnalysisFuture = _loadDeepAnalysis(
+      recordProvider,
+      bookId,
+      _selectedYear,
+      _periodType,
+      categoryProvider,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final cs = theme.colorScheme;
     final recordProvider = context.watch<RecordProvider>();
+    final recordChangeCounter =
+        context.select<RecordProvider, int>((p) => p.changeCounter);
     final bookProvider = context.watch<BookProvider>();
+    final categoryProvider = context.watch<CategoryProvider>();
+    final categorySignature = categoryProvider.categories.fold<int>(
+      categoryProvider.categories.length,
+      (acc, c) => acc ^ c.key.hashCode ^ c.name.hashCode,
+    );
 
     // 检查加载状态
     if (!recordProvider.loaded || !bookProvider.loaded) {
@@ -59,26 +109,40 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final now = DateTime.now();
     final isCurrentYear = now.year == _selectedYear;
 
-    final months = DateUtilsX.monthsInYear(_selectedYear);
+	    final months = DateUtilsX.monthsInYear(_selectedYear);
+
+	    _ensureYearAnalysisFuture(
+	      recordProvider: recordProvider,
+	      bookId: bookId,
+	      months: months,
+	      isCurrentYear: isCurrentYear,
+	      now: now,
+	      recordChangeCounter: recordChangeCounter,
+	    );
     
     // 使用 FutureBuilder 异步加载年度统计数据（支持100万条记录）
+    _ensureDeepAnalysisFuture(
+      recordProvider: recordProvider,
+      categoryProvider: categoryProvider,
+      bookId: bookId,
+      recordChangeCounter: recordChangeCounter,
+      categorySignature: categorySignature,
+    );
+
     return FutureBuilder<Map<String, dynamic>>(
-      future: _loadYearAnalysisData(recordProvider, bookId, months, isCurrentYear, now),
+      future: _yearAnalysisFuture,
+      initialData: _yearAnalysisCache,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            backgroundColor:
-                isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
-            appBar: AppBar(
-              elevation: 0,
-              toolbarHeight: 0,
-              backgroundColor: Colors.transparent,
-            ),
-            body: const Center(child: CircularProgressIndicator()),
-          );
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData) {
+          _yearAnalysisCache = snapshot.data;
         }
 
-        if (snapshot.hasError) {
+        final data = snapshot.data ?? _yearAnalysisCache ?? const {};
+        final showLoadingOverlay =
+            snapshot.connectionState == ConnectionState.waiting;
+
+        if (snapshot.hasError && data.isEmpty) {
           return Scaffold(
             backgroundColor:
                 isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
@@ -90,8 +154,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
             body: Center(child: Text('加载失败: ${snapshot.error}')),
           );
         }
-
-        final data = snapshot.data ?? {};
         final monthSummaries = data['monthSummaries'] as List<_MonthSummary>? ?? [];
         final visibleMonths = monthSummaries
             .where((m) => m.hasRecords || m.isCurrentMonth)
@@ -112,11 +174,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
             backgroundColor: Colors.transparent,
           ),
           body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 430),
-                child: Column(
-                  children: [
+            child: Stack(
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 430),
+                    child: Column(
+                      children: [
                     _HeaderCard(
                       isDark: isDark,
                       cs: cs,
@@ -195,29 +259,107 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Column(
-                          children: [
-                            // 深度分析卡片
-                            FutureBuilder<Map<String, dynamic>>(
-                              future: _loadDeepAnalysis(recordProvider, bookId, _selectedYear, _periodType, context.read<CategoryProvider>()),
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                           children: [
+                             // 深度分析卡片
+                            Builder(
+                              builder: (context) {
+                                final deepAnalysisKey = _deepAnalysisKey;
+                                final deepInitialData = deepAnalysisKey == null
+                                    ? null
+                                    : _deepAnalysisCacheByKey[deepAnalysisKey];
+
+                                return FutureBuilder<Map<String, dynamic>>(
+                                  future: _deepAnalysisFuture,
+                                  initialData: deepInitialData,
+                                  builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                        ConnectionState.done &&
+                                    snapshot.hasData) {
+                                  if (deepAnalysisKey != null) {
+                                    _deepAnalysisCacheByKey[deepAnalysisKey] =
+                                        snapshot.data!;
+                                  }
+                                }
+
+                                final data = snapshot.data ?? deepInitialData;
+                                final showLoadingOverlay =
+                                    snapshot.connectionState ==
+                                        ConnectionState.waiting;
+
+                                if (snapshot.hasError && data == null) {
                                   return Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    child: Column(
-                                      children: [
-                                        _buildTrendAnalysisCard(cs, snapshot.data!),
-                                        const SizedBox(height: 12),
-                                        _buildCategoryAnalysisCard(cs, snapshot.data!),
-                                        const SizedBox(height: 12),
-                                        _buildInsightsCard(cs, snapshot.data!),
-                                        const SizedBox(height: 12),
-                                        _buildPredictionCard(cs, snapshot.data!),
-                                        const SizedBox(height: 12),
-                                      ],
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: Card(
+                                      elevation: 0,
+                                      color: cs.surface,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(
+                                          '加载失败: ${snapshot.error}',
+                                          style: TextStyle(
+                                            color: cs.error,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   );
                                 }
-                                return const SizedBox.shrink();
+
+                                if (data == null) {
+                                  return const Padding(
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 16),
+                                    child: SizedBox(
+                                      height: 220,
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: KeyedSubtree(
+                                    key: ValueKey<String>(
+                                      'deep:${deepAnalysisKey ?? 'none'}',
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Column(
+                                          children: [
+                                            _buildTrendAnalysisCard(cs, data),
+                                            const SizedBox(height: 12),
+                                            _buildCategoryAnalysisCard(
+                                              cs,
+                                              data,
+                                            ),
+                                            const SizedBox(height: 12),
+                                            _buildInsightsCard(cs, data),
+                                            const SizedBox(height: 12),
+                                            _buildPredictionCard(cs, data),
+                                            const SizedBox(height: 12),
+                                          ],
+                                        ),
+                                        if (showLoadingOverlay)
+                                          const Positioned(
+                                            left: 0,
+                                            right: 0,
+                                            top: 0,
+                                            child: LinearProgressIndicator(
+                                              minHeight: 2,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                                  },
+                                );
                               },
                             ),
                             const SizedBox(height: 12),
@@ -271,9 +413,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         ),
                       ),
                     ),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                if (showLoadingOverlay)
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
+              ],
             ),
           ),
         );

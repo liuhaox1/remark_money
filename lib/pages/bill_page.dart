@@ -705,20 +705,29 @@ class _BillPageState extends State<BillPage> {
     final bookProvider = context.watch<BookProvider>();
 
     // 检查加载状态
-    if (!recordProvider.loaded || !categoryProvider.loaded || !bookProvider.loaded) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const SizedBox.shrink(),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
+    final ready =
+        recordProvider.loaded && categoryProvider.loaded && bookProvider.loaded;
 
     final bookId = bookProvider.activeBookId;
     final bookName =
         bookProvider.activeBook?.name ?? AppStrings.defaultBook;
+
+    // 预取三种视图的数据，避免切换周/月/年时 FutureBuilder 重新进入空态导致“闪屏”
+    _ensureMonthRecordsFuture(
+      recordProvider: recordProvider,
+      bookId: bookId,
+      recordChangeCounter: recordChangeCounter,
+    );
+    _ensureWeekRecordsFuture(
+      recordProvider: recordProvider,
+      bookId: bookId,
+      recordChangeCounter: recordChangeCounter,
+    );
+    _ensureYearStatsFuture(
+      recordProvider: recordProvider,
+      bookId: bookId,
+      recordChangeCounter: recordChangeCounter,
+    );
 
     if (widget.dayMode) {
       final date = widget.dayModeDate ?? _startDate ?? DateTime.now();
@@ -729,6 +738,7 @@ class _BillPageState extends State<BillPage> {
         ),
         body: Column(
           children: [
+            if (!ready) const LinearProgressIndicator(minHeight: 2),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -814,6 +824,7 @@ class _BillPageState extends State<BillPage> {
       ),
       body: Column(
         children: [
+          if (!ready) const LinearProgressIndicator(minHeight: 2),
           const SizedBox(height: 12),
 
           // 搜索栏
@@ -909,31 +920,47 @@ class _BillPageState extends State<BillPage> {
           const SizedBox(height: 8),
 
           Expanded(
-            child: _periodType == PeriodType.year
-                ? _buildYearBill(
+            child: IndexedStack(
+              index: _periodType == PeriodType.week
+                  ? 0
+                  : _periodType == PeriodType.month
+                      ? 1
+                      : 2,
+              children: [
+                KeyedSubtree(
+                  key: const PageStorageKey<String>('bill_week'),
+                  child: _buildWeekBill(
+                    context,
+                    cs,
+                    bookId,
+                    recordProvider: recordProvider,
+                    categoryProvider: categoryProvider,
+                    recordChangeCounter: recordChangeCounter,
+                  ),
+                ),
+                KeyedSubtree(
+                  key: const PageStorageKey<String>('bill_month'),
+                  child: _buildMonthBill2(
+                    context,
+                    cs,
+                    bookId,
+                    recordProvider: recordProvider,
+                    categoryProvider: categoryProvider,
+                    recordChangeCounter: recordChangeCounter,
+                  ),
+                ),
+                KeyedSubtree(
+                  key: const PageStorageKey<String>('bill_year'),
+                  child: _buildYearBill(
                     context,
                     cs,
                     bookId,
                     recordProvider: recordProvider,
                     recordChangeCounter: recordChangeCounter,
-                  )
-                : _periodType == PeriodType.month
-                    ? _buildMonthBill2(
-                        context,
-                        cs,
-                        bookId,
-                        recordProvider: recordProvider,
-                        categoryProvider: categoryProvider,
-                        recordChangeCounter: recordChangeCounter,
-                      )
-                    : _buildWeekBill(
-                        context,
-                        cs,
-                        bookId,
-                        recordProvider: recordProvider,
-                        categoryProvider: categoryProvider,
-                        recordChangeCounter: recordChangeCounter,
-                      ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1551,12 +1578,7 @@ class _BillPageState extends State<BillPage> {
           _yearStatsCache = monthStats;
         }
         final showLoadingOverlay =
-            snapshot.connectionState == ConnectionState.waiting &&
-                (_yearStatsCache?.isNotEmpty ?? false);
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            monthStats.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
+            snapshot.connectionState == ConnectionState.waiting;
         double totalIncome = 0;
         double totalExpense = 0;
 
@@ -1736,12 +1758,7 @@ class _BillPageState extends State<BillPage> {
           _weekRecordsCache = allWeekRecords;
         }
         final showLoadingOverlay =
-            snapshot.connectionState == ConnectionState.waiting &&
-                (_weekRecordsCache?.isNotEmpty ?? false);
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            allWeekRecords.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
+            snapshot.connectionState == ConnectionState.waiting;
         double totalIncome = 0;
         double totalExpense = 0;
         int emptyDays = 0;
@@ -1879,12 +1896,7 @@ class _BillPageState extends State<BillPage> {
           _monthRecordsCache = allMonthRecords;
         }
         final showLoadingOverlay =
-            snapshot.connectionState == ConnectionState.waiting &&
-                (_monthRecordsCache?.isNotEmpty ?? false);
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            allMonthRecords.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
+            snapshot.connectionState == ConnectionState.waiting;
         double totalIncome = 0;
         double totalExpense = 0;
         double maxDailyExpense = 0;

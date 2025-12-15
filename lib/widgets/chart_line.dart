@@ -85,6 +85,8 @@ class ChartLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4, left: 4, right: 4),
       child: LineChart(
+        duration: Duration.zero,
+        curve: Curves.linear,
         LineChartData(
           clipData: FlClipData.none(), // 不裁剪数据，确保所有点都显示
           gridData: FlGridData(
