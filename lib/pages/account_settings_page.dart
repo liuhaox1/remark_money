@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+
 import '../services/auth_service.dart';
-import 'login_landing_page.dart';
+import '../theme/ios_tokens.dart';
 import '../widgets/app_scaffold.dart';
+import 'login_landing_page.dart';
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key, required this.initialLoggedIn});
@@ -30,35 +32,75 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     });
   }
 
-
   Future<void> _handleLogin() async {
     final result = await Navigator.pushNamed(context, '/login');
     if (!mounted) return;
     if (result == true) {
       await _refreshToken();
       if (!mounted) return;
-
-      // v2 透明同步下不再调用 v1 /api/sync/status/query，避免触发 sync_record 频繁查询。
-      
-      if (!mounted) return;
       Navigator.pop(context, true);
     }
   }
-  
+
   Future<void> _handleLogout() async {
     await _authService.clearToken();
     if (!mounted) return;
-
-    // v2 透明同步下无需维护 v1 版本号缓存
-    
     await _refreshToken();
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('已退出登录')));
-    // 退出登录后，清除所有路由并跳转到登录页
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginLandingPage()),
-      (route) => false, // 清除所有之前的路由
+      (route) => false,
+    );
+  }
+
+  Widget _sectionCard({
+    required BuildContext context,
+    required List<Widget> children,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (int index = 0; index < children.length; index++) ...[
+            children[index],
+            if (index != children.length - 1)
+              Divider(height: 1, color: cs.outlineVariant.withOpacity(0.4)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statusPill(
+    BuildContext context,
+    String text, {
+    required bool positive,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final bg = positive ? cs.primaryContainer : cs.surfaceContainerHighest;
+    final fg = positive ? cs.onPrimaryContainer : cs.onSurface.withOpacity(0.7);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: fg,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
     );
   }
 
@@ -69,79 +111,106 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       title: '账号设置',
       body: SafeArea(
         top: false,
-        child: DefaultTextStyle(
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium!
-              .copyWith(color: cs.onSurface),
-          child: ListTileTheme(
-            data: ListTileThemeData(
-              titleTextStyle: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(color: cs.onSurface),
-              subtitleTextStyle: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: cs.onSurface.withOpacity(0.7)),
-            ),
-            child: Column(
-            children: [
-            Expanded(
-              child: ListView(
-                children: [
-                  ListTile(
-                    title: const Text('头像'),
-                    trailing: CircleAvatar(
-                      radius: 22,
-                      backgroundColor: cs.primary.withOpacity(0.15),
-                      child: Icon(
-                        Icons.person_outline,
-                        color: cs.primary,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.sm,
+                AppSpacing.md,
+                AppSpacing.xl,
+              ),
+              children: [
+                _sectionCard(
+                  context: context,
+                  children: [
+                    ListTile(
+                      title: const Text('头像'),
+                      subtitle: Text(
+                        _isLoggedIn ? '已登录，可更换头像' : '登录后可设置头像',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: cs.onSurface.withOpacity(0.6),
+                            ),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: cs.primaryContainer,
+                            child: Icon(
+                              Icons.person_outline,
+                              color: cs.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.chevron_right,
+                            color: cs.onSurface.withOpacity(0.35),
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        if (!_isLoggedIn) {
+                          _handleLogin();
+                          return;
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('头像功能开发中')),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      title: const Text('登录状态'),
+                      subtitle: Text(_isLoggedIn ? '已登录' : '未登录'),
+                      trailing: _isLoggedIn
+                          ? _statusPill(context, '已绑定账号', positive: true)
+                          : TextButton(
+                              onPressed: _handleLogin,
+                              child: Text(
+                                '去登录',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                      onTap: _isLoggedIn ? null : _handleLogin,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                if (_isLoggedIn)
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: cs.errorContainer,
+                      foregroundColor: cs.onErrorContainer,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadii.lg),
                       ),
                     ),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text('登录状态'),
-                    subtitle: Text(
-                      _isLoggedIn ? '已登录' : '未登录',
+                    onPressed: _handleLogout,
+                    child: const Text('退出登录'),
+                  )
+                else
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadii.lg),
+                      ),
                     ),
-                    trailing: Text(
-                      _isLoggedIn ? '已绑定账号' : '去登录',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: _isLoggedIn ? cs.onSurface : cs.primary,
-                          ),
-                    ),
-                    onTap: _isLoggedIn ? null : _handleLogin,
+                    onPressed: _handleLogin,
+                    child: const Text('登录指尖记账'),
                   ),
-                  // 隐藏手机和微信登录相关选项
-                ],
-              ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor:
-                        _isLoggedIn ? cs.error : cs.onSurface,
-                    side: BorderSide(
-                      color: _isLoggedIn ? cs.error : cs.outline.withOpacity(0.6),
-                    ),
-                  ),
-                  onPressed: _isLoggedIn ? _handleLogout : _handleLogin,
-                  child: Text(_isLoggedIn ? '退出登录' : '登录指尖记账'),
-                ),
-              ),
-            ),
-          ],
-          ),
           ),
         ),
       ),
     );
   }
 }
+
