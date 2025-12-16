@@ -49,6 +49,7 @@ class WeeklyCalendar extends StatelessWidget {
   Widget _buildWeekLabels(BuildContext context) {
     const labels = AppStrings.weekdayShort;
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: labels
@@ -58,9 +59,8 @@ class WeeklyCalendar extends StatelessWidget {
               child: Center(
                 child: Text(
                   e,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                  style: tt.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                     color: cs.onSurface.withOpacity(0.65),
                   ),
                 ),
@@ -81,6 +81,7 @@ class WeeklyCalendar extends StatelessWidget {
   }) {
     final bgColor =
         selected ? colorScheme.primary.withOpacity(0.15) : Colors.transparent;
+    final tt = Theme.of(context).textTheme;
 
     final textColor = selected
         ? colorScheme.primary
@@ -102,8 +103,7 @@ class WeeklyCalendar extends StatelessWidget {
           child: Center(
             child: Text(
               '${date.day}',
-              style: TextStyle(
-                fontSize: 15,
+              style: tt.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: textColor,
               ),

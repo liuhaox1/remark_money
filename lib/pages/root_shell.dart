@@ -11,6 +11,7 @@ import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
 import '../services/background_sync_manager.dart';
 import '../theme/app_tokens.dart';
+import '../theme/brand_theme.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../utils/error_handler.dart';
@@ -237,14 +238,13 @@ class _AssetsPageBody extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
-                        child: Text(
+                                    child: Text(
                                       '账户余额来自你的记账记录。如不准确，请进入账户详情页，点击"调整余额"进行修正。',
-                          style: TextStyle(
-                                        fontSize: 11,
-                            color:
-                                theme.colorScheme.onSurface.withOpacity(0.65),
-                          ),
-                        ),
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.onSurface
+                                            .withOpacity(0.65),
+                                      ),
+                                    ),
                       ),
                                 ],
                               ),
@@ -272,7 +272,7 @@ class _AssetsPageBody extends StatelessWidget {
                                     Expanded(
                                       child: Text(
                                         '检测到异常余额，请及时检查',
-                                        style: TextStyle(
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                           fontSize: 12,
                                           color: AppColors.danger,
                                           fontWeight: FontWeight.w600,
@@ -329,7 +329,7 @@ class _AssetsPageBody extends StatelessWidget {
                                           const SizedBox(width: 6),
                                           Text(
                                             '转账',
-                                            style: TextStyle(
+                                            style: theme.textTheme.labelLarge?.copyWith(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
                                               color: theme.colorScheme.primary,
@@ -362,7 +362,7 @@ class _AssetsPageBody extends StatelessWidget {
                                           const SizedBox(width: 6),
                                           Text(
                                             '添加账户',
-                                            style: TextStyle(
+                                            style: theme.textTheme.labelLarge?.copyWith(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
                                               color: theme.colorScheme.onPrimary,
@@ -414,58 +414,48 @@ class _AssetsPageBody extends StatelessWidget {
     Widget build(BuildContext context) {
       final theme = Theme.of(context);
       final cs = theme.colorScheme;
-
+      final brand = theme.extension<BrandTheme>();
+      final isDark = theme.brightness == Brightness.dark;
+ 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                cs.primary.withOpacity(0.85),
-                cs.primaryContainer.withOpacity(0.9),
-              ],
-            ),
+            gradient: isDark ? null : brand?.headerGradient,
+            color: isDark ? cs.surfaceContainerHighest : null,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: cs.shadow.withOpacity(0.18),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            boxShadow: isDark ? null : brand?.headerShadow,
           ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-              Text(
-              AppStrings.netWorth,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onPrimary.withOpacity(0.9),
-                ),
-              ),
+	              Text(
+	              AppStrings.netWorth,
+	                style: theme.textTheme.labelMedium?.copyWith(
+	                  fontSize: 12,
+	                  fontWeight: FontWeight.w600,
+	                  color: cs.onPrimary.withOpacity(0.9),
+	                ),
+	              ),
               const SizedBox(height: 2),
-              Text(
-              _formatAmount(netWorth),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onPrimary,
-                ),
-            ),
+	              Text(
+	              _formatAmount(netWorth),
+	                style: theme.textTheme.headlineSmall?.copyWith(
+	                  fontSize: 24,
+	                  fontWeight: FontWeight.w600,
+	                  color: cs.onPrimary,
+	                ),
+	            ),
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
-                  child: _buildStatItem('资产', totalAssets, cs),
+                  child: _buildStatItem('资产', totalAssets, cs, theme.textTheme),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildStatItem('负债', totalDebts, cs),
+                  child: _buildStatItem('负债', totalDebts, cs, theme.textTheme),
                 ),
               ],
             ),
@@ -486,13 +476,13 @@ class _AssetsPageBody extends StatelessWidget {
     return value.toStringAsFixed(2);
   }
 
-  Widget _buildStatItem(String label, double value, ColorScheme cs) {
+  Widget _buildStatItem(String label, double value, ColorScheme cs, TextTheme tt) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: tt.bodySmall?.copyWith(
             fontSize: 12,
             color: cs.onSurface.withOpacity(0.75),
             fontWeight: FontWeight.w400,
@@ -501,7 +491,7 @@ class _AssetsPageBody extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           _formatAmount(value),
-          style: TextStyle(
+          style: tt.bodyMedium?.copyWith(
             fontSize: 14,
             color: cs.onSurface,
             fontWeight: FontWeight.w500,
@@ -531,11 +521,11 @@ class _AccountGroupPanel extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
           child: Text(
                 group.title,
-            style: TextStyle(
-              fontSize: 14,
-                  fontWeight: FontWeight.w700,
-              color: cs.onSurface.withOpacity(0.9),
-            ),
+	            style: theme.textTheme.titleSmall?.copyWith(
+	              fontSize: 14,
+	              fontWeight: FontWeight.w700,
+	              color: cs.onSurface.withOpacity(0.9),
+	            ),
           ),
         ),
         Container(
@@ -616,7 +606,8 @@ class _AccountTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final hasIssue = _hasBalanceIssue(account);
     final amountColor = cs.onSurface;
     final icon = _iconForAccount(account);
@@ -650,19 +641,19 @@ class _AccountTile extends StatelessWidget {
                     children: [
                       Text(
                         account.name,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
+	                        style: theme.textTheme.titleSmall?.copyWith(
+	                          fontSize: 14,
+	                          fontWeight: FontWeight.w700,
+	                          color: cs.onSurface,
+	                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         _subtitleForAccount(account),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurface.withOpacity(0.65),
-                        ),
+	                        style: theme.textTheme.bodySmall?.copyWith(
+	                          fontSize: 11,
+	                          color: cs.onSurface.withOpacity(0.65),
+	                        ),
                       ),
                     ],
                   ),
@@ -673,11 +664,11 @@ class _AccountTile extends StatelessWidget {
                   children: [
                 Text(
                   account.currentBalance.toStringAsFixed(2),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: amountColor.withOpacity(0.9),
-                  ),
+	                  style: theme.textTheme.titleSmall?.copyWith(
+	                    fontSize: 15,
+	                    fontWeight: FontWeight.w600,
+	                    color: amountColor.withOpacity(0.9),
+	                  ),
                 ),
                     if (hasIssue) ...[
                       const SizedBox(height: 2),
@@ -698,11 +689,11 @@ class _AccountTile extends StatelessWidget {
                             const SizedBox(width: 2),
                             Text(
                               '异常',
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: AppColors.danger,
-                                fontWeight: FontWeight.w600,
-                              ),
+	                              style: theme.textTheme.labelSmall?.copyWith(
+	                                fontSize: 9,
+	                                color: AppColors.danger,
+	                                fontWeight: FontWeight.w600,
+	                              ),
                             ),
                           ],
                         ),
@@ -849,8 +840,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
               children: [
                 Text(
                   '账户间转账',
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
@@ -862,8 +852,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                   children: [
                     Text(
                       '转出账户',
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
@@ -905,7 +894,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                                 fromAccountId != null
                                     ? assetAccounts.firstWhere((a) => a.id == fromAccountId).name
                                     : '请选择转出账户',
-                                style: TextStyle(
+                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                   fontSize: 15,
                                   color: fromAccountId != null
                                       ? Theme.of(context).colorScheme.onSurface
@@ -930,8 +919,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                   children: [
                     Text(
                       '转入账户',
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
@@ -972,7 +960,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                                 toAccountId != null
                                     ? assetAccounts.firstWhere((a) => a.id == toAccountId).name
                                     : '请选择转入账户',
-                                style: TextStyle(
+                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                   fontSize: 15,
                                   color: toAccountId != null
                                       ? Theme.of(context).colorScheme.onSurface
@@ -995,12 +983,12 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                   controller: amountCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                   decoration: InputDecoration(
                     labelText: '金额',
-                    labelStyle: TextStyle(
+                    labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                     ),
                     border: const OutlineInputBorder(),
@@ -1109,6 +1097,7 @@ class _EmptyAccounts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -1122,7 +1111,7 @@ class _EmptyAccounts extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             '从第一个账户开始，看清你的资产',
-            style: TextStyle(
+            style: tt.titleLarge?.copyWith(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: cs.onSurface,
@@ -1132,7 +1121,7 @@ class _EmptyAccounts extends StatelessWidget {
           Text(
             '添加你的现金、银行卡或借款账户，净资产一目了然。',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: tt.bodyMedium?.copyWith(
               color: cs.onSurface.withOpacity(0.72),
             ),
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'login_landing_page.dart';
+import '../widgets/app_scaffold.dart';
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key, required this.initialLoggedIn});
@@ -64,15 +65,10 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: cs.surface,
-        foregroundColor: cs.onSurface,
-        title: const Text('账号设置'),
-        elevation: 0,
-      ),
-      backgroundColor: cs.surface,
+    return AppScaffold(
+      title: '账号设置',
       body: SafeArea(
+        top: false,
         child: DefaultTextStyle(
           style: Theme.of(context)
               .textTheme
@@ -110,15 +106,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                     title: const Text('登录状态'),
                     subtitle: Text(
                       _isLoggedIn ? '已登录' : '未登录',
-                      style: TextStyle(
-                        color: cs.onSurface.withOpacity(0.7),
-                      ),
                     ),
                     trailing: Text(
                       _isLoggedIn ? '已绑定账号' : '去登录',
-                      style: TextStyle(
-                        color: _isLoggedIn ? cs.onSurface : cs.primary,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: _isLoggedIn ? cs.onSurface : cs.primary,
+                          ),
                     ),
                     onTap: _isLoggedIn ? null : _handleLogin,
                   ),

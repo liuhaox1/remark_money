@@ -10,6 +10,7 @@ class AddAccountTypePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     final options = _options;
     return Scaffold(
       backgroundColor: cs.surface,
@@ -37,8 +38,7 @@ class AddAccountTypePage extends StatelessWidget {
               ),
               title: Text(
                 option.title,
-                style: TextStyle(
-                  fontSize: 16,
+                style: tt.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
                 ),
@@ -47,8 +47,7 @@ class AddAccountTypePage extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   option.subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: tt.bodySmall?.copyWith(
                     color: cs.onSurface.withOpacity(0.7),
                   ),
                 ),
@@ -211,6 +210,7 @@ class BankSelectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(
@@ -237,8 +237,7 @@ class BankSelectionPage extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   brand.shortName,
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: tt.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: brand.color,
                   ),
@@ -246,8 +245,7 @@ class BankSelectionPage extends StatelessWidget {
               ),
               title: Text(
                 brand.displayName,
-                style: TextStyle(
-                  fontSize: 16,
+                style: tt.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
                 ),
@@ -287,6 +285,7 @@ class CreditCardSelectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(
@@ -313,8 +312,7 @@ class CreditCardSelectionPage extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   brand.shortName,
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: tt.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: brand.color,
                   ),
@@ -322,8 +320,7 @@ class CreditCardSelectionPage extends StatelessWidget {
               ),
               title: Text(
                 brand.displayName,
-                style: TextStyle(
-                  fontSize: 16,
+                style: tt.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
                 ),
@@ -406,6 +403,7 @@ class VirtualAccountSelectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(
@@ -433,16 +431,14 @@ class VirtualAccountSelectionPage extends StatelessWidget {
               ),
               title: Text(
                 item.title,
-                style: TextStyle(
-                  fontSize: 16,
+                style: tt.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
                 ),
               ),
               subtitle: Text(
                 item.subtitle,
-                style: TextStyle(
-                  fontSize: 12,
+                style: tt.bodySmall?.copyWith(
                   color: cs.onSurface.withOpacity(0.7),
                 ),
               ),
@@ -520,6 +516,7 @@ class InvestAccountSelectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(
@@ -547,16 +544,14 @@ class InvestAccountSelectionPage extends StatelessWidget {
               ),
               title: Text(
                 item.title,
-                style: TextStyle(
-                  fontSize: 16,
+                style: tt.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
                 ),
               ),
               subtitle: Text(
                 item.subtitle,
-                style: TextStyle(
-                  fontSize: 12,
+                style: tt.bodySmall?.copyWith(
                   color: cs.onSurface.withOpacity(0.7),
                 ),
               ),

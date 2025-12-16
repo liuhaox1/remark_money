@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../theme/brand_theme.dart';
+
 class ThemeProvider extends ChangeNotifier {
   ThemeMode _mode = ThemeMode.light;
-  Color _seedColor = Colors.teal;
+  AppThemeStyle _style = AppThemeStyle.ocean;
+  AppVisualTone _tone = AppVisualTone.minimal;
 
   ThemeMode get mode => _mode;
-  Color get seedColor => _seedColor;
+  AppThemeStyle get style => _style;
+  AppVisualTone get tone => _tone;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final modeStr = prefs.getString('theme_mode');
-    final colorValue = prefs.getInt('theme_seed');
+    final styleStr = prefs.getString('theme_style');
+    final toneStr = prefs.getString('theme_tone');
 
     if (modeStr != null) {
       _mode = ThemeMode.values.firstWhere(
@@ -19,8 +24,17 @@ class ThemeProvider extends ChangeNotifier {
         orElse: () => ThemeMode.light,
       );
     }
-    if (colorValue != null) {
-      _seedColor = Color(colorValue);
+    if (styleStr != null) {
+      _style = AppThemeStyle.values.firstWhere(
+        (e) => e.toString() == styleStr,
+        orElse: () => AppThemeStyle.ocean,
+      );
+    }
+    if (toneStr != null) {
+      _tone = AppVisualTone.values.firstWhere(
+        (e) => e.toString() == toneStr,
+        orElse: () => AppVisualTone.minimal,
+      );
     }
   }
 
@@ -32,12 +46,19 @@ class ThemeProvider extends ChangeNotifier {
     await prefs.setString('theme_mode', mode.toString());
   }
 
-  Future<void> setSeedColor(Color color) async {
-    if (_seedColor == color) return;
-    _seedColor = color;
+  Future<void> setStyle(AppThemeStyle style) async {
+    if (_style == style) return;
+    _style = style;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('theme_seed', color.value);
+    await prefs.setString('theme_style', style.toString());
+  }
+
+  Future<void> setTone(AppVisualTone tone) async {
+    if (_tone == tone) return;
+    _tone = tone;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_tone', tone.toString());
   }
 }
-

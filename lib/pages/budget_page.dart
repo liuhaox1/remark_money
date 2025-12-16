@@ -190,16 +190,13 @@ class _BudgetPageState extends State<BudgetPage>
                         ),
                         child: Text(
                           day.toString(),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight:
-                                selected ? FontWeight.w700 : FontWeight.w500,
-                            color: selected
-                                ? Theme.of(context).colorScheme.onPrimary
-                                : Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight:
+                                    selected ? FontWeight.w700 : FontWeight.w500,
+                                color: selected
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                       ),
                     );
@@ -214,9 +211,10 @@ class _BudgetPageState extends State<BudgetPage>
                     onPressed: () => Navigator.of(ctx).pop(),
                     child: Text(
                       AppStrings.cancel,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(color: Theme.of(context).colorScheme.onSurface),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -313,11 +311,10 @@ class _BudgetPageState extends State<BudgetPage>
                           ),
                           child: Text(
                             AppStrings.cancel,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: cs.onSurface,
-                            ),
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: cs.onSurface,
+                                ),
                           ),
                         ),
                       ),
@@ -335,11 +332,10 @@ class _BudgetPageState extends State<BudgetPage>
                           ),
                           child: Text(
                             '确认重置',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onError,
-                            ),
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: cs.onError,
+                                ),
                           ),
                         ),
                       ),
@@ -375,6 +371,7 @@ class _BudgetPageState extends State<BudgetPage>
       context: context,
       showDragHandle: true,
       builder: (ctx) {
+        final tt = Theme.of(ctx).textTheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -386,14 +383,11 @@ class _BudgetPageState extends State<BudgetPage>
                 ),
                 title: Text(
                   AppStrings.resetBookBudget,
-                  style: TextStyle(
-                    color: cs.onSurface,
-                  ),
+                  style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
                 subtitle: Text(
                   '清空本账本的总预算和所有分类预算',
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: tt.bodySmall?.copyWith(
                     color: cs.onSurface.withOpacity(0.7),
                   ),
                 ),
@@ -427,12 +421,11 @@ class _BudgetPageState extends State<BudgetPage>
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
+        final tt = Theme.of(ctx).textTheme;
         return AlertDialog(
           title: Text(
             '为「${category.name}」设置预算',
-            style: TextStyle(
-              color: cs.onSurface,
-            ),
+            style: tt.titleMedium?.copyWith(color: cs.onSurface),
           ),
         content: TextField(
           controller: controller,
@@ -448,9 +441,7 @@ class _BudgetPageState extends State<BudgetPage>
               onPressed: () => Navigator.of(ctx).pop(),
               child: Text(
                 AppStrings.cancel,
-                style: TextStyle(
-                  color: cs.onSurface,
-                ),
+                style: tt.labelLarge?.copyWith(color: cs.onSurface),
               ),
             ),
             if (currentBudget != null && currentBudget > 0)
@@ -459,9 +450,7 @@ class _BudgetPageState extends State<BudgetPage>
                     Navigator.of(ctx).pop(const _EditBudgetResult(deleted: true)),
                 child: Text(
                   AppStrings.deleteBudget,
-                  style: TextStyle(
-                    color: cs.error,
-                  ),
+                  style: tt.labelLarge?.copyWith(color: cs.error),
                 ),
               ),
             FilledButton(
@@ -543,6 +532,8 @@ class _BudgetPageState extends State<BudgetPage>
       context: context,
       showDragHandle: true,
       builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        final tt = Theme.of(ctx).textTheme;
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(
@@ -551,17 +542,16 @@ class _BudgetPageState extends State<BudgetPage>
             children: [
               Text(
                 AppStrings.addCategoryBudget,
-                style: TextStyle(
-                  fontSize: 16,
+                style: tt.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onSurface,
+                  color: cs.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 '优先为本期花得多的分类设置预算，有助于更好地控制支出。',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+                style: tt.bodyMedium?.copyWith(
+                  color: cs.onSurface.withOpacity(0.75),
                 ),
               ),
               const SizedBox(height: 12),
@@ -587,15 +577,12 @@ class _BudgetPageState extends State<BudgetPage>
                       ),
                       title: Text(
                         cat.name,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                        style: tt.bodyMedium?.copyWith(color: cs.onSurface),
                       ),
                       subtitle: Text(
                         '${AppStrings.expenseThisPeriodPrefix}¥${spent.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                        style: tt.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(0.7),
                         ),
                       ),
                       onTap: () => Navigator.of(ctx).pop(cat.key),
@@ -741,10 +728,9 @@ class _BudgetPageState extends State<BudgetPage>
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                     child: Text(
                       AppStrings.budgetDescription,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.onSurface.withOpacity(0.7),
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
                     ),
                   ),
                   Expanded(
@@ -833,7 +819,7 @@ class _BudgetPageState extends State<BudgetPage>
               children: [
                 _buildTotalBudgetEditor(cs, bookId, isYear: !showPeriodPicker),
                 const SizedBox(height: 16),
-                _buildBudgetAlertCard(cs, data, isYearView),
+                _buildBudgetAlertCard(context, cs, data, isYearView),
                 const SizedBox(height: 16),
                 _buildBudgetAnalysisCard(context, cs, data, bookId, isYearView),
                 const SizedBox(height: 24),
@@ -844,23 +830,21 @@ class _BudgetPageState extends State<BudgetPage>
                 const SizedBox(height: 6),
                 Text(
                   '将总预算拆到分类，便于控制重点支出',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: cs.onSurface.withOpacity(0.65),
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(0.65),
+                      ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   '${AppStrings.budgetCategorySummaryPrefix} ¥${categoryBudgetSum.toStringAsFixed(0)}'
                   '${budgetEntry.total > 0 ? ' · 占预算 ${(categoryBudgetSum / budgetEntry.total * 100).toStringAsFixed(1)}%' : ''}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: categoryBudgetSum > budgetEntry.total &&
-                            budgetEntry.total > 0
-                        ? AppColors.danger
-                        : cs.onSurface.withOpacity(0.75),
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: categoryBudgetSum > budgetEntry.total &&
+                                budgetEntry.total > 0
+                            ? AppColors.danger
+                            : cs.onSurface.withOpacity(0.75),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 if (displayExpenseCats.isEmpty)
@@ -893,12 +877,11 @@ class _BudgetPageState extends State<BudgetPage>
                       isYear: isYearView,
                     ),
                     icon: const Icon(Icons.add),
-                    label: const Text(
+                    label: Text(
                       AppStrings.addCategoryBudget,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ),
                 ),
@@ -1024,11 +1007,10 @@ class _BudgetPageState extends State<BudgetPage>
               const SizedBox(width: 8),
               Text(
                 isYear ? AppStrings.yearBudget : AppStrings.monthTotalBudget,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
               ),
             ],
           ),
@@ -1051,10 +1033,9 @@ class _BudgetPageState extends State<BudgetPage>
           const SizedBox(height: 8),
           Text(
             AppStrings.budgetDescription,
-            style: TextStyle(
-              fontSize: 12,
-              color: cs.outline,
-            ),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.outline,
+                ),
           ),
           const SizedBox(height: 12),
           Align(
@@ -1207,20 +1188,19 @@ class _BudgetSummaryCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       statusText,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: statusColor,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: statusColor,
+                          ),
                     ),
                   ],
                 ),
@@ -1233,11 +1213,10 @@ class _BudgetSummaryCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     periodLabel,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface.withOpacity(0.75),
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface.withOpacity(0.75),
+                        ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1256,11 +1235,10 @@ class _BudgetSummaryCard extends StatelessWidget {
                     ),
                     child: Text(
                       periodPillText,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: cs.primary,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: cs.primary,
+                          ),
                     ),
                   ),
                 ),
@@ -1354,6 +1332,7 @@ class _AllowanceStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1372,7 +1351,7 @@ class _AllowanceStat extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
+                  style: tt.bodySmall?.copyWith(
                     fontSize: 11,
                     color: cs.onSurface.withOpacity(0.7),
                   ),
@@ -1380,7 +1359,7 @@ class _AllowanceStat extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: TextStyle(
+                  style: tt.titleSmall?.copyWith(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: cs.onSurface,
@@ -1408,6 +1387,7 @@ class _AvgStatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1421,7 +1401,7 @@ class _AvgStatTile extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
+            style: tt.bodySmall?.copyWith(
               fontSize: 11,
               color: cs.onSurface.withOpacity(0.7),
             ),
@@ -1429,7 +1409,7 @@ class _AvgStatTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
+            style: tt.titleSmall?.copyWith(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: cs.onSurface,
@@ -1438,7 +1418,7 @@ class _AvgStatTile extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             sub,
-            style: TextStyle(
+            style: tt.bodySmall?.copyWith(
               fontSize: 11,
               color: cs.onSurfaceVariant,
             ),
@@ -1460,13 +1440,13 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: 16,
+          style: tt.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
             color: cs.onSurface,
           ),
@@ -1498,6 +1478,7 @@ class _CategoryBudgetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final hasBudget = budget != null && budget! > 0;
     final double? remaining = hasBudget ? budget! - spent : null;
@@ -1531,8 +1512,7 @@ class _CategoryBudgetTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   category.name,
-                  style: TextStyle(
-                    fontSize: 14,
+                  style: tt.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface,
                   ),
@@ -1562,7 +1542,7 @@ class _CategoryBudgetTile extends StatelessWidget {
                     hasBudget
                         ? AppStrings.budgetUsedLabel(spent, budget)
                         : '${AppStrings.expenseThisPeriodPrefix}¥${spent.toStringAsFixed(0)}',
-                    style: TextStyle(
+                    style: tt.bodySmall?.copyWith(
                       fontSize: 12,
                       color: cs.onSurface.withOpacity(0.7),
                     ),
@@ -1594,10 +1574,9 @@ class _CategoryBudgetTile extends StatelessWidget {
                       remaining,
                       isOverspend,
                     ),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurface,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface,
+                        ),
                   ),
                 ),
             ],
@@ -1615,6 +1594,7 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
@@ -1628,7 +1608,7 @@ class _EmptyHint extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: tt.bodyMedium?.copyWith(
           fontSize: 13,
           color: cs.onSurface.withOpacity(0.75),
         ),
@@ -1650,6 +1630,7 @@ class _EditBudgetResult {
 
   /// 构建预算提醒卡片
   Widget _buildBudgetAlertCard(
+    BuildContext ctx,
     ColorScheme cs,
     _BudgetViewData data,
     bool isYearView,
@@ -1678,7 +1659,7 @@ class _EditBudgetResult {
       alertIcon = Icons.warning;
     } else if (usedPercent >= 80) {
       alertText = '预算已用${usedPercent.toStringAsFixed(0)}%，剩余${daysLeft}天，建议控制支出';
-      alertColor = Colors.orange;
+      alertColor = cs.secondary;
       alertIcon = Icons.warning_amber;
     } else if (usedPercent >= 50) {
       alertText = '预算已用${usedPercent.toStringAsFixed(0)}%，剩余¥${remaining.toStringAsFixed(0)}';
@@ -1702,7 +1683,7 @@ class _EditBudgetResult {
           Expanded(
             child: Text(
               alertText,
-              style: TextStyle(
+              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                 fontSize: 12,
                 color: cs.onSurface,
               ),
@@ -1711,7 +1692,7 @@ class _EditBudgetResult {
           if (dailyAllowance > 0 && daysLeft > 0)
             Text(
               '日均¥${dailyAllowance.toStringAsFixed(0)}',
-              style: TextStyle(
+              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                 fontSize: 11,
                 color: cs.onSurface.withOpacity(0.7),
               ),
@@ -1758,7 +1739,7 @@ class _EditBudgetResult {
                   const SizedBox(width: 6),
                   Text(
                     '预算分析',
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: cs.onSurface,
@@ -1769,6 +1750,7 @@ class _EditBudgetResult {
               const SizedBox(height: 8),
               if (lastPeriodUsed > 0) ...[
                 _buildAnalysisItem(
+                  ctx,
                   cs,
                   '上${isYearView ? '年' : '月'}支出',
                   '¥${lastPeriodUsed.toStringAsFixed(0)}',
@@ -1780,6 +1762,7 @@ class _EditBudgetResult {
               ],
               if (avgDailyExpense > 0) ...[
                 _buildAnalysisItem(
+                  ctx,
                   cs,
                   '日均支出',
                   '¥${avgDailyExpense.toStringAsFixed(0)}',
@@ -1801,7 +1784,7 @@ class _EditBudgetResult {
                       Expanded(
                         child: Text(
                           '预测支出将超过预算，建议控制消费',
-                          style: TextStyle(
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontSize: 11,
                             color: cs.onSurface,
                           ),
@@ -1817,20 +1800,26 @@ class _EditBudgetResult {
     );
   }
 
-  Widget _buildAnalysisItem(ColorScheme cs, String label, String value, String desc) {
+  Widget _buildAnalysisItem(
+    BuildContext ctx,
+    ColorScheme cs,
+    String label,
+    String value,
+    String desc,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
             fontSize: 11,
             color: cs.onSurface.withOpacity(0.7),
           ),
         ),
         Text(
           value,
-          style: TextStyle(
+          style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: cs.onSurface,

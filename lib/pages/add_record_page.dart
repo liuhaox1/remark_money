@@ -19,6 +19,7 @@ import '../widgets/account_select_bottom_sheet.dart';
 import '../repository/repository_factory.dart';
 import 'add_account_type_page.dart';
 import 'voice_record_page.dart';
+import '../widgets/app_top_bar.dart';
 
 class AddRecordPage extends StatefulWidget {
   const AddRecordPage({
@@ -105,17 +106,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        toolbarHeight: 44,
-        title: Text(
-          widget.initialRecord == null
-              ? AppStrings.addRecord
-              : AppStrings.edit,
-        ),
+      backgroundColor: cs.surface,
+      appBar: AppTopBar(
+        title: widget.initialRecord == null ? AppStrings.addRecord : AppStrings.edit,
       ),
       body: SafeArea(
         child: Center(
@@ -131,7 +124,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       ? null
                       : [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: cs.shadow.withOpacity(0.06),
                             blurRadius: 18,
                             offset: const Offset(0, 8),
                           ),
@@ -495,9 +488,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
           value: _includeInStats,
           title: Text(
             statsLabel,
-            style: TextStyle(
-              color: cs.onSurface,
-            ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface,
+                ),
           ),
           onChanged: (v) => setState(() => _includeInStats = v),
         ),
@@ -638,13 +631,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: selected
-                            ? cs.primary
-                            : cs.onSurface.withOpacity(0.75),
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: selected
+                                ? cs.primary
+                                : cs.onSurface.withOpacity(0.75),
+                          ),
                     ),
                   ],
                 ),
@@ -715,15 +707,14 @@ class _AddRecordPageState extends State<AddRecordPage> {
                             _displayCategoryName(cat),
                             maxLines: 2,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: selected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                              color: selected
-                                  ? cs.primary
-                                  : cs.onSurface.withOpacity(0.87),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontWeight: selected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: selected
+                                      ? cs.primary
+                                      : cs.onSurface.withOpacity(0.87),
+                                ),
                           ),
                         ],
                       ),
@@ -799,12 +790,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
                         ? '${selectedAccount.name} · ${selectedAccount.currentBalance.toStringAsFixed(2)}'
                         : '选择账户',
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: selectedAccount != null
-                          ? cs.onSurface
-                          : cs.onSurface.withOpacity(0.55),
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: selectedAccount != null
+                              ? cs.onSurface
+                              : cs.onSurface.withOpacity(0.55),
+                        ),
                   ),
                 ),
                 Icon(
@@ -909,25 +899,22 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 isCollapsed: true,
                 border: InputBorder.none,
                 hintText: AppStrings.remarkOptional,
-                hintStyle: TextStyle(
-                  fontSize: 14,
-                  color: cs.onSurface.withOpacity(0.6),
-                ),
+                hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurface.withOpacity(0.6),
+                    ),
               ),
-              style: TextStyle(
-                fontSize: 14,
-                color: cs.onSurface,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurface,
+                  ),
             ),
           ),
           const SizedBox(width: 8),
           Text(
             '¥ $amountText',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface,
-            ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
           ),
         ],
       ),
@@ -955,11 +942,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
             color: background ?? keyBackground,
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: 18,
-                color: textColor ?? cs.onSurface,
-                fontWeight: fontWeight,
-              ),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 18,
+                    color: textColor ?? cs.onSurface,
+                    fontWeight: fontWeight,
+                  ),
             ),
           ),
         ),
@@ -1033,13 +1020,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       height: 56,
                       alignment: Alignment.center,
                       color: Theme.of(context).colorScheme.primary,
-                      child: const Text(
+                      child: Text(
                         '完成',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onPrimary,
+                            ),
                       ),
                     ),
                   ),
@@ -1146,9 +1133,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Widget _buildAdvancedSection() {
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
-      title: const Text(
+      title: Text(
         '更多设置',
-        style: TextStyle(fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
       ),
       subtitle: Text(
         '记账习惯和统计',
@@ -1282,14 +1271,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
                       onPressed: () => Navigator.pop(context),
                       child: const Text(AppStrings.cancel),
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Center(
                         child: Text(
                           AppStrings.selectDate,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ),
                     ),

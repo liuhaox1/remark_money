@@ -10,6 +10,7 @@ import '../theme/app_tokens.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
+import '../widgets/app_top_bar.dart';
 
 class AccountDetailPage extends StatelessWidget {
   const AccountDetailPage({super.key, required this.accountId});
@@ -24,11 +25,11 @@ class AccountDetailPage extends StatelessWidget {
     if (account == null) {
       final cs = Theme.of(context).colorScheme;
       return Scaffold(
-        appBar: AppBar(title: const Text('账户详情')),
+        appBar: const AppTopBar(title: '账户详情'),
         body: Center(
           child: Text(
             '账户不存在',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: cs.onSurface,
             ),
           ),
@@ -39,9 +40,7 @@ class AccountDetailPage extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(account.name),
-      ),
+      appBar: AppTopBar(title: account.name),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(
@@ -69,7 +68,9 @@ class AccountDetailPage extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       _kindLabel(account.kind),
-                      style: TextStyle(color: cs.outline),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: cs.outline,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -116,7 +117,7 @@ class AccountDetailPage extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         '对方：${account.counterparty!}',
-                        style: TextStyle(
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: cs.onSurface.withOpacity(0.87),
                         ),
                       ),
@@ -125,7 +126,9 @@ class AccountDetailPage extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         '预计结清：${account.dueDate!.year}-${account.dueDate!.month.toString().padLeft(2, '0')}-${account.dueDate!.day.toString().padLeft(2, '0')}',
-                        style: TextStyle(color: cs.outline),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.outline,
+                        ),
                       ),
                     ],
                   ],
@@ -198,7 +201,7 @@ class AccountDetailPage extends StatelessWidget {
                 children: [
                   Text(
                     '账户间转账',
-                    style: TextStyle(
+                    style: Theme.of(statefulContext).textTheme.titleLarge?.copyWith(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: cs.onSurface,
@@ -211,7 +214,7 @@ class AccountDetailPage extends StatelessWidget {
                     children: [
                       Text(
                         '转入账户',
-                        style: TextStyle(
+                        style: Theme.of(statefulContext).textTheme.bodyMedium?.copyWith(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: cs.onSurface.withOpacity(0.7),
@@ -246,7 +249,7 @@ class AccountDetailPage extends StatelessWidget {
                                   toAccountId != null
                                       ? accounts.firstWhere((a) => a.id == toAccountId).name
                                       : '请选择转入账户',
-                                  style: TextStyle(
+                                  style: Theme.of(statefulContext).textTheme.bodyLarge?.copyWith(
                                     fontSize: 16,
                                     color: toAccountId != null
                                         ? cs.onSurface
@@ -269,10 +272,14 @@ class AccountDetailPage extends StatelessWidget {
                     controller: amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: cs.onSurface),
+                    style: Theme.of(ctx).textTheme.bodyLarge?.copyWith(
+                      color: cs.onSurface,
+                    ),
                     decoration: InputDecoration(
                       labelText: '金额',
-                      labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -345,7 +352,7 @@ class AccountDetailPage extends StatelessWidget {
                               value: a.id,
                               child: Text(
                                 a.name,
-                                style: TextStyle(
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
@@ -354,7 +361,9 @@ class AccountDetailPage extends StatelessWidget {
                     onChanged: (v) => setState(() => assetAccountId = v),
                     decoration: InputDecoration(
                       labelText: '资金进入账户',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -363,10 +372,14 @@ class AccountDetailPage extends StatelessWidget {
                     controller: amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     decoration: InputDecoration(
                       labelText: '借款金额',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -440,7 +453,7 @@ class AccountDetailPage extends StatelessWidget {
                               value: a.id,
                               child: Text(
                                 a.name,
-                                style: TextStyle(
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
@@ -449,7 +462,9 @@ class AccountDetailPage extends StatelessWidget {
                     onChanged: (v) => setState(() => assetAccountId = v),
                     decoration: InputDecoration(
                       labelText: '还款资金来源',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -458,10 +473,14 @@ class AccountDetailPage extends StatelessWidget {
                     controller: principalCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     decoration: InputDecoration(
                       labelText: '本金金额',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -470,10 +489,14 @@ class AccountDetailPage extends StatelessWidget {
                     controller: interestCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     decoration: InputDecoration(
                       labelText: '利息（可选，计入支出）',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -548,7 +571,7 @@ class AccountDetailPage extends StatelessWidget {
                               value: a.id,
                               child: Text(
                                 a.name,
-                                style: TextStyle(
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
@@ -557,7 +580,9 @@ class AccountDetailPage extends StatelessWidget {
                     onChanged: (v) => setState(() => assetAccountId = v),
                     decoration: InputDecoration(
                       labelText: '资金来源账户',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -566,10 +591,14 @@ class AccountDetailPage extends StatelessWidget {
                     controller: amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     decoration: InputDecoration(
                       labelText: '借出金额',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -641,7 +670,7 @@ class AccountDetailPage extends StatelessWidget {
                               value: a.id,
                               child: Text(
                                 a.name,
-                                style: TextStyle(
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
@@ -650,7 +679,9 @@ class AccountDetailPage extends StatelessWidget {
                     onChanged: (v) => setState(() => assetAccountId = v),
                     decoration: InputDecoration(
                       labelText: '收款账户',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -659,10 +690,14 @@ class AccountDetailPage extends StatelessWidget {
                     controller: amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     decoration: InputDecoration(
                       labelText: '收回金额',
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -774,17 +809,17 @@ class AccountDetailPage extends StatelessWidget {
                 controller: balanceCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 autofocus: true,
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
                 decoration: InputDecoration(
                   labelText: '余额',
                   helperText: '输入账户的实际余额',
                   border: const OutlineInputBorder(),
-                  labelStyle: TextStyle(
+                  labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
-                  helperStyle: TextStyle(
+                  helperStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color:
                         Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                   ),

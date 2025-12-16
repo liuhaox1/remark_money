@@ -6,6 +6,7 @@ import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
+import '../widgets/app_top_bar.dart';
 
 class AccountFormPage extends StatefulWidget {
   const AccountFormPage({
@@ -159,18 +160,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(
-        backgroundColor: cs.surface,
-        foregroundColor: cs.onSurface,
-        elevation: 0,
-        title: Text(
-          appBarTitle,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(color: cs.onSurface),
-        ),
-      ),
+      appBar: AppTopBar(title: appBarTitle),
       body: isBankCard
           ? _buildBankCardForm(context, kind, subtype, isEditing)
           : isVirtual
@@ -204,16 +194,17 @@ class _AccountFormPageState extends State<AccountFormPage> {
       children: [
         Text(
           kindLabel,
-          style: TextStyle(
-            fontSize: 13,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-          ),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
         ),
         if (!hideSubtypeLabel) ...[
           const SizedBox(height: 4),
           Text(
             _subtypeLabel(subtype),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
           ),
         ],
       ],
@@ -308,9 +299,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
           if (widget.showAdvancedSettings)
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
-              title: const Text(
+              title: Text(
                 '高级设置',
-                style: TextStyle(fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
               children: [
                 SwitchListTile(
@@ -434,8 +427,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD54F),
-                foregroundColor: Colors.black87,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               onPressed: () => _handleSubmit(kind, subtype, isEditing),
@@ -462,11 +455,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -515,8 +508,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD54F),
-                foregroundColor: Colors.black87,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               onPressed: () => _handleSubmit(kind, subtype, isEditing),
@@ -541,11 +534,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -594,8 +587,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD54F),
-                foregroundColor: Colors.black87,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               onPressed: () => _handleSubmit(kind, subtype, isEditing),
@@ -628,11 +621,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
           ],
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -682,8 +675,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD54F),
-                foregroundColor: Colors.black87,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               onPressed: () => _handleSubmit(kind, subtype, isEditing),
@@ -708,11 +701,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -725,10 +718,12 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   label: '名称',
                   child: Text(
                     '现金',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.6),
+                        ),
                   ),
                 ),
                 const Divider(height: 1),
@@ -761,8 +756,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD54F),
-                foregroundColor: Colors.black87,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               onPressed: () => _handleSubmit(kind, subtype, isEditing),
@@ -797,11 +792,10 @@ class _AccountFormPageState extends State<AccountFormPage> {
       children: [
         Text(
           '银行品牌',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: labelColor,
-          ),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: labelColor,
+              ),
         ),
         const SizedBox(height: 6),
         InkWell(
@@ -844,15 +838,14 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 Expanded(
                   child: Text(
                     hasBrand ? brand.displayName : '选择银行（可选）',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: hasBrand
-                          ? Theme.of(context).colorScheme.onSurface
-                          : Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.5),
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: hasBrand
+                              ? Theme.of(context).colorScheme.onSurface
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.5),
+                        ),
                   ),
                 ),
                 Icon(
@@ -888,7 +881,9 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     title,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                 ),
               ),
@@ -967,20 +962,25 @@ class _AccountFormPageState extends State<AccountFormPage> {
           children: [
             Text(
               '所在银行',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: labelColor),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: labelColor,
+                  ),
             ),
             const Spacer(),
             Text(
               title,
-              style: TextStyle(
-                fontSize: 15,
-                color: brand != null && 
-                        brand.key != 'custom' && 
-                        brand.key != 'other_credit' && 
-                        brand.key != 'other_bank'
-                    ? Theme.of(context).colorScheme.onSurface
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: brand != null &&
+                            brand.key != 'custom' &&
+                            brand.key != 'other_credit' &&
+                            brand.key != 'other_bank'
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.5),
+                  ),
             ),
             Icon(
               Icons.chevron_right,
@@ -1004,7 +1004,10 @@ class _AccountFormPageState extends State<AccountFormPage> {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 15, color: labelColor, fontWeight: FontWeight.w500),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: labelColor,
+                  fontWeight: FontWeight.w500,
+                ),
           ),
           const SizedBox(width: 12),
           Expanded(child: Align(alignment: Alignment.centerRight, child: child)),
@@ -1035,24 +1038,25 @@ class _AccountFormPageState extends State<AccountFormPage> {
           textAlign: textAlign,
           autofocus: autofocus,
           focusNode: focusNode,
-          style: TextStyle(color: cs.onSurface),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: cs.onSurface,
+              ),
           decoration: InputDecoration(
             hintText: hintText,
             border: InputBorder.none,
             isDense: true,
             contentPadding: EdgeInsets.zero,
-            hintStyle: TextStyle(
-              color: cs.onSurface.withOpacity(0.55),
-            ),
+            hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface.withOpacity(0.55),
+                ),
           ),
         ),
         if (helperText != null)
           Text(
             helperText,
-            style: TextStyle(
-              fontSize: 11,
-              color: cs.onSurface.withOpacity(0.65),
-            ),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurface.withOpacity(0.65),
+                ),
           ),
       ],
     );

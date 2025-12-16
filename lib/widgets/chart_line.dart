@@ -79,6 +79,7 @@ class ChartLine extends StatelessWidget {
     }
 
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     final color = entries.first.color;
     final compareColor = cs.outline;
 
@@ -115,7 +116,7 @@ class ChartLine extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 8),
                     child: Text(
                       value.toStringAsFixed(0),
-                      style: TextStyle(
+                      style: tt.labelSmall?.copyWith(
                         fontSize: 10,
                         color: cs.onSurface.withOpacity(0.5),
                       ),
@@ -148,7 +149,7 @@ class ChartLine extends StatelessWidget {
                     }
                     return Text(
                       label,
-                      style: TextStyle(
+                      style: tt.labelSmall?.copyWith(
                         fontSize: 11,
                         color: cs.onSurface.withOpacity(0.6),
                       ),
@@ -168,7 +169,7 @@ class ChartLine extends StatelessWidget {
                       (entries.length <= 7 && day <= entries.length)) {
                     return Text(
                       day.toString(),
-                      style: TextStyle(
+                      style: tt.labelSmall?.copyWith(
                         fontSize: 11,
                         color: cs.onSurface.withOpacity(0.6),
                       ),
@@ -233,7 +234,7 @@ class ChartLine extends StatelessWidget {
                           show: true,
                           alignment: Alignment.topRight,
                           padding: const EdgeInsets.only(right: 4, bottom: 2),
-                          style: TextStyle(
+                          style: tt.labelSmall?.copyWith(
                             fontSize: 10,
                             color: cs.primary,
                             fontWeight: FontWeight.w600,
@@ -251,7 +252,7 @@ class ChartLine extends StatelessWidget {
                           show: true,
                           alignment: Alignment.topLeft,
                           padding: const EdgeInsets.only(left: 4, bottom: 2),
-                          style: TextStyle(
+                          style: tt.labelSmall?.copyWith(
                             fontSize: 10,
                             color: cs.outline,
                             fontWeight: FontWeight.w600,

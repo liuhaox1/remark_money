@@ -27,6 +27,7 @@ import '../utils/error_handler.dart';
 
 import '../models/period_type.dart';
 import '../theme/app_tokens.dart';
+import '../theme/brand_theme.dart';
 
 import '../widgets/book_selector_button.dart';
 
@@ -2415,8 +2416,7 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         Text(
                           '高级筛选',
-                          style: TextStyle(
-                            fontSize: 16,
+                          style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: cs.onSurface,
                           ),
@@ -2447,7 +2447,7 @@ class _HomePageState extends State<HomePage> {
                                 children: [
                                   Text(
                                     summaryText,
-                                    style: TextStyle(
+                                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                                       fontSize: 12,
                                       color: cs.onSurface,
                                     ),
@@ -2455,7 +2455,7 @@ class _HomePageState extends State<HomePage> {
                                   const SizedBox(height: 4),
                                   Text(
                                     '预计找到 ${filteredCount()} 条记录',
-                                    style: TextStyle(
+                                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                                       fontSize: 12,
                                       color: cs.primary,
                                     ),
@@ -2517,7 +2517,7 @@ class _HomePageState extends State<HomePage> {
                                 tempStartDate == null || tempEndDate == null
                                     ? '自定义日期'
                                     : '${DateUtilsX.ymd(tempStartDate!)} ~ ${DateUtilsX.ymd(tempEndDate!)}',
-                                style: const TextStyle(
+                                style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -2596,7 +2596,6 @@ class _HomePageState extends State<HomePage> {
                                     tempCategoryKeys.isEmpty
                                         ? '全部分类'
                                         : '已选 ${tempCategoryKeys.length} 个分类',
-                                    style: const TextStyle(),
                                   ),
                                   const Icon(Icons.chevron_right),
                                 ],
@@ -2732,7 +2731,7 @@ class _HomePageState extends State<HomePage> {
                                     ),
                                     child: Text(
                                       '更多',
-                                      style: TextStyle(
+                                      style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
                                         color: cs.primary,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13,
@@ -3131,13 +3130,11 @@ class _HomePageState extends State<HomePage> {
                               ),
                               child: Text(
                                 c.name,
-                                style: TextStyle(
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   fontWeight: selectedAll
                                       ? FontWeight.w700
                                       : FontWeight.w500,
-                                  color: selectedAll
-                                      ? cs.primary
-                                      : cs.onSurface,
+                                  color: selectedAll ? cs.primary : cs.onSurface,
                                   fontSize: 13,
                                 ),
                               ),
@@ -3163,12 +3160,11 @@ class _HomePageState extends State<HomePage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(
                           children: [
-                            const Text(
+                            Text(
                               '选择分类',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                              ),
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
                             const Spacer(),
                             TextButton(
@@ -3216,7 +3212,6 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             Text(
                               '已选 ${selected.length} 个',
-                              style: const TextStyle(),
                             ),
                             const Spacer(),
                             FilledButton(
@@ -3274,12 +3269,11 @@ Future<Set<String>?> _openAccountMultiSelector({
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         children: [
-                          const Text(
+                          Text(
                             '选择账户',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                           const Spacer(),
                           TextButton(
@@ -3329,7 +3323,6 @@ Future<Set<String>?> _openAccountMultiSelector({
                         children: [
                           Text(
                             '已选 ${selected.isEmpty ? '全部' : selected.length.toString()}',
-                            style: const TextStyle(),
                           ),
                           const Spacer(),
                           FilledButton(
@@ -3490,12 +3483,14 @@ class _HomeSearchBar extends StatelessWidget {
                   border: InputBorder.none,
 
                   hintText: AppStrings.searchHint,
-                  hintStyle: TextStyle(
+                  hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: cs.onSurface.withOpacity(0.5),
                   ),
 
                 ),
-                style: TextStyle(color: cs.onSurface),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface,
+                ),
 
                 onChanged: onChanged,
 
@@ -3748,12 +3743,9 @@ class _HomeQuickFiltersBar extends StatelessWidget {
 
           label,
 
-          style: TextStyle(
-
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
             fontSize: 11,
-
             color: selected ? cs.primary : cs.onSurface.withOpacity(0.8),
-
           ),
 
         ),
@@ -3828,7 +3820,7 @@ class _HomeFilterSummaryBar extends StatelessWidget {
 
                 summaryText,
 
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontSize: 11,
                   color: cs.onSurface,
                 ),
@@ -3848,7 +3840,7 @@ class _HomeFilterSummaryBar extends StatelessWidget {
               ),
               child: Text(
                 '清空筛选',
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontSize: 11,
                   color: cs.primary,
                 ),
@@ -4017,14 +4009,10 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
                           AppStrings.recentSearches,
 
-                          style: TextStyle(
-
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontSize: 12,
-
                             fontWeight: FontWeight.w600,
-
                             color: cs.onSurface.withOpacity(0.8),
-
                           ),
 
                         ),
@@ -4051,12 +4039,9 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
                         AppStrings.clearHistory,
 
-                        style: TextStyle(
-
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontSize: 12,
-
                           color: cs.primary,
-
                         ),
 
                       ),
@@ -4129,14 +4114,10 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
                       AppStrings.matchedCategories,
 
-                      style: TextStyle(
-
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 12,
-
                         fontWeight: FontWeight.w600,
-
                         color: cs.onSurface.withOpacity(0.8),
-
                       ),
 
                     ),
@@ -4199,12 +4180,9 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
                 item,
 
-                style: TextStyle(
-
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontSize: 14,
-
                   color: cs.onSurface,
-
                 ),
 
                 maxLines: 1,
@@ -4267,14 +4245,10 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
         name,
 
-        style: TextStyle(
-
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontSize: 14,
-
           fontWeight: FontWeight.w500,
-
           color: cs.onSurface,
-
         ),
 
       );
@@ -4293,14 +4267,10 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
         text: TextSpan(
 
-          style: TextStyle(
-
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             fontSize: 14,
-
             fontWeight: FontWeight.w500,
-
             color: cs.onSurface,
-
           ),
 
           children: [
@@ -4311,12 +4281,9 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
               text: match,
 
-              style: TextStyle(
-
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: cs.primary,
-
                 fontWeight: FontWeight.w600,
-
               ),
 
             ),
@@ -4389,12 +4356,9 @@ class _HomeSearchSuggestionPanel extends StatelessWidget {
 
                     category.isExpense ? AppStrings.expense : AppStrings.income,
 
-                    style: TextStyle(
-
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontSize: 11,
-
                       color: cs.onSurface.withOpacity(0.5),
-
                     ),
 
                   ),
@@ -4503,12 +4467,9 @@ class _SelectionToolbar extends StatelessWidget {
 
               text,
 
-              style: const TextStyle(
-
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontSize: 13,
-
                 fontWeight: FontWeight.w500,
-
               ),
 
             ),
@@ -4620,12 +4581,9 @@ class _DayHeader extends StatelessWidget {
 
         textStr,
 
-        style: TextStyle(
-
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
           fontSize: fontSize,
-
           color: labelColor,
-
         ),
 
       );
@@ -4648,14 +4606,10 @@ class _DayHeader extends StatelessWidget {
 
             dateLabel,
 
-            style: TextStyle(
-
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontSize: 13,
-
               fontWeight: FontWeight.w600,
-
               color: cs.onSurface,
-
             ),
 
           ),
@@ -4823,17 +4777,8 @@ class _BalanceCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
 
           decoration: BoxDecoration(
-            gradient: isDark
-                ? null
-                : LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      cs.primary.withOpacity(0.85),
-                      cs.primaryContainer.withOpacity(0.9),
-                    ],
-                  ),
-            color: isDark ? cs.surface : null,
+            gradient: isDark ? null : theme.extension<BrandTheme>()?.headerGradient,
+            color: isDark ? cs.surfaceContainerHighest : null,
 
           borderRadius: BorderRadius.circular(24),
 
@@ -4841,19 +4786,7 @@ class _BalanceCard extends StatelessWidget {
 
               ? null
 
-              : [
-
-                  BoxShadow(
-
-                    color: theme.shadowColor.withOpacity(0.08),
-
-                    blurRadius: 18,
-
-                    offset: const Offset(0, 8),
-
-                  ),
-
-                ],
+              : theme.extension<BrandTheme>()?.headerShadow,
 
         ),
 
@@ -4941,14 +4874,10 @@ class _BalanceCard extends StatelessWidget {
 
                         AppStrings.monthBalance,
 
-                        style: TextStyle(
-
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontSize: 12,
-
                           fontWeight: FontWeight.w600,
-
                           color: cs.onSurface.withOpacity(0.7),
-
                         ),
 
                       ),
@@ -4959,12 +4888,9 @@ class _BalanceCard extends StatelessWidget {
 
                         _NumberFormatter.format(balance),
 
-                        style: TextStyle(
-
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontSize: 18,
-
                           color: valueColor,
-
                         ),
 
                       ),
@@ -5078,7 +5004,7 @@ class _BalanceMiniItem extends StatelessWidget {
 
           label,
 
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
             fontSize: 11,
             fontWeight: FontWeight.w500,
             color: cs.onSurface.withOpacity(0.65),
@@ -5092,12 +5018,9 @@ class _BalanceMiniItem extends StatelessWidget {
 
           _NumberFormatter.format(value),
 
-          style: TextStyle(
-
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontSize: 18, // 固定字体大小
-
             color: cs.onSurface,
-
           ),
 
         ),

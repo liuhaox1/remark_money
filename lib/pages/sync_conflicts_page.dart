@@ -7,6 +7,7 @@ import '../repository/repository_factory.dart';
 import '../services/data_version_service.dart';
 import '../services/sync_outbox_service.dart';
 import '../services/sync_v2_conflict_store.dart';
+import '../widgets/app_scaffold.dart';
 
 class SyncConflictsPage extends StatefulWidget {
   const SyncConflictsPage({super.key, required this.bookId});
@@ -188,21 +189,18 @@ class _SyncConflictsPageState extends State<SyncConflictsPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('同步冲突'),
-        actions: [
-          if (_items.isNotEmpty)
-            TextButton(
-              onPressed: () async {
-                await SyncV2ConflictStore.clear(widget.bookId);
-                await _reload();
-              },
-              child: const Text('清空'),
-            ),
-        ],
-      ),
-      backgroundColor: cs.surface,
+    return AppScaffold(
+      title: '同步冲突',
+      actions: [
+        if (_items.isNotEmpty)
+          TextButton(
+            onPressed: () async {
+              await SyncV2ConflictStore.clear(widget.bookId);
+              await _reload();
+            },
+            child: const Text('清空'),
+          ),
+      ],
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _items.isEmpty

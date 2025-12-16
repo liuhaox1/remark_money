@@ -154,6 +154,7 @@ class _UserStatsCardState extends State<UserStatsCard> {
     required Color color,
   }) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -169,8 +170,7 @@ class _UserStatsCardState extends State<UserStatsCard> {
               const SizedBox(width: 6),
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 11,
+                style: tt.bodySmall?.copyWith(
                   color: cs.onSurface.withOpacity(0.7),
                 ),
               ),
@@ -179,8 +179,7 @@ class _UserStatsCardState extends State<UserStatsCard> {
           const SizedBox(height: 6),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 16,
+            style: tt.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: cs.onSurface,
             ),

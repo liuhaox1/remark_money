@@ -81,6 +81,7 @@ class _WeekStripState extends State<WeekStrip> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final tt = theme.textTheme;
     final isDark = theme.brightness == Brightness.dark;
 
     final today = DateTime.now();
@@ -186,8 +187,7 @@ class _WeekStripState extends State<WeekStrip> {
                                 children: [
                                   Text(
                                     DateUtilsX.weekdayShort(day),
-                                    style: TextStyle(
-                                      fontSize: 11,
+                                    style: tt.labelSmall?.copyWith(
                                       color: fg.withOpacity(
                                         isToday && !isSelected ? 0.8 : 1.0,
                                       ),
@@ -199,8 +199,7 @@ class _WeekStripState extends State<WeekStrip> {
                                   const SizedBox(height: 2),
                                   Text(
                                     '${day.day}',
-                                    style: TextStyle(
-                                      fontSize: 12,
+                                    style: tt.labelMedium?.copyWith(
                                       color: fg,
                                       fontWeight: isSelected
                                           ? FontWeight.w700
@@ -290,6 +289,7 @@ class _TodayPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
@@ -303,8 +303,7 @@ class _TodayPill extends StatelessWidget {
         ),
         child: Text(
           AppStrings.today,
-          style: TextStyle(
-            fontSize: 11,
+          style: tt.labelSmall?.copyWith(
             fontWeight: FontWeight.w600,
             color: isTodaySelected ? cs.primary : cs.onSurface.withOpacity(0.7),
           ),

@@ -35,6 +35,7 @@ class TimelineItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     final title = category?.name ?? AppStrings.unknown;
     final isExpense = record.isExpense;
     final Color color = isExpense ? AppColors.danger : AppColors.success;
@@ -114,9 +115,8 @@ class TimelineItem extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: TextStyle(
+                          style: tt.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w600,
-                            fontSize: 13,
                             color: cs.onSurface,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -126,8 +126,7 @@ class TimelineItem extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             subtitle!,
-                            style: TextStyle(
-                              fontSize: 11,
+                            style: tt.bodySmall?.copyWith(
                               color: cs.onSurface.withOpacity(0.7),
                             ),
                             maxLines: 1,
@@ -140,9 +139,8 @@ class TimelineItem extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     amountStr,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontFeatures: [FontFeature.tabularFigures()],
+                    style: tt.bodyMedium?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
                       color: amountColor,
                     ),
                     textAlign: TextAlign.right,

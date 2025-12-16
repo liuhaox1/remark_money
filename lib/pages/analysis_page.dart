@@ -12,6 +12,7 @@ import '../providers/record_provider.dart';
 import '../providers/category_provider.dart';
 import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
+import '../theme/brand_theme.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
 import '../widgets/chart_entry.dart';
@@ -92,7 +93,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     // 检查加载状态
     if (!recordProvider.loaded || !bookProvider.loaded) {
       return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+        backgroundColor: cs.surface,
         appBar: AppBar(
           elevation: 0,
           toolbarHeight: 0,
@@ -144,8 +145,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
         if (snapshot.hasError && data.isEmpty) {
           return Scaffold(
-            backgroundColor:
-                isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+            backgroundColor: cs.surface,
             appBar: AppBar(
               elevation: 0,
               toolbarHeight: 0,
@@ -166,8 +166,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         final totalRecordCount = data['totalRecordCount'] as int? ?? 0;
 
         return Scaffold(
-          backgroundColor:
-              isDark ? const Color(0xFF111418) : const Color(0xFFF3F4F6),
+          backgroundColor: cs.surface,
           appBar: AppBar(
             elevation: 0,
             toolbarHeight: 0,
@@ -208,7 +207,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             '${AppStrings.reportSummaryMiddleRecords}'
                             '${yearExpense.toStringAsFixed(0)}'
                             '${AppStrings.reportSummarySuffixYuan}',
-                            style: TextStyle(
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               fontSize: 12,
                               color: cs.outline,
                             ),
@@ -298,7 +297,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                         padding: const EdgeInsets.all(16),
                                         child: Text(
                                           '加载失败: ${snapshot.error}',
-                                          style: TextStyle(
+                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                             color: cs.error,
                                           ),
                                         ),
@@ -520,7 +519,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     return ListTile(
                       title: Text(AppStrings.yearLabel(y)),
                       trailing: y == _selectedYear
-                          ? const Icon(Icons.check, color: Colors.green)
+                          ? Icon(
+                              Icons.check,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
                           : null,
                       onTap: () => Navigator.pop(ctx, y),
                     );
@@ -820,9 +822,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const SizedBox(width: 8),
                 Text(
                   '支出趋势',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: cs.onSurface,
                   ),
                 ),
@@ -857,9 +858,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const SizedBox(width: 8),
                 Text(
                   '分类占比',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: cs.onSurface,
                   ),
                 ),
@@ -879,7 +879,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         Expanded(
                           child: Text(
                             item['category'] as String,
-                            style: TextStyle(
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               fontSize: 13,
                               color: cs.onSurface,
                             ),
@@ -888,7 +888,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         ),
                         Text(
                           '¥${(item['amount'] as double).toStringAsFixed(0)}',
-                          style: TextStyle(
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: cs.onSurface,
@@ -907,7 +907,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     const SizedBox(height: 4),
                     Text(
                       '${percent.toStringAsFixed(1)}%',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 11,
                         color: cs.onSurface.withOpacity(0.6),
                       ),
@@ -942,9 +942,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const SizedBox(width: 8),
                 Text(
                   '消费洞察',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: cs.onSurface,
                   ),
                 ),
@@ -958,7 +957,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     ? '本年支出比去年${yearOverYearChange.toStringAsFixed(1)}%'
                     : '本年支出比去年减少${yearOverYearChange.abs().toStringAsFixed(1)}%',
                 yearOverYearChange > 0 ? Icons.trending_up : Icons.trending_down,
-                yearOverYearChange > 0 ? Colors.orange : Colors.green,
+                yearOverYearChange > 0
+                    ? (Theme.of(context).extension<BrandTheme>()?.danger ?? cs.error)
+                    : (Theme.of(context).extension<BrandTheme>()?.success ?? cs.tertiary),
               ),
             ...insights.map((insight) => _buildInsightItem(
               cs,
@@ -983,7 +984,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontSize: 13,
                 color: cs.onSurface.withOpacity(0.8),
                 height: 1.4,
@@ -1018,9 +1019,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const SizedBox(width: 8),
                 Text(
                   '预测分析',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: cs.onSurface,
                   ),
                 ),
@@ -1035,7 +1035,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   children: [
                     Text(
                       '预测本月支出',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 12,
                         color: cs.onSurface.withOpacity(0.7),
                       ),
@@ -1043,9 +1043,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     const SizedBox(height: 4),
                     Text(
                       '¥${predictedMonthExpense.toStringAsFixed(0)}',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         color: cs.onSurface,
                       ),
                     ),
@@ -1056,7 +1056,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   children: [
                     Text(
                       '月均支出',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 12,
                         color: cs.onSurface.withOpacity(0.7),
                       ),
@@ -1064,9 +1064,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     const SizedBox(height: 4),
                     Text(
                       '¥${avgMonthlyExpense.toStringAsFixed(0)}',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         color: cs.onSurface,
                       ),
                     ),
@@ -1081,8 +1081,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: diffPercent > 0 
-                        ? Colors.orange.withOpacity(0.1)
-                        : Colors.green.withOpacity(0.1),
+                        ? (Theme.of(context).extension<BrandTheme>()?.danger ?? cs.error).withOpacity(0.1)
+                        : (Theme.of(context).extension<BrandTheme>()?.success ?? cs.tertiary).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -1090,7 +1090,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       Icon(
                         diffPercent > 0 ? Icons.warning_amber_outlined : Icons.check_circle_outline,
                         size: 16,
-                        color: diffPercent > 0 ? Colors.orange : Colors.green,
+                        color: diffPercent > 0
+                            ? (Theme.of(context).extension<BrandTheme>()?.danger ?? cs.error)
+                            : (Theme.of(context).extension<BrandTheme>()?.success ?? cs.tertiary),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -1098,7 +1100,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           diffPercent > 0
                               ? '预测本月支出将比月均高出${diffPercent.toStringAsFixed(1)}%，建议控制支出'
                               : '预测本月支出将比月均低${diffPercent.abs().toStringAsFixed(1)}%，继续保持',
-                          style: TextStyle(
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontSize: 12,
                             color: cs.onSurface.withOpacity(0.8),
                           ),
@@ -1227,7 +1229,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
       return Center(
         child: Text(
           '暂无数据',
-          style: TextStyle(color: cs.onSurface.withOpacity(0.6)),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: cs.onSurface.withOpacity(0.6),
+          ),
         ),
       );
     }
@@ -1287,7 +1291,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     data[index]['month'] as String,
-                    style: TextStyle(
+                    style: TextStyle (
                       fontSize: 10,
                       color: cs.onSurface.withOpacity(0.6),
                     ),
@@ -1303,7 +1307,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
               getTitlesWidget: (value, meta) {
                 return Text(
                   '¥${value.toInt()}',
-                  style: TextStyle(
+                  style: TextStyle (
                     fontSize: 10,
                     color: cs.onSurface.withOpacity(0.6),
                   ),
@@ -1351,7 +1355,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
       return Center(
         child: Text(
           '暂无数据',
-          style: TextStyle(color: cs.onSurface.withOpacity(0.6)),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: cs.onSurface.withOpacity(0.6),
+          ),
         ),
       );
     }
@@ -1446,32 +1452,16 @@ class _HeaderCard extends StatelessWidget {
 
   @override
     Widget build(BuildContext context) {
+      final brand = Theme.of(context).extension<BrandTheme>();
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          gradient: isDark
-              ? null
-              : LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    cs.primary.withOpacity(0.85),
-                    cs.primaryContainer.withOpacity(0.9),
-                  ],
-                ),
-          color: isDark ? cs.surface : null,
+          gradient: isDark ? null : brand?.headerGradient,
+          color: isDark ? cs.surfaceContainerHighest : null,
           borderRadius: BorderRadius.circular(24),
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: Theme.of(context).shadowColor.withOpacity(0.08),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+          boxShadow: isDark ? null : brand?.headerShadow,
         ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1550,8 +1540,7 @@ class _HeaderCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value.toStringAsFixed(2),
-            style: TextStyle(
-              fontSize: 16,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w400,
               color: color,
             ),
@@ -1802,14 +1791,14 @@ class _PeriodTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: cs.primary,
-                        ),
-                      ),
+	                      Text(
+	                        title,
+	                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+	                          fontSize: 15,
+	                          fontWeight: FontWeight.w700,
+	                          color: cs.primary,
+	                        ),
+	                      ),
                       if (tag != null) ...[
                         const SizedBox(width: 8),
                         Container(
@@ -1821,27 +1810,27 @@ class _PeriodTile extends StatelessWidget {
                             color: cs.primary.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text(
-                            tag!,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: cs.primary,
-                            ),
-                          ),
+	                          child: Text(
+	                            tag!,
+	                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+	                              fontSize: 10,
+	                              fontWeight: FontWeight.w600,
+	                              color: cs.primary,
+	                            ),
+	                          ),
                         ),
                       ],
                     ],
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.outline,
-                      ),
-                    ),
+	                    Text(
+	                      subtitle!,
+	                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+	                        fontSize: 12,
+	                        color: cs.outline,
+	                      ),
+	                    ),
                   ],
                   const SizedBox(height: 8),
                   hasData
@@ -1869,7 +1858,7 @@ class _PeriodTile extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 2),
                           child: Text(
                             emptyHint ?? '无记录',
-                            style: TextStyle(
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: cs.outline,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1917,7 +1906,7 @@ class _AmountLabel extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
             fontSize: 12,
             fontWeight: FontWeight.w500,
             color: cs.onSurface.withOpacity(0.75),
@@ -1926,7 +1915,7 @@ class _AmountLabel extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           value.toStringAsFixed(2),
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             fontSize: 14,
             fontWeight: FontWeight.w700,
             color: cs.onSurface,
@@ -2003,7 +1992,7 @@ class _EmptyYearCard extends StatelessWidget {
         children: [
           Text(
             AppStrings.emptyYearRecords,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 14,
               color: cs.onSurface,

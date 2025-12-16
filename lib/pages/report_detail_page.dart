@@ -2296,11 +2296,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         if (anomalyIndices.isNotEmpty) ...[
           Text(
             '异常点通常来自大额单笔或某类集中支出，可到明细中查看原因。',
-            style: TextStyle(
-              fontSize: 12,
-              color: cs.onSurface.withOpacity(0.7),
-              height: 1.4,
-            ),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurface.withOpacity(0.7),
+                  height: 1.4,
+                ),
           ),
           const SizedBox(height: 8),
         ],
@@ -2316,15 +2315,17 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     dense: true,
                     title: Text(
                       '${DateUtilsX.ymd(info.date)} · ${_formatAmount(info.amount)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                          ),
                     ),
                     subtitle: Text(
                       '主要来自 ${info.topCategoryName} ${_formatAmount(info.topCategoryAmount)}'
                       '${(info.topRecordRemark != null && info.topRecordRemark!.isNotEmpty) ? '，如：${info.topRecordRemark}' : ''}',
-                      style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
                     ),
                     trailing: TextButton(
                       onPressed: () => _openBillDetailForDate(info.date),
@@ -2345,15 +2346,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
               : AppStrings.chartDailyTrendDesc,
 
-          style: TextStyle(
-
-            fontSize: 12,
-
-            color: cs.onSurface.withOpacity(0.6),
-
-            height: 1.5,
-
-          ),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: cs.onSurface.withOpacity(0.6),
+                height: 1.5,
+              ),
 
         ),
 
@@ -2766,17 +2762,11 @@ class _PeriodHeaderCard extends StatelessWidget {
 
                       AppStrings.balance,
 
-                      style: TextStyle(
-
-                        fontSize: 12,
-
-                        fontWeight: FontWeight.w500,
-
-                        color: cs.onSurface.withOpacity(0.6),
-
-                        letterSpacing: 0.3,
-
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: cs.onSurface.withOpacity(0.6),
+                            letterSpacing: 0.3,
+                          ),
 
                     ),
 
@@ -2806,15 +2796,10 @@ class _PeriodHeaderCard extends StatelessWidget {
 
                       useWeeklySummary ? weeklySummaryText! : conclusion,
 
-                      style: TextStyle(
-
-                        fontSize: 11,
-
-                        color: cs.onSurface.withOpacity(0.5),
-
-                        height: 1.4,
-
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(0.5),
+                            height: 1.4,
+                          ),
 
                     ),
 
@@ -3030,10 +3015,10 @@ class _SectionCard extends StatelessWidget {
             const SizedBox(height: 18),
 
             DefaultTextStyle(
-              style: (Theme.of(context).textTheme.bodyLarge ?? const TextStyle()).copyWith(
-                color: cs.onSurface.withOpacity(0.85),
-                height: 1.5,
-              ),
+              style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                    color: cs.onSurface.withOpacity(0.85),
+                    height: 1.5,
+                  ),
               child: child,
             ),
 
@@ -3187,19 +3172,12 @@ class _SummaryMetric extends StatelessWidget {
 
           _formatAmount(value),
 
-          style: TextStyle(
-
-            fontSize: 16,
-
-            fontWeight: FontWeight.w500,
-
-            color: Theme.of(context).colorScheme.onSurface,
-
-            height: 1.2,
-
-            letterSpacing: -0.3,
-
-          ),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface,
+                height: 1.2,
+                letterSpacing: -0.3,
+              ),
 
           textAlign: TextAlign.right,
 

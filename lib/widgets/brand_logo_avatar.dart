@@ -25,6 +25,7 @@ class BrandLogoAvatar extends StatelessWidget {
       return _buildFallbackAvatar();
     }
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
 
     return Container(
       width: size,
@@ -36,8 +37,7 @@ class BrandLogoAvatar extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         brand.shortName,
-        style: TextStyle(
-          fontSize: 12,
+        style: tt.labelLarge!.copyWith(
           fontWeight: FontWeight.w700,
           color: cs.onPrimary,
         ),
@@ -61,4 +61,3 @@ class BrandLogoAvatar extends StatelessWidget {
     );
   }
 }
-

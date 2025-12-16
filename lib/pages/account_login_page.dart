@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../theme/ios_tokens.dart';
+import '../widgets/app_scaffold.dart';
 
 /// 账号密码登录页面
 class LoginPage extends StatefulWidget {
@@ -60,27 +62,29 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('登录'),
-        backgroundColor: cs.surface,
-        foregroundColor: cs.onSurface,
-      ),
+    final tt = Theme.of(context).textTheme;
+    return AppScaffold(
+      title: '登录',
       body: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: AppSpacing.page.copyWith(top: AppSpacing.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
               TextField(
                 controller: _usernameCtrl,
-                style: TextStyle(color: cs.onSurface),
+                style: tt.bodyMedium?.copyWith(color: cs.onSurface),
                 decoration: InputDecoration(
                   labelText: '账号',
                   hintText: '请输入账号',
-                  labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
-                  hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+                  labelStyle: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                  hintStyle: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.5),
+                  ),
                   prefixIcon: Icon(Icons.person_outline, color: cs.onSurface.withOpacity(0.7)),
                 ),
                 textInputAction: TextInputAction.next,
@@ -89,12 +93,16 @@ class _LoginPageState extends State<LoginPage> {
               TextField(
                 controller: _passwordCtrl,
                 obscureText: _obscurePassword,
-                style: TextStyle(color: cs.onSurface),
+                style: tt.bodyMedium?.copyWith(color: cs.onSurface),
                 decoration: InputDecoration(
                   labelText: '密码',
                   hintText: '请输入密码',
-                  labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.7)),
-                  hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+                  labelStyle: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                  hintStyle: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.5),
+                  ),
                   prefixIcon: Icon(Icons.lock_outline, color: cs.onSurface.withOpacity(0.7)),
                   suffixIcon: IconButton(
                     icon: Icon(

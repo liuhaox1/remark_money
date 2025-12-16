@@ -10,6 +10,7 @@ import '../providers/category_provider.dart';
 import '../utils/date_utils.dart';
 import '../theme/app_tokens.dart';
 import 'add_record_page.dart';
+import '../widgets/app_top_bar.dart';
 
 /// 账户流水列表页
 class AccountRecordsPage extends StatelessWidget {
@@ -31,7 +32,7 @@ class AccountRecordsPage extends StatelessWidget {
     if (!accountProvider.loaded || !recordProvider.loaded || 
         !categoryProvider.loaded || !bookProvider.loaded) {
       return Scaffold(
-        appBar: AppBar(title: const Text('账户流水')),
+        appBar: const AppTopBar(title: '账户流水'),
         body: const Center(
           child: CircularProgressIndicator(),
         ),
@@ -43,7 +44,7 @@ class AccountRecordsPage extends StatelessWidget {
 
     if (account == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('账户流水')),
+        appBar: const AppTopBar(title: '账户流水'),
         body: const Center(child: Text('账户不存在')),
       );
     }
@@ -57,14 +58,14 @@ class AccountRecordsPage extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
-            appBar: AppBar(title: Text('${account.name} - 流水')),
+            appBar: AppTopBar(title: '${account.name} - 流水'),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
 
         if (snapshot.hasError) {
           return Scaffold(
-            appBar: AppBar(title: Text('${account.name} - 流水')),
+            appBar: AppTopBar(title: '${account.name} - 流水'),
             body: Center(child: Text('加载失败: ${snapshot.error}')),
           );
         }
@@ -101,7 +102,7 @@ class AccountRecordsPage extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.08),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -161,10 +162,9 @@ class AccountRecordsPage extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(
                           '暂无流水记录',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
                         ),
                         const SizedBox(height: 16),
                         FilledButton.icon(
@@ -195,11 +195,13 @@ class AccountRecordsPage extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Text(
                               _formatDateHeader(group.date),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.outline,
+                                  ),
                             ),
                           ),
                           // 记录列表
@@ -240,19 +242,17 @@ class AccountRecordsPage extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.outline,
-          ),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.outline,
+              ),
         ),
         const SizedBox(height: 4),
         Text(
           value >= 0 ? '+${value.toStringAsFixed(2)}' : value.toStringAsFixed(2),
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
         ),
       ],
     );
@@ -306,19 +306,17 @@ class AccountRecordsPage extends StatelessWidget {
                     children: [
                       Text(
                         category?.name ?? record.categoryKey,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                       if (record.remark.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
                           record.remark,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -329,11 +327,10 @@ class AccountRecordsPage extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   '${isIncome ? '+' : '-'}${record.amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: amountColor,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: amountColor,
+                      ),
                 ),
               ],
             ),
@@ -385,4 +382,3 @@ class _RecordGroup {
   final DateTime date;
   final List<Record> records;
 }
-

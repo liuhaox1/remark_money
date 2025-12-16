@@ -68,6 +68,7 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: cs.surface,
       body: SafeArea(
@@ -117,11 +118,11 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
-                      ),
+                    ),
                       onPressed: _agreed ? _onRegister : null,
-                      child: const Text(
+                      child: Text(
                         '注册',
-                        style: TextStyle(fontSize: 16),
+                        style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
@@ -136,9 +137,9 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                         ),
                       ),
                       onPressed: _agreed ? _onLogin : null,
-                      child: const Text(
+                      child: Text(
                         '登录',
-                        style: TextStyle(fontSize: 16),
+                        style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
@@ -160,8 +161,7 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                           children: [
                             Text(
                               '已阅读并同意 ',
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: tt.bodySmall?.copyWith(
                                 color: cs.onSurface.withOpacity(0.7),
                               ),
                             ),
@@ -178,16 +178,15 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                               },
                               child: Text(
                                 '《用户协议》',
-                                style: TextStyle(
-                                  fontSize: 12,
+                                style: tt.bodySmall?.copyWith(
                                   color: cs.primary,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                             Text(
                               ' 和 ',
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: tt.bodySmall?.copyWith(
                                 color: cs.onSurface.withOpacity(0.7),
                               ),
                             ),
@@ -204,9 +203,9 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                               },
                               child: Text(
                                 '《隐私协议》',
-                                style: TextStyle(
-                                  fontSize: 12,
+                                style: tt.bodySmall?.copyWith(
                                   color: cs.primary,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -225,4 +224,3 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
     );
   }
 }
-

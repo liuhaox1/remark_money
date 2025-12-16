@@ -20,6 +20,7 @@ Future<String?> showAccountSelectBottomSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
     builder: (context) {
+      final tt = Theme.of(context).textTheme;
       if (accounts.isEmpty) {
         return SafeArea(
           child: Padding(
@@ -30,8 +31,7 @@ Future<String?> showAccountSelectBottomSheet(
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: tt.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: colorScheme.onSurface,
                   ),
@@ -39,8 +39,7 @@ Future<String?> showAccountSelectBottomSheet(
                 const SizedBox(height: 12),
                 Text(
                   '当前还没有可用账户，请先添加账户。',
-                  style: TextStyle(
-                    fontSize: 13,
+                  style: tt.bodyMedium?.copyWith(
                     color: colorScheme.onSurface.withOpacity(0.87),
                   ),
                 ),
@@ -51,7 +50,7 @@ Future<String?> showAccountSelectBottomSheet(
                     onPressed: () => Navigator.pop(context),
                     child: Text(
                       '知道了',
-                      style: TextStyle(
+                      style: tt.labelLarge?.copyWith(
                         color: colorScheme.primary,
                       ),
                     ),
@@ -73,8 +72,7 @@ Future<String?> showAccountSelectBottomSheet(
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: tt.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: colorScheme.onSurface,
                     ),
@@ -101,8 +99,7 @@ Future<String?> showAccountSelectBottomSheet(
                   return ListTile(
                     title: Text(
                       account.name,
-                      style: TextStyle(
-                        fontSize: 15,
+                      style: tt.bodyLarge?.copyWith(
                         fontWeight:
                             isSelected ? FontWeight.w600 : FontWeight.w400,
                         color: colorScheme.onSurface,
@@ -110,8 +107,7 @@ Future<String?> showAccountSelectBottomSheet(
                     ),
                     subtitle: Text(
                       '余额 ${account.currentBalance.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 13,
+                      style: tt.bodyMedium?.copyWith(
                         color: AppColors.amount(account.currentBalance),
                       ),
                     ),
@@ -136,4 +132,3 @@ Future<String?> showAccountSelectBottomSheet(
     },
   );
 }
-

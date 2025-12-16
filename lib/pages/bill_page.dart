@@ -188,14 +188,13 @@ class _BillPageState extends State<BillPage> {
                       onPressed: () => Navigator.pop(context),
                       child: const Text(AppStrings.cancel),
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Center(
                         child: Text(
                           AppStrings.pickYear,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ),
                     ),
@@ -285,14 +284,13 @@ class _BillPageState extends State<BillPage> {
                       onPressed: () => Navigator.pop(context),
                       child: const Text(AppStrings.cancel),
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Center(
                         child: Text(
                           AppStrings.pickMonth,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ),
                     ),
@@ -429,14 +427,13 @@ class _BillPageState extends State<BillPage> {
                           onPressed: () => Navigator.pop(context),
                           child: const Text(AppStrings.cancel),
                         ),
-                        const Expanded(
+                        Expanded(
                           child: Center(
                             child: Text(
                               AppStrings.pickWeek,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                           ),
                         ),
@@ -746,7 +743,10 @@ class _BillPageState extends State<BillPage> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   AppStrings.currentBookLabel(bookName),
-                  style: TextStyle(fontSize: 11, color: cs.outline),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    color: cs.outline,
+                  ),
                 ),
               ),
             ),
@@ -791,7 +791,7 @@ class _BillPageState extends State<BillPage> {
                   ),
                   label: Text(
                     AppStrings.report,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: cs.primary,
@@ -909,7 +909,7 @@ class _BillPageState extends State<BillPage> {
               alignment: Alignment.centerLeft,
               child: Text(
                 '当前账本：$bookName',
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontSize: 11,
                   color: cs.outline,
                 ),
@@ -1228,7 +1228,7 @@ class _BillPageState extends State<BillPage> {
                 const SizedBox(height: 12),
                 Text(
                   '导出范围',
-                  style: TextStyle(
+                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface,
@@ -1256,8 +1256,18 @@ class _BillPageState extends State<BillPage> {
                 const SizedBox(height: 8),
                 ListTile(
                   leading: Icon(Icons.table_chart_outlined, color: cs.onSurface.withOpacity(0.7)),
-                  title: Text('导出 CSV', style: TextStyle(color: cs.onSurface)),
-                  subtitle: Text('用 Excel 打开查看和分析数据（$recordCount 条）', style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
+                  title: Text(
+                    '导出 CSV',
+                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                          color: cs.onSurface,
+                        ),
+                  ),
+                  subtitle: Text(
+                    '用 Excel 打开查看和分析数据（$recordCount 条）',
+                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(0.7),
+                        ),
+                  ),
                   onTap: () => Navigator.pop(ctx, 'csv'),
                 ),
                 const SizedBox(height: 4),
@@ -1286,7 +1296,7 @@ class _BillPageState extends State<BillPage> {
             width: 70,
             child: Text(
               label,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontSize: 12,
                 color: cs.outline,
               ),
@@ -1295,7 +1305,7 @@ class _BillPageState extends State<BillPage> {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontSize: 12,
                 color: cs.onSurface,
                 fontWeight: FontWeight.w500,
@@ -2079,7 +2089,7 @@ class _BillPageState extends State<BillPage> {
         children: [
             Text(
               title,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: titleColor,
@@ -2089,7 +2099,7 @@ class _BillPageState extends State<BillPage> {
             const SizedBox(height: 2),
             Text(
               subtitle,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontSize: 12,
                 color: subtitleColor,
               ),
@@ -2098,7 +2108,7 @@ class _BillPageState extends State<BillPage> {
           const SizedBox(height: 8),
           Text(
             '本期收入 ${income.toStringAsFixed(2)} 元 · 支出 ${expense.toStringAsFixed(2)} 元 · 结余 ${balance.toStringAsFixed(2)} 元',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
               fontSize: 12,
               fontWeight: FontWeight.normal,
               color: bodyColor,
@@ -2588,7 +2598,7 @@ class _BillPageState extends State<BillPage> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
                       label,
-                      style: const TextStyle(
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -2620,7 +2630,7 @@ class _BillPageState extends State<BillPage> {
                       ),
                       child: Text(
                         label,
-                        style: TextStyle(
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                           color: selected ? cs.primary : cs.onSurface,
                           fontSize: 13,
@@ -2644,12 +2654,11 @@ class _BillPageState extends State<BillPage> {
                     ),
                     Row(
                       children: [
-                        const Text(
+                        Text(
                           '高级筛选',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
                         ),
                         const Spacer(),
                         IconButton(
@@ -2677,18 +2686,18 @@ class _BillPageState extends State<BillPage> {
                                 children: [
                                   Text(
                                     summaryText,
-                                    style: TextStyle(
-              fontSize: 12,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      fontSize: 12,
                                       color: cs.onSurface.withOpacity(0.8),
                                     ),
                                   ),
         const SizedBox(height: 4),
         Text(
                                     '预计找到 ${filteredCount()} 条记录',
-          style: TextStyle(
-                                      fontSize: 12,
-                                      color: cs.primary,
-                                    ),
+	          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+	                                      fontSize: 12,
+	                                      color: cs.primary,
+	                                    ),
                                   ),
                                 ],
                               ),
@@ -2747,9 +2756,9 @@ class _BillPageState extends State<BillPage> {
                                 tempStartDate == null || tempEndDate == null
                                     ? '自定义日期'
                                     : '${DateUtilsX.ymd(tempStartDate!)} ~ ${DateUtilsX.ymd(tempEndDate!)}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
+	                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+	                                  fontWeight: FontWeight.w600,
+	                                ),
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -2826,7 +2835,6 @@ class _BillPageState extends State<BillPage> {
                                     tempCategoryKeys.isEmpty
                                         ? '全部分类'
                                         : '已选 ${tempCategoryKeys.length} 个分类',
-                                    style: const TextStyle(),
                                   ),
                                   const Icon(Icons.chevron_right),
                                 ],
@@ -2960,14 +2968,14 @@ class _BillPageState extends State<BillPage> {
                                         width: 1,
                                       ),
                                     ),
-                                    child: Text(
-                                      '更多',
-                                      style: TextStyle(
-                                        color: cs.primary,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
+	                                    child: Text(
+	                                      '更多',
+	                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+	                                        color: cs.primary,
+	                                        fontWeight: FontWeight.w700,
+	                                        fontSize: 13,
+	                                      ),
+	                                    ),
                                   ),
                                 ),
                               ],
@@ -3134,13 +3142,10 @@ class _BillPageState extends State<BillPage> {
                               ),
                               child: Text(
                                 c.name,
-                                style: TextStyle(
-                                  fontWeight: selectedAll
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: selectedAll
-                                      ? cs.primary
-                                      : cs.onSurface,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight:
+                                      selectedAll ? FontWeight.w700 : FontWeight.w500,
+                                  color: selectedAll ? cs.primary : cs.onSurface,
                                   fontSize: 13,
                                 ),
                               ),
@@ -3166,12 +3171,11 @@ class _BillPageState extends State<BillPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(
                           children: [
-                            const Text(
+                            Text(
                               '选择分类',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                              ),
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
                             const Spacer(),
                             TextButton(
@@ -3219,7 +3223,6 @@ class _BillPageState extends State<BillPage> {
                           children: [
                             Text(
                               '已选 ${selected.length} 个',
-                              style: const TextStyle(),
                             ),
                             const Spacer(),
                             FilledButton(
@@ -3278,12 +3281,11 @@ class _BillPageState extends State<BillPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         children: [
-                          const Text(
+                          Text(
                             '选择账户',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                           const Spacer(),
                           TextButton(
@@ -3333,7 +3335,6 @@ class _BillPageState extends State<BillPage> {
                         children: [
                           Text(
                             '已选 ${selected.isEmpty ? '全部' : selected.length.toString()}',
-                            style: const TextStyle(),
                           ),
                           const Spacer(),
                           FilledButton(
@@ -3632,7 +3633,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           AppStrings.recentSearches,
-                          style: TextStyle(
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: cs.onSurface.withOpacity(0.8),
@@ -3649,7 +3650,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
                       ),
                       child: Text(
                         AppStrings.clearHistory,
-                        style: TextStyle(
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontSize: 12,
                           color: cs.primary,
                         ),
@@ -3688,7 +3689,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       AppStrings.matchedCategories,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: cs.onSurface.withOpacity(0.8),
@@ -3723,7 +3724,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
             Expanded(
               child: Text(
                 item,
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontSize: 14,
                   color: cs.onSurface,
                 ),
@@ -3757,7 +3758,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
     if (index == -1 || keyword.isEmpty) {
       titleWidget = Text(
         name,
-        style: TextStyle(
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontSize: 14,
           fontWeight: FontWeight.w500,
           color: cs.onSurface,
@@ -3770,7 +3771,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
 
       titleWidget = RichText(
         text: TextSpan(
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: cs.onSurface,
@@ -3779,7 +3780,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
             TextSpan(text: before),
             TextSpan(
               text: match,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: cs.primary,
                 fontWeight: FontWeight.w600,
               ),
@@ -3818,7 +3819,7 @@ class _BillSearchSuggestionPanel extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     category.isExpense ? AppStrings.expense : AppStrings.income,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontSize: 11,
                       color: cs.onSurface.withOpacity(0.5),
                     ),

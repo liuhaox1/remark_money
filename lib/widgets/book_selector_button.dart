@@ -18,6 +18,7 @@ class BookSelectorButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final tt = theme.textTheme;
     final isDark = theme.brightness == Brightness.dark;
     final bookProvider = context.watch<BookProvider>();
     final activeName = bookProvider.activeBook?.name ?? AppStrings.defaultBook;
@@ -50,8 +51,7 @@ class BookSelectorButton extends StatelessWidget {
               child: Text(
                 activeName,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: compact ? 12 : 13,
+                style: (compact ? tt.labelMedium : tt.labelLarge)?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
                 ),
@@ -73,6 +73,7 @@ class BookSelectorButton extends StatelessWidget {
       builder: (ctx) {
         final theme = Theme.of(ctx);
         final cs = theme.colorScheme;
+        final tt = theme.textTheme;
         final recordProvider = ctx.read<RecordProvider>();
         final bp = ctx.watch<BookProvider>();
         final books = bp.books;
@@ -106,8 +107,7 @@ class BookSelectorButton extends StatelessWidget {
                         children: [
                           Text(
                             AppStrings.selectBook,
-                            style: TextStyle(
-                              fontSize: 15,
+                            style: tt.titleMedium?.copyWith(
                               fontWeight: FontWeight.w700,
                               color: cs.onSurface,
                             ),
@@ -115,8 +115,7 @@ class BookSelectorButton extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             AppStrings.currentBookLabel(activeName),
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: tt.bodySmall?.copyWith(
                               color: cs.onSurface.withOpacity(0.65),
                             ),
                           ),
@@ -167,12 +166,11 @@ class BookSelectorButton extends StatelessWidget {
                           },
                           title: Text(
                             book.name,
-                            style: TextStyle(color: cs.onSurface),
+                            style: tt.bodyMedium?.copyWith(color: cs.onSurface),
                           ),
                           subtitle: Text(
                             subtitle,
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: tt.bodySmall?.copyWith(
                               color: cs.onSurface.withOpacity(0.65),
                             ),
                           ),
@@ -275,20 +273,21 @@ class BookSelectorButton extends StatelessWidget {
       context: context,
       builder: (dialogCtx) {
         final cs = Theme.of(dialogCtx).colorScheme;
+        final tt = Theme.of(dialogCtx).textTheme;
         return AlertDialog(
           title: Text(
             AppStrings.renameBook,
-            style: TextStyle(color: cs.onSurface),
+            style: tt.titleMedium?.copyWith(color: cs.onSurface),
           ),
           content: Form(
             key: formKey,
             child: TextFormField(
               controller: controller,
               autofocus: true,
-              style: TextStyle(color: cs.onSurface),
+              style: tt.bodyMedium?.copyWith(color: cs.onSurface),
               decoration: InputDecoration(
                 hintText: AppStrings.bookNameHint,
-                hintStyle: TextStyle(
+                hintStyle: tt.bodyMedium?.copyWith(
                   color: cs.onSurface.withOpacity(0.78),
                 ),
               ),
@@ -305,7 +304,7 @@ class BookSelectorButton extends StatelessWidget {
               onPressed: () => Navigator.pop(dialogCtx),
               child: Text(
                 AppStrings.cancel,
-                style: TextStyle(color: cs.onSurface),
+                style: tt.labelLarge?.copyWith(color: cs.onSurface),
               ),
             ),
             FilledButton(
@@ -332,14 +331,15 @@ class BookSelectorButton extends StatelessWidget {
       context: context,
       builder: (dialogCtx) {
         final cs = Theme.of(dialogCtx).colorScheme;
+        final tt = Theme.of(dialogCtx).textTheme;
         return AlertDialog(
           title: Text(
             AppStrings.deleteBook,
-            style: TextStyle(color: cs.onSurface),
+            style: tt.titleMedium?.copyWith(color: cs.onSurface),
           ),
           content: Text(
             AppStrings.confirmDeleteBook,
-            style: TextStyle(
+            style: tt.bodyMedium?.copyWith(
               color: cs.onSurface.withOpacity(0.78),
             ),
           ),
@@ -348,7 +348,7 @@ class BookSelectorButton extends StatelessWidget {
               onPressed: () => Navigator.pop(dialogCtx),
               child: Text(
                 AppStrings.cancel,
-                style: TextStyle(color: cs.onSurface),
+                style: tt.labelLarge?.copyWith(color: cs.onSurface),
               ),
             ),
             FilledButton(

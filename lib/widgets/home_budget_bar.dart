@@ -95,6 +95,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final tt = theme.textTheme;
     final budgetProvider = context.watch<BudgetProvider>();
     final recordProvider = context.read<RecordProvider>();
     final recordChangeCounter =
@@ -180,8 +181,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
               children: [
                 Text(
                   AppStrings.homeBudgetTitle,
-                  style: TextStyle(
-                    fontSize: 15,
+                  style: tt.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: cs.onSurface,
                   ),
@@ -212,7 +212,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                 onPressed: () => _openBudgetPage(context, _view),
                 child: Text(
                   AppStrings.homeBudgetDetail,
-                  style: TextStyle(color: cs.primary),
+                  style: tt.labelLarge?.copyWith(color: cs.primary),
                 ),
               ),
             ),
@@ -267,6 +267,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
     required int daysLeft,
     required double dailyAllowance,
   }) {
+    final tt = Theme.of(context).textTheme;
     if (total <= 0) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,8 +281,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
               const SizedBox(width: 8),
               Text(
                 AppStrings.homeBudgetMonthlyEmptyTitle,
-                style: TextStyle(
-                  fontSize: 14,
+                style: tt.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
                 ),
@@ -291,8 +291,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
           const SizedBox(height: 8),
           Text(
             AppStrings.homeBudgetMonthlyEmptyDesc,
-            style: TextStyle(
-              fontSize: 12,
+            style: tt.bodySmall?.copyWith(
               color: cs.onSurface.withOpacity(0.75),
             ),
           ),
@@ -317,10 +316,9 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               AppStrings.homeBudgetMonthTitle,
-              style: TextStyle(
-                fontSize: 14,
+              style: tt.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -330,7 +328,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                 decoration: BoxDecoration(
                   color: isDanger 
                       ? AppColors.danger.withOpacity(0.1)
-                      : Colors.orange.withOpacity(0.1),
+                      : cs.secondary.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -339,15 +337,14 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                     Icon(
                       isDanger ? Icons.warning : Icons.info_outline,
                       size: 14,
-                      color: isDanger ? AppColors.danger : Colors.orange,
+                      color: isDanger ? AppColors.danger : cs.secondary,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       isDanger ? '已超支' : '预算预警',
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: tt.labelSmall?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: isDanger ? AppColors.danger : Colors.orange,
+                        color: isDanger ? AppColors.danger : cs.secondary,
                       ),
                     ),
                   ],
@@ -358,7 +355,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         const SizedBox(height: 6),
         Text(
           '剩余 ¥${remaining.toStringAsFixed(0)}',
-          style: TextStyle(
+          style: tt.headlineSmall?.copyWith(
             fontSize: 22,
             fontWeight: FontWeight.w700,
             color: remainingColor,
@@ -370,18 +367,16 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
           children: [
             Text(
               AppStrings.homeBudgetUsedAndTotal(used, total),
-              style: TextStyle(
-                fontSize: 12,
+              style: tt.bodySmall?.copyWith(
                 color: cs.onSurface.withOpacity(0.7),
               ),
             ),
             Text(
               '已用 ${usedPercent.toStringAsFixed(1)}%',
-              style: TextStyle(
-                fontSize: 12,
+              style: tt.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: isWarning 
-                    ? (isDanger ? AppColors.danger : Colors.orange)
+                color: isWarning
+                    ? (isDanger ? AppColors.danger : cs.secondary)
                     : cs.onSurface.withOpacity(0.7),
               ),
             ),
@@ -401,8 +396,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                       daysLeft,
                       dailyAllowance,
                     ),
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: tt.bodySmall?.copyWith(
                       color: cs.onSurface.withOpacity(0.7),
                     ),
                   ),
@@ -412,9 +406,8 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                     isDanger 
                         ? '建议控制支出'
                         : '建议合理规划',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isDanger ? AppColors.danger : Colors.orange,
+                    style: tt.bodySmall?.copyWith(
+                      color: isDanger ? AppColors.danger : cs.secondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -441,8 +434,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                   Expanded(
                     child: Text(
                       '本月预算已超支，剩余${daysLeft}天建议控制支出',
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: tt.bodySmall?.copyWith(
                         color: AppColors.danger,
                       ),
                     ),
@@ -465,6 +457,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
     required double timePercent,
     required bool usageAheadOfTime,
   }) {
+    final tt = Theme.of(context).textTheme;
     if (total <= 0) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -476,21 +469,19 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                 color: cs.onSurface.withOpacity(0.75),
               ),
               const SizedBox(width: 8),
-              Text(
-                AppStrings.homeBudgetYearlyEmptyTitle,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface,
-                ),
-              ),
+          Text(
+            AppStrings.homeBudgetYearlyEmptyTitle,
+            style: tt.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             AppStrings.homeBudgetYearlyEmptyDesc,
-            style: TextStyle(
-              fontSize: 12,
+            style: tt.bodySmall?.copyWith(
               color: cs.onSurface.withOpacity(0.75),
             ),
           ),
@@ -512,18 +503,16 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           AppStrings.homeBudgetYearTitle,
-          style: TextStyle(
-            fontSize: 14,
+          style: tt.titleSmall?.copyWith(
             fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 6),
         Text(
           remainingLabel,
-          style: TextStyle(
-            fontSize: 20,
+          style: tt.titleLarge?.copyWith(
             fontWeight: FontWeight.w700,
             color: remainingColor,
           ),
@@ -531,8 +520,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         const SizedBox(height: 4),
         Text(
           AppStrings.homeBudgetUsedAndTotal(used, total),
-          style: TextStyle(
-            fontSize: 12,
+          style: tt.bodySmall?.copyWith(
             color: cs.onSurface.withOpacity(0.7),
           ),
         ),
@@ -545,8 +533,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         const SizedBox(height: 8),
         Text(
           AppStrings.homeBudgetUsageVsTime(usedPercent, timePercent),
-          style: TextStyle(
-            fontSize: 12,
+          style: tt.bodySmall?.copyWith(
             color: usageAheadOfTime
                 ? AppColors.danger
                 : cs.onSurface.withOpacity(0.7),
@@ -582,6 +569,7 @@ class _HomeBudgetStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -594,16 +582,14 @@ class _HomeBudgetStat extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(
-                fontSize: 11,
+              style: tt.bodySmall?.copyWith(
                 color: cs.onSurface.withOpacity(0.6),
               ),
             ),
             const SizedBox(height: 4),
             Text(
               value,
-              style: TextStyle(
-                fontSize: 13,
+              style: tt.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: color,
               ),

@@ -26,6 +26,7 @@ class PeriodSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final tt = theme.textTheme;
 
     final padding = compact
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
@@ -59,8 +60,8 @@ class PeriodSelector extends StatelessWidget {
                     child: Text(
                       label,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: compact ? 12 : 13,
+                      style: (compact ? tt.labelMedium : tt.labelLarge)
+                          ?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: cs.onSurface,
                       ),

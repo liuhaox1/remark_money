@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../theme/ios_tokens.dart';
+import '../widgets/app_scaffold.dart';
 
 /// 手机号验证码登录页
 class SmsLoginPage extends StatefulWidget {
@@ -75,15 +77,13 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('登录'),
-        backgroundColor: cs.surface,
-        foregroundColor: cs.onSurface,
-      ),
+    final tt = Theme.of(context).textTheme;
+    return AppScaffold(
+      title: '登录',
       body: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: AppSpacing.page.copyWith(top: AppSpacing.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -130,7 +130,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                   children: [
                     Text(
                       '或使用微信登录',
-                      style: TextStyle(
+                      style: tt.bodySmall?.copyWith(
                         color: cs.onSurface.withOpacity(0.7),
                       ),
                     ),

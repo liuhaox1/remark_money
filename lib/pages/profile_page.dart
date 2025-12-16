@@ -16,6 +16,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
+import '../theme/brand_theme.dart';
 import '../models/book.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
@@ -78,21 +79,30 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
+        final tt = Theme.of(ctx).textTheme;
         return AlertDialog(
-          title: Text('兑换礼包码', style: TextStyle(color: cs.onSurface)),
+          title: Text(
+            '兑换礼包码',
+            style: tt.titleMedium?.copyWith(color: cs.onSurface),
+          ),
           content: TextField(
             controller: controller,
             maxLength: 8,
-            style: TextStyle(color: cs.onSurface),
+            style: tt.bodyMedium?.copyWith(color: cs.onSurface),
             decoration: InputDecoration(
               hintText: '输入 8 位礼包码',
-              hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+              hintStyle: tt.bodyMedium?.copyWith(
+                color: cs.onSurface.withOpacity(0.5),
+              ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('取消', style: TextStyle(color: cs.onSurface)),
+              child: Text(
+                '取消',
+                style: tt.labelLarge?.copyWith(color: cs.onSurface),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -104,7 +114,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 Navigator.pop(ctx);
                 await _redeemGiftCodeStub(code);
               },
-              child: Text('兑换', style: TextStyle(color: cs.onPrimary)),
+              child: Text(
+                '兑换',
+                style: tt.labelLarge?.copyWith(color: cs.onPrimary),
+              ),
             ),
           ],
         );
@@ -180,21 +193,30 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
+        final tt = Theme.of(ctx).textTheme;
         return AlertDialog(
-          title: Text('加入多人账本', style: TextStyle(color: cs.onSurface)),
+          title: Text(
+            '加入多人账本',
+            style: tt.titleMedium?.copyWith(color: cs.onSurface),
+          ),
           content: TextField(
             controller: controller,
             maxLength: 8,
-            style: TextStyle(color: cs.onSurface),
+            style: tt.bodyMedium?.copyWith(color: cs.onSurface),
             decoration: InputDecoration(
               hintText: '输入 8 位邀请码',
-              hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.5)),
+              hintStyle: tt.bodyMedium?.copyWith(
+                color: cs.onSurface.withOpacity(0.5),
+              ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('取消', style: TextStyle(color: cs.onSurface)),
+              child: Text(
+                '取消',
+                style: tt.labelLarge?.copyWith(color: cs.onSurface),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -206,7 +228,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 Navigator.pop(ctx);
                 await _joinBookByCodeStub(code);
               },
-              child: Text('加入', style: TextStyle(color: cs.onPrimary)),
+              child: Text(
+                '加入',
+                style: tt.labelLarge?.copyWith(color: cs.onPrimary),
+              ),
             ),
           ],
         );
@@ -263,16 +288,15 @@ class _ProfilePageState extends State<ProfilePage> {
       backgroundColor: cs.surface,
       body: SafeArea(
         child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              children: [                
-                const SizedBox(height: 12),
-                if (!isLoggedIn) ...[
-                  _buildLoginHintCard(context),
-                  const SizedBox(height: 12),
-                ] else ...[
+           child: ConstrainedBox(
+             constraints: const BoxConstraints(maxWidth: 430),
+             child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+               children: [                
+                 if (!isLoggedIn) ...[
+                   _buildLoginHintCard(context),
+                   const SizedBox(height: 12),
+                 ] else ...[
 	                  FutureBuilder<int>(
 	                    future: activeBookId.isNotEmpty
 	                        ? SyncV2ConflictStore.count(activeBookId)
@@ -782,6 +806,7 @@ class _ProfilePageState extends State<ProfilePage> {
       backgroundColor: cs.surface,
       showDragHandle: true,
       builder: (ctx) {
+        final tt = Theme.of(ctx).textTheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -806,7 +831,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       icon: Icon(Icons.add, color: cs.primary),
                       label: Text(
                         AppStrings.addBook,
-                        style: TextStyle(color: cs.primary),
+                        style: tt.labelLarge?.copyWith(color: cs.primary),
                       ),
                     ),
                   ],
@@ -819,12 +844,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   activeColor: cs.primary,
                   title: Text(
                     book.name,
-                    style: TextStyle(
-                        color: cs.onSurface, fontWeight: FontWeight.w600),
+                    style: tt.titleSmall?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   subtitle: Text(
                     book.id == bookProvider.activeBookId ? '当前账本' : '点击切换',
-                    style: TextStyle(color: cs.onSurface.withOpacity(0.65)),
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onSurface.withOpacity(0.65),
+                    ),
                   ),
                   secondary: Wrap(
                     spacing: 4,
@@ -865,12 +894,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _openThemeSheet(BuildContext context) async {
     final themeProvider = context.read<ThemeProvider>();
     final cs = Theme.of(context).colorScheme;
-    const seedOptions = <Color>[
-      Colors.teal,
-      Colors.orange,
-      Colors.indigo,
-      Colors.pink,
-    ];
+    final currentStyle = themeProvider.style;
     final currentMode =
         themeProvider.mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light;
 
@@ -922,39 +946,56 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 12,
-                  children: seedOptions.map((color) {
-                    final selected =
-                        themeProvider.seedColor.value == color.value;
-                    return GestureDetector(
-                      onTap: () => themeProvider.setSeedColor(color),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: color,
-                          border: Border.all(
-                            color: selected
-                                ? cs.onSurface
-                                : cs.outlineVariant.withOpacity(0.6),
-                            width: selected ? 3 : 2,
-                          ),
-                          boxShadow: selected
-                              ? [
-                                  BoxShadow(
-                                    color: color.withOpacity(0.35),
-                                    blurRadius: 8,
-                                    spreadRadius: 2,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: selected
-                            ? Icon(Icons.check, color: cs.onPrimary, size: 20)
-                            : null,
-                      ),
-                    );
-                  }).toList(),
+                  runSpacing: 12,
+                  children: [
+                    _ThemePresetChip(
+                      title: 'Ocean Blue',
+                      subtitle: 'Modern & lively',
+                      color: const Color(0xFF2F6BFF),
+                      selected: currentStyle == AppThemeStyle.ocean,
+                      onTap: () => themeProvider.setStyle(AppThemeStyle.ocean),
+                    ),
+                    _ThemePresetChip(
+                      title: 'Amber Sand',
+                      subtitle: 'Warm & calm',
+                      color: const Color(0xFFB66A2E),
+                      selected: currentStyle == AppThemeStyle.amber,
+                      onTap: () => themeProvider.setStyle(AppThemeStyle.amber),
+                    ),
+                    _ThemePresetChip(
+                      title: 'Graphite',
+                      subtitle: 'Minimal & premium',
+                      color: const Color(0xFF4A5568),
+                      selected: currentStyle == AppThemeStyle.graphite,
+                      onTap: () => themeProvider.setStyle(AppThemeStyle.graphite),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '质感',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(color: cs.onSurface),
+                ),
+                const SizedBox(height: 8),
+                SegmentedButton<AppVisualTone>(
+                  segments: const [
+                    ButtonSegment(
+                      value: AppVisualTone.minimal,
+                      label: Text('标准'),
+                    ),
+                    ButtonSegment(
+                      value: AppVisualTone.luxe,
+                      label: Text('增强质感'),
+                    ),
+                  ],
+                  selected: {themeProvider.tone},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (value) {
+                    themeProvider.setTone(value.first);
+                  },
                 ),
               ],
             ),
@@ -974,6 +1015,7 @@ class _ProfilePageState extends State<ProfilePage> {
       backgroundColor: cs.surface,
       showDragHandle: true,
       builder: (ctx) {
+        final tt = Theme.of(ctx).textTheme;
         final time = provider.timeOfDay;
         final timeLabel =
             '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
@@ -987,11 +1029,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   value: provider.enabled,
                   title: Text(
                     '开启每日记账提醒',
-                    style: TextStyle(color: cs.onSurface),
+                    style: tt.titleSmall?.copyWith(color: cs.onSurface),
                   ),
                   subtitle: Text(
                     '每天固定时间提醒你打开指尖记账',
-                    style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onSurface.withOpacity(0.7),
+                    ),
                   ),
                   onChanged: (v) => provider.setEnabled(v),
                 ),
@@ -1000,11 +1044,13 @@ class _ProfilePageState extends State<ProfilePage> {
                       color: cs.onSurface.withOpacity(0.8)),
                   title: Text(
                     '提醒时间',
-                    style: TextStyle(color: cs.onSurface),
+                    style: tt.titleSmall?.copyWith(color: cs.onSurface),
                   ),
                   subtitle: Text(
                     timeLabel,
-                    style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onSurface.withOpacity(0.7),
+                    ),
                   ),
                   onTap: () async {
                     final current = provider.timeOfDay;
@@ -1032,6 +1078,7 @@ class _ProfilePageState extends State<ProfilePage> {
       backgroundColor: cs.surface,
       showDragHandle: true,
       builder: (ctx) {
+        final tt = Theme.of(ctx).textTheme;
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -1041,10 +1088,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 ListTile(
                   leading: Icon(Icons.file_upload_outlined,
                       color: cs.onSurface.withOpacity(0.7)),
-                  title:
-                      Text('导入 CSV 数据', style: TextStyle(color: cs.onSurface)),
+                  title: Text(
+                    '导入 CSV 数据',
+                    style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                  ),
                   subtitle: Text('从 CSV 文件导入记账记录',
-                      style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
+                      style: tt.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(0.7),
+                      )),
                   onTap: () {
                     Navigator.pop(ctx);
                     _importCsv(context);
@@ -1053,9 +1104,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 ListTile(
                   leading: Icon(Icons.table_chart_outlined,
                       color: cs.onSurface.withOpacity(0.7)),
-                  title: Text('导出 CSV', style: TextStyle(color: cs.onSurface)),
+                  title: Text(
+                    '导出 CSV',
+                    style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                  ),
                   subtitle: Text('适合 Excel/表格查看与分析',
-                      style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
+                      style: tt.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(0.7),
+                      )),
                   onTap: () {
                     Navigator.pop(ctx);
                     _showExportSheet(context);
@@ -1079,6 +1135,7 @@ class _ProfilePageState extends State<ProfilePage> {
       showDragHandle: true,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
+        final tt = Theme.of(ctx).textTheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1088,11 +1145,13 @@ class _ProfilePageState extends State<ProfilePage> {
                     color: cs.onSurface.withOpacity(0.7)),
                 title: Text(
                   '导入 CSV 数据',
-                  style: TextStyle(color: cs.onSurface),
+                  style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
                 subtitle: Text(
                   '从 CSV 文件导入记账记录',
-                  style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1104,11 +1163,13 @@ class _ProfilePageState extends State<ProfilePage> {
                     color: cs.onSurface.withOpacity(0.7)),
                 title: Text(
                   '导出 CSV 数据',
-                  style: TextStyle(color: cs.onSurface),
+                  style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
                 subtitle: Text(
                   '导出当前账本的全部记账记录',
-                  style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1129,6 +1190,7 @@ class _ProfilePageState extends State<ProfilePage> {
       showDragHandle: true,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
+        final tt = Theme.of(ctx).textTheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1138,11 +1200,13 @@ class _ProfilePageState extends State<ProfilePage> {
                     color: cs.onSurface.withOpacity(0.7)),
                 title: Text(
                   '导出为 CSV',
-                  style: TextStyle(color: cs.onSurface),
+                  style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
                 subtitle: Text(
                   '适合在 Excel / 表格中查看',
-                  style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1285,17 +1349,23 @@ class _ProfilePageState extends State<ProfilePage> {
             context: context,
             builder: (ctx) {
               final cs = Theme.of(ctx).colorScheme;
+              final tt = Theme.of(ctx).textTheme;
               return AlertDialog(
-                title: Text('导入记录', style: TextStyle(color: cs.onSurface)),
+                title: Text(
+                  '导入记录',
+                  style: tt.titleMedium?.copyWith(color: cs.onSurface),
+                ),
                 content: Text(
                   '将导入约 ${imported.length} 条记录，可能会与当前数据合并。是否继续？',
-                  style: TextStyle(color: cs.onSurface.withOpacity(0.9)),
+                  style: tt.bodyMedium?.copyWith(
+                    color: cs.onSurface.withOpacity(0.9),
+                  ),
                 ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
                     child: Text(AppStrings.cancel,
-                        style: TextStyle(color: cs.onSurface)),
+                        style: tt.labelLarge?.copyWith(color: cs.onSurface)),
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(ctx, true),
@@ -1387,6 +1457,7 @@ class _ProfilePageState extends State<ProfilePage> {
     String initialName,
   ) async {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     final controller = TextEditingController(text: initialName);
     final formKey = GlobalKey<FormState>();
     final bookProvider = context.read<BookProvider>();
@@ -1399,7 +1470,7 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (_) => AlertDialog(
         title: Text(
           '账本设置',
-          style: TextStyle(color: cs.onSurface),
+          style: tt.titleMedium?.copyWith(color: cs.onSurface),
         ),
         content: SingleChildScrollView(
           child: Form(
@@ -1411,11 +1482,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 TextFormField(
                   controller: controller,
                   autofocus: true,
-                  style: TextStyle(color: cs.onSurface),
+                  style: tt.bodyMedium?.copyWith(color: cs.onSurface),
                   decoration: InputDecoration(
                     labelText: '账本名称',
                     hintText: AppStrings.bookNameHint,
-                    hintStyle: TextStyle(
+                    hintStyle: tt.bodyMedium?.copyWith(
                       color: cs.onSurface.withOpacity(0.78),
                     ),
                   ),
@@ -1469,7 +1540,7 @@ class _ProfilePageState extends State<ProfilePage> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               AppStrings.cancel,
-              style: TextStyle(color: cs.onSurface),
+              style: tt.labelLarge?.copyWith(color: cs.onSurface),
             ),
           ),
           FilledButton(
@@ -1487,6 +1558,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _showUpgradeToMultiBookDialog(BuildContext context, String bookId) async {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     final bookService = BookService();
     
     try {
@@ -1497,13 +1569,16 @@ class _ProfilePageState extends State<ProfilePage> {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('多人账本', style: TextStyle(color: cs.onSurface)),
+        title: Text(
+          '多人账本',
+          style: tt.titleMedium?.copyWith(color: cs.onSurface),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('邀请码已生成，分享给好友即可加入账本：',
-                style: TextStyle(color: cs.onSurface)),
+                style: tt.bodyMedium?.copyWith(color: cs.onSurface)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -1516,10 +1591,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   Expanded(
                     child: Text(
                       inviteCode,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                      style: tt.headlineSmall?.copyWith(
                         color: cs.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
                         letterSpacing: 2,
                       ),
                     ),
@@ -1542,14 +1616,17 @@ class _ProfilePageState extends State<ProfilePage> {
               },
               icon: Icon(Icons.person_add, color: cs.primary),
               label: Text('输入邀请码加入其他账本',
-                  style: TextStyle(color: cs.primary)),
+                  style: tt.labelLarge?.copyWith(color: cs.primary)),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('关闭', style: TextStyle(color: cs.onSurface)),
+            child: Text(
+              '关闭',
+              style: tt.labelLarge?.copyWith(color: cs.onSurface),
+            ),
           ),
         ],
       ),
@@ -1591,29 +1668,25 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _confirmDelete(BuildContext context, String id) async {
     final provider = context.read<BookProvider>();
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(
           AppStrings.deleteBook,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+          style: tt.titleMedium?.copyWith(color: cs.onSurface),
         ),
         content: Text(
           AppStrings.confirmDeleteBook,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.78),
-          ),
+          style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.78)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
               AppStrings.cancel,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-              ),
+              style: tt.labelLarge?.copyWith(color: cs.primary),
             ),
           ),
           FilledButton(
@@ -1622,8 +1695,8 @@ class _ProfilePageState extends State<ProfilePage> {
               if (context.mounted) Navigator.pop(context);
             },
             style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
+              backgroundColor: cs.error,
+              foregroundColor: cs.onError,
             ),
             child: const Text(AppStrings.delete),
           ),
@@ -1633,27 +1706,25 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showPlaceholder(BuildContext context, String title) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
           title,
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+          style: tt.titleMedium?.copyWith(color: cs.onSurface),
         ),
         content: Text(
           '该功能将在后续版本中完善，敬请期待。',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.78),
-          ),
+          style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.78)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               AppStrings.ok,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-              ),
+              style: tt.labelLarge?.copyWith(color: cs.primary),
             ),
           ),
         ],
@@ -1672,4 +1743,97 @@ class _ProfileAction {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+}
+
+class _ThemePresetChip extends StatelessWidget {
+  const _ThemePresetChip({
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(12),
+        width: 156,
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? cs.primary : cs.outlineVariant.withOpacity(0.8),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    color.withOpacity(0.95),
+                    color.withOpacity(0.55),
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: selected
+                  ? Icon(Icons.check, color: cs.onPrimary, size: 18)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: cs.onSurface.withOpacity(0.65),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

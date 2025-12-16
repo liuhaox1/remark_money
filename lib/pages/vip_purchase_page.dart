@@ -89,6 +89,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -105,7 +106,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
             },
             child: Text(
               '恢复购买',
-              style: TextStyle(color: cs.primary),
+              style: tt.labelLarge?.copyWith(color: cs.primary),
             ),
           ),
         ],
@@ -116,7 +117,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
           children: [
             // 标签栏
             Container(
-              color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+              color: cs.surfaceContainerHighest,
               child: TabBar(
                 controller: _tabController,
                 labelColor: cs.primary,
@@ -135,8 +136,16 @@ class _VipPurchasePageState extends State<VipPurchasePage>
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.8)),
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.shadow.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,8 +158,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                           children: [
                             Text(
                               'VIP会员',
-                              style: TextStyle(
-                                fontSize: 24,
+                              style: tt.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: cs.onSurface,
                               ),
@@ -158,8 +166,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                             const SizedBox(height: 8),
                             Text(
                               '开通VIP，畅享高级功能',
-                              style: TextStyle(
-                                fontSize: 14,
+                              style: tt.bodyMedium?.copyWith(
                                 color: cs.onSurface.withOpacity(0.7),
                               ),
                             ),
@@ -185,8 +192,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                           const SizedBox(width: 8),
                           Text(
                             '40w+人已开通VIP',
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: tt.bodySmall?.copyWith(
                               color: cs.onSurface.withOpacity(0.6),
                             ),
                           ),
@@ -209,8 +215,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                     children: [
                       Text(
                         '30项VIP专享超级特权',
-                        style: TextStyle(
-                          fontSize: 16,
+                        style: tt.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: cs.onSurface,
                         ),
@@ -221,7 +226,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                         },
                         child: Text(
                           '详情 >',
-                          style: TextStyle(color: cs.primary),
+                          style: tt.labelLarge?.copyWith(color: cs.primary),
                         ),
                       ),
                     ],
@@ -257,8 +262,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                           const SizedBox(height: 8),
                           Text(
                             privilege['name'] as String,
-                            style: TextStyle(
-                              fontSize: 11,
+                            style: tt.bodySmall?.copyWith(
                               color: cs.onSurface.withOpacity(0.8),
                             ),
                             textAlign: TextAlign.center,
@@ -277,7 +281,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                       },
                       child: Text(
                         '查看更多',
-                        style: TextStyle(color: cs.primary),
+                        style: tt.labelLarge?.copyWith(color: cs.primary),
                       ),
                     ),
                   ),
@@ -295,8 +299,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                 children: [
                   Text(
                     '选择套餐',
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: tt.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: cs.onSurface,
                     ),
@@ -335,14 +338,13 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.orange,
+                                    color: cs.secondary,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     plan['discount'] as String,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.white,
+                                    style: tt.labelSmall?.copyWith(
+                                      color: cs.onSecondary,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -354,8 +356,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                                   children: [
                                     Text(
                                       plan['name'] as String,
-                                      style: TextStyle(
-                                        fontSize: 16,
+                                      style: tt.titleSmall?.copyWith(
                                         fontWeight: FontWeight.bold,
                                         color: cs.onSurface,
                                       ),
@@ -363,8 +364,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                                     if (plan['monthlyPrice'] != null)
                                       Text(
                                         '折合¥${plan['monthlyPrice']}/月',
-                                        style: TextStyle(
-                                          fontSize: 12,
+                                        style: tt.bodySmall?.copyWith(
                                           color: cs.onSurface.withOpacity(0.6),
                                         ),
                                       ),
@@ -373,8 +373,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                               ),
                               Text(
                                 '¥${plan['price']}',
-                                style: TextStyle(
-                                  fontSize: 20,
+                                style: tt.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: cs.primary,
                                 ),
@@ -398,8 +397,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         '到期以¥119/年自动续费，可随时取消',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: tt.bodySmall?.copyWith(
                           color: cs.onSurface.withOpacity(0.6),
                         ),
                       ),
@@ -418,8 +416,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                 children: [
                   Text(
                     '用户评价(140万+)',
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: tt.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: cs.onSurface,
                     ),
@@ -428,13 +425,13 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+                      color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: cs.outlineVariant.withOpacity(0.8)),
                     ),
                     child: Text(
                       '天**甲：非常好用，推荐！',
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: tt.bodyMedium?.copyWith(
                         color: cs.onSurface.withOpacity(0.8),
                       ),
                     ),
@@ -449,10 +446,10 @@ class _VipPurchasePageState extends State<VipPurchasePage>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                color: cs.surfaceContainerHighest,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: cs.shadow.withOpacity(0.12),
                     blurRadius: 10,
                     offset: const Offset(0, -2),
                   ),
@@ -466,8 +463,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                       if (_plans[_selectedPlanIndex]['originalPrice'] != null)
                         Text(
                           '¥${_plans[_selectedPlanIndex]['originalPrice']}',
-                          style: TextStyle(
-                            fontSize: 14,
+                          style: tt.bodyMedium?.copyWith(
                             color: cs.onSurface.withOpacity(0.5),
                             decoration: TextDecoration.lineThrough,
                           ),
@@ -478,14 +474,13 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.red,
+                          color: cs.error,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           '已优惠${(_plans[_selectedPlanIndex]['originalPrice'] as int? ?? 0) - (_plans[_selectedPlanIndex]['price'] as int)}元',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.white,
+                          style: tt.labelSmall?.copyWith(
+                            color: cs.onError,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -506,8 +501,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                       ),
                       child: Text(
                         '立即支付 ¥${_plans[_selectedPlanIndex]['price']}',
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: tt.labelLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -529,8 +523,7 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                           children: [
                             Text(
                               '开通前请确认',
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: tt.bodySmall?.copyWith(
                                 color: cs.onSurface.withOpacity(0.7),
                               ),
                             ),
@@ -540,16 +533,15 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                               },
                               child: Text(
                                 '《会员服务协议》',
-                                style: TextStyle(
-                                  fontSize: 12,
+                                style: tt.bodySmall?.copyWith(
                                   color: cs.primary,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                             Text(
                               '和',
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: tt.bodySmall?.copyWith(
                                 color: cs.onSurface.withOpacity(0.7),
                               ),
                             ),
@@ -559,9 +551,9 @@ class _VipPurchasePageState extends State<VipPurchasePage>
                               },
                               child: Text(
                                 '《自动续费服务规则》',
-                                style: TextStyle(
-                                  fontSize: 12,
+                                style: tt.bodySmall?.copyWith(
                                   color: cs.primary,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),

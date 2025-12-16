@@ -13,7 +13,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'providers/book_provider.dart';
 import 'providers/record_provider.dart';
@@ -25,6 +24,7 @@ import 'providers/reminder_provider.dart';
 import 'repository/repository_factory.dart';
 import 'database/database_helper.dart';
 import 'l10n/app_strings.dart';
+import 'theme/brand_theme.dart';
 
 import 'pages/root_shell.dart';
 import 'pages/login_landing_page.dart';
@@ -35,6 +35,7 @@ import 'pages/bill_page.dart';
 import 'pages/budget_page.dart';
 import 'pages/category_manager_page.dart';
 import 'pages/finger_accounting_page.dart';
+import 'pages/ui_lab_page.dart';
 import 'widgets/device_frame.dart';
 
 Future<void> main() async {
@@ -127,123 +128,14 @@ class RemarkMoneyApp extends StatelessWidget {
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) {
-          final baseLight = ThemeData(
-            useMaterial3: true,
-            colorSchemeSeed: theme.seedColor,
-            brightness: Brightness.light,
-          );
-          final baseDark = ThemeData(
-            useMaterial3: true,
-            colorSchemeSeed: theme.seedColor,
-            brightness: Brightness.dark,
-          );
-          // 统一字体样式配置 - 使用 Noto Sans SC 字体，如果加载失败则使用系统默认字体
-          final notoSansScFontFamily = GoogleFonts.notoSansSc().fontFamily;
-          // 使用系统默认字体作为回退，避免某些字符（如"门"）的渲染问题
-          final textThemeLight = baseLight.textTheme.apply(
-            fontFamily: notoSansScFontFamily,
-            // 如果 Noto Sans SC 有问题，系统会自动回退到默认字体
-          ).copyWith(
-            headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-            headlineMedium: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-            titleLarge: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            titleMedium: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            titleSmall: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            bodyLarge: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            bodyMedium: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            bodySmall: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-            labelLarge: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            labelMedium: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-          );
-          final textThemeDark = baseDark.textTheme.apply(
-            fontFamily: notoSansScFontFamily,
-          ).copyWith(
-            headlineLarge: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-            headlineMedium: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-            titleLarge: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            titleMedium: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            titleSmall: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            bodyLarge: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            bodyMedium: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            bodySmall: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-            labelLarge: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            labelMedium: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-          );
-
-          final listTileTheme = ListTileThemeData(
-            titleTextStyle: textThemeLight.titleMedium,
-            subtitleTextStyle: textThemeLight.bodyMedium?.copyWith(
-              color: baseLight.colorScheme.onSurface.withOpacity(0.7),
-            ),
-          );
-
-          final navBarTheme = NavigationBarThemeData(
-            backgroundColor: baseLight.colorScheme.surface,
-            indicatorColor: baseLight.colorScheme.primary.withOpacity(0.12),
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              final isSelected = states.contains(WidgetState.selected);
-              final color = isSelected
-                  ? baseLight.colorScheme.onSurface
-                  : baseLight.colorScheme.onSurface.withOpacity(0.7);
-              return textThemeLight.bodyMedium?.copyWith(color: color);
-            }),
-            iconTheme: WidgetStateProperty.resolveWith((states) {
-              final isSelected = states.contains(WidgetState.selected);
-              final color = isSelected
-                  ? baseLight.colorScheme.onSurface
-                  : baseLight.colorScheme.onSurface.withOpacity(0.6);
-              return IconThemeData(color: color);
-            }),
-          );
-
-          final textButtonThemeLight = TextButtonThemeData(
-            style: TextButton.styleFrom(
-              textStyle: textThemeLight.bodyMedium,
-            ),
-          );
-          final textButtonThemeDark = TextButtonThemeData(
-            style: TextButton.styleFrom(
-              textStyle: textThemeDark.bodyMedium,
-            ),
-          );
-
+          final baseLight = AppTheme.light(theme.style, theme.tone);
+          final baseDark = AppTheme.dark(theme.style, theme.tone);
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: AppStrings.appTitle,
             themeMode: theme.mode,
-            theme: baseLight.copyWith(
-              textTheme: textThemeLight,
-            listTileTheme: listTileTheme,
-            navigationBarTheme: navBarTheme,
-            textButtonTheme: textButtonThemeLight,
-          ),
-          darkTheme: baseDark.copyWith(
-            textTheme: textThemeDark,
-            listTileTheme: listTileTheme.copyWith(
-              subtitleTextStyle: textThemeDark.bodyMedium?.copyWith(
-                color: baseDark.colorScheme.onSurface.withOpacity(0.7),
-              ),
-            ),
-            navigationBarTheme: navBarTheme.copyWith(
-              backgroundColor: baseDark.colorScheme.surface,
-              indicatorColor: baseDark.colorScheme.primary.withOpacity(0.18),
-              labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                final isSelected = states.contains(WidgetState.selected);
-                final color = isSelected
-                    ? baseDark.colorScheme.onSurface
-                    : baseDark.colorScheme.onSurface.withOpacity(0.7);
-                return textThemeDark.bodyMedium?.copyWith(color: color);
-              }),
-              iconTheme: WidgetStateProperty.resolveWith((states) {
-                final isSelected = states.contains(WidgetState.selected);
-                final color = isSelected
-                    ? baseDark.colorScheme.onSurface
-                    : baseDark.colorScheme.onSurface.withOpacity(0.6);
-                return IconThemeData(color: color);
-              }),
-            ),
-            textButtonTheme: textButtonThemeDark,
-          ),
+            theme: baseLight,
+            darkTheme: baseDark,
             builder: (context, child) =>
                 DeviceFrame(child: child ?? const SizedBox.shrink()),
             home: const _AuthWrapper(),
@@ -254,6 +146,7 @@ class RemarkMoneyApp extends StatelessWidget {
               '/category-manager': (_) => const CategoryManagerPage(),
               '/finger-accounting': (_) => const FingerAccountingPage(),
               '/login': (_) => const LoginLandingPage(),
+              '/ui-lab': (_) => const UiLabPage(),
             },
             onGenerateRoute: (settings) {
               if (settings.name == '/add') {

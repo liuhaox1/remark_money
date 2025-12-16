@@ -17,12 +17,11 @@ Color _amountTextColor(double value) {
 Color _positiveBgColor() => AppColors.success.withOpacity(0.08);
 Color _negativeBgColor() => AppColors.danger.withOpacity(0.08);
 
-TextStyle _summaryTextStyle(Color color) {
-  return TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-    color: color,
-  );
+TextStyle _summaryTextStyle(BuildContext context, Color color) {
+  return Theme.of(context).textTheme.titleSmall!.copyWith(
+        fontWeight: FontWeight.w600,
+        color: color,
+      );
 }
 
 class DatePanel extends StatefulWidget {
@@ -62,6 +61,7 @@ class _DatePanelState extends State<DatePanel>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final tt = theme.textTheme;
     final weekday = DateUtilsX.weekdayShort(_selectedDay);
 
     return Padding(
@@ -85,8 +85,7 @@ class _DatePanelState extends State<DatePanel>
             const SizedBox(height: 12),
             Text(
               '${DateUtilsX.ymd(_selectedDay)}  $weekday',
-              style: TextStyle(
-                fontSize: 14,
+              style: tt.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: cs.onSurface,
               ),
@@ -142,6 +141,7 @@ class _DatePanelState extends State<DatePanel>
       backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (context) {
         final cs = Theme.of(context).colorScheme;
+        final tt = Theme.of(context).textTheme;
         return SizedBox(
           height: 280,
           child: Column(
@@ -156,12 +156,12 @@ class _DatePanelState extends State<DatePanel>
                       onPressed: () => Navigator.pop(context),
                       child: Text(
                         AppStrings.buttonCancel,
-                        style: TextStyle(color: cs.primary),
+                        style: tt.labelLarge?.copyWith(color: cs.primary),
                       ),
                     ),
                     Text(
                       AppStrings.datePickerTitle,
-                      style: TextStyle(
+                      style: tt.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: cs.onSurface,
                       ),
@@ -170,7 +170,7 @@ class _DatePanelState extends State<DatePanel>
                       onPressed: () => Navigator.pop(context, tempYear),
                       child: Text(
                         AppStrings.buttonOk,
-                        style: TextStyle(color: cs.primary),
+                        style: tt.labelLarge?.copyWith(color: cs.primary),
                       ),
                     ),
                   ],
@@ -199,15 +199,15 @@ class _DatePanelState extends State<DatePanel>
                             tempYear = entry.value;
                           },
                           child: Center(
-                            child: Text(
-                              '${entry.value}',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: cs.onSurface,
+                              child: Text(
+                                '${entry.value}',
+                                style: tt.titleMedium?.copyWith(
+                                  fontSize: 18,
+                                  color: cs.onSurface,
+                                ),
                               ),
                             ),
                           ),
-                        ),
                       )
                       .toList(),
                 ),
@@ -246,6 +246,7 @@ class _DatePanelState extends State<DatePanel>
       backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (context) {
         final cs = Theme.of(context).colorScheme;
+        final tt = Theme.of(context).textTheme;
         return SizedBox(
           height: 320,
           child: Column(
@@ -260,12 +261,12 @@ class _DatePanelState extends State<DatePanel>
                       onPressed: () => Navigator.pop(context),
                       child: Text(
                         AppStrings.buttonCancel,
-                        style: TextStyle(color: cs.primary),
+                        style: tt.labelLarge?.copyWith(color: cs.primary),
                       ),
                     ),
                     Text(
                       AppStrings.datePickerTitle,
-                      style: TextStyle(
+                      style: tt.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: cs.onSurface,
                       ),
@@ -275,7 +276,7 @@ class _DatePanelState extends State<DatePanel>
                           Navigator.pop(context, [tempYear, tempMonth]),
                       child: Text(
                         AppStrings.buttonOk,
-                        style: TextStyle(color: cs.primary),
+                        style: tt.labelLarge?.copyWith(color: cs.primary),
                       ),
                     ),
                   ],
@@ -309,7 +310,7 @@ class _DatePanelState extends State<DatePanel>
                                 child: Center(
                                   child: Text(
                                     '${entry.value}',
-                                    style: TextStyle(
+                                    style: tt.titleMedium?.copyWith(
                                       fontSize: 18,
                                       color: cs.onSurface,
                                     ),
@@ -345,7 +346,7 @@ class _DatePanelState extends State<DatePanel>
                                 child: Center(
                                   child: Text(
                                     entry.value.toString().padLeft(2, '0'),
-                                    style: TextStyle(
+                                    style: tt.titleMedium?.copyWith(
                                       fontSize: 18,
                                       color: cs.onSurface,
                                     ),
@@ -429,7 +430,7 @@ class _DatePanelState extends State<DatePanel>
           children: [
             Text(
               '$monthLabel\u6708\u7ed3\u4f59\uff1a${_NumberFormatter.format(monthNet)}',
-              style: _summaryTextStyle(netColor),
+              style: _summaryTextStyle(context, netColor),
             ),
             OutlinedButton(
               onPressed: _showMonthPicker,
@@ -462,10 +463,9 @@ class _DatePanelState extends State<DatePanel>
                   child: Center(
                     child: Text(
                       label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.onSurface.withOpacity(0.6),
-                      ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: cs.onSurface.withOpacity(0.6),
+                          ),
                     ),
                   ),
                 ),
@@ -517,11 +517,11 @@ class _DatePanelState extends State<DatePanel>
           children: [
             Text(
               '$monthLabel${AppStrings.monthSummary}：${_NumberFormatter.format(monthNet)}',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: monthColor,
-              ),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: monthColor,
+                  ),
             ),
             OutlinedButton(
               onPressed: _showMonthPicker,
@@ -591,19 +591,17 @@ class _DatePanelState extends State<DatePanel>
                 return ListTile(
                   title: Text(
                     title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight:
-                          isCurrentWeek ? FontWeight.w600 : FontWeight.w500,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight:
+                              isCurrentWeek ? FontWeight.w600 : FontWeight.w500,
+                        ),
                   ),
                   trailing: Text(
                     _NumberFormatter.format(net),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: netColor,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: netColor,
+                        ),
                   ),
                   onTap: () => _updateSelectedDay(firstDay),
                 );
@@ -639,7 +637,7 @@ class _DatePanelState extends State<DatePanel>
           children: [
             Text(
               yearSummaryText,
-              style: _summaryTextStyle(yearSummaryColor),
+              style: _summaryTextStyle(context, yearSummaryColor),
             ),
             OutlinedButton(
               onPressed: _showYearPicker,
@@ -742,11 +740,11 @@ class _DayCell extends StatelessWidget {
           children: [
             Text(
               '${day.day}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: dayColor,
-              ),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: dayColor,
+                  ),
             ),
             const SizedBox(height: 4),
             if (hasData)
@@ -756,11 +754,11 @@ class _DayCell extends StatelessWidget {
                     : net < 0
                         ? net.toStringAsFixed(2)
                         : '0.00',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: amountColor,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontSize: 11,
+                      color: amountColor,
+                      fontWeight: FontWeight.w600,
+                    ),
               ),
           ],
         ),
@@ -828,21 +826,19 @@ class _MonthNetGrid extends StatelessWidget {
               children: [
                 Text(
                   month.toString().padLeft(2, '0'),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: cs.onSurface,
-                  ),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 if (hasData)
                   Text(
                     net.toStringAsFixed(2),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _amountTextColor(net),
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: _amountTextColor(net),
+                        ),
                   ),
               ],
             ),

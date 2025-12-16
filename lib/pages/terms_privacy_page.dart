@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../theme/ios_tokens.dart';
+import '../widgets/app_scaffold.dart';
+
 /// 服务条款和隐私政策页面
 class TermsPrivacyPage extends StatelessWidget {
   const TermsPrivacyPage({
@@ -14,14 +17,13 @@ class TermsPrivacyPage extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final title = type == TermsPrivacyType.terms ? '用户协议' : '隐私政策';
     
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        backgroundColor: cs.surface,
-        elevation: 0,
-      ),
+    return AppScaffold(
+      title: title,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.page.copyWith(
+          top: AppSpacing.md,
+          bottom: AppSpacing.xl,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -56,10 +58,10 @@ class TermsPrivacyPage extends StatelessWidget {
                 onTap: () => _launchUrl(context, _getOnlineUrl(type)!),
                 child: Text(
                   _getOnlineUrl(type)!,
-                  style: TextStyle(
-                    color: cs.primary,
-                    decoration: TextDecoration.underline,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: cs.primary,
+                        decoration: TextDecoration.underline,
+                      ),
                 ),
               ),
             ],
@@ -224,4 +226,3 @@ enum TermsPrivacyType {
   terms, // 用户协议
   privacy, // 隐私政策
 }
-

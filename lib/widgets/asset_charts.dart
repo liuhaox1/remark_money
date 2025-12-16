@@ -97,12 +97,11 @@ class AssetCharts extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '资产构成',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -126,11 +125,14 @@ class AssetCharts extends StatelessWidget {
                                 title: percentage > 5 ? '${percentage.toStringAsFixed(1)}%' : '',
                                 color: colors[e.key % colors.length],
                                 radius: 40,
-                                titleStyle: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: cs.onPrimary,
-                                ),
+                                titleStyle: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: cs.onPrimary,
+                                    ),
                               );
                             }),
                             if (othersAmount > 0)
@@ -139,11 +141,14 @@ class AssetCharts extends StatelessWidget {
                                 title: (othersAmount / totalAssets * 100) > 5 ? '其他' : '',
                                 color: cs.outlineVariant,
                                 radius: 40,
-                                titleStyle: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: cs.onPrimary,
-                                ),
+                                titleStyle: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: cs.onPrimary,
+                                    ),
                               ),
                           ],
                           sectionsSpace: 2,
@@ -155,18 +160,18 @@ class AssetCharts extends StatelessWidget {
                         children: [
                           Text(
                             '${displayAccounts.length + (othersAmount > 0 ? 1 : 0)}',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                           ),
                           Text(
                             '账户',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  fontSize: 10,
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
                           ),
                         ],
                       ),
@@ -213,25 +218,29 @@ class AssetCharts extends StatelessWidget {
                                     children: [
                                       Text(
                                         account.name,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          height: 1.2,
-                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              height: 1.2,
+                                            ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         _formatAmount(account.currentBalance),
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .outline,
-                                          fontWeight: FontWeight.w500,
-                                          height: 1.2,
-                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .outline,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.2,
+                                            ),
                                       ),
                                     ],
                                   ),
@@ -251,11 +260,15 @@ class AssetCharts extends StatelessWidget {
                                   ),
                                   child: Text(
                                     '${percentage.toStringAsFixed(1)}%',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Theme.of(context).colorScheme.primary,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
                                   ),
                                 ),
                               ],
@@ -283,25 +296,29 @@ class AssetCharts extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
+                                    Text(
                                       '其他',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        height: 1.2,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            height: 1.2,
+                                          ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       _formatAmount(othersAmount),
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .outline,
-                                        fontWeight: FontWeight.w500,
-                                        height: 1.2,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .outline,
+                                            fontWeight: FontWeight.w500,
+                                            height: 1.2,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -321,11 +338,14 @@ class AssetCharts extends StatelessWidget {
                                 ),
                                 child: Text(
                                   '${(othersAmount / totalAssets * 100).toStringAsFixed(1)}%',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color:
+                                            Theme.of(context).colorScheme.primary,
+                                      ),
                                 ),
                               ),
                             ],
@@ -405,12 +425,11 @@ class _TrendChartWidgetState extends State<_TrendChartWidget> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '近30天净资产趋势',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -418,9 +437,9 @@ class _TrendChartWidgetState extends State<_TrendChartWidget> {
                 child: Center(
                   child: Text(
                     '暂无数据',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                   ),
                 ),
               ),
@@ -462,20 +481,18 @@ class _TrendChartWidgetState extends State<_TrendChartWidget> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   '近30天净资产趋势',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
                 if (_touchedIndex != null)
                   Text(
                     _formatDate(_cachedData![_touchedIndex!].date),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                   ),
               ],
             ),
@@ -487,18 +504,16 @@ class _TrendChartWidgetState extends State<_TrendChartWidget> {
                   children: [
                     Text(
                       '净资产: ',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
                     ),
                     Text(
                       _formatAmount(_cachedData![_touchedIndex!].netWorth),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.success,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.success,
+                          ),
                     ),
                   ],
                 ),
@@ -544,13 +559,13 @@ class _TrendChartWidgetState extends State<_TrendChartWidget> {
                           if (date.day == 1 || date.day == 15) {
                             return Text(
                               '${date.month}/${date.day}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outline
-                                    .withOpacity(0.6),
-                              ),
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    fontSize: 10,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outline
+                                        .withOpacity(0.6),
+                                  ),
                             );
                           }
                           return const Text('');
@@ -565,13 +580,13 @@ class _TrendChartWidgetState extends State<_TrendChartWidget> {
                         getTitlesWidget: (value, meta) {
                           return Text(
                             _formatAmount(value),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outline
-                                  .withOpacity(0.6),
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  fontSize: 10,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .outline
+                                      .withOpacity(0.6),
+                                ),
                           );
                         },
                       ),
@@ -621,7 +636,7 @@ class _TrendChartWidgetState extends State<_TrendChartWidget> {
                           });
                           return LineTooltipItem(
                             '',
-                            const TextStyle(),
+                            Theme.of(context).textTheme.bodySmall!,
                           );
                         }).toList();
                       },

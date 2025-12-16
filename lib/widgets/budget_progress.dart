@@ -18,6 +18,7 @@ class BudgetProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     final progress = total <= 0 ? 0.0 : (used / total).clamp(0.0, 1.0);
     final remaining = (total - used).clamp(0, double.infinity).toDouble();
     final labelColor = cs.onSurface.withOpacity(0.7);
@@ -33,9 +34,10 @@ class BudgetProgress extends StatelessWidget {
               total,
               AppColors.primary(context),
               labelColor,
+              tt,
             ),
-            _line(AppStrings.spent, used, AppColors.danger, labelColor),
-            _line(AppStrings.remain, remaining, AppColors.success, labelColor),
+            _line(AppStrings.spent, used, AppColors.danger, labelColor, tt),
+            _line(AppStrings.remain, remaining, AppColors.success, labelColor, tt),
           ],
         ),
         const SizedBox(height: 12),
@@ -59,24 +61,21 @@ class BudgetProgress extends StatelessWidget {
     double value,
     Color color,
     Color labelColor,
+    TextTheme tt,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: 11,
-            color: labelColor,
-          ),
+          style: tt.bodySmall?.copyWith(color: labelColor),
         ),
         const SizedBox(height: 4),
         Text(
           '¥ ${value.toStringAsFixed(0)}',
-          style: TextStyle(
+          style: tt.bodyMedium?.copyWith(
             color: color,
             fontWeight: FontWeight.w700,
-            fontSize: 14,
           ),
         ),
       ],

@@ -7,6 +7,7 @@ import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../providers/category_provider.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/app_tab_top_bar.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
 
@@ -46,26 +47,17 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: cs.surface,
-        foregroundColor: cs.onSurface,
-        elevation: 0,
-        title: Text(
-          AppStrings.categoryManager,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(color: cs.onSurface),
-        ),
-        bottom: TabBar(
+      appBar: AppTabTopBar(
+        title: AppStrings.categoryManager,
+        tabBar: TabBar(
           controller: _tabController,
           labelColor: cs.onSurface,
-          unselectedLabelColor: cs.onSurface.withOpacity(0.65),
+          unselectedLabelColor: cs.onSurface.withOpacity(0.6),
           indicatorColor: cs.primary,
           labelStyle: Theme.of(context)
               .textTheme
-              .bodyMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+              .labelLarge
+              ?.copyWith(fontWeight: FontWeight.w700),
           tabs: const [
             Tab(text: AppStrings.expenseCategory),
             Tab(text: AppStrings.incomeCategory),
@@ -89,10 +81,13 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
   Widget _buildList(List<Category> categories) {
     if (categories.isEmpty) {
       final cs = Theme.of(context).colorScheme;
+      final tt = Theme.of(context).textTheme;
       return Center(
         child: Text(
           AppStrings.emptyCategoryHint,
-          style: TextStyle(color: cs.onSurface.withOpacity(0.65)),
+          style: tt.bodyMedium?.copyWith(
+            color: cs.onSurface.withOpacity(0.65),
+          ),
         ),
       );
     }
@@ -165,13 +160,10 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                   Expanded(
                     child: Text(
                       top.name,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.normal,
-                        color: cs.onSurface,
-                        // 使用系统默认字体，避免 Noto Sans SC 对"门"字的渲染问题
-                        fontFamily: _getSystemChineseFont(),
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurface,
+                            fontFamily: _getSystemChineseFont(),
+                          ),
                     ),
                   ),
                   IconButton(
@@ -217,7 +209,13 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
               child: TextButton.icon(
                 onPressed: () => _showAddSubCategoryDialog(top),
                 icon: Icon(Icons.add, size: 18, color: cs.primary),
-                label: Text('添加子分类', style: TextStyle(color: cs.primary)),
+                label: Text(
+                  '添加子分类',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(color: cs.primary),
+                ),
               ),
             ),
           ],
@@ -228,6 +226,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
 
   Widget _buildChildCategoryItem(Category category) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -242,11 +241,9 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
           Expanded(
             child: Text(
               category.name,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.normal,
+              style: tt.bodyMedium?.copyWith(
                 color: cs.onSurface,
-                fontFamily: _getSystemChineseFont(), // 使用系统默认中文字体，避免 Noto Sans SC 对"门"字的渲染问题
+                fontFamily: _getSystemChineseFont(),
               ),
             ),
           ),
@@ -290,16 +287,23 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
       context: context,
       builder: (context) {
         final cs = Theme.of(context).colorScheme;
+        final tt = Theme.of(context).textTheme;
         return AlertDialog(
-          title: Text(AppStrings.deleteCategory,
-              style: TextStyle(color: cs.onSurface)),
-          content: Text(AppStrings.deleteCategoryConfirm(category.name),
-              style: TextStyle(color: cs.onSurface)),
+          title: Text(
+            AppStrings.deleteCategory,
+            style: tt.titleMedium?.copyWith(color: cs.onSurface),
+          ),
+          content: Text(
+            AppStrings.deleteCategoryConfirm(category.name),
+            style: tt.bodyMedium?.copyWith(color: cs.onSurface),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(AppStrings.cancel,
-                  style: TextStyle(color: cs.onSurface)),
+              child: Text(
+                AppStrings.cancel,
+                style: tt.labelLarge?.copyWith(color: cs.onSurface),
+              ),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
@@ -374,12 +378,13 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
         return StatefulBuilder(
           builder: (context, setState) {
             final cs = Theme.of(context).colorScheme;
+            final tt = Theme.of(context).textTheme;
             return AlertDialog(
               title: Text(
                 original == null
                     ? AppStrings.addCategory
                     : AppStrings.editCategory,
-                style: TextStyle(color: cs.onSurface),
+                style: tt.titleMedium?.copyWith(color: cs.onSurface),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -388,14 +393,14 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                   children: [
                     TextField(
                       controller: nameCtrl,
-                      style: TextStyle(color: cs.onSurface),
+                      style: tt.bodyMedium?.copyWith(color: cs.onSurface),
                       decoration: InputDecoration(
                         labelText: AppStrings.categoryName,
-                        labelStyle: TextStyle(
+                        labelStyle: tt.bodySmall?.copyWith(
                           color: cs.onSurface.withOpacity(0.78),
                         ),
                         hintText: AppStrings.categoryNameHint,
-                        hintStyle: TextStyle(
+                        hintStyle: tt.bodySmall?.copyWith(
                           color: cs.onSurface.withOpacity(0.78),
                         ),
                       ),
@@ -404,8 +409,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                       const SizedBox(height: 16),
                       Text(
                         AppStrings.categoryType,
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: tt.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: cs.onSurface,
                         ),
@@ -431,8 +435,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                     const SizedBox(height: 16),
                     Text(
                       AppStrings.categoryIcon,
-                      style: TextStyle(
-                        fontSize: 13,
+                      style: tt.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: cs.onSurface,
                       ),
@@ -458,8 +461,10 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(AppStrings.cancel,
-                      style: TextStyle(color: cs.onSurface)),
+                  child: Text(
+                    AppStrings.cancel,
+                    style: tt.labelLarge?.copyWith(color: cs.onSurface),
+                  ),
                 ),
                 FilledButton(
                   onPressed: () {
