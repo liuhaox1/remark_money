@@ -892,114 +892,160 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _openThemeSheet(BuildContext context) async {
-    final themeProvider = context.read<ThemeProvider>();
-    final cs = Theme.of(context).colorScheme;
-    final currentStyle = themeProvider.style;
-    final currentMode =
-        themeProvider.mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light;
-
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: cs.surface,
-      showDragHandle: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      showDragHandle: false,
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '主题风格',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: cs.onSurface),
-                ),
-                const SizedBox(height: 12),
-                SegmentedButton<ThemeMode>(
-                  segments: const [
-                    ButtonSegment(
-                      value: ThemeMode.light,
-                      label: Text(AppStrings.themeLight),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.dark,
-                      label: Text(AppStrings.themeDark),
-                    ),
-                  ],
-                  selected: {currentMode},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (value) {
-                    themeProvider.setMode(value.first);
+        return Consumer<ThemeProvider>(
+          builder: (ctx, themeProvider, _) {
+            final theme = Theme.of(ctx);
+            final cs = theme.colorScheme;
+            final tt = theme.textTheme;
+            final currentMode =
+                themeProvider.mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light;
+            final currentStyle = themeProvider.style;
+
+            ButtonStyle segmentedStyle() {
+              return ButtonStyle(
+                textStyle: MaterialStatePropertyAll(tt.labelLarge),
+                foregroundColor: MaterialStateProperty.resolveWith<Color?>(
+                  (states) {
+                    if (states.contains(MaterialState.selected)) {
+                      return cs.onPrimaryContainer;
+                    }
+                    return cs.onSurface;
                   },
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  '主题色',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(color: cs.onSurface),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _ThemePresetChip(
-                      title: 'Ocean Blue',
-                      subtitle: 'Modern & lively',
-                      color: const Color(0xFF2F6BFF),
-                      selected: currentStyle == AppThemeStyle.ocean,
-                      onTap: () => themeProvider.setStyle(AppThemeStyle.ocean),
-                    ),
-                    _ThemePresetChip(
-                      title: 'Amber Sand',
-                      subtitle: 'Warm & calm',
-                      color: const Color(0xFFB66A2E),
-                      selected: currentStyle == AppThemeStyle.amber,
-                      onTap: () => themeProvider.setStyle(AppThemeStyle.amber),
-                    ),
-                    _ThemePresetChip(
-                      title: 'Graphite',
-                      subtitle: 'Minimal & premium',
-                      color: const Color(0xFF4A5568),
-                      selected: currentStyle == AppThemeStyle.graphite,
-                      onTap: () => themeProvider.setStyle(AppThemeStyle.graphite),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '质感',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(color: cs.onSurface),
-                ),
-                const SizedBox(height: 8),
-                SegmentedButton<AppVisualTone>(
-                  segments: const [
-                    ButtonSegment(
-                      value: AppVisualTone.minimal,
-                      label: Text('标准'),
-                    ),
-                    ButtonSegment(
-                      value: AppVisualTone.luxe,
-                      label: Text('增强质感'),
-                    ),
-                  ],
-                  selected: {themeProvider.tone},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (value) {
-                    themeProvider.setTone(value.first);
+                backgroundColor: MaterialStateProperty.resolveWith<Color?>(
+                  (states) {
+                    if (states.contains(MaterialState.selected)) {
+                      return cs.primaryContainer;
+                    }
+                    return cs.surfaceVariant.withOpacity(0.22);
                   },
                 ),
-              ],
-            ),
-          ),
+                side: MaterialStateProperty.resolveWith<BorderSide?>(
+                  (states) {
+                    final color = states.contains(MaterialState.selected)
+                        ? cs.primary.withOpacity(0.55)
+                        : cs.outlineVariant.withOpacity(0.55);
+                    return BorderSide(color: color, width: 1);
+                  },
+                ),
+              );
+            }
+
+            return SafeArea(
+              child: Material(
+                color: cs.surfaceContainerHighest,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: cs.outlineVariant.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '主题风格',
+                        style: tt.titleMedium?.copyWith(color: cs.onSurface),
+                      ),
+                      const SizedBox(height: 12),
+                      SegmentedButton<ThemeMode>(
+                        style: segmentedStyle(),
+                        segments: const [
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text(AppStrings.themeLight),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text(AppStrings.themeDark),
+                          ),
+                        ],
+                        selected: {currentMode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (value) {
+                          themeProvider.setMode(value.first);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '主题色',
+                        style: tt.labelLarge?.copyWith(color: cs.onSurface),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _ThemePresetChip(
+                            title: 'Ocean Blue',
+                            subtitle: 'Modern & lively',
+                            color: const Color(0xFF2F6BFF),
+                            selected: currentStyle == AppThemeStyle.ocean,
+                            onTap: () => themeProvider.setStyle(AppThemeStyle.ocean),
+                          ),
+                          _ThemePresetChip(
+                            title: 'Amber Sand',
+                            subtitle: 'Warm & calm',
+                            color: const Color(0xFFB66A2E),
+                            selected: currentStyle == AppThemeStyle.amber,
+                            onTap: () => themeProvider.setStyle(AppThemeStyle.amber),
+                          ),
+                          _ThemePresetChip(
+                            title: 'Graphite',
+                            subtitle: 'Minimal & premium',
+                            color: const Color(0xFF4A5568),
+                            selected: currentStyle == AppThemeStyle.graphite,
+                            onTap: () => themeProvider.setStyle(AppThemeStyle.graphite),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '质感',
+                        style: tt.labelLarge?.copyWith(color: cs.onSurface),
+                      ),
+                      const SizedBox(height: 8),
+                      SegmentedButton<AppVisualTone>(
+                        style: segmentedStyle(),
+                        segments: const [
+                          ButtonSegment(
+                            value: AppVisualTone.minimal,
+                            label: Text('标准'),
+                          ),
+                          ButtonSegment(
+                            value: AppVisualTone.luxe,
+                            label: Text('增强质感'),
+                          ),
+                        ],
+                        selected: {themeProvider.tone},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (value) {
+                          themeProvider.setTone(value.first);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
