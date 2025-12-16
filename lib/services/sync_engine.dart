@@ -45,6 +45,10 @@ class SyncEngine {
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
     await _uploadOutboxV2(context, bookId, reason: reason);
+    // 性能关键点：本地记账触发 outbox 变化时，先只 push（把本地变更上云）。
+    // 立即 pull 会额外产生一轮 bill_change_log + bill_info 查询（服务端/客户端都浪费）。
+    // 多设备变更的拉取由 app_start / app_resumed（以及未来可选的轮询/SSE）来覆盖。
+    if (reason == 'local_outbox_changed') return;
     await _pullV2(context, bookId, reason: reason);
   }
 
