@@ -32,6 +32,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
   int _selectedYear = DateTime.now().year;
   PeriodType _periodType = PeriodType.month;
 
+  bool _isCountedRecord(Record record) {
+    if (!record.includeInStats) return false;
+    if (record.categoryKey.startsWith('transfer')) return false;
+    return true;
+  }
+
   String? _yearAnalysisKey;
   Future<Map<String, dynamic>>? _yearAnalysisFuture;
   Map<String, dynamic>? _yearAnalysisCache;
@@ -229,7 +235,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                               segments: const [
                                 ButtonSegment(
                                   value: PeriodType.week,
-                                  label: Text(AppStrings.weekReport),
+                                  label: Text(AppStrings.weeklyBill),
                                   icon: Icon(Icons.calendar_view_week),
                                 ),
                                 ButtonSegment(
@@ -553,12 +559,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
     for (final m in months) {
       final monthStats = await recordProvider.getMonthStatsAsync(m, bookId);
       final monthRecords = await recordProvider.recordsForMonthAsync(bookId, m.year, m.month);
+      final monthRecordCount =
+          monthRecords.where(_isCountedRecord).length;
       monthSummaries.add(
         _MonthSummary(
           month: m.month,
           income: monthStats.income,
           expense: monthStats.expense,
-          recordCount: monthRecords.length,
+          recordCount: monthRecordCount,
           isCurrentMonth: isCurrentYear && m.month == now.month,
         ),
       );
@@ -572,13 +580,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
       start: yearStart,
       end: yearEnd,
     );
-
-    final weekSummaries = _buildWeekSummariesFromRecords(yearRecords, _selectedYear);
+    final countedYearRecords = yearRecords.where(_isCountedRecord).toList();
+    final weekSummaries =
+        _buildWeekSummariesFromRecords(countedYearRecords, _selectedYear);
 
     final yearIncome = monthSummaries.fold<double>(0, (sum, item) => sum + item.income);
     final yearExpense = monthSummaries.fold<double>(0, (sum, item) => sum + item.expense);
-    final hasYearRecords = yearRecords.isNotEmpty;
-    final totalRecordCount = yearRecords.length;
+    final hasYearRecords = countedYearRecords.isNotEmpty;
+    final totalRecordCount = countedYearRecords.length;
 
     return {
       'monthSummaries': monthSummaries,
@@ -608,6 +617,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       start: yearStart,
       end: yearEnd,
     );
+    final filteredYearRecords = yearRecords.where(_isCountedRecord).toList();
     
     // 加载去年数据用于对比
     final lastYearStart = DateTime(year - 1, 1, 1);
@@ -617,6 +627,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
       start: lastYearStart,
       end: lastYearEnd,
     );
+    final filteredLastYearRecords =
+        lastYearRecords.where(_isCountedRecord).toList();
     
     // 根据 periodType 生成趋势数据
     final trendData = <Map<String, dynamic>>[];
@@ -657,12 +669,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
         start: sixMonthsAgo,
         end: anchor,
       );
+      final filteredRecentRecords = recentRecords.where(_isCountedRecord).toList();
 
       for (int i = 5; i >= 0; i--) {
         final month = DateTime(anchor.year, anchor.month - i, 1);
         final monthEnd =
             DateTime(month.year, month.month + 1, 0, 23, 59, 59);
-        final monthRecords = recentRecords.where((r) =>
+        final monthRecords = filteredRecentRecords.where((r) =>
             r.date.isAfter(month.subtract(const Duration(days: 1))) &&
             r.date.isBefore(monthEnd.add(const Duration(days: 1)))).toList();
 
@@ -687,12 +700,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
         start: start,
         end: anchor,
       );
+      final filteredRecentRecords = recentRecords.where(_isCountedRecord).toList();
 
       DateTime weekStart = DateUtilsX.startOfWeek(anchor);
       for (int i = 7; i >= 0; i--) {
         final ws = weekStart.subtract(Duration(days: 7 * i));
         final we = ws.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-        final weekRecords = recentRecords.where((r) =>
+        final weekRecords = filteredRecentRecords.where((r) =>
             !r.date.isBefore(ws) && !r.date.isAfter(we)).toList();
         final expense = weekRecords
             .where((r) => r.isExpense)
@@ -739,14 +753,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ..sort((a, b) => b.value.compareTo(a.value));
     
     // 计算同比数据
-    final thisYearExpense = yearRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
-    final lastYearExpense = lastYearRecords.where((r) => r.isExpense).fold<double>(0, (sum, r) => sum + r.amount);
+    final thisYearExpense = filteredYearRecords
+        .where((r) => r.isExpense)
+        .fold<double>(0, (sum, r) => sum + r.amount);
+    final lastYearExpense = filteredLastYearRecords
+        .where((r) => r.isExpense)
+        .fold<double>(0, (sum, r) => sum + r.amount);
     final yearOverYearChange = lastYearExpense > 0 
         ? ((thisYearExpense - lastYearExpense) / lastYearExpense * 100)
         : 0.0;
     
     // 计算月度平均
-    final avgMonthlyExpense = yearRecords.isNotEmpty 
+    final avgMonthlyExpense = filteredYearRecords.isNotEmpty
         ? thisYearExpense / 12 
         : 0.0;
     
@@ -759,7 +777,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
       r.date.isBefore(currentMonthEnd.add(const Duration(days: 1))) &&
       r.isExpense
     ).toList();
-    final currentMonthExpense = currentMonthRecords.fold<double>(0, (sum, r) => sum + r.amount);
+    final filteredCurrentMonthRecords =
+        currentMonthRecords.where(_isCountedRecord).toList();
+    final currentMonthExpense =
+        filteredCurrentMonthRecords.fold<double>(0, (sum, r) => sum + r.amount);
     final daysPassed = currentMonth.day;
     final totalDays = currentMonthEnd.day;
     final predictedMonthExpense = daysPassed > 0 
