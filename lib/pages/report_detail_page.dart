@@ -145,6 +145,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       debugRepaintRainbowEnabled = false;
       debugRepaintTextRainbowEnabled = false;
     });
+
+    // 让报表详情始终跟随当前账本（避免顶部切换账本后，本页数据仍是旧 bookId，导致“查看本期流水”对不上）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final bookProvider = context.read<BookProvider>();
+      if (bookProvider.activeBookId != widget.bookId) {
+        bookProvider.selectBook(widget.bookId);
+      }
+    });
   }
 
   @override
@@ -268,7 +277,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       );
     }
 
-    final bookId = widget.bookId;
+    // 使用当前激活账本作为数据源，确保 BookSelectorButton 切换后本页与明细页一致
+    final bookId = bookProvider.activeBookId;
 
     Book? targetBook;
 
@@ -1471,6 +1481,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     String bookName,
 
   ) {
+    // 归一化到“纯日期”范围，避免 range 带时分秒导致周/月过滤偏移或漏数据
+    final normalizedRange = DateTimeRange(
+      start: DateTime(range.start.year, range.start.month, range.start.day),
+      end: DateTime(range.end.year, range.end.month, range.end.day),
+    );
 
     Navigator.of(context).push(
 
@@ -1478,17 +1493,21 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
         builder: (_) => BillPage(
 
-          initialYear: widget.year,
+          initialYear: normalizedRange.start.year,
 
           initialMonth: _isMonthMode
 
-              ? DateTime(range.start.year, range.start.month, 1)
+              ? DateTime(
+                  normalizedRange.start.year,
+                  normalizedRange.start.month,
+                  1,
+                )
 
               : null,
 
           initialShowYearMode: _isYearMode,
 
-          initialRange: _isWeekMode ? range : null,
+          initialRange: _isWeekMode ? normalizedRange : null,
 
           initialPeriodType: widget.periodType,
 
@@ -1501,21 +1520,18 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   void _openBillDetailForDate(DateTime date) {
-    final range = _periodRange();
+    final day = DateTime(date.year, date.month, date.day);
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BillPage(
-          initialYear: widget.year,
-          initialMonth: _isMonthMode
-              ? DateTime(range.start.year, range.start.month, 1)
-              : null,
-          initialShowYearMode: _isYearMode,
-          initialRange: _isWeekMode ? range : null,
-          initialPeriodType: widget.periodType,
-          initialStartDate: date,
-          initialEndDate: date,
+          initialYear: day.year,
+          initialMonth: DateTime(day.year, day.month, 1),
+          initialShowYearMode: false,
+          initialPeriodType: PeriodType.month,
+          initialStartDate: day,
+          initialEndDate: day,
           dayMode: true,
-          dayModeDate: date,
+          dayModeDate: day,
         ),
       ),
     );
@@ -2683,39 +2699,45 @@ class _PeriodHeaderCard extends StatelessWidget {
 
               if (showViewDetailButton && onViewDetail != null)
 
-                OutlinedButton(
+                TextButton.icon(
 
                   onPressed: onViewDetail,
 
-                  style: OutlinedButton.styleFrom(
+                  icon: Icon(
 
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    Icons.list_alt_outlined,
+
+                    size: 18,
+
+                    color: cs.primary,
+
+                  ),
+
+                  label: Text(
+
+                    AppTextTemplates.viewBillList,
+
+                    overflow: TextOverflow.ellipsis,
+
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
+                      color: cs.primary,
+
+                      fontWeight: FontWeight.w600,
+
+                    ),
+
+                  ),
+
+                  style: TextButton.styleFrom(
+
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
 
                     minimumSize: Size.zero,
 
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
 
-                    shape: RoundedRectangleBorder(
-
-                      borderRadius: BorderRadius.circular(6),
-
-                    ),
-
-                    side: BorderSide(color: cs.primary.withOpacity(0.3)),
-
-                  ),
-
-                  child: Text(
-
-                    AppTextTemplates.viewBillList,
-
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
-                      color: cs.primary,
-
-                      fontWeight: FontWeight.w500,
-
-                    ),
+                    visualDensity: VisualDensity.compact,
 
                   ),
 
