@@ -116,11 +116,21 @@ class RecordProvider extends ChangeNotifier {
       throw ArgumentError('分类不能为空');
     }
 
-    if (accountId.isEmpty) {
-      throw ArgumentError('账户不能为空');
-    }
-
     try {
+      var resolvedAccountId = accountId;
+      // 记一笔不强制用户手动选账户：为空/未知时自动兜底到默认钱包
+      if (resolvedAccountId.isEmpty && accountProvider != null) {
+        final fallback =
+            await accountProvider.ensureDefaultWallet(bookId: bookId);
+        resolvedAccountId = fallback.id;
+      } else if (resolvedAccountId.isNotEmpty &&
+          accountProvider != null &&
+          accountProvider.byId(resolvedAccountId) == null) {
+        final fallback =
+            await accountProvider.ensureDefaultWallet(bookId: bookId);
+        resolvedAccountId = fallback.id;
+      }
+
       final record = Record(
         id: _generateId(),
         amount: amount.abs(),
@@ -128,7 +138,7 @@ class RecordProvider extends ChangeNotifier {
         date: date,
         categoryKey: categoryKey,
         bookId: bookId,
-        accountId: accountId,
+        accountId: resolvedAccountId,
         direction: direction,
         includeInStats: includeInStats,
         pairId: pairId,

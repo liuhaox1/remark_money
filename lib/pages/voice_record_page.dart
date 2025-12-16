@@ -138,11 +138,8 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
     final bookProvider = context.read<BookProvider>();
     final categoryProvider = context.read<CategoryProvider>();
 
-    final accounts = accountProvider.accounts;
-    if (accounts.isEmpty) {
-      ErrorHandler.showError(context, '请先添加账户');
-      return;
-    }
+    final fallbackAccount =
+        await accountProvider.ensureDefaultWallet(bookId: bookProvider.activeBookId);
 
     // 使用匹配的分类，如果没有匹配则使用默认分类
     String? categoryKey = _matchedCategory?.key;
@@ -164,7 +161,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
         date: DateTime.now(),
         categoryKey: categoryKey,
         bookId: bookProvider.activeBookId,
-        accountId: accounts.first.id, // 使用第一个账户
+        accountId: fallbackAccount.id,
         direction: _parsedRecord!.isExpense
             ? TransactionDirection.out
             : TransactionDirection.income,
@@ -194,11 +191,8 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
     final bookProvider = context.read<BookProvider>();
     final categoryProvider = context.read<CategoryProvider>();
 
-    final accounts = accountProvider.accounts;
-    if (accounts.isEmpty) {
-      ErrorHandler.showError(context, '请先添加账户');
-      return;
-    }
+    final fallbackAccount =
+        await accountProvider.ensureDefaultWallet(bookId: bookProvider.activeBookId);
 
     String? categoryKey = _matchedCategory?.key;
     if (categoryKey == null) {
@@ -219,7 +213,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
       date: DateTime.now(),
       categoryKey: categoryKey,
       bookId: bookProvider.activeBookId,
-      accountId: accounts.first.id,
+      accountId: fallbackAccount.id,
       direction: _parsedRecord!.isExpense
           ? TransactionDirection.out
           : TransactionDirection.income,

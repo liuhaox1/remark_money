@@ -22,6 +22,50 @@ class AccountProvider extends ChangeNotifier {
   bool _loaded = false;
   bool get loaded => _loaded;
 
+  /// 确保至少存在一个“默认钱包/现金”账户，并返回它。
+  ///
+  /// 设计目标：记一笔不打断用户流程（无须先手动创建账户）。
+  Future<Account> ensureDefaultWallet({String? bookId}) async {
+    if (!_loaded) {
+      await load();
+    }
+
+    Account? preferred;
+    if (_accounts.isNotEmpty) {
+      preferred = _accounts.firstWhere(
+        (a) => a.kind == AccountKind.asset && a.subtype == AccountSubtype.cash.code,
+        orElse: () => _accounts.first,
+      );
+      return preferred;
+    }
+
+    // 没有任何账户：静默创建一个默认钱包（现金）
+    await addAccount(
+      Account(
+        id: 'default_wallet',
+        name: '默认钱包',
+        kind: AccountKind.asset,
+        subtype: AccountSubtype.cash.code,
+        type: AccountType.cash,
+        icon: 'wallet',
+        includeInTotal: true,
+        includeInOverview: true,
+        currency: 'CNY',
+        sortOrder: 0,
+        initialBalance: 0,
+        currentBalance: 0,
+      ),
+      bookId: bookId,
+    );
+
+    // addAccount 内部会生成 id 并写入列表，这里取刚创建的那条
+    preferred = _accounts.firstWhere(
+      (a) => a.kind == AccountKind.asset && a.subtype == AccountSubtype.cash.code,
+      orElse: () => _accounts.first,
+    );
+    return preferred;
+  }
+
   Future<void> load() async {
     if (_loaded) return;
     try {

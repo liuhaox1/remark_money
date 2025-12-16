@@ -250,14 +250,10 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Future<void> _onQuickAccountTap() async {
     final accounts = context.read<AccountProvider>().accounts;
     if (accounts.isEmpty) {
-      await Navigator.push<AccountKind>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AddAccountTypePage(),
-        ),
-      );
       if (!mounted) return;
-      setState(() => _selectedAccountId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已默认使用“默认钱包”，可在资产页中管理账户')),
+      );
       return;
     }
 
@@ -1420,11 +1416,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       return;
     }
 
-    final accountError = Validators.validateAccount(_selectedAccountId);
-    if (accountError != null) {
-      ErrorHandler.showError(context, accountError);
-      return;
-    }
+    // 记一笔不强制用户先创建/选择账户：为空时由 RecordProvider 自动兜底到“默认钱包”
 
     final remark = _remarkCtrl.text.trim();
     final remarkError = Validators.validateRemark(remark);
@@ -1453,7 +1445,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
           remark: remark,
           date: _selectedDate,
           categoryKey: _selectedCategoryKey!,
-          accountId: _selectedAccountId!,
+          accountId: (_selectedAccountId != null && _selectedAccountId!.isNotEmpty)
+              ? _selectedAccountId!
+              : widget.initialRecord!.accountId,
           direction: direction,
           includeInStats: _includeInStats,
         );
@@ -1473,13 +1467,15 @@ class _AddRecordPageState extends State<AddRecordPage> {
           date: _selectedDate,
           categoryKey: _selectedCategoryKey!,
           bookId: bookId,
-          accountId: _selectedAccountId!,
+          accountId: _selectedAccountId ?? '',
           direction: direction,
           includeInStats: _includeInStats,
           accountProvider: accountProvider,
         );
 
-        _lastAccountId = _selectedAccountId;
+        if (_selectedAccountId != null && _selectedAccountId!.isNotEmpty) {
+          _lastAccountId = _selectedAccountId;
+        }
         _lastIncludeInStats = _includeInStats;
 
         if (!mounted) return;
