@@ -1122,13 +1122,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
   ) {
     final Map<DateTime, _WeekSummary> map = {};
     for (final record in records) {
-      final start = DateUtilsX.startOfWeek(record.date);
-      final range = DateUtilsX.weekRange(record.date);
+      final recordDay = DateTime(record.date.year, record.date.month, record.date.day);
+      final start = DateUtilsX.startOfWeek(recordDay);
+      final range = DateUtilsX.weekRange(recordDay);
       final summary = map.putIfAbsent(
         start,
         () => _WeekSummary(
           start: start,
-          end: range.end,
+          end: DateTime(range.end.year, range.end.month, range.end.day),
           income: 0,
           expense: 0,
           recordCount: 0,
@@ -1143,12 +1144,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final now = DateTime.now();
-    final currentStart = DateUtilsX.startOfWeek(now);
+    final today = DateTime(now.year, now.month, now.day);
+    final currentStart = DateUtilsX.startOfWeek(today);
     if (now.year == year && !map.containsKey(currentStart)) {
-      final range = DateUtilsX.weekRange(now);
+      final range = DateUtilsX.weekRange(today);
       map[currentStart] = _WeekSummary(
         start: currentStart,
-        end: range.end,
+        end: DateTime(range.end.year, range.end.month, range.end.day),
         income: 0,
         expense: 0,
         recordCount: 0,
@@ -1178,13 +1180,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final Map<DateTime, _WeekSummary> map = {};
     for (final record in records) {
-      final start = DateUtilsX.startOfWeek(record.date);
-      final range = DateUtilsX.weekRange(record.date);
+      final recordDay = DateTime(record.date.year, record.date.month, record.date.day);
+      final start = DateUtilsX.startOfWeek(recordDay);
+      final range = DateUtilsX.weekRange(recordDay);
       final summary = map.putIfAbsent(
         start,
         () => _WeekSummary(
           start: start,
-          end: range.end,
+          end: DateTime(range.end.year, range.end.month, range.end.day),
           income: 0,
           expense: 0,
           recordCount: 0,
@@ -1199,12 +1202,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final now = DateTime.now();
-    final currentStart = DateUtilsX.startOfWeek(now);
+    final today = DateTime(now.year, now.month, now.day);
+    final currentStart = DateUtilsX.startOfWeek(today);
     if (now.year == year && !map.containsKey(currentStart)) {
-      final range = DateUtilsX.weekRange(now);
+      final range = DateUtilsX.weekRange(today);
       map[currentStart] = _WeekSummary(
         start: currentStart,
-        end: range.end,
+        end: DateTime(range.end.year, range.end.month, range.end.day),
         income: 0,
         expense: 0,
         recordCount: 0,
