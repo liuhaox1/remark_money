@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../theme/ios_tokens.dart';
-import '../theme/brand_theme.dart';
-import '../providers/theme_provider.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/glass.dart';
-import 'package:provider/provider.dart';
 
 class UiLabPage extends StatelessWidget {
   const UiLabPage({super.key});
@@ -13,7 +10,6 @@ class UiLabPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final themeProvider = context.watch<ThemeProvider>();
 
     return AppScaffold(
       title: 'UI Lab',
@@ -46,20 +42,12 @@ class UiLabPage extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: SegmentedButton<AppVisualTone>(
-                      segments: const [
-                        ButtonSegment(
-                          value: AppVisualTone.minimal,
-                          label: Text('标准'),
-                        ),
-                        ButtonSegment(
-                          value: AppVisualTone.luxe,
-                          label: Text('增强质感'),
-                        ),
-                      ],
-                      selected: {themeProvider.tone},
-                      showSelectedIcon: false,
-                      onSelectionChanged: (v) => themeProvider.setTone(v.first),
+                    child: Text(
+                      '更立体（阴影/玻璃效果更明显）',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ),
                 ],

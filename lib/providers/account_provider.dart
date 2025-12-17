@@ -16,9 +16,15 @@ class AccountProvider extends ChangeNotifier {
   final Random _random = Random();
 
   final List<Account> _accounts = [];
-  List<Account> get accounts => List.unmodifiable(
-        _accounts..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
-      );
+  final Map<String, String> _idAliases = {};
+
+  String _resolveId(String id) => _idAliases[id] ?? id;
+
+  List<Account> get accounts {
+    final deduped = _accounts.where((a) => !_idAliases.containsKey(a.id)).toList();
+    deduped.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return List.unmodifiable(deduped);
+  }
 
   bool _loaded = false;
   bool get loaded => _loaded;
@@ -31,13 +37,28 @@ class AccountProvider extends ChangeNotifier {
       await load();
     }
 
-    Account? preferred;
+    _rebuildDefaultWalletAliases();
+
     if (_accounts.isNotEmpty) {
-      preferred = _accounts.firstWhere(
+      // 优先：显式默认钱包（brandKey / id）
+      final explicit = _accounts.where((a) =>
+          a.kind == AccountKind.asset &&
+          a.subtype == AccountSubtype.cash.code &&
+          (a.brandKey == 'default_wallet' || a.id == 'default_wallet'));
+      if (explicit.isNotEmpty) return explicit.first;
+
+      // 其次：名称为“默认钱包”的现金账户
+      final byName = _accounts.where((a) =>
+          a.kind == AccountKind.asset &&
+          a.subtype == AccountSubtype.cash.code &&
+          a.name.trim() == '默认钱包');
+      if (byName.isNotEmpty) return byName.first;
+
+      // 最后：任意现金账户兜底
+      return _accounts.firstWhere(
         (a) => a.kind == AccountKind.asset && a.subtype == AccountSubtype.cash.code,
         orElse: () => _accounts.first,
       );
-      return preferred;
     }
 
     // 没有任何账户：静默创建一个默认钱包（现金）
@@ -55,6 +76,7 @@ class AccountProvider extends ChangeNotifier {
         sortOrder: 0,
         initialBalance: 0,
         currentBalance: 0,
+        brandKey: 'default_wallet',
       ),
       // 兜底钱包不应在“记一笔”链路里额外触发云同步（避免性能劣化）；
       // 后续在 app_start/app_resumed 或资产页触发的 meta sync 再上云即可。
@@ -62,12 +84,11 @@ class AccountProvider extends ChangeNotifier {
       triggerSync: false,
     );
 
-    // addAccount 内部会生成 id 并写入列表，这里取刚创建的那条
-    preferred = _accounts.firstWhere(
-      (a) => a.kind == AccountKind.asset && a.subtype == AccountSubtype.cash.code,
+    _rebuildDefaultWalletAliases();
+    return _accounts.firstWhere(
+      (a) => a.id == 'default_wallet',
       orElse: () => _accounts.first,
     );
-    return preferred;
   }
 
   Future<void> load() async {
@@ -78,6 +99,7 @@ class AccountProvider extends ChangeNotifier {
         ..clear()
         ..addAll(list);
       _loaded = true;
+      _rebuildDefaultWalletAliases();
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('AccountProvider.load', e, stackTrace);
@@ -97,8 +119,9 @@ class AccountProvider extends ChangeNotifier {
   }
 
   Account? byId(String id) {
+    final resolved = _resolveId(id);
     try {
-      return _accounts.firstWhere((a) => a.id == id);
+      return _accounts.firstWhere((a) => a.id == resolved);
     } catch (_) {
       return null;
     }
@@ -127,10 +150,12 @@ class AccountProvider extends ChangeNotifier {
     final nextSort =
         _accounts.isEmpty ? 0 : (_accounts.map((a) => a.sortOrder).reduce(max) + 1);
     final now = DateTime.now();
+    final providedId = account.id.trim();
+    final newId = providedId.isNotEmpty ? providedId : _generateId();
     _accounts.add(
       account.copyWith(
         sortOrder: nextSort,
-        id: _generateId(),
+        id: newId,
         currentBalance: account.currentBalance,
         initialBalance: account.initialBalance,
         createdAt: now,
@@ -138,6 +163,7 @@ class AccountProvider extends ChangeNotifier {
       ),
     );
     await _persist();
+    _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1（账户数据是全局的，使用默认账本ID）
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
@@ -152,10 +178,12 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
-    final index = _accounts.indexWhere((a) => a.id == updated.id);
+    final resolved = _resolveId(updated.id);
+    final index = _accounts.indexWhere((a) => a.id == resolved);
     if (index == -1) return;
     _accounts[index] = updated.copyWith(updatedAt: DateTime.now());
     await _persist();
+    _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
@@ -171,7 +199,8 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
-    final index = _accounts.indexWhere((a) => a.id == accountId);
+    final resolved = _resolveId(accountId);
+    final index = _accounts.indexWhere((a) => a.id == resolved);
     if (index == -1) return;
     final account = _accounts[index];
     _accounts[index] = account.copyWith(
@@ -179,6 +208,7 @@ class AccountProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     await _persist();
+    _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
@@ -196,7 +226,8 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
-    final index = _accounts.indexWhere((a) => a.id == accountId);
+    final resolved = _resolveId(accountId);
+    final index = _accounts.indexWhere((a) => a.id == resolved);
     if (index == -1) return;
     final account = _accounts[index];
     // 计算差额，用于同步更新 currentBalance
@@ -207,6 +238,7 @@ class AccountProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     await _persist();
+    _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
@@ -221,8 +253,10 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
-    _accounts.removeWhere((a) => a.id == id);
+    final resolved = _resolveId(id);
+    _accounts.removeWhere((a) => a.id == resolved);
     await _persist();
+    _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
@@ -269,8 +303,37 @@ class AccountProvider extends ChangeNotifier {
       ..clear()
       ..addAll(next);
 
+    _rebuildDefaultWalletAliases();
     await _repository.saveAccounts(_accounts);
     notifyListeners();
+  }
+
+  void _rebuildDefaultWalletAliases() {
+    _idAliases.clear();
+
+    // 仅对“默认钱包”做别名合并：避免因为历史 bug / 云端重复导致资产页出现多条“默认钱包”
+    final candidates = _accounts
+        .where((a) =>
+            a.kind == AccountKind.asset &&
+            a.subtype == AccountSubtype.cash.code &&
+            (a.name.trim() == '默认钱包' ||
+                a.brandKey == 'default_wallet' ||
+                a.id == 'default_wallet'))
+        .toList();
+    if (candidates.length <= 1) return;
+
+    Account canonical = candidates.first;
+    for (final a in candidates) {
+      if (a.id == 'default_wallet' || a.brandKey == 'default_wallet') {
+        canonical = a;
+        break;
+      }
+    }
+
+    for (final a in candidates) {
+      if (a.id == canonical.id) continue;
+      _idAliases[a.id] = canonical.id;
+    }
   }
 
   String _generateId() {

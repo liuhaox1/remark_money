@@ -28,6 +28,10 @@ public interface AccountInfoMapper {
   // 查询用户所有账户
   List<AccountInfo> findAllByUserId(@Param("userId") Long userId);
 
+  // 删除：当客户端上传“全量账户列表”时，服务端删除不在列表中的旧账户（以 account_id 为准）
+  void deleteByUserIdAndAccountIdsNotIn(
+      @Param("userId") Long userId, @Param("accountIds") Set<String> accountIds);
+
   // 插入账户
   void insert(AccountInfo accountInfo);
 

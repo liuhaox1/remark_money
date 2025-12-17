@@ -129,6 +129,12 @@ public class SyncService {
       processed.addAll(toInsert);
     }
 
+    // 账户同步约定：客户端在 accounts_changed 时上传全量账户列表。
+    // 服务端应删除（硬删）不在本次全量列表中的旧账户，避免“删完又回来”。
+    if (!incomingAccountIds.isEmpty()) {
+      accountInfoMapper.deleteByUserIdAndAccountIdsNotIn(userId, incomingAccountIds);
+    }
+
     return AccountSyncResult.success(processed);
   }
 
@@ -177,4 +183,3 @@ public class SyncService {
     }
   }
 }
-

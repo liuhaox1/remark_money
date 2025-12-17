@@ -59,6 +59,16 @@
     SELECT * FROM account_info WHERE user_id = #{userId} ORDER BY sort_order ASC, id ASC
   </select>
 
+  <delete id="deleteByUserIdAndAccountIdsNotIn">
+    DELETE FROM account_info
+    WHERE user_id = #{userId}
+      AND account_id IS NOT NULL
+      AND account_id NOT IN
+      <foreach item="id" collection="accountIds" open="(" separator="," close=")">
+        #{id}
+      </foreach>
+  </delete>
+
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
                             include_in_total, include_in_overview, currency, sort_order,

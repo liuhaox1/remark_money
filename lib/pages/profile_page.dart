@@ -1016,22 +1016,22 @@ class _ProfilePageState extends State<ProfilePage> {
                         runSpacing: 12,
                         children: [
                           _ThemePresetChip(
-                            title: 'Ocean Blue',
-                            subtitle: 'Modern & lively',
+                            title: '海洋蓝',
+                            subtitle: '现代活泼',
                             color: const Color(0xFF2F6BFF),
                             selected: currentStyle == AppThemeStyle.ocean,
                             onTap: () => themeProvider.setStyle(AppThemeStyle.ocean),
                           ),
                           _ThemePresetChip(
-                            title: 'Amber Sand',
-                            subtitle: 'Warm & calm',
+                            title: '琥珀沙',
+                            subtitle: '温暖柔和',
                             color: const Color(0xFFB66A2E),
                             selected: currentStyle == AppThemeStyle.amber,
                             onTap: () => themeProvider.setStyle(AppThemeStyle.amber),
                           ),
                           _ThemePresetChip(
-                            title: 'Graphite',
-                            subtitle: 'Minimal & premium',
+                            title: '石墨灰',
+                            subtitle: '极简高级',
                             color: const Color(0xFF4A5568),
                             selected: currentStyle == AppThemeStyle.graphite,
                             onTap: () => themeProvider.setStyle(AppThemeStyle.graphite),
@@ -1043,25 +1043,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         '质感',
                         style: tt.labelLarge?.copyWith(color: cs.onSurface),
                       ),
-                      const SizedBox(height: 8),
-                      SegmentedButton<AppVisualTone>(
-                        style: segmentedStyle(),
-                        segments: const [
-                          ButtonSegment(
-                            value: AppVisualTone.minimal,
-                            label: Text('标准'),
-                          ),
-                          ButtonSegment(
-                            value: AppVisualTone.luxe,
-                            label: Text('增强质感'),
-                          ),
-                        ],
-                        selected: {themeProvider.tone},
-                        showSelectedIcon: false,
-                        onSelectionChanged: (value) {
-                          themeProvider.setTone(value.first);
-                        },
-                      ),
+                      const SizedBox(height: 6),
                     ],
                   ),
                 ),
