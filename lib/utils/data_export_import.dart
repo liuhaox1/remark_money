@@ -8,6 +8,7 @@ import '../models/book.dart';
 import '../models/category.dart';
 import '../models/record.dart';
 import '../utils/csv_utils.dart';
+import '../utils/category_name_helper.dart';
 import '../utils/records_export_bundle.dart';
 
 String _formatDate(DateTime date) {
@@ -23,8 +24,8 @@ String _boolLabel(bool value) => value ? '是' : '否';
 
 /// Build CSV text for given records.
 ///
-/// Names for category / book / account are looked up by id and fallback to
-/// [`AppStrings.unknown`] when missing.
+/// Names for category / book / account are looked up by id.
+/// Category name falls back to "未分类" when missing to avoid "未知" in exports.
 String buildCsvForRecords(
   List<Record> records, {
   required Map<String, Category> categoriesByKey,
@@ -48,8 +49,9 @@ String buildCsvForRecords(
     final dateStr = _formatDate(r.date);
     final amountStr = r.amount.toStringAsFixed(2);
     final directionStr = _directionLabel(r);
-    final categoryName =
-        categoriesByKey[r.categoryKey]?.name ?? AppStrings.unknown;
+    final categoryName = CategoryNameHelper.getSafeDisplayName(
+      categoriesByKey[r.categoryKey]?.name,
+    );
     final bookName = booksById[r.bookId]?.name ?? AppStrings.defaultBook;
     final accountName = accountsById[r.accountId]?.name ?? AppStrings.unknown;
     final remark = r.remark;

@@ -387,6 +387,7 @@ class AppStrings {
   static const selectMonthLabelText = '选择月份';
 
   // 分类名称（覆盖防丢失）
+  static const catUncategorized = '未分类';
   static const catTopFood = '餐饮';
   static const catFoodBreakfast = '早餐';
   static const catFoodLunch = '午餐';

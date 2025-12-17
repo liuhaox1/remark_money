@@ -5,6 +5,7 @@ import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../models/record.dart';
 import '../theme/app_tokens.dart';
+import '../utils/category_name_helper.dart';
 
 class TimelineItem extends StatelessWidget {
   const TimelineItem({
@@ -36,7 +37,7 @@ class TimelineItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    final title = category?.name ?? AppStrings.unknown;
+    final title = CategoryNameHelper.getSafeDisplayName(category?.name);
     final isExpense = record.isExpense;
     final Color color = isExpense ? AppColors.danger : AppColors.success;
     final icon = category?.icon ?? Icons.category_outlined;

@@ -7,6 +7,14 @@ import '../models/category.dart';
 class CategoryRepository {
   static const _key = 'categories_v1';
 
+  /// 这些分类本质上是“资金动作/财务操作”，不适合放在普通“记一笔”的消费分类里。
+  /// 为兼容历史数据仍保留在分类表中，但默认不在“记一笔”分类选择器中展示。
+  static const Set<String> hiddenInRecordPickerKeys = {
+    'fin_loan', // 借贷还款
+    'fin_credit', // 信用卡还款
+    'fin_adjust', // 账户调整
+  };
+
   static final List<Category> defaultCategories = [
     // 一级：餐饮
     Category(
@@ -886,8 +894,19 @@ class CategoryRepository {
 
   /// 将分类名称标准化
   static String sanitizeCategoryName(String key, String name) {
-    // 所有分类名称已经标准化，不再需要特殊处理
-    // 保留此方法以防将来需要特殊处理某些分类名称
-    return name;
+    var v = name.trim();
+    if (v.isEmpty) return AppStrings.catUncategorized;
+
+    // 迁移/导入过程中可能存在 "xxx/yyy" 这样的旧名称；UI 不应该直接展示 "/"
+    if (v.contains('/')) {
+      final parts = v.split('/').map((e) => e.trim()).where((e) => e.isNotEmpty);
+      final last = parts.isEmpty ? '' : parts.last;
+      v = last.isEmpty ? v.replaceAll('/', ' ') : last;
+    }
+
+    // 避免显示“未知”这种研发味兜底；分类缺失时用“未分类”更符合用户预期
+    if (v == AppStrings.unknown) return AppStrings.catUncategorized;
+
+    return v;
   }
 }

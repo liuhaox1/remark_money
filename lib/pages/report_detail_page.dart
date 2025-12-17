@@ -402,7 +402,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 // 使用异步方法获取上一周的支出
                 final prevExpense = data['prevWeekExpense'] as double? ?? 0.0;
               final diff = currentExpense - prevExpense;
-              final topCategory = expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
+              final topCategory = expenseEntries.isNotEmpty
+                  ? expenseEntries.first.label
+                  : AppStrings.catUncategorized;
 
               weeklySummaryText = AppTextTemplates.weeklySummary(
                 expense: currentExpense,
@@ -1211,7 +1213,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       if (_isWeekMode && hasData) {
         final prevExpense = reportData['prevWeekExpense'] as double? ?? 0.0;
         final diff = expense - prevExpense;
-        final topCategory = expenseEntries.isNotEmpty ? expenseEntries.first.label : AppStrings.unknown;
+        final topCategory = expenseEntries.isNotEmpty
+            ? expenseEntries.first.label
+            : AppStrings.catUncategorized;
         weeklySummaryText = AppTextTemplates.weeklySummary(
           expense: expense,
           diff: diff,
@@ -2183,7 +2187,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         for (final r in dayRecords) {
           byCat[r.categoryKey] = (byCat[r.categoryKey] ?? 0) + r.expenseValue;
         }
-        String topCatName = AppStrings.unknown;
+        String topCatName = CategoryNameHelper.unknownCategoryName;
         double topCatValue = 0;
         if (byCat.isNotEmpty) {
           final top = byCat.entries.reduce((a, b) => a.value >= b.value ? a : b);
@@ -2197,7 +2201,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               isExpense: true,
             ),
           );
-          topCatName = cat.name;
+          topCatName = CategoryNameHelper.getSafeDisplayName(cat.name);
         }
         Record? topRecord;
         if (dayRecords.isNotEmpty) {

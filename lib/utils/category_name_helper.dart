@@ -120,11 +120,29 @@ class CategoryNameHelper {
   /// [categoryName] 分类的原始名称（来自 AppStrings 或 Category.name）
   /// 返回缩短后的名称，如果没有缩短版本则返回原始名称
   static String getDisplayName(String categoryName) {
-    return shortNameMap[categoryName] ?? categoryName;
+    final normalized = normalizeName(categoryName);
+    return shortNameMap[normalized] ?? normalized;
   }
 
-  /// 未分类的默认名称
-  static const String unknownCategoryName = '未分类';
+  /// 未分类的默认名称（统一走 AppStrings，避免多处硬编码）
+  static String get unknownCategoryName => AppStrings.catUncategorized;
+
+  /// 统一的分类名称兜底与清洗：
+  /// - null/空/“未知” -> “未分类”
+  /// - "xxx/yyy" -> "yyy"
+  static String normalizeName(String? categoryName) {
+    var v = (categoryName ?? '').trim();
+    if (v.isEmpty || v == AppStrings.unknown) return unknownCategoryName;
+    if (v.contains('/')) {
+      final parts = v.split('/').map((e) => e.trim()).where((e) => e.isNotEmpty);
+      v = parts.isEmpty ? v.replaceAll('/', ' ') : parts.last;
+    }
+    return v;
+  }
+
+  /// 安全的显示名称（可传入 null）
+  static String getSafeDisplayName(String? categoryName) =>
+      getDisplayName(normalizeName(categoryName));
 
   /// 将英文分类key转换为中文名称
   /// 
@@ -147,4 +165,3 @@ class CategoryNameHelper {
     return unknownCategoryName;
   }
 }
-

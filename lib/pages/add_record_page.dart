@@ -16,6 +16,7 @@ import '../utils/category_name_helper.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
+import '../repository/category_repository.dart';
 import '../repository/repository_factory.dart';
 import 'add_account_type_page.dart';
 import 'voice_record_page.dart';
@@ -96,8 +97,14 @@ class _AddRecordPageState extends State<AddRecordPage> {
   @override
   Widget build(BuildContext context) {
     final categories = context.watch<CategoryProvider>().categories;
-    final filtered =
-        categories.where((c) => c.isExpense == _isExpense).toList();
+    final selectedKey = _selectedCategoryKey;
+    final filtered = categories
+        .where((c) => c.isExpense == _isExpense)
+        .where((c) {
+          if (selectedKey != null && c.key == selectedKey) return true;
+          return !CategoryRepository.hiddenInRecordPickerKeys.contains(c.key);
+        })
+        .toList();
     _ensureCategorySelection(filtered);
     _ensureAccountSelection();
 
