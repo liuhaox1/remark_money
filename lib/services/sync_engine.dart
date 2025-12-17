@@ -403,6 +403,34 @@ class SyncEngine {
       // 元数据以服务器为准：不在后台做全量上传，避免频繁SQL与覆盖风险
       // 账户的新增/修改应走专用服务接口（成功后再刷新）。
 
+      // 用户在资产页修改账户后：优先上传，再用服务端回包回填 serverId/最新字段。
+      if (reason == 'accounts_changed') {
+        final localAccounts = accountProvider.accounts;
+        if (localAccounts.isNotEmpty) {
+          final payload = localAccounts
+              .map(
+                (a) => {
+                  ...a.toMap(),
+                  'updateTime':
+                      (a.updatedAt ?? DateTime.now()).toIso8601String(),
+                },
+              )
+              .toList(growable: false);
+
+          final uploadResult =
+              await _syncService.uploadAccounts(accounts: payload);
+          if (uploadResult.success && uploadResult.accounts != null) {
+            final cloudAccounts = uploadResult.accounts!;
+            await _outbox.runSuppressed(() async {
+              await DataVersionService.runWithoutIncrement(() async {
+                await accountProvider.replaceFromCloud(cloudAccounts);
+              });
+            });
+            return;
+          }
+        }
+      }
+
       final downloadResult = await _syncService.downloadAccounts();
       if (!downloadResult.success || downloadResult.accounts == null) return;
 

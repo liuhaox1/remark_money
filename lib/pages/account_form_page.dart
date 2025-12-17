@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../constants/bank_brands.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
+import '../providers/book_provider.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
 import '../widgets/app_top_bar.dart';
@@ -1117,7 +1118,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
     }
 
     try {
-      final provider = context.read<AccountProvider>();
+    final provider = context.read<AccountProvider>();
+    final bookId = context.read<BookProvider>().activeBookId;
       final accountType = _mapSubtypeToLegacy(subtype);
 
       if (isEditing && widget.account != null) {
@@ -1138,7 +1140,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
           dueDate: _dueDate,
           note: note.isEmpty ? null : note,
         );
-        await provider.updateAccount(updated);
+        await provider.updateAccount(updated, bookId: bookId);
         if (!mounted) return;
         ErrorHandler.showSuccess(context, '账户已更新');
       } else {
@@ -1160,7 +1162,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
           dueDate: _dueDate,
           note: note.isEmpty ? null : note,
         );
-        await provider.addAccount(account);
+        await provider.addAccount(account, bookId: bookId);
         if (!mounted) return;
         ErrorHandler.showSuccess(context, '账户已添加');
       }

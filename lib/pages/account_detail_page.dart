@@ -862,7 +862,12 @@ class AccountDetailPage extends StatelessWidget {
                           // 直接调整余额到目标值
                           final balanceDelta = newBalance! - account.currentBalance;
                           if (balanceDelta.abs() > 0.01) {
-                            await accountProvider.adjustBalance(account.id, balanceDelta);
+                            final bookId = context.read<BookProvider>().activeBookId;
+                            await accountProvider.adjustBalance(
+                              account.id,
+                              balanceDelta,
+                              bookId: bookId,
+                            );
                           }
 
                           if (context.mounted) {

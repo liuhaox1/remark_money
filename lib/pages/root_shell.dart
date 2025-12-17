@@ -592,7 +592,8 @@ class _AccountTile extends StatelessWidget {
 
     try {
       final accountProvider = context.read<AccountProvider>();
-      await accountProvider.deleteAccount(account.id);
+      final bookId = context.read<BookProvider>().activeBookId;
+      await accountProvider.deleteAccount(account.id, bookId: bookId);
 
       if (context.mounted) {
         ErrorHandler.showSuccess(context, '账户已删除');

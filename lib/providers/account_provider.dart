@@ -6,6 +6,7 @@ import '../models/account.dart';
 import '../repository/repository_factory.dart';
 import '../utils/error_handler.dart';
 import '../services/data_version_service.dart';
+import '../services/meta_sync_notifier.dart';
 
 class AccountProvider extends ChangeNotifier {
   AccountProvider();
@@ -55,7 +56,10 @@ class AccountProvider extends ChangeNotifier {
         initialBalance: 0,
         currentBalance: 0,
       ),
+      // 兜底钱包不应在“记一笔”链路里额外触发云同步（避免性能劣化）；
+      // 后续在 app_start/app_resumed 或资产页触发的 meta sync 再上云即可。
       bookId: bookId,
+      triggerSync: false,
     );
 
     // addAccount 内部会生成 id 并写入列表，这里取刚创建的那条
@@ -115,7 +119,11 @@ class AccountProvider extends ChangeNotifier {
 
   double get netWorth => totalAssets - totalDebts;
 
-  Future<void> addAccount(Account account, {String? bookId}) async {
+  Future<void> addAccount(
+    Account account, {
+    String? bookId,
+    bool triggerSync = true,
+  }) async {
     final nextSort =
         _accounts.isEmpty ? 0 : (_accounts.map((a) => a.sortOrder).reduce(max) + 1);
     final now = DateTime.now();
@@ -134,9 +142,16 @@ class AccountProvider extends ChangeNotifier {
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
     }
+    if (triggerSync) {
+      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+    }
   }
 
-  Future<void> updateAccount(Account updated, {String? bookId}) async {
+  Future<void> updateAccount(
+    Account updated, {
+    String? bookId,
+    bool triggerSync = true,
+  }) async {
     final index = _accounts.indexWhere((a) => a.id == updated.id);
     if (index == -1) return;
     _accounts[index] = updated.copyWith(updatedAt: DateTime.now());
@@ -145,9 +160,17 @@ class AccountProvider extends ChangeNotifier {
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
     }
+    if (triggerSync) {
+      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+    }
   }
 
-  Future<void> adjustBalance(String accountId, double delta, {String? bookId}) async {
+  Future<void> adjustBalance(
+    String accountId,
+    double delta, {
+    String? bookId,
+    bool triggerSync = true,
+  }) async {
     final index = _accounts.indexWhere((a) => a.id == accountId);
     if (index == -1) return;
     final account = _accounts[index];
@@ -160,11 +183,19 @@ class AccountProvider extends ChangeNotifier {
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
     }
+    if (triggerSync) {
+      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+    }
   }
 
   /// 调整初始余额（用于修正历史偏差）
   /// 会同时更新 currentBalance，保持余额一致性
-  Future<void> adjustInitialBalance(String accountId, double newInitialBalance, {String? bookId}) async {
+  Future<void> adjustInitialBalance(
+    String accountId,
+    double newInitialBalance, {
+    String? bookId,
+    bool triggerSync = true,
+  }) async {
     final index = _accounts.indexWhere((a) => a.id == accountId);
     if (index == -1) return;
     final account = _accounts[index];
@@ -180,14 +211,24 @@ class AccountProvider extends ChangeNotifier {
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
     }
+    if (triggerSync) {
+      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+    }
   }
 
-  Future<void> deleteAccount(String id, {String? bookId}) async {
+  Future<void> deleteAccount(
+    String id, {
+    String? bookId,
+    bool triggerSync = true,
+  }) async {
     _accounts.removeWhere((a) => a.id == id);
     await _persist();
     // 数据修改时版本号+1
     if (bookId != null) {
       await DataVersionService.incrementVersion(bookId);
+    }
+    if (triggerSync) {
+      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
     }
   }
 

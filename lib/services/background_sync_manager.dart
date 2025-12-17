@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/book_provider.dart';
+import 'meta_sync_notifier.dart';
 import 'sync_engine.dart';
 import 'sync_outbox_service.dart';
 
@@ -14,6 +15,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
   BuildContext? _context;
   StreamSubscription<String>? _outboxSub;
+  StreamSubscription<String>? _accountsSub;
   Timer? _debounce;
   Timer? _metaDebounce;
   Timer? _pollTimer;
@@ -22,10 +24,14 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   bool _syncing = false;
   bool _started = false;
   int _lastMetaSyncMs = 0;
+  final Map<String, int> _lastAccountsSyncMsByBook = <String, int>{};
   final Map<String, int> _lastSyncMsByBook = <String, int>{};
+  int _lastBackgroundAtMs = 0;
 
   // 关键：默认关闭前台轮询，避免无意义的频繁 SQL/HTTP；多人实时性后续可用 SSE/WebSocket 替代。
   static const bool _enableForegroundPolling = false;
+  static const int _resumeMinIntervalMs = 2 * 60 * 1000; // 2min
+  static const int _resumeMinBackgroundMs = 15 * 1000; // 15s
 
   void start(BuildContext context) {
     if (_started) return;
@@ -35,6 +41,10 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
     _outboxSub = SyncOutboxService.instance.onBookChanged.listen((bookId) {
       requestSync(bookId, reason: 'local_outbox_changed');
+    });
+
+    _accountsSub = MetaSyncNotifier.instance.onAccountsChanged.listen((bookId) {
+      requestMetaSync(bookId, reason: 'accounts_changed');
     });
 
     // 启动后先对当前账本做一次静默同步（拉取多设备变更）
@@ -60,6 +70,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _pendingReasonsByBook.clear();
     _outboxSub?.cancel();
     _outboxSub = null;
+    _accountsSub?.cancel();
+    _accountsSub = null;
     WidgetsBinding.instance.removeObserver(this);
     _context = null;
     _started = false;
@@ -83,6 +95,9 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     final now = DateTime.now().millisecondsSinceEpoch;
     final last = _lastSyncMsByBook[bookId] ?? 0;
     // 防抖后还需要兜底限频：避免短时间多处触发重复同步
+    if (reason == 'app_resumed' && now - last < _resumeMinIntervalMs) {
+      return;
+    }
     if (reason != 'local_outbox_changed' && now - last < 15 * 1000) {
       return;
     }
@@ -95,8 +110,15 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   void requestMetaSync(String bookId, {String reason = 'unknown'}) {
     if (bookId.isEmpty) return;
     final now = DateTime.now().millisecondsSinceEpoch;
-    // 元数据同步限频：至少间隔 10 分钟，避免账户同步造成大量 SQL
-    if (now - _lastMetaSyncMs < 10 * 60 * 1000) return;
+    // 元数据同步限频：
+    // - accounts_changed：用户在资产页修改后希望尽快上云，但要做节流/防抖
+    // - 其他原因：至少间隔 10 分钟，避免频繁 SQL
+    if (reason == 'accounts_changed') {
+      final last = _lastAccountsSyncMsByBook[bookId] ?? 0;
+      if (now - last < 8 * 1000) return;
+    } else {
+      if (now - _lastMetaSyncMs < 10 * 60 * 1000) return;
+    }
     _metaDebounce?.cancel();
     _metaDebounce = Timer(const Duration(seconds: 2), () async {
       final ctx = _context;
@@ -105,7 +127,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       try {
         debugPrint('[BackgroundSyncManager] meta sync book=$bookId reason=$reason');
         await SyncEngine().syncMeta(ctx, bookId, reason: reason);
-        _lastMetaSyncMs = DateTime.now().millisecondsSinceEpoch;
+        final doneAt = DateTime.now().millisecondsSinceEpoch;
+        _lastMetaSyncMs = doneAt;
+        if (reason == 'accounts_changed') {
+          _lastAccountsSyncMsByBook[bookId] = doneAt;
+        }
       } catch (e) {
         debugPrint('[BackgroundSyncManager] meta sync failed: $e');
       } finally {
@@ -140,14 +166,24 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _lastBackgroundAtMs = DateTime.now().millisecondsSinceEpoch;
+    }
     if (state == AppLifecycleState.resumed) {
       // 前台唤醒时对当前账本做一次静默同步（拉取多设备变更）
       final ctx = _context;
       if (ctx != null) {
         final activeBookId = ctx.read<BookProvider>().activeBookId;
         if (activeBookId.isNotEmpty) {
-          requestSync(activeBookId, reason: 'app_resumed');
-          requestMetaSync(activeBookId, reason: 'app_resumed');
+          // 部分平台会频繁触发 resumed（如窗口焦点变化），这里额外做一次“离开后台时长”过滤。
+          final now = DateTime.now().millisecondsSinceEpoch;
+          final backgroundFor = _lastBackgroundAtMs == 0 ? 0 : now - _lastBackgroundAtMs;
+          if (backgroundFor >= _resumeMinBackgroundMs) {
+            requestSync(activeBookId, reason: 'app_resumed');
+            requestMetaSync(activeBookId, reason: 'app_resumed');
+          }
         }
       }
       if (_enableForegroundPolling) {
