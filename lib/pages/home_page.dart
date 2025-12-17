@@ -21,6 +21,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 
 import '../providers/account_provider.dart';
+import '../repository/repository_factory.dart';
 
 import '../utils/date_utils.dart';
 import '../utils/error_handler.dart';
@@ -172,6 +173,11 @@ class _HomePageState extends State<HomePage> {
 
   List<Record>? _cachedRecords;
 
+  Future<List<Record>>? _periodRecordsFuture;
+  String? _periodRecordsFutureKey;
+  List<Record>? _lastPeriodRecords;
+  String? _lastPeriodRecordsKey;
+
 
 
   @override
@@ -229,6 +235,25 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _ensurePeriodRecordsFuture(
+    RecordProvider recordProvider,
+    String bookId,
+    DateTime start,
+    DateTime end,
+  ) {
+    if (!RepositoryFactory.isUsingDatabase) return;
+    final key =
+        '$bookId:${start.millisecondsSinceEpoch}-${end.millisecondsSinceEpoch}:${recordProvider.changeCounter}';
+    if (_periodRecordsFuture == null || _periodRecordsFutureKey != key) {
+      _periodRecordsFutureKey = key;
+      _periodRecordsFuture = recordProvider.recordsForPeriodAsync(
+        bookId,
+        start: start,
+        end: end,
+      );
+    }
+  }
+
 
 
   @override
@@ -264,19 +289,24 @@ class _HomePageState extends State<HomePage> {
 
 
 
-    final timeRange = _currentTimeRange();
+     final timeRange = _currentTimeRange();
 
-    final allRecords = recordProvider.recordsForPeriod(
+     _ensurePeriodRecordsFuture(
+       recordProvider,
+       bookId,
+       timeRange.start,
+       timeRange.end,
+     );
 
-      bookId,
+     final allRecords = RepositoryFactory.isUsingDatabase
+         ? (_lastPeriodRecords ?? const <Record>[])
+         : recordProvider.recordsForPeriod(
+             bookId,
+             start: timeRange.start,
+             end: timeRange.end,
+           );
 
-      start: timeRange.start,
-
-      end: timeRange.end,
-
-    );
-
-    final hasRecords = allRecords.isNotEmpty;
+     final hasRecords = allRecords.isNotEmpty;
 
     final Map<String, Category> categoryMap = {
 
@@ -284,9 +314,8 @@ class _HomePageState extends State<HomePage> {
 
     };
 
-    final filteredRecords = _applyFilters(allRecords, categoryMap);
-
-    _currentVisibleRecords = filteredRecords;
+     final filteredRecords = _applyFilters(allRecords, categoryMap);
+     _currentVisibleRecords = filteredRecords;
 
 
 
@@ -401,17 +430,35 @@ class _HomePageState extends State<HomePage> {
 
                         ),
 
-                  hasRecords
+                  RepositoryFactory.isUsingDatabase
+                      ? FutureBuilder<List<Record>>(
+                          future: _periodRecordsFuture,
+                          builder: (ctx, snap) {
+                            final all = snap.data ?? _lastPeriodRecords ?? const <Record>[];
+                            final filtered = _applyFilters(all, categoryMap);
 
-                            ? _buildMonthTimeline(
+                            final key = all.isEmpty
+                                ? '0'
+                                : '${all.length}:${all.first.id}:${all.last.id}';
+                            if (_lastPeriodRecordsKey != key) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) return;
+                                if (_lastPeriodRecordsKey == key) return;
+                                setState(() {
+                                  _lastPeriodRecordsKey = key;
+                                  _lastPeriodRecords = all;
+                                  _currentVisibleRecords = filtered;
+                                });
+                              });
+                            }
 
-                                filteredRecords,
-
-                                categoryMap,
-
-                              )
-
-                            : _buildEmptyState(context),
+                            if (all.isEmpty) return _buildEmptyState(context);
+                            return _buildMonthTimeline(filtered, categoryMap);
+                          },
+                        )
+                      : (hasRecords
+                          ? _buildMonthTimeline(filteredRecords, categoryMap)
+                          : _buildEmptyState(context)),
 
                     ],
 
