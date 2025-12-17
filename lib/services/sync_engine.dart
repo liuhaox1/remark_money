@@ -556,8 +556,48 @@ class SyncEngine {
           await accountProvider.replaceFromCloud(cloudAccounts);
         });
       });
+
+      await _repairLegacyRecordAccountIds(context, bookId);
     } catch (e) {
       debugPrint('[SyncEngine] account sync failed: $e');
+    }
+  }
+
+  Future<void> _repairLegacyRecordAccountIds(
+    BuildContext context,
+    String bookId,
+  ) async {
+    final accountProvider = context.read<AccountProvider>();
+    final recordProvider = context.read<RecordProvider>();
+
+    final byLegacy = <String, String>{};
+    for (final a in accountProvider.accounts) {
+      final sid = a.serverId;
+      if (sid == null) continue;
+      byLegacy['server_$sid'] = a.id;
+      byLegacy['$sid'] = a.id;
+    }
+    if (byLegacy.isEmpty) return;
+
+    final records = recordProvider.recordsForBook(bookId);
+    if (records.isEmpty) return;
+
+    var changed = 0;
+    await DataVersionService.runWithoutIncrement(() async {
+      for (final r in records) {
+        final mapped = byLegacy[r.accountId];
+        if (mapped == null || mapped == r.accountId) continue;
+        await recordProvider.updateRecord(
+          r.copyWith(accountId: mapped),
+          accountProvider: accountProvider,
+        );
+        changed++;
+      }
+    });
+
+    if (changed > 0) {
+      debugPrint(
+          '[SyncEngine] migrated $changed legacy record accountIds for book=$bookId');
     }
   }
 }

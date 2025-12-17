@@ -235,9 +235,40 @@ class AccountProvider extends ChangeNotifier {
   /// 云端覆盖本地账户列表（用于透明同步）。
   /// 不递增版本号，避免同步回环。
   Future<void> replaceFromCloud(List<Map<String, dynamic>> cloudAccounts) async {
+    final localById = <String, Account>{};
+    for (final a in _accounts) {
+      localById[a.id] = a;
+    }
+
+    final next = <Account>[];
+    final seen = <String>{};
+
+    // 云端为“元数据来源”，但余额来自本地记账记录/手动调整：避免每次拉云端把余额覆盖回旧值。
+    for (final raw in cloudAccounts) {
+      final cloud = Account.fromMap(raw);
+      final local = localById[cloud.id];
+      final merged = local == null
+          ? cloud
+          : cloud.copyWith(
+              initialBalance: local.initialBalance,
+              currentBalance: local.currentBalance,
+              createdAt: local.createdAt ?? cloud.createdAt,
+              updatedAt: local.updatedAt ?? cloud.updatedAt,
+            );
+      next.add(merged);
+      seen.add(merged.id);
+    }
+
+    // 保留云端暂未返回的本地账户（避免丢失记录引用，导致资产统计对不上）
+    for (final local in _accounts) {
+      if (seen.contains(local.id)) continue;
+      next.add(local);
+    }
+
     _accounts
       ..clear()
-      ..addAll(cloudAccounts.map(Account.fromMap));
+      ..addAll(next);
+
     await _repository.saveAccounts(_accounts);
     notifyListeners();
   }
