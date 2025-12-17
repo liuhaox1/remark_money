@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/account.dart';
+import '../models/record.dart';
 import '../repository/repository_factory.dart';
 import '../utils/error_handler.dart';
 import '../services/data_version_service.dart';
@@ -100,11 +101,69 @@ class AccountProvider extends ChangeNotifier {
         ..addAll(list);
       _loaded = true;
       _rebuildDefaultWalletAliases();
+      await _rebuildBalancesFromRecordsIfPossible();
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('AccountProvider.load', e, stackTrace);
       _loaded = false;
       rethrow;
+    }
+  }
+
+  Future<void> _rebuildBalancesFromRecordsIfPossible() async {
+    if (_accounts.isEmpty) return;
+
+    try {
+      final recordRepo = RepositoryFactory.createRecordRepository();
+
+      Map<String, double> rawDeltas = {};
+      if (RepositoryFactory.isUsingDatabase) {
+        final result = await (recordRepo as dynamic).getAllAccountDeltas();
+        if (result is Map) {
+          rawDeltas = result.map(
+            (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
+          );
+        }
+      } else {
+        final records = await (recordRepo as dynamic).loadRecords() as List<Record>;
+        for (final r in records) {
+          final baseDelta = r.isIncome ? r.amount : -r.amount;
+          rawDeltas[r.accountId] = (rawDeltas[r.accountId] ?? 0) + baseDelta;
+        }
+      }
+
+      if (rawDeltas.isEmpty) return;
+
+      // 将“历史默认钱包”等别名账户的流水合并到 canonical 账户，避免余额对不上。
+      final canonicalDeltas = <String, double>{};
+      for (final entry in rawDeltas.entries) {
+        final canonicalId = _resolveId(entry.key);
+        canonicalDeltas[canonicalId] =
+            (canonicalDeltas[canonicalId] ?? 0) + entry.value;
+      }
+
+      var changed = false;
+      for (var i = 0; i < _accounts.length; i++) {
+        final a = _accounts[i];
+        // 不更新 alias（隐藏账户），只维护 canonical 的余额
+        if (_idAliases.containsKey(a.id)) continue;
+        final delta = canonicalDeltas[a.id] ?? 0;
+        final expected = a.initialBalance + delta;
+        if ((a.currentBalance - expected).abs() <= 0.01) continue;
+        _accounts[i] = a.copyWith(
+          currentBalance: expected,
+          updatedAt: DateTime.now(),
+        );
+        changed = true;
+      }
+
+      if (!changed) return;
+
+      // 余额是“由流水推导”的派生数据：修正后直接落库，但不触发云端元数据同步/版本号递增。
+      await _repository.saveAccounts(_accounts);
+      _rebuildDefaultWalletAliases();
+    } catch (_) {
+      // 忽略：不影响主流程，最多导致余额无法自动修复。
     }
   }
 
@@ -132,11 +191,11 @@ class AccountProvider extends ChangeNotifier {
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
   }
 
-  double get totalAssets => _accounts
+  double get totalAssets => accounts
       .where((a) => a.includeInOverview && a.kind != AccountKind.liability)
       .fold(0, (sum, a) => sum + a.currentBalance);
 
-  double get totalDebts => _accounts
+  double get totalDebts => accounts
       .where((a) => a.includeInOverview && a.kind == AccountKind.liability)
       .fold(0, (sum, a) => sum + a.currentBalance.abs());
 

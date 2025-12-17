@@ -494,6 +494,35 @@ class RecordRepositoryDb {
     );
   }
 
+  /// 账户余额聚合（跨账本）：按 account_id 汇总所有流水的增量，用于修复“余额对不上”。
+  ///
+  /// - 支出：-amount
+  /// - 收入：+amount
+  Future<Map<String, double>> getAllAccountDeltas() async {
+    try {
+      final db = await _dbHelper.database;
+      final rows = await db.rawQuery(
+        'SELECT account_id, '
+        'COALESCE(SUM(CASE WHEN is_expense = 1 THEN -amount ELSE amount END), 0) AS delta '
+        'FROM ${Tables.records} '
+        'GROUP BY account_id',
+      );
+
+      final result = <String, double>{};
+      for (final row in rows) {
+        final accountId = row['account_id'] as String?;
+        if (accountId == null || accountId.isEmpty) continue;
+        final delta = (row['delta'] as num?)?.toDouble() ?? 0.0;
+        result[accountId] = delta;
+      }
+      return result;
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] getAllAccountDeltas failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return const {};
+    }
+  }
+
   /// 使用SQL聚合查询获取月份统计（高效）
   Future<Map<String, double>> getMonthStats({
     required String bookId,

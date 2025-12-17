@@ -1121,7 +1121,12 @@ class RecordProvider extends ChangeNotifier {
     if (target == null) return;
     final baseDelta = record.isIncome ? record.amount : -record.amount;
     final delta = reverse ? -baseDelta : baseDelta;
-    await accountProvider.adjustBalance(record.accountId, delta);
+    // 余额变化来自流水，不应触发“账户元数据同步”（否则每记一笔都会触发 accounts_changed -> 大量SQL/轮询）。
+    await accountProvider.adjustBalance(
+      record.accountId,
+      delta,
+      triggerSync: false,
+    );
   }
 }
 

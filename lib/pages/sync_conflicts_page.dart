@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/record.dart';
+import '../providers/account_provider.dart';
 import '../providers/record_provider.dart';
 import '../repository/repository_factory.dart';
 import '../services/data_version_service.dart';
@@ -105,8 +106,9 @@ class _SyncConflictsPageState extends State<SyncConflictsPage> {
 
     await _outbox.runSuppressed(() async {
       await DataVersionService.runWithoutIncrement(() async {
+        final accountProvider = context.read<AccountProvider>();
         if (local != null) {
-          await recordProvider.updateRecord(next);
+          await recordProvider.updateRecord(next, accountProvider: accountProvider);
           await recordProvider.setServerSyncState(
             local.id,
             serverId: serverId,
@@ -123,6 +125,7 @@ class _SyncConflictsPageState extends State<SyncConflictsPage> {
             direction: next.direction,
             includeInStats: next.includeInStats,
             pairId: next.pairId,
+            accountProvider: accountProvider,
           );
           await recordProvider.setServerSyncState(
             created.id,
