@@ -1476,15 +1476,17 @@ class _HeaderCard extends StatelessWidget {
   final VoidCallback onNextPeriod;
 
   @override
-    Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
       final brand = Theme.of(context).extension<BrandTheme>();
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          gradient: isDark ? null : brand?.headerGradient,
-          color: isDark ? cs.surfaceContainerHighest : null,
+          gradient: brand?.headerGradient,
+          border: Border.all(
+            color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
+          ),
           borderRadius: BorderRadius.circular(24),
           boxShadow: isDark ? null : brand?.headerShadow,
         ),
@@ -1513,17 +1515,17 @@ class _HeaderCard extends StatelessWidget {
                   _SummaryItem(
                     label: AppStrings.income,
                     value: income,
-                    color: isDark ? cs.onSurface : cs.onPrimary,
+                    color: cs.onSurface,
                   ),
                   _SummaryItem(
                     label: AppStrings.expense,
                     value: expense,
-                    color: isDark ? cs.onSurface : cs.onPrimary,
+                    color: cs.onSurface,
                   ),
                   _SummaryItem(
                     label: AppStrings.balance,
                     value: balance,
-                    color: isDark ? cs.onSurface : cs.onPrimary,
+                    color: cs.onSurface,
                   ),
                 ],
               ),

@@ -695,25 +695,18 @@ class _ProfilePageState extends State<ProfilePage> {
       required bool isLoggedIn,
     }) {
     final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final brand = theme.extension<BrandTheme>();
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          colors: [
-            cs.primary.withOpacity(0.85),
-            cs.primaryContainer.withOpacity(0.9),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        gradient: brand?.headerGradient,
+        border: Border.all(
+          color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).shadowColor.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        boxShadow: isDark ? null : brand?.headerShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -725,11 +718,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   onTap: () => _openAccountSettings(isLoggedIn),
                   child: CircleAvatar(
                     radius: 28,
-                    backgroundColor: cs.onPrimary.withOpacity(0.18),
+                    backgroundColor: cs.primary.withOpacity(isDark ? 0.22 : 0.14),
                     child: Icon(
                       Icons.person_outline,
                       size: 30,
-                      color: cs.onPrimary,
+                      color: cs.onSurface,
                     ),
                   ),
                 ),
@@ -740,16 +733,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: cs.onPrimary,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                            color: cs.onSurface,
                             fontWeight: FontWeight.w700,
                           ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: cs.onPrimary.withOpacity(0.85),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurface.withOpacity(0.72),
                           ),
                     ),
                   ],
@@ -803,13 +796,13 @@ class _ProfilePageState extends State<ProfilePage> {
             style: Theme.of(context)
                 .textTheme
                 .labelMedium
-                ?.copyWith(color: cs.onPrimary.withOpacity(0.85)),
+                ?.copyWith(color: cs.onSurface.withOpacity(0.72)),
           ),
           const SizedBox(height: 4),
           Text(
             value,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: cs.onPrimary,
+                  color: cs.onSurface,
                   fontWeight: FontWeight.w700,
                 ),
             overflow: TextOverflow.ellipsis,
@@ -1039,11 +1032,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      Text(
-                        '质感',
-                        style: tt.labelLarge?.copyWith(color: cs.onSurface),
-                      ),
-                      const SizedBox(height: 6),
                     ],
                   ),
                 ),

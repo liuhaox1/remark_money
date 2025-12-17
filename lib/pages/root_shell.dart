@@ -422,8 +422,10 @@ class _AssetsPageBody extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            gradient: isDark ? null : brand?.headerGradient,
-            color: isDark ? cs.surfaceContainerHighest : null,
+            gradient: brand?.headerGradient,
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
+            ),
             borderRadius: BorderRadius.circular(24),
             boxShadow: isDark ? null : brand?.headerShadow,
           ),
@@ -435,7 +437,7 @@ class _AssetsPageBody extends StatelessWidget {
 	                style: theme.textTheme.labelMedium?.copyWith(
 	                  fontSize: 12,
 	                  fontWeight: FontWeight.w600,
-	                  color: cs.onPrimary.withOpacity(0.9),
+	                  color: cs.onSurface.withOpacity(0.8),
 	                ),
 	              ),
               const SizedBox(height: 2),
@@ -444,7 +446,7 @@ class _AssetsPageBody extends StatelessWidget {
 	                style: theme.textTheme.headlineSmall?.copyWith(
 	                  fontSize: 24,
 	                  fontWeight: FontWeight.w600,
-	                  color: cs.onPrimary,
+	                  color: cs.onSurface,
 	                ),
 	            ),
             const SizedBox(height: 8),
@@ -566,6 +568,36 @@ class _AccountTile extends StatelessWidget {
   final bool isLast;
 
   Future<void> _handleDelete(BuildContext context) async {
+    final accountProvider = context.read<AccountProvider>();
+    final recordProvider = context.read<RecordProvider>();
+    final bookId = context.read<BookProvider>().activeBookId;
+
+    // 1) 账户下还有流水：不允许删除（否则余额必然对不上/出现异常）
+    final resolvedTargetId = account.id;
+    final usedCount = recordProvider
+        .recordsForBook(bookId)
+        .where((r) => accountProvider.byId(r.accountId)?.id == resolvedTargetId)
+        .length;
+    if (usedCount > 0) {
+      ErrorHandler.showError(context, '该账户下还有 $usedCount 笔记录，无法删除。请先迁移或删除相关记录。');
+      return;
+    }
+
+    // 2) 至少保留一个账户（记一笔/对账都需要稳定账户）
+    if (accountProvider.accounts.length <= 1) {
+      ErrorHandler.showError(context, '至少需要保留一个账户');
+      return;
+    }
+
+    // 3) 默认钱包不允许删除（避免“删了又回来”的体验）
+    final isDefaultWallet = account.id == 'default_wallet' ||
+        account.brandKey == 'default_wallet' ||
+        account.name.trim() == '默认钱包';
+    if (isDefaultWallet) {
+      ErrorHandler.showError(context, '默认钱包无法删除');
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -591,8 +623,6 @@ class _AccountTile extends StatelessWidget {
     if (!confirmed) return;
 
     try {
-      final accountProvider = context.read<AccountProvider>();
-      final bookId = context.read<BookProvider>().activeBookId;
       await accountProvider.deleteAccount(account.id, bookId: bookId);
 
       if (context.mounted) {

@@ -245,8 +245,18 @@ class AppTheme {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        cs.primary.withOpacity(isDark ? 0.85 : 0.92),
-        cs.primaryContainer.withOpacity(isDark ? 0.6 : 0.9),
+        Color.lerp(
+              cs.surfaceContainerHighest,
+              cs.primary,
+              isDark ? 0.10 : 0.06,
+            ) ??
+            cs.surfaceContainerHighest,
+        Color.lerp(
+              cs.surfaceContainerHigh,
+              cs.primary,
+              isDark ? 0.06 : 0.03,
+            ) ??
+            cs.surfaceContainerHigh,
       ],
     );
 

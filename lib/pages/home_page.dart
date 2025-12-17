@@ -157,6 +157,10 @@ class _HomePageState extends State<HomePage> {
   double? _cachedMonthExpense;
   int? _lastRecordChangeCounter;
   DateTime? _lastMonthKey;
+  String? _lastMonthStatsRequestKey;
+  int _monthStatsRequestSeq = 0;
+  bool _monthStatsLoading = false;
+  RecordProvider? _recordProviderListener;
 
   // 添加缓存来存储每天的统计信息
 
@@ -207,22 +211,21 @@ class _HomePageState extends State<HomePage> {
     final selectedMonth = DateTime(_selectedDay.year, _selectedDay.month, 1);
     final currentChangeCounter = recordProvider.changeCounter;
 
-    // 记录增删改或跨月切换后：本页的月度汇总缓存需要失效，否则顶部统计会“卡住”不变。
-    if (_lastRecordChangeCounter != currentChangeCounter ||
-        _lastMonthKey == null ||
-        _lastMonthKey != selectedMonth) {
-      _lastRecordChangeCounter = currentChangeCounter;
-      _lastMonthKey = selectedMonth;
-      _cachedMonthIncome = null;
-      _cachedMonthExpense = null;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadMonthStats());
-    }
+    _lastRecordChangeCounter = currentChangeCounter;
+    _lastMonthKey = selectedMonth;
+
+    final requestKey =
+        '$bookId:${selectedMonth.year}-${selectedMonth.month}:$currentChangeCounter';
+    if (_monthStatsLoading && _lastMonthStatsRequestKey == requestKey) return;
+    _lastMonthStatsRequestKey = requestKey;
+    _monthStatsLoading = true;
+    final seq = ++_monthStatsRequestSeq;
     
     try {
       final income = await recordProvider.monthIncomeAsync(selectedMonth, bookId);
       final expense = await recordProvider.monthExpenseAsync(selectedMonth, bookId);
       
-      if (mounted) {
+      if (mounted && seq == _monthStatsRequestSeq) {
         setState(() {
           _cachedMonthIncome = income;
           _cachedMonthExpense = expense;
@@ -231,6 +234,10 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       // 静默处理错误，使用同步方法的结果
       debugPrint('[HomePage] Failed to load month stats: $e');
+    } finally {
+      if (seq == _monthStatsRequestSeq) {
+        _monthStatsLoading = false;
+      }
     }
   }
 
@@ -478,7 +485,50 @@ class _HomePageState extends State<HomePage> {
 
   @override
 
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final recordProvider = context.read<RecordProvider>();
+    if (!identical(_recordProviderListener, recordProvider)) {
+      _recordProviderListener?.removeListener(_handleRecordProviderChanged);
+      _recordProviderListener = recordProvider;
+      _recordProviderListener?.addListener(_handleRecordProviderChanged);
+    }
+  }
+
+  void _handleRecordProviderChanged() {
+    if (!mounted) return;
+    final recordProvider = _recordProviderListener;
+    if (recordProvider == null) return;
+
+    final selectedMonth = DateTime(_selectedDay.year, _selectedDay.month, 1);
+    final currentChangeCounter = recordProvider.changeCounter;
+
+    final shouldInvalidate = _lastRecordChangeCounter != currentChangeCounter ||
+        _lastMonthKey == null ||
+        _lastMonthKey != selectedMonth;
+
+    if (!shouldInvalidate) return;
+
+    _lastRecordChangeCounter = currentChangeCounter;
+    _lastMonthKey = selectedMonth;
+
+    if (_cachedMonthIncome != null || _cachedMonthExpense != null) {
+      setState(() {
+        _cachedMonthIncome = null;
+        _cachedMonthExpense = null;
+      });
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadMonthStats();
+    });
+  }
+
+  @override
+
   void dispose() {
+    _recordProviderListener?.removeListener(_handleRecordProviderChanged);
+    _recordProviderListener = null;
 
     _searchFocusNode.removeListener(_handleSearchFocusChange);
 
@@ -4809,6 +4859,7 @@ class _BalanceCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     final cs = theme.colorScheme;
+    final brand = theme.extension<BrandTheme>();
 
     final isDark = theme.brightness == Brightness.dark;
 
@@ -4825,18 +4876,13 @@ class _BalanceCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
 
           decoration: BoxDecoration(
-            gradient: isDark ? null : theme.extension<BrandTheme>()?.headerGradient,
-            color: isDark ? cs.surfaceContainerHighest : null,
-
-          borderRadius: BorderRadius.circular(24),
-
-          boxShadow: isDark
-
-              ? null
-
-              : theme.extension<BrandTheme>()?.headerShadow,
-
-        ),
+            gradient: brand?.headerGradient,
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: isDark ? null : brand?.headerShadow,
+          ),
 
         child: Column(
 
