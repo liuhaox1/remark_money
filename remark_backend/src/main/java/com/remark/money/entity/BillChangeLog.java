@@ -11,6 +11,17 @@ public class BillChangeLog {
   private Long billVersion;
   private LocalDateTime createdAt;
 
+  public BillChangeLog() {
+  }
+
+  public BillChangeLog(String bookId, Long scopeUserId, Long billId, Integer op, Long billVersion) {
+    this.bookId = bookId;
+    this.scopeUserId = scopeUserId;
+    this.billId = billId;
+    this.op = op;
+    this.billVersion = billVersion;
+  }
+
   public Long getChangeId() {
     return changeId;
   }

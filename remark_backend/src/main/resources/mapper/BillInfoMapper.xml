@@ -71,6 +71,17 @@
     </foreach>
   </insert>
 
+  <!-- v2: batch insert with explicit auto-increment ids (client-allocated) -->
+  <insert id="batchInsertWithId">
+    INSERT INTO bill_info (id, user_id, book_id, account_id, category_key, amount, direction,
+                          remark, attachment_url, bill_date, include_in_stats, pair_id, is_delete, update_time, created_at)
+    VALUES
+    <foreach collection="list" item="item" separator=",">
+      (#{item.id}, #{item.userId}, #{item.bookId}, #{item.accountId}, #{item.categoryKey}, #{item.amount}, #{item.direction},
+       #{item.remark}, #{item.attachmentUrl}, #{item.billDate}, #{item.includeInStats}, #{item.pairId}, #{item.isDelete}, NOW(), NOW())
+    </foreach>
+  </insert>
+
 
   <update id="updateById">
     UPDATE bill_info SET

@@ -99,4 +99,39 @@ public class SyncV2Controller {
       return ResponseEntity.status(500).body(resp);
     }
   }
+
+  @PostMapping("/ids/allocate")
+  public ResponseEntity<Map<String, Object>> allocateIds(
+      @RequestHeader("Authorization") String token,
+      @RequestBody Map<String, Object> request) {
+    try {
+      getUserIdFromToken(token); // validate token
+      Integer count = null;
+      Object c = request.get("count");
+      if (c instanceof Number) count = ((Number) c).intValue();
+      if (c instanceof String) {
+        try {
+          count = Integer.parseInt(((String) c).trim());
+        } catch (Exception ignored) {
+        }
+      }
+      if (count == null) count = 200;
+      Map<String, Object> resp = syncV2Service.allocateBillIds(count);
+      if (log.isDebugEnabled()) {
+        log.debug("SyncV2 allocateIds count={} startId={} endId={} reqId={} deviceId={}",
+            resp.get("count"),
+            resp.get("startId"),
+            resp.get("endId"),
+            request.get("reqId"),
+            request.get("deviceId"));
+      }
+      return ResponseEntity.ok(resp);
+    } catch (Exception e) {
+      log.error("Sync v2 allocate ids error", e);
+      Map<String, Object> resp = new HashMap<>();
+      resp.put("success", false);
+      resp.put("error", e.getMessage());
+      return ResponseEntity.status(500).body(resp);
+    }
+  }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../services/user_stats_service.dart';
 
-/// 用户统计卡片组件
 class UserStatsCard extends StatefulWidget {
   const UserStatsCard({super.key});
 
@@ -21,65 +21,19 @@ class _UserStatsCardState extends State<UserStatsCard> {
 
   Future<void> _loadStats() async {
     final stats = await UserStatsService.getStats();
-    if (mounted) {
-      setState(() {
-        _stats = stats;
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _handleCheckIn() async {
-    // 先更新UI状态，显示"已签到"
-    setState(() {
-      _isLoading = true;
-    });
-    
-    final success = await UserStatsService.checkIn();
     if (!mounted) return;
-    
-    if (success) {
-      // 立即刷新统计数据
-      await _loadStats();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('签到成功！'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } else {
-      // 即使失败也要刷新状态
-      await _loadStats();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('今天已经签到过了'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    }
+    setState(() {
+      _stats = stats;
+      _isLoading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const SizedBox.shrink();
-    }
-
-    if (_stats == null) {
-      return const SizedBox.shrink();
-    }
+    if (_isLoading || _stats == null) return const SizedBox.shrink();
 
     final cs = Theme.of(context).colorScheme;
-    final isCheckedIn = _stats!.lastCheckInDate != null &&
-        DateTime.now().year == _stats!.lastCheckInDate!.year &&
-        DateTime.now().month == _stats!.lastCheckInDate!.month &&
-        DateTime.now().day == _stats!.lastCheckInDate!.day;
+    final tt = Theme.of(context).textTheme;
 
     return Card(
       color: cs.surface,
@@ -90,38 +44,18 @@ class _UserStatsCardState extends State<UserStatsCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '我的统计',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: cs.onSurface,
-                      ),
-                ),
-                // 签到按钮
-                OutlinedButton.icon(
-                  onPressed: isCheckedIn ? null : _handleCheckIn,
-                  icon: Icon(
-                    isCheckedIn ? Icons.check_circle : Icons.calendar_today,
-                    size: 16,
-                  ),
-                  label: Text(isCheckedIn ? '已签到' : '签到'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ],
+            Text(
+              '我的统计',
+              style: tt.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: cs.onSurface,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
-                  child: _buildStatItem(
-                    context,
+                  child: _StatItem(
                     label: '连续记账',
                     value: '${_stats!.consecutiveDays}天',
                     icon: Icons.trending_up,
@@ -130,8 +64,7 @@ class _UserStatsCardState extends State<UserStatsCard> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildStatItem(
-                    context,
+                  child: _StatItem(
                     label: '累计记账',
                     value: '${_stats!.totalDays}天',
                     icon: Icons.calendar_today,
@@ -145,14 +78,23 @@ class _UserStatsCardState extends State<UserStatsCard> {
       ),
     );
   }
+}
 
-  Widget _buildStatItem(
-    BuildContext context, {
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
+class _StatItem extends StatelessWidget {
+  const _StatItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     return Container(
@@ -189,3 +131,4 @@ class _UserStatsCardState extends State<UserStatsCard> {
     );
   }
 }
+

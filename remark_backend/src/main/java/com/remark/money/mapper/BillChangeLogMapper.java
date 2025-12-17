@@ -14,6 +14,8 @@ public interface BillChangeLogMapper {
               @Param("op") Integer op,
               @Param("billVersion") Long billVersion);
 
+  void batchInsert(@Param("list") List<BillChangeLog> list);
+
   int countForScope(@Param("bookId") String bookId,
                     @Param("scopeUserId") Long scopeUserId);
 

@@ -162,6 +162,19 @@ class Account {
   }
 
   factory Account.fromMap(Map<String, dynamic> map) {
+    bool _asBool(dynamic v) {
+      if (v == null) return false;
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      if (v is String) {
+        final s = v.trim().toLowerCase();
+        if (s.isEmpty) return false;
+        if (s == 'true' || s == '1' || s == 'yes' || s == 'y') return true;
+        if (s == 'false' || s == '0' || s == 'no' || s == 'n') return false;
+      }
+      return false;
+    }
+
     final parsedKind = () {
       final rawKind = map['category'] as String? ?? map['kind'] as String?;
       if (rawKind != null) {
@@ -194,10 +207,16 @@ class Account {
         orElse: () => AccountType.cash,
       ),
       icon: map['icon'] as String? ?? 'wallet',
-      includeInTotal:
-          map['includeInTotal'] as bool? ?? map['includeInOverview'] as bool? ?? true,
-      includeInOverview:
-          map['includeInOverview'] as bool? ?? map['includeInTotal'] as bool? ?? true,
+      includeInTotal: (map.containsKey('includeInTotal') || map.containsKey('include_in_total'))
+          ? _asBool(map['includeInTotal'] ?? map['include_in_total'])
+          : ((map.containsKey('includeInOverview') || map.containsKey('include_in_overview'))
+              ? _asBool(map['includeInOverview'] ?? map['include_in_overview'])
+              : true),
+      includeInOverview: (map.containsKey('includeInOverview') || map.containsKey('include_in_overview'))
+          ? _asBool(map['includeInOverview'] ?? map['include_in_overview'])
+          : ((map.containsKey('includeInTotal') || map.containsKey('include_in_total'))
+              ? _asBool(map['includeInTotal'] ?? map['include_in_total'])
+              : true),
       currency: map['currency'] as String? ?? 'CNY',
       sortOrder: map['sortOrder'] as int? ?? 0,
       initialBalance: (map['initialBalance'] as num?)?.toDouble() ??

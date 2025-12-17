@@ -169,7 +169,10 @@ public class SyncController {
 
   private Map<String, Object> convertAccountInfo(AccountInfo account) {
     Map<String, Object> map = new HashMap<>();
-    map.put("id", account.getId());
+    // 客户端用于关联账单的稳定账户ID（account_info.account_id）
+    map.put("id", account.getAccountId());
+    // 服务器自增ID（用于客户端去重/更新）
+    map.put("serverId", account.getId());
     map.put("name", account.getName());
     map.put("kind", account.getKind());
     map.put("subtype", account.getSubtype());
@@ -197,4 +200,3 @@ public class SyncController {
     return map;
   }
 }
-

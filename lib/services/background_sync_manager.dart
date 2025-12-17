@@ -18,7 +18,6 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   StreamSubscription<String>? _accountsSub;
   Timer? _debounce;
   Timer? _metaDebounce;
-  Timer? _pollTimer;
   final Set<String> _pendingBooks = <String>{};
   final Map<String, String> _pendingReasonsByBook = <String, String>{};
   bool _syncing = false;
@@ -26,12 +25,12 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   int _lastMetaSyncMs = 0;
   final Map<String, int> _lastAccountsSyncMsByBook = <String, int>{};
   final Map<String, int> _lastSyncMsByBook = <String, int>{};
-  int _lastBackgroundAtMs = 0;
+  int _lastPausedAtMs = 0;
 
-  // 关键：默认关闭前台轮询，避免无意义的频繁 SQL/HTTP；多人实时性后续可用 SSE/WebSocket 替代。
-  static const bool _enableForegroundPolling = false;
-  static const int _resumeMinIntervalMs = 2 * 60 * 1000; // 2min
-  static const int _resumeMinBackgroundMs = 15 * 1000; // 15s
+  // 关键：减少无意义的同步触发（尤其是桌面端/部分机型会频繁触发 resumed）。
+  // 多人账本的“实时性”后续用 SSE/WebSocket 来做；当前版本优先保证性能与稳定。
+  static const int _resumeMinIntervalMs = 5 * 60 * 1000; // 5min
+  static const int _resumeMinBackgroundMs = 30 * 1000; // 30s
 
   void start(BuildContext context) {
     if (_started) return;
@@ -53,10 +52,6 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       requestSync(activeBookId, reason: 'app_start');
       requestMetaSync(activeBookId, reason: 'app_start');
     }
-
-    if (_enableForegroundPolling) {
-      _startPollTimer();
-    }
   }
 
   void stop() {
@@ -64,8 +59,6 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _debounce = null;
     _metaDebounce?.cancel();
     _metaDebounce = null;
-    _pollTimer?.cancel();
-    _pollTimer = null;
     _pendingBooks.clear();
     _pendingReasonsByBook.clear();
     _outboxSub?.cancel();
@@ -75,18 +68,6 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _context = null;
     _started = false;
-  }
-
-  void _startPollTimer() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      final ctx = _context;
-      if (ctx == null) return;
-      final activeBookId = ctx.read<BookProvider>().activeBookId;
-      if (activeBookId.isNotEmpty) {
-        requestSync(activeBookId, reason: 'poll_20s');
-      }
-    });
   }
 
   void requestSync(String bookId, {String reason = 'unknown'}) {
@@ -166,10 +147,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.detached) {
-      _lastBackgroundAtMs = DateTime.now().millisecondsSinceEpoch;
+    if (state == AppLifecycleState.paused) {
+      _lastPausedAtMs = DateTime.now().millisecondsSinceEpoch;
     }
     if (state == AppLifecycleState.resumed) {
       // 前台唤醒时对当前账本做一次静默同步（拉取多设备变更）
@@ -177,17 +156,16 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       if (ctx != null) {
         final activeBookId = ctx.read<BookProvider>().activeBookId;
         if (activeBookId.isNotEmpty) {
-          // 部分平台会频繁触发 resumed（如窗口焦点变化），这里额外做一次“离开后台时长”过滤。
           final now = DateTime.now().millisecondsSinceEpoch;
-          final backgroundFor = _lastBackgroundAtMs == 0 ? 0 : now - _lastBackgroundAtMs;
+          // 部分平台会频繁触发 resumed（如窗口焦点变化），这里只接受“确实 paused 过”的恢复。
+          final pausedAt = _lastPausedAtMs;
+          _lastPausedAtMs = 0;
+          final backgroundFor = pausedAt == 0 ? 0 : now - pausedAt;
           if (backgroundFor >= _resumeMinBackgroundMs) {
             requestSync(activeBookId, reason: 'app_resumed');
             requestMetaSync(activeBookId, reason: 'app_resumed');
           }
         }
-      }
-      if (_enableForegroundPolling) {
-        _startPollTimer();
       }
     }
   }

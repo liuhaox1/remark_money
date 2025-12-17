@@ -73,8 +73,16 @@ class SyncEngine {
     final recordProvider = context.read<RecordProvider>();
 
     while (true) {
-      final pending = await _outbox.loadPending(bookId, limit: 200);
+      // 批处理性能关键：尽量把同一本账本的 outbox 聚合到一次 push
+      final pending = await _outbox.loadPending(bookId, limit: 1000);
       if (pending.isEmpty) return;
+
+      await _assignServerIdsForCreates(
+        context,
+        bookId,
+        pending,
+        reason: reason,
+      );
 
       final ops = pending.map((e) => e.payload).toList(growable: false);
       final resp = await _syncService.v2Push(
@@ -118,6 +126,8 @@ class SyncEngine {
 
         final status = r['status'] as String?;
         if (status == 'applied') {
+          // 如果之前同一个 opId 曾被记录为冲突/错误，成功后自动移除，避免残留提示。
+          await SyncV2ConflictStore.remove(bookId, opId: opId);
           final type = item.payload['type'] as String?;
           if (type == 'upsert') {
             final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
@@ -134,6 +144,49 @@ class SyncEngine {
           }
           toDelete.add(item);
         } else if (status == 'conflict') {
+          final type = item.payload['type'] as String?;
+          final serverBill = (r['serverBill'] as Map?)?.cast<String, dynamic>();
+          if (type == 'upsert' && serverBill != null) {
+            final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
+            final localId = bill?['localId'] as String?;
+
+            bool numEq(dynamic a, dynamic b) {
+              if (a == null && b == null) return true;
+              if (a is num && b is num) return (a - b).abs() < 0.0001;
+              return a?.toString() == b?.toString();
+            }
+
+            final same = bill != null &&
+                (bill['bookId']?.toString() == serverBill['bookId']?.toString()) &&
+                (bill['accountId']?.toString() == serverBill['accountId']?.toString()) &&
+                (bill['categoryKey']?.toString() ==
+                    serverBill['categoryKey']?.toString()) &&
+                numEq(bill['amount'], serverBill['amount']) &&
+                (bill['direction']?.toString() == serverBill['direction']?.toString()) &&
+                (bill['remark']?.toString() == serverBill['remark']?.toString()) &&
+                (bill['billDate']?.toString() == serverBill['billDate']?.toString()) &&
+                (bill['includeInStats']?.toString() ==
+                    serverBill['includeInStats']?.toString()) &&
+                (bill['pairId']?.toString() == serverBill['pairId']?.toString()) &&
+                (bill['isDelete']?.toString() == serverBill['isDelete']?.toString());
+
+            if (same && localId != null) {
+              final serverId =
+                  (r['serverId'] as int?) ?? (serverBill['serverId'] as int?);
+              final version = r['version'] as int?;
+              if (serverId != null) {
+                await recordProvider.setServerSyncState(
+                  localId,
+                  serverId: serverId,
+                  serverVersion: version,
+                );
+                await SyncV2ConflictStore.remove(bookId, opId: opId);
+                toDelete.add(item);
+                continue;
+              }
+            }
+          }
+
           await SyncV2ConflictStore.addConflict(bookId, {
             'opId': opId,
             'localOp': item.payload,
@@ -166,6 +219,69 @@ class SyncEngine {
       // 如果还有未处理项（缺结果等），留待下一次触发，避免本次循环内反复重试
       if (toDelete.length < pending.length) return;
     }
+  }
+
+  Future<void> _assignServerIdsForCreates(
+    BuildContext context,
+    String bookId,
+    List<SyncOutboxItem> pending, {
+    required String reason,
+  }) async {
+    final recordProvider = context.read<RecordProvider>();
+    final creates = <SyncOutboxItem>[];
+    for (final it in pending) {
+      final type = it.payload['type'] as String?;
+      if (type != 'upsert') continue;
+      final bill = (it.payload['bill'] as Map?)?.cast<String, dynamic>();
+      if (bill == null) continue;
+      final serverId = bill['serverId'] as int? ?? bill['id'] as int?;
+      if (serverId != null) continue;
+      creates.add(it);
+    }
+    if (creates.isEmpty) return;
+
+    final alloc = await _syncService.v2AllocateBillIds(
+      count: creates.length,
+      reason: reason,
+    );
+    if (alloc['success'] != true) {
+      debugPrint(
+          '[SyncEngine] v2AllocateBillIds failed: ${alloc['error']} (creates=${creates.length})');
+      return;
+    }
+    final startId = alloc['startId'] as int?;
+    if (startId == null) return;
+    debugPrint(
+        '[SyncEngine] allocated bill ids start=$startId count=${creates.length} reason=$reason');
+
+    final updated = <SyncOutboxItem>[];
+    var next = startId;
+    for (final it in creates) {
+      final bill = (it.payload['bill'] as Map).cast<String, dynamic>();
+      final localId = bill['localId'] as String?;
+      final assigned = next++;
+
+      bill['serverId'] = assigned;
+      bill['id'] = assigned;
+      it.payload['expectedVersion'] = 0;
+      it.payload['bill'] = bill;
+
+      updated.add(
+        SyncOutboxItem(
+          id: it.id,
+          bookId: it.bookId,
+          op: it.op,
+          payload: it.payload,
+          createdAtMs: it.createdAtMs,
+        ),
+      );
+
+      if (localId != null) {
+        await recordProvider.setServerSyncState(localId, serverId: assigned);
+      }
+    }
+
+    await _outbox.updateItems(bookId, updated);
   }
 
   Future<void> _pullV2(

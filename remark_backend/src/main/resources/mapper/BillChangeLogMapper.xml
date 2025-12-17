@@ -17,6 +17,14 @@
     VALUES (#{bookId}, #{scopeUserId}, #{billId}, #{op}, #{billVersion}, NOW())
   </insert>
 
+  <insert id="batchInsert">
+    INSERT INTO bill_change_log (book_id, scope_user_id, bill_id, op, bill_version, created_at)
+    VALUES
+    <foreach collection="list" item="item" separator=",">
+      (#{item.bookId}, #{item.scopeUserId}, #{item.billId}, #{item.op}, #{item.billVersion}, NOW())
+    </foreach>
+  </insert>
+
   <select id="countForScope" resultType="int">
     SELECT COUNT(*) FROM bill_change_log
     WHERE book_id = #{bookId} AND scope_user_id = #{scopeUserId}

@@ -21,9 +21,27 @@
     LIMIT 1
   </select>
 
+  <select id="findByOpIds" resultMap="SyncOpDedupResultMap">
+    SELECT id, user_id, book_id, op_id, status, bill_id, bill_version, error, created_at
+    FROM sync_op_dedup
+    WHERE user_id = #{userId} AND book_id = #{bookId}
+      AND op_id IN
+      <foreach collection="opIds" item="opId" open="(" separator="," close=")">
+        #{opId}
+      </foreach>
+  </select>
+
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO sync_op_dedup (user_id, book_id, op_id, status, bill_id, bill_version, error, created_at)
     VALUES (#{userId}, #{bookId}, #{opId}, #{status}, #{billId}, #{billVersion}, #{error}, NOW())
+  </insert>
+
+  <insert id="batchInsert">
+    INSERT INTO sync_op_dedup (user_id, book_id, op_id, status, bill_id, bill_version, error, created_at)
+    VALUES
+    <foreach collection="list" item="item" separator=",">
+      (#{item.userId}, #{item.bookId}, #{item.opId}, #{item.status}, #{item.billId}, #{item.billVersion}, #{item.error}, NOW())
+    </foreach>
   </insert>
 
   <delete id="deleteBefore">

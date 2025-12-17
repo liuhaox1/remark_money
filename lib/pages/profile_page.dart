@@ -21,6 +21,7 @@ import '../models/book.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
 import '../services/gift_code_service.dart';
+import '../services/sync_outbox_service.dart';
 import '../services/sync_v2_conflict_store.dart';
 import 'account_settings_page.dart';
 import 'vip_purchase_page.dart';
@@ -40,6 +41,21 @@ class _ProfilePageState extends State<ProfilePage> {
   final AuthService _authService = const AuthService();
   String? _token;
   bool _loadingToken = true;
+
+  Future<int> _conflictCountForDisplay(String bookId) async {
+    final recordProvider = context.read<RecordProvider>();
+    final count = await SyncV2ConflictStore.count(bookId);
+    if (count <= 0) return 0;
+
+    final hasLocal = recordProvider.recordsForBook(bookId).isNotEmpty;
+    final outbox = await SyncOutboxService.instance.loadPending(bookId, limit: 1);
+    if (!hasLocal && outbox.isEmpty) {
+      await SyncV2ConflictStore.clear(bookId);
+      return 0;
+    }
+
+    return count;
+  }
 
   @override
   void initState() {
@@ -70,6 +86,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _logout() async {
     await _authService.clearToken();
+    try {
+      final books = context.read<BookProvider>().books;
+      for (final b in books) {
+        await SyncV2ConflictStore.clear(b.id);
+      }
+    } catch (_) {}
     await _loadToken();
   }
 
@@ -299,7 +321,7 @@ class _ProfilePageState extends State<ProfilePage> {
                  ] else ...[
 	                  FutureBuilder<int>(
 	                    future: activeBookId.isNotEmpty
-	                        ? SyncV2ConflictStore.count(activeBookId)
+	                        ? _conflictCountForDisplay(activeBookId)
 	                        : Future.value(0),
 	                    builder: (ctx, snap) {
 	                      final count = snap.data ?? 0;

@@ -110,10 +110,16 @@ class SyncOutboxService {
     if (!record.includeInStats) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
+    // v2 语义：
+    // - 新建（serverId 为空）：expectedVersion = null
+    // - 已同步（serverId+serverVersion）：expectedVersion = serverVersion
+    // - 预分配 serverId 但尚未落库（serverId != null 且仍是本地 id）：expectedVersion = 0（走批量新增）
+    final expectedVersion = record.serverVersion ??
+        ((record.serverId != null && !record.id.startsWith('server_')) ? 0 : null);
     final payload = {
       'opId': _newOpId(),
       'type': 'upsert',
-      'expectedVersion': record.serverVersion,
+      'expectedVersion': expectedVersion,
       'bill': _recordToBillPayload(record, updateAtMs: now),
     };
     await _enqueue(
@@ -160,6 +166,14 @@ class SyncOutboxService {
   }) async {
     if (RepositoryFactory.isUsingDatabase) {
       final db = await DatabaseHelper().database;
+      // 只保留同一条记录最新的 upsert：避免本地多次编辑造成 outbox 膨胀
+      if (op == SyncOutboxOp.upsert && recordId != null && recordId.isNotEmpty) {
+        await db.delete(
+          Tables.syncOutbox,
+          where: 'book_id = ? AND op = ? AND record_id = ?',
+          whereArgs: [bookId, op.name, recordId],
+        );
+      }
       await db.insert(
         Tables.syncOutbox,
         {
@@ -177,6 +191,19 @@ class SyncOutboxService {
     final prefs = await SharedPreferences.getInstance();
     final key = '$_prefsKeyPrefix$bookId';
     final list = prefs.getStringList(key) ?? <String>[];
+    if (op == SyncOutboxOp.upsert && recordId != null && recordId.isNotEmpty) {
+      list.removeWhere((s) {
+        try {
+          final map = jsonDecode(s) as Map<String, dynamic>;
+          final item = SyncOutboxItem.fromJson(map);
+          if (item.op != SyncOutboxOp.upsert) return false;
+          final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
+          return bill != null && bill['localId'] == recordId;
+        } catch (_) {
+          return false;
+        }
+      });
+    }
     list.add(
       jsonEncode(
         SyncOutboxItem(
@@ -189,6 +216,57 @@ class SyncOutboxService {
       ),
     );
     await prefs.setStringList(key, list);
+  }
+
+  Future<void> updateItems(String bookId, List<SyncOutboxItem> items) async {
+    if (items.isEmpty) return;
+    final byOpId = <String, SyncOutboxItem>{};
+    for (final it in items) {
+      final opId = it.payload['opId'] as String?;
+      if (opId != null) byOpId[opId] = it;
+    }
+    if (byOpId.isEmpty) return;
+
+    if (RepositoryFactory.isUsingDatabase) {
+      final db = await DatabaseHelper().database;
+      for (final it in items) {
+        final id = it.id;
+        if (id == null) continue;
+        final bill = (it.payload['bill'] as Map?)?.cast<String, dynamic>();
+        final serverId = it.payload['serverId'] as int? ?? (bill?['serverId'] as int?);
+        await db.update(
+          Tables.syncOutbox,
+          {
+            'payload': jsonEncode(it.payload),
+            'server_id': serverId,
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final key = '$_prefsKeyPrefix$bookId';
+    final list = prefs.getStringList(key) ?? <String>[];
+    final updated = <String>[];
+    for (final s in list) {
+      try {
+        final map = jsonDecode(s) as Map<String, dynamic>;
+        final item = SyncOutboxItem.fromJson(map);
+        final opId = item.payload['opId'] as String?;
+        final replacement = opId != null ? byOpId[opId] : null;
+        if (replacement != null) {
+          updated.add(jsonEncode(replacement.toJson()));
+        } else {
+          updated.add(s);
+        }
+      } catch (_) {
+        updated.add(s);
+      }
+    }
+    await prefs.setStringList(key, updated);
   }
 
   Future<List<SyncOutboxItem>> loadPending(String bookId, {int limit = 200}) async {

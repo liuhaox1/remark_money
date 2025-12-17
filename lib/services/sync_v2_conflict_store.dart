@@ -46,11 +46,20 @@ class SyncV2ConflictStore {
       'timeMs': now,
       ...conflict,
     };
+    final opId = entry['opId'] as String?;
 
-    final next = <String>[
-      jsonEncode(entry),
-      ...raw,
-    ];
+    final next = <String>[jsonEncode(entry)];
+    for (final s in raw) {
+      if (opId == null) {
+        next.add(s);
+        continue;
+      }
+      try {
+        final m = (jsonDecode(s) as Map).cast<String, dynamic>();
+        if ((m['opId'] as String?) == opId) continue;
+      } catch (_) {}
+      next.add(s);
+    }
 
     // keep last 50
     if (next.length > 50) {

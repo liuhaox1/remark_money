@@ -32,6 +32,9 @@ public interface BillInfoMapper {
   // 批量插入（MyBatis-Plus batch）
   void batchInsert(@Param("list") List<BillInfo> list);
 
+  // v2: 批量插入（显式指定自增 id，配合号段分配实现真正批处理新增）
+  int batchInsertWithId(@Param("list") List<BillInfo> list);
+
   // 更新账单（Upsert逻辑）
   void update(BillInfo billInfo);
 

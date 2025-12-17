@@ -8,6 +8,7 @@ import com.remark.money.entity.SyncScopeState;
 import com.remark.money.mapper.BillChangeLogMapper;
 import com.remark.money.mapper.BillInfoMapper;
 import com.remark.money.mapper.BookMemberMapper;
+import com.remark.money.mapper.IdSequenceMapper;
 import com.remark.money.mapper.SyncOpDedupMapper;
 import com.remark.money.mapper.SyncScopeStateMapper;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,21 +31,36 @@ public class SyncV2Service {
   private final SyncOpDedupMapper syncOpDedupMapper;
   private final SyncScopeStateMapper syncScopeStateMapper;
   private final BookMemberMapper bookMemberMapper;
-
-  private volatile long lastDedupCleanupMs = 0L;
-  private static final long DEDUP_CLEANUP_MIN_INTERVAL_MS = 6L * 60L * 60L * 1000L; // 6h
-  private static final int DEDUP_RETENTION_DAYS = 30;
+  private final IdSequenceMapper idSequenceMapper;
 
   public SyncV2Service(BillInfoMapper billInfoMapper,
                        BillChangeLogMapper billChangeLogMapper,
                        SyncOpDedupMapper syncOpDedupMapper,
                        SyncScopeStateMapper syncScopeStateMapper,
-                       BookMemberMapper bookMemberMapper) {
+                       BookMemberMapper bookMemberMapper,
+                       IdSequenceMapper idSequenceMapper) {
     this.billInfoMapper = billInfoMapper;
     this.billChangeLogMapper = billChangeLogMapper;
     this.syncOpDedupMapper = syncOpDedupMapper;
     this.syncScopeStateMapper = syncScopeStateMapper;
     this.bookMemberMapper = bookMemberMapper;
+    this.idSequenceMapper = idSequenceMapper;
+  }
+
+  @Transactional
+  public Map<String, Object> allocateBillIds(int count) {
+    int realCount = Math.max(1, Math.min(count, 5000));
+    idSequenceMapper.ensureBillInfo();
+    Long start = idSequenceMapper.lockNextId("bill_info");
+    if (start == null) start = 1L;
+    idSequenceMapper.advance("bill_info", realCount);
+    long end = start + realCount - 1L;
+    Map<String, Object> resp = new HashMap<>();
+    resp.put("success", true);
+    resp.put("startId", start);
+    resp.put("endId", end);
+    resp.put("count", realCount);
+    return resp;
   }
 
   private boolean isServerBook(String bookId) {
@@ -151,7 +168,7 @@ public class SyncV2Service {
     return map;
   }
 
-  private void insertDedup(Long userId, String bookId, String opId, int status, Long billId, Long billVersion, String error) {
+  private SyncOpDedup buildDedup(Long userId, String bookId, String opId, int status, Long billId, Long billVersion, String error) {
     SyncOpDedup record = new SyncOpDedup();
     record.setUserId(userId);
     record.setBookId(bookId);
@@ -160,21 +177,7 @@ public class SyncV2Service {
     record.setBillId(billId);
     record.setBillVersion(billVersion);
     record.setError(error);
-    syncOpDedupMapper.insert(record);
-
-    maybeCleanupDedup();
-  }
-
-  private void maybeCleanupDedup() {
-    long now = System.currentTimeMillis();
-    if (now - lastDedupCleanupMs < DEDUP_CLEANUP_MIN_INTERVAL_MS) return;
-    lastDedupCleanupMs = now;
-    try {
-      LocalDateTime cutoff = LocalDateTime.now().minusDays(DEDUP_RETENTION_DAYS);
-      syncOpDedupMapper.deleteBefore(cutoff);
-    } catch (Exception ignored) {
-      // best-effort cleanup; never break sync path
-    }
+    return record;
   }
 
   @Transactional
@@ -186,9 +189,50 @@ public class SyncV2Service {
     List<Map<String, Object>> results = new ArrayList<>();
     if (ops == null) ops = new ArrayList<>();
 
+    // 批量查询去重记录：避免每条 op 都单独 SELECT（非常影响吞吐与成本）
+    Set<String> opIds = ops.stream()
+        .map(op -> op.get("opId") != null ? op.get("opId").toString() : null)
+        .filter(s -> s != null && !s.trim().isEmpty())
+        .collect(Collectors.toSet());
+    Map<String, SyncOpDedup> dedupByOpId = new HashMap<>();
+    if (!opIds.isEmpty()) {
+      List<SyncOpDedup> existing = syncOpDedupMapper.findByOpIds(userId, bookId, new ArrayList<>(opIds));
+      for (SyncOpDedup d : existing) {
+        if (d.getOpId() != null) dedupByOpId.put(d.getOpId(), d);
+      }
+    }
+
+    // 本次请求内的写入先聚合，减少 SQL 次数（尤其是批量新增/删除）
+    List<BillChangeLog> pendingLogs = new ArrayList<>();
+    List<SyncOpDedup> pendingDedups = new ArrayList<>();
+    Map<String, Map<String, Object>> resultsByOpId = new HashMap<>();
+
+    // v2: 批量新增（显式 serverId + expectedVersion=0）
+    class PendingCreate {
+      final String opId;
+      final BillInfo bill;
+      final Map<String, Object> item;
+
+      PendingCreate(String opId, BillInfo bill, Map<String, Object> item) {
+        this.opId = opId;
+        this.bill = bill;
+        this.item = item;
+      }
+    }
+    List<PendingCreate> pendingCreates = new ArrayList<>();
+
     for (Map<String, Object> op : ops) {
       String opId = op.get("opId") != null ? op.get("opId").toString() : null;
       String type = op.get("type") != null ? op.get("type").toString() : null;
+      Long expectedVersion = asLong(op.get("expectedVersion"));
+
+      if (opId != null) {
+        Map<String, Object> existingResult = resultsByOpId.get(opId);
+        if (existingResult != null) {
+          results.add(existingResult);
+          continue;
+        }
+      }
 
       Map<String, Object> item = new HashMap<>();
       item.put("opId", opId);
@@ -200,7 +244,7 @@ public class SyncV2Service {
         continue;
       }
 
-      SyncOpDedup dedup = syncOpDedupMapper.find(userId, bookId, opId);
+      SyncOpDedup dedup = dedupByOpId.get(opId);
       if (dedup != null) {
         item.put("status", statusName(dedup.getStatus()));
         item.put("serverId", dedup.getBillId());
@@ -213,25 +257,65 @@ public class SyncV2Service {
         }
         if (dedup.getError() != null) item.put("error", dedup.getError());
         results.add(item);
+        resultsByOpId.put(opId, item);
         continue;
       }
 
       try {
         if ("delete".equalsIgnoreCase(type)) {
-          handleDelete(userId, bookId, scopeUserId, op, item);
+          handleDelete(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups);
         } else {
-          handleUpsert(userId, bookId, scopeUserId, op, item);
+          if (expectedVersion != null && expectedVersion == 0L) {
+            Object billObj = op.get("bill");
+            if (!(billObj instanceof Map)) {
+              throw new IllegalArgumentException("missing bill");
+            }
+            @SuppressWarnings("unchecked")
+            BillInfo bill = mapToBillInfo((Map<String, Object>) billObj);
+            bill.setUserId(userId);
+            bill.setBookId(bookId);
+            if (bill.getIncludeInStats() == null) bill.setIncludeInStats(1);
+            if (bill.getIsDelete() == null) bill.setIsDelete(0);
+            if (bill.getId() == null) {
+              throw new IllegalArgumentException("missing serverId for batch create");
+            }
+            pendingCreates.add(new PendingCreate(opId, bill, item));
+          } else {
+            handleUpsert(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups);
+          }
         }
       } catch (Exception e) {
         item.put("status", "error");
         item.put("error", e.getMessage());
         try {
-          insertDedup(userId, bookId, opId, 2, null, null, e.getMessage());
+          pendingDedups.add(buildDedup(userId, bookId, opId, 2, null, null, e.getMessage()));
         } catch (Exception ignored) {
         }
       }
 
       results.add(item);
+      resultsByOpId.put(opId, item);
+    }
+
+    if (!pendingCreates.isEmpty()) {
+      List<BillInfo> newBills = pendingCreates.stream().map(p -> p.bill).collect(Collectors.toList());
+      billInfoMapper.batchInsertWithId(newBills);
+      for (PendingCreate p : pendingCreates) {
+        long newVersion = 1L;
+        pendingLogs.add(new BillChangeLog(bookId, scopeUserId, p.bill.getId(), 0, newVersion));
+        pendingDedups.add(buildDedup(userId, bookId, p.opId, 0, p.bill.getId(), newVersion, null));
+        p.item.put("status", "applied");
+        p.item.put("serverId", p.bill.getId());
+        p.item.put("version", newVersion);
+      }
+    }
+
+    // 批量落库：把 N 次 insert 合并成 1 次
+    if (!pendingLogs.isEmpty()) {
+      billChangeLogMapper.batchInsert(pendingLogs);
+    }
+    if (!pendingDedups.isEmpty()) {
+      syncOpDedupMapper.batchInsert(pendingDedups);
     }
 
     Map<String, Object> resp = new HashMap<>();
@@ -253,7 +337,10 @@ public class SyncV2Service {
   }
 
   @SuppressWarnings("unchecked")
-  private void handleUpsert(Long userId, String bookId, Long scopeUserId, Map<String, Object> op, Map<String, Object> item) {
+  private void handleUpsert(Long userId, String bookId, Long scopeUserId, Map<String, Object> op,
+                            Map<String, Object> item,
+                            List<BillChangeLog> pendingLogs,
+                            List<SyncOpDedup> pendingDedups) {
     String opId = op.get("opId").toString();
     Object expectedVersionObj = op.get("expectedVersion");
     Long expectedVersion = asLong(expectedVersionObj);
@@ -273,30 +360,29 @@ public class SyncV2Service {
     if (bill.getId() == null) {
       billInfoMapper.insert(bill);
       long newVersion = 1L;
-      billChangeLogMapper.insert(bookId, scopeUserId, bill.getId(), 0, newVersion);
-      insertDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null);
+      pendingLogs.add(new BillChangeLog(bookId, scopeUserId, bill.getId(), 0, newVersion));
+      pendingDedups.add(buildDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null));
       item.put("status", "applied");
       item.put("serverId", bill.getId());
       item.put("version", newVersion);
       return;
     }
 
-    BillInfo existing = sharedBook
-        ? billInfoMapper.findByIdForBook(bookId, bill.getId())
-        : billInfoMapper.findByIdForUserAndBook(userId, bookId, bill.getId());
-    if (existing == null) {
-      insertDedup(userId, bookId, opId, 2, bill.getId(), null, "not found");
-      item.put("status", "error");
-      item.put("error", "not found");
-      return;
-    }
-
-    if (expectedVersion == null || existing.getVersion() == null || !existing.getVersion().equals(expectedVersion)) {
-      insertDedup(userId, bookId, opId, 1, existing.getId(), existing.getVersion(), null);
-      item.put("status", "conflict");
-      item.put("serverId", existing.getId());
-      item.put("version", existing.getVersion());
-      item.put("serverBill", toBillMap(existing));
+    if (expectedVersion == null) {
+      BillInfo latest = sharedBook
+          ? billInfoMapper.findByIdForBook(bookId, bill.getId())
+          : billInfoMapper.findByIdForUserAndBook(userId, bookId, bill.getId());
+      if (latest == null) {
+        pendingDedups.add(buildDedup(userId, bookId, opId, 2, bill.getId(), null, "not found"));
+        item.put("status", "error");
+        item.put("error", "not found");
+      } else {
+        pendingDedups.add(buildDedup(userId, bookId, opId, 1, bill.getId(), latest.getVersion(), null));
+        item.put("status", "conflict");
+        item.put("serverId", bill.getId());
+        item.put("version", latest.getVersion());
+        item.put("serverBill", toBillMap(latest));
+      }
       return;
     }
 
@@ -307,23 +393,32 @@ public class SyncV2Service {
       BillInfo latest = sharedBook
           ? billInfoMapper.findByIdForBook(bookId, bill.getId())
           : billInfoMapper.findByIdForUserAndBook(userId, bookId, bill.getId());
-      insertDedup(userId, bookId, opId, 1, bill.getId(), latest != null ? latest.getVersion() : null, null);
-      item.put("status", "conflict");
-      item.put("serverId", bill.getId());
-      item.put("version", latest != null ? latest.getVersion() : null);
-      if (latest != null) item.put("serverBill", toBillMap(latest));
+      if (latest == null) {
+        pendingDedups.add(buildDedup(userId, bookId, opId, 2, bill.getId(), null, "not found"));
+        item.put("status", "error");
+        item.put("error", "not found");
+      } else {
+        pendingDedups.add(buildDedup(userId, bookId, opId, 1, bill.getId(), latest.getVersion(), null));
+        item.put("status", "conflict");
+        item.put("serverId", bill.getId());
+        item.put("version", latest.getVersion());
+        item.put("serverBill", toBillMap(latest));
+      }
       return;
     }
 
     long newVersion = expectedVersion + 1;
-    billChangeLogMapper.insert(bookId, scopeUserId, bill.getId(), 0, newVersion);
-    insertDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null);
+    pendingLogs.add(new BillChangeLog(bookId, scopeUserId, bill.getId(), 0, newVersion));
+    pendingDedups.add(buildDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null));
     item.put("status", "applied");
     item.put("serverId", bill.getId());
     item.put("version", newVersion);
   }
 
-  private void handleDelete(Long userId, String bookId, Long scopeUserId, Map<String, Object> op, Map<String, Object> item) {
+  private void handleDelete(Long userId, String bookId, Long scopeUserId, Map<String, Object> op,
+                            Map<String, Object> item,
+                            List<BillChangeLog> pendingLogs,
+                            List<SyncOpDedup> pendingDedups) {
     String opId = op.get("opId").toString();
     Long billId = asLong(op.get("serverId"));
     if (billId == null) billId = asLong(op.get("billId"));
@@ -334,22 +429,21 @@ public class SyncV2Service {
       throw new IllegalArgumentException("missing serverId");
     }
 
-    BillInfo existing = sharedBook
-        ? billInfoMapper.findByIdForBook(bookId, billId)
-        : billInfoMapper.findByIdForUserAndBook(userId, bookId, billId);
-    if (existing == null) {
-      insertDedup(userId, bookId, opId, 2, billId, null, "not found");
-      item.put("status", "error");
-      item.put("error", "not found");
-      return;
-    }
-
-    if (expectedVersion == null || existing.getVersion() == null || !existing.getVersion().equals(expectedVersion)) {
-      insertDedup(userId, bookId, opId, 1, existing.getId(), existing.getVersion(), null);
-      item.put("status", "conflict");
-      item.put("serverId", existing.getId());
-      item.put("version", existing.getVersion());
-      item.put("serverBill", toBillMap(existing));
+    if (expectedVersion == null) {
+      BillInfo latest = sharedBook
+          ? billInfoMapper.findByIdForBook(bookId, billId)
+          : billInfoMapper.findByIdForUserAndBook(userId, bookId, billId);
+      if (latest == null) {
+        pendingDedups.add(buildDedup(userId, bookId, opId, 2, billId, null, "not found"));
+        item.put("status", "error");
+        item.put("error", "not found");
+      } else {
+        pendingDedups.add(buildDedup(userId, bookId, opId, 1, billId, latest.getVersion(), null));
+        item.put("status", "conflict");
+        item.put("serverId", billId);
+        item.put("version", latest.getVersion());
+        item.put("serverBill", toBillMap(latest));
+      }
       return;
     }
 
@@ -360,17 +454,23 @@ public class SyncV2Service {
       BillInfo latest = sharedBook
           ? billInfoMapper.findByIdForBook(bookId, billId)
           : billInfoMapper.findByIdForUserAndBook(userId, bookId, billId);
-      insertDedup(userId, bookId, opId, 1, billId, latest != null ? latest.getVersion() : null, null);
-      item.put("status", "conflict");
-      item.put("serverId", billId);
-      item.put("version", latest != null ? latest.getVersion() : null);
-      if (latest != null) item.put("serverBill", toBillMap(latest));
+      if (latest == null) {
+        pendingDedups.add(buildDedup(userId, bookId, opId, 2, billId, null, "not found"));
+        item.put("status", "error");
+        item.put("error", "not found");
+      } else {
+        pendingDedups.add(buildDedup(userId, bookId, opId, 1, billId, latest.getVersion(), null));
+        item.put("status", "conflict");
+        item.put("serverId", billId);
+        item.put("version", latest.getVersion());
+        item.put("serverBill", toBillMap(latest));
+      }
       return;
     }
 
     long newVersion = expectedVersion + 1;
-    billChangeLogMapper.insert(bookId, scopeUserId, billId, 1, newVersion);
-    insertDedup(userId, bookId, opId, 0, billId, newVersion, null);
+    pendingLogs.add(new BillChangeLog(bookId, scopeUserId, billId, 1, newVersion));
+    pendingDedups.add(buildDedup(userId, bookId, opId, 0, billId, newVersion, null));
     item.put("status", "applied");
     item.put("serverId", billId);
     item.put("version", newVersion);

@@ -174,6 +174,14 @@ CREATE TABLE IF NOT EXISTS sync_scope_state (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================================
+-- v2: auto-increment id allocator (client-side id reservation for true batch insert)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS id_sequence (
+  name VARCHAR(32) PRIMARY KEY,
+  next_id BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================================
 -- 数据库迁移脚本（从旧版本升级到新版本）
 -- ============================================================================
 -- 执行时间：2025-12-11
