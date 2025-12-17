@@ -155,6 +155,8 @@ class _HomePageState extends State<HomePage> {
   // 添加月份统计数据缓存
   double? _cachedMonthIncome;
   double? _cachedMonthExpense;
+  int? _lastRecordChangeCounter;
+  DateTime? _lastMonthKey;
 
   // 添加缓存来存储每天的统计信息
 
@@ -198,6 +200,18 @@ class _HomePageState extends State<HomePage> {
     final bookProvider = context.read<BookProvider>();
     final bookId = bookProvider.activeBookId;
     final selectedMonth = DateTime(_selectedDay.year, _selectedDay.month, 1);
+    final currentChangeCounter = recordProvider.changeCounter;
+
+    // 记录增删改或跨月切换后：本页的月度汇总缓存需要失效，否则顶部统计会“卡住”不变。
+    if (_lastRecordChangeCounter != currentChangeCounter ||
+        _lastMonthKey == null ||
+        _lastMonthKey != selectedMonth) {
+      _lastRecordChangeCounter = currentChangeCounter;
+      _lastMonthKey = selectedMonth;
+      _cachedMonthIncome = null;
+      _cachedMonthExpense = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadMonthStats());
+    }
     
     try {
       final income = await recordProvider.monthIncomeAsync(selectedMonth, bookId);

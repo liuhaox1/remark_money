@@ -113,6 +113,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   _CompareMode _compareMode = _CompareMode.previousPeriod;
   Future<Map<String, dynamic>>? _reportFuture;
   String? _reportFutureBookId;
+  int? _reportFutureChangeCounter;
   
   
 
@@ -170,8 +171,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   void _ensureReportFuture(RecordProvider recordProvider, String bookId) {
-    if (_reportFuture == null || _reportFutureBookId != bookId) {
+    final counter = recordProvider.changeCounter;
+    if (_reportFuture == null ||
+        _reportFutureBookId != bookId ||
+        _reportFutureChangeCounter != counter) {
       _reportFutureBookId = bookId;
+      _reportFutureChangeCounter = counter;
       _reportFuture = _loadReportData(recordProvider, bookId);
     }
   }
@@ -820,27 +825,47 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                               ),
 
                                               SizedBox(
-
+ 
                                                 width: 100,
-
-                                                child: Text(
-
-                                                  '${_formatAmount(entry.value)} (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
-
-                                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
-                                                    fontWeight: FontWeight.w600,
-
-                                                    color: cs.onSurface,
-
-                                                    letterSpacing: 0.2,
-
-                                                  ),
-
-                                                  textAlign: TextAlign.right,
-
+ 
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                                  children: [
+                                                    Text(
+                                                      _formatAmount(entry.value),
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodyMedium
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: cs.onSurface,
+                                                          ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      textAlign: TextAlign.right,
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      '(${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.normal,
+                                                            color: cs.onSurface
+                                                                .withOpacity(0.7),
+                                                          ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      textAlign: TextAlign.right,
+                                                    ),
+                                                  ],
                                                 ),
-
+ 
                                               ),
 
                                             ],
