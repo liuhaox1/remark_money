@@ -312,9 +312,9 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Center(
            child: ConstrainedBox(
              constraints: const BoxConstraints(maxWidth: 430),
-             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-               children: [                
+              child: ListView(
+               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                children: [                
                  if (!isLoggedIn) ...[
                    _buildLoginHintCard(context),
                    const SizedBox(height: 12),
@@ -326,7 +326,9 @@ class _ProfilePageState extends State<ProfilePage> {
 	                    builder: (ctx, snap) {
 	                      final count = snap.data ?? 0;
 	                      if (count <= 0) return const SizedBox.shrink();
-	                      return InkWell(
+	                      return Column(
+	                        children: [
+	                          InkWell(
 	                        borderRadius: BorderRadius.circular(16),
 	                        onTap: () {
 	                          Navigator.push(
@@ -342,10 +344,12 @@ class _ProfilePageState extends State<ProfilePage> {
 	                        title: '同步冲突 $count 条',
 	                        subtitle: '已自动保留冲突记录（暂不自动覆盖），后续将提供处理入口',
 	                        ),
+	                          ),
+	                          const SizedBox(height: 12),
+	                        ],
 	                      );
 	                    },
 	                  ),
-                  const SizedBox(height: 12),
                 ],
                 _buildHeaderCard(
                   context,
@@ -699,14 +703,13 @@ class _ProfilePageState extends State<ProfilePage> {
     final brand = theme.extension<BrandTheme>();
     final isDark = theme.brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: brand?.headerGradient,
+        borderRadius: BorderRadius.circular(20),
+        color: cs.surfaceContainerHighest,
         border: Border.all(
           color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
         ),
-        boxShadow: isDark ? null : brand?.headerShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,36 +720,44 @@ class _ProfilePageState extends State<ProfilePage> {
                   borderRadius: BorderRadius.circular(28),
                   onTap: () => _openAccountSettings(isLoggedIn),
                   child: CircleAvatar(
-                    radius: 28,
+                    radius: 24,
                     backgroundColor: cs.primary.withOpacity(isDark ? 0.22 : 0.14),
                     child: Icon(
                       Icons.person_outline,
-                      size: 30,
+                      size: 26,
                       color: cs.onSurface,
                     ),
                   ),
                 ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     Text(
                       title,
                       style: theme.textTheme.titleLarge?.copyWith(
                             color: cs.onSurface,
                             fontWeight: FontWeight.w700,
+                            fontSize: 20,
                           ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
                             color: cs.onSurface.withOpacity(0.72),
+                            height: 1.2,
                           ),
                     ),
                   ],
                 ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: cs.onSurface.withOpacity(0.55),
               ),
             ],
           ),
@@ -787,25 +798,30 @@ class _ProfilePageState extends State<ProfilePage> {
     required String value,
   }) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(color: cs.onSurface.withOpacity(0.72)),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: tt.labelSmall?.copyWith(
+              color: cs.onSurface.withOpacity(0.72),
+              fontSize: 11,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: tt.titleSmall?.copyWith(
+              color: cs.onSurface,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
           ),
         ],
       ),

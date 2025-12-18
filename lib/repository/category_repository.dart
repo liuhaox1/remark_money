@@ -7,12 +7,16 @@ import '../models/category.dart';
 class CategoryRepository {
   static const _key = 'categories_v1';
 
+  /// 兜底分类：当无法识别出合理的支出分类时，使用“未分类”避免误落到高频分类（如“餐饮”）。
+  static const String uncategorizedExpenseKey = 'top_uncategorized';
+
   /// 这些分类本质上是“资金动作/财务操作”，不适合放在普通“记一笔”的消费分类里。
   /// 为兼容历史数据仍保留在分类表中，但默认不在“记一笔”分类选择器中展示。
   static const Set<String> hiddenInRecordPickerKeys = {
     'fin_loan', // 借贷还款
     'fin_credit', // 信用卡还款
     'fin_adjust', // 账户调整
+    uncategorizedExpenseKey, // 兜底“其他”（内部使用，不给用户手动选）
   };
 
   static final List<Category> defaultCategories = [
@@ -545,6 +549,14 @@ class CategoryRepository {
       parentKey: 'top_finance',
     ),
 
+    // 支出一级：未分类（兜底用，避免错误归类）
+    Category(
+      key: uncategorizedExpenseKey,
+      name: AppStrings.catUncategorized,
+      icon: Icons.category_outlined,
+      isExpense: true,
+    ),
+
     // 收入一级
     Category(
       key: 'top_income_salary',
@@ -807,6 +819,20 @@ class CategoryRepository {
         parentKey: category.parentKey,
       );
       migrated.add(migratedCategory);
+    }
+
+    // 新增的内置兜底分类：确保旧数据也能拥有“未分类”，避免后续功能（如语音记账）落到不合理分类。
+    if (!migrated.any((c) => c.key == uncategorizedExpenseKey)) {
+      final defaultCat = defaultCategories.firstWhere(
+        (c) => c.key == uncategorizedExpenseKey,
+        orElse: () => Category(
+          key: uncategorizedExpenseKey,
+          name: AppStrings.catUncategorized,
+          icon: Icons.category_outlined,
+          isExpense: true,
+        ),
+      );
+      migrated.add(defaultCat);
     }
     
     return migrated;

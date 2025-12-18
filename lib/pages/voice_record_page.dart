@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/category.dart';
 import '../models/record.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
+import '../repository/category_repository.dart';
 import '../services/speech_service.dart';
 import '../services/voice_record_parser.dart';
 import '../utils/error_handler.dart';
@@ -166,6 +168,33 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
     });
   }
 
+  Category _resolveCategory(ParsedRecordItem item, List<Category> categories) {
+    if (categories.isEmpty) {
+      return Category(
+        key: item.isExpense ? CategoryRepository.uncategorizedExpenseKey : 'top_income_other',
+        name: '其他',
+        icon: Icons.category_outlined,
+        isExpense: item.isExpense,
+      );
+    }
+
+    final matched = item.categoryHint.trim().isEmpty
+        ? null
+        : VoiceRecordParser.matchCategory(item.categoryHint, categories);
+    if (matched != null) return matched;
+
+    // 无法匹配时优先落到“未分类”，避免误判到“餐饮”等高频分类。
+    final fallbackKey =
+        item.isExpense ? CategoryRepository.uncategorizedExpenseKey : 'top_income_other';
+    return categories.firstWhere(
+      (c) => c.key == fallbackKey,
+      orElse: () => categories.firstWhere(
+        (c) => c.isExpense == item.isExpense,
+        orElse: () => categories.first,
+      ),
+    );
+  }
+
   Future<void> _saveAll() async {
     if (_isSaving) return;
     if (_items.isEmpty) {
@@ -190,15 +219,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
         final matched = item.categoryHint.trim().isEmpty
             ? null
             : VoiceRecordParser.matchCategory(item.categoryHint, categories);
-
-        String? categoryKey = matched?.key;
-        if (categoryKey == null) {
-          final defaultCategory = categories.firstWhere(
-            (c) => c.isExpense == item.isExpense,
-            orElse: () => categories.first,
-          );
-          categoryKey = defaultCategory.key;
-        }
+        final categoryKey = _resolveCategory(item, categories).key;
 
         final remarkBase = item.remark.trim();
         final remark = remarkBase.isEmpty
@@ -313,6 +334,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final item = _items[index];
+                          final resolvedCategory = _resolveCategory(item, categories);
                           final matched = item.categoryHint.trim().isEmpty
                               ? null
                               : VoiceRecordParser.matchCategory(
@@ -343,7 +365,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              subtitle: Text(dateStr),
+                              subtitle: Text('$dateStr · ${resolvedCategory.name}'),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [

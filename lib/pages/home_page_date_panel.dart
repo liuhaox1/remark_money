@@ -45,6 +45,12 @@ class _DatePanelState extends State<DatePanel>
   late int _currentMonth = widget.selectedDay.month;
   late final TabController _tabController;
 
+  Future<_MonthAgg>? _monthAggFuture;
+  String? _monthAggBookId;
+  int? _monthAggYear;
+  int? _monthAggMonth;
+  int? _monthAggChangeCounter;
+
   @override
   void initState() {
     super.initState();
@@ -126,6 +132,61 @@ class _DatePanelState extends State<DatePanel>
       _currentMonth = day.month;
     });
     widget.onDayChanged(day);
+  }
+
+  Future<_MonthAgg> _ensureMonthAgg(RecordProvider recordProvider, String bookId) {
+    final changeCounter = recordProvider.changeCounter;
+    final needsReload = _monthAggFuture == null ||
+        _monthAggBookId != bookId ||
+        _monthAggYear != _currentYear ||
+        _monthAggMonth != _currentMonth ||
+        _monthAggChangeCounter != changeCounter;
+
+    if (needsReload) {
+      _monthAggBookId = bookId;
+      _monthAggYear = _currentYear;
+      _monthAggMonth = _currentMonth;
+      _monthAggChangeCounter = changeCounter;
+      _monthAggFuture = _buildMonthAgg(recordProvider, bookId, _currentYear, _currentMonth);
+    }
+
+    return _monthAggFuture!;
+  }
+
+  Future<_MonthAgg> _buildMonthAgg(
+    RecordProvider recordProvider,
+    String bookId,
+    int year,
+    int month,
+  ) async {
+    final records = await recordProvider.recordsForMonthAsync(bookId, year, month);
+
+    final netByDay = <DateTime, double>{};
+    final hasDataDays = <DateTime>{};
+    double monthIncome = 0;
+    double monthExpense = 0;
+
+    for (final record in records) {
+      if (!record.includeInStats) continue;
+
+      final dayKey =
+          DateTime(record.date.year, record.date.month, record.date.day);
+      hasDataDays.add(dayKey);
+
+      if (record.isIncome) {
+        monthIncome += record.absAmount;
+        netByDay[dayKey] = (netByDay[dayKey] ?? 0) + record.absAmount;
+      } else {
+        monthExpense += record.absAmount;
+        netByDay[dayKey] = (netByDay[dayKey] ?? 0) - record.absAmount;
+      }
+    }
+
+    return _MonthAgg(
+      netByDay: netByDay,
+      hasDataDays: hasDataDays,
+      monthNet: monthIncome - monthExpense,
+    );
   }
 
   Future<void> _showYearPicker() async {
@@ -383,30 +444,6 @@ class _DatePanelState extends State<DatePanel>
     final monthStart = DateTime(_currentYear, _currentMonth, 1);
     final days = DateUtilsX.daysInMonth(monthStart);
 
-    final items = <Widget>[];
-    final firstWeekday = days.first.weekday % 7;
-    for (int i = 0; i < firstWeekday; i++) {
-      items.add(const SizedBox.shrink());
-    }
-    for (final day in days) {
-      final income = recordProvider.dayIncome(bookId, day);
-      final expense = recordProvider.dayExpense(bookId, day);
-      final net = income - expense;
-      final hasData = recordProvider.recordsForDay(bookId, day).isNotEmpty;
-      final disabled = day.isAfter(DateTime.now());
-
-      items.add(
-        _DayCell(
-          day: day,
-          net: net,
-          hasData: hasData,
-          disabled: disabled,
-          selected: DateUtilsX.isSameDay(day, _selectedDay),
-          onTap: () => _updateSelectedDay(day),
-        ),
-      );
-    }
-
     final weekdayLabels = [
       '\u65e5',
       '\u4e00',
@@ -417,71 +454,108 @@ class _DatePanelState extends State<DatePanel>
       '\u516d',
     ];
     final monthLabel = _currentMonth.toString().padLeft(2, '0');
-    final monthIncome = recordProvider.monthIncome(monthStart, bookId);
-    final monthExpense = recordProvider.monthExpense(monthStart, bookId);
-    final monthNet = monthIncome - monthExpense;
-    final netColor = _amountTextColor(monthNet);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '$monthLabel\u6708\u7ed3\u4f59\uff1a${_NumberFormatter.format(monthNet)}',
-              style: _summaryTextStyle(context, netColor),
+    return FutureBuilder<_MonthAgg>(
+      future: _ensureMonthAgg(recordProvider, bookId),
+      builder: (context, snapshot) {
+        final agg = snapshot.data;
+        final monthNet = agg?.monthNet ??
+            (recordProvider.monthIncome(monthStart, bookId) -
+                recordProvider.monthExpense(monthStart, bookId));
+        final netColor = _amountTextColor(monthNet);
+
+        final items = <Widget>[];
+        final firstWeekday = days.first.weekday % 7;
+        for (int i = 0; i < firstWeekday; i++) {
+          items.add(const SizedBox.shrink());
+        }
+
+        final today = DateTime.now();
+        final todayKey = DateTime(today.year, today.month, today.day);
+
+        for (final day in days) {
+          final dayKey = DateTime(day.year, day.month, day.day);
+          final net = agg?.netByDay[dayKey] ?? 0.0;
+          final hasData = agg?.hasDataDays.contains(dayKey) ?? false;
+          final disabled = dayKey.isAfter(todayKey);
+
+          items.add(
+            _DayCell(
+              day: day,
+              net: net,
+              hasData: hasData,
+              disabled: disabled,
+              selected: DateUtilsX.isSameDay(day, _selectedDay),
+              onTap: () => _updateSelectedDay(day),
             ),
-            OutlinedButton(
-              onPressed: _showMonthPicker,
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$monthLabel\u6708\u7ed3\u4f59\uff1a${monthNet.toStringAsFixed(2)}',
+                  style: _summaryTextStyle(context, netColor),
                 ),
-                side: BorderSide(color: cs.primary),
-                foregroundColor: cs.primary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '$_currentYear-${_currentMonth.toString().padLeft(2, '0')}',
+                OutlinedButton(
+                  onPressed: _showMonthPicker,
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    side: BorderSide(color: cs.primary),
+                    foregroundColor: cs.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                   ),
-                  const Icon(Icons.arrow_drop_down),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$_currentYear-${_currentMonth.toString().padLeft(2, '0')}',
+                      ),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: weekdayLabels
+                  .map(
+                    (label) => Expanded(
+                      child: Center(
+                        child: Text(
+                          label,
+                          style:
+                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    color: cs.onSurface.withOpacity(0.6),
+                                  ),
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: GridView.count(
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 7,
+                childAspectRatio: 0.9,
+                children: items,
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: weekdayLabels
-              .map(
-                (label) => Expanded(
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: cs.onSurface.withOpacity(0.6),
-                          ),
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: GridView.count(
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 7,
-            childAspectRatio: 0.9,
-            children: items,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -504,111 +578,120 @@ class _DatePanelState extends State<DatePanel>
       ..sort((a, b) => a.key.compareTo(b.key));
 
     final monthLabel = _currentMonth.toString().padLeft(2, '0');
-    final monthIncome = recordProvider.monthIncome(monthStart, bookId);
-    final monthExpense = recordProvider.monthExpense(monthStart, bookId);
-    final monthNet = monthIncome - monthExpense;
-    final monthColor = _amountTextColor(monthNet);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return FutureBuilder<_MonthAgg>(
+      future: _ensureMonthAgg(recordProvider, bookId),
+      builder: (context, snapshot) {
+        final agg = snapshot.data;
+        final monthNet = agg?.monthNet ??
+            (recordProvider.monthIncome(monthStart, bookId) -
+                recordProvider.monthExpense(monthStart, bookId));
+        final monthColor = _amountTextColor(monthNet);
+        final hasAnyData = agg?.hasDataDays.isNotEmpty ?? false;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '$monthLabel${AppStrings.monthSummary}：${_NumberFormatter.format(monthNet)}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: monthColor,
-                  ),
-            ),
-            OutlinedButton(
-              onPressed: _showMonthPicker,
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$monthLabel${AppStrings.monthSummary}\uff1a${monthNet.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: monthColor,
+                      ),
                 ),
-                side: BorderSide(color: cs.primary),
-                foregroundColor: cs.primary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+                OutlinedButton(
+                  onPressed: _showMonthPicker,
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    side: BorderSide(color: cs.primary),
+                    foregroundColor: cs.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$_currentYear-${_currentMonth.toString().padLeft(2, '0')}',
+                      ),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!hasAnyData)
+              Expanded(
+                child: Center(
+                  child: snapshot.connectionState == ConnectionState.waiting
+                      ? const CircularProgressIndicator()
+                      : const Text(AppStrings.noDataThisMonth),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.separated(
+                  itemCount: weeks.length,
+                  separatorBuilder: (_, __) =>
+                      Divider(height: 1, color: cs.outlineVariant),
+                  itemBuilder: (context, index) {
+                    final entry = weeks[index];
+                    final weekDays = [...entry.value]..sort();
+
+                    final firstDay = weekDays.first;
+                    final lastDay = weekDays.last;
+
+                    double net = 0;
+                    for (final d in weekDays) {
+                      final dayKey = DateTime(d.year, d.month, d.day);
+                      net += agg?.netByDay[dayKey] ?? 0.0;
+                    }
+
+                    final isCurrentWeek = weekDays.any(
+                      (d) => DateUtilsX.isSameDay(d, _selectedDay),
+                    );
+
+                    final title = AppStrings.monthRangeTitle(
+                      index,
+                      firstDay.day,
+                      lastDay.day,
+                    );
+
+                    final netColor = _amountTextColor(net);
+
+                    return ListTile(
+                      title: Text(
+                        title,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: isCurrentWeek
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                            ),
+                      ),
+                      trailing: Text(
+                        net.toStringAsFixed(2),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: netColor,
+                            ),
+                      ),
+                      onTap: () => _updateSelectedDay(firstDay),
+                    );
+                  },
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '$_currentYear-${_currentMonth.toString().padLeft(2, '0')}',
-                  ),
-                  const Icon(Icons.arrow_drop_down),
-                ],
-              ),
-            ),
           ],
-        ),
-        const SizedBox(height: 12),
-        if (weeks.isEmpty)
-          const Expanded(
-            child: Center(
-              child: Text(AppStrings.noDataThisMonth),
-            ),
-          )
-        else
-          Expanded(
-            child: ListView.separated(
-              itemCount: weeks.length,
-              separatorBuilder: (_, __) =>
-                  Divider(height: 1, color: cs.outlineVariant),
-              itemBuilder: (context, index) {
-                final entry = weeks[index];
-                final weekDays = entry.value..sort();
-
-                final firstDay = weekDays.first;
-                final lastDay = weekDays.last;
-
-                double income = 0;
-                double expense = 0;
-                for (final d in weekDays) {
-                  income += recordProvider.dayIncome(bookId, d);
-                  expense += recordProvider.dayExpense(bookId, d);
-                }
-                final net = income - expense;
-
-                final isCurrentWeek = weekDays.any(
-                  (d) => DateUtilsX.isSameDay(d, _selectedDay),
-                );
-
-                final title = AppStrings.monthRangeTitle(
-                  index,
-                  firstDay.day,
-                  lastDay.day,
-                );
-
-                final netColor = _amountTextColor(net);
-
-                return ListTile(
-                  title: Text(
-                    title,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight:
-                              isCurrentWeek ? FontWeight.w600 : FontWeight.w500,
-                        ),
-                  ),
-                  trailing: Text(
-                    _NumberFormatter.format(net),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: netColor,
-                        ),
-                  ),
-                  onTap: () => _updateSelectedDay(firstDay),
-                );
-              },
-            ),
-          ),
-      ],
+        );
+      },
     );
   }
 
@@ -624,8 +707,8 @@ class _DatePanelState extends State<DatePanel>
           recordProvider.monthExpense(monthDate, bookId);
     }
 
-    final yearSummaryText = '$_currentYear${AppStrings.annualSummary}：'
-        '${totalNet.toStringAsFixed(2)}';
+    final yearSummaryText =
+        '$_currentYear${AppStrings.annualSummary}\uff1a${totalNet.toStringAsFixed(2)}';
     final yearSummaryColor = _amountTextColor(totalNet);
 
     return Column(
@@ -676,6 +759,18 @@ class _DatePanelState extends State<DatePanel>
       ],
     );
   }
+}
+
+class _MonthAgg {
+  const _MonthAgg({
+    required this.netByDay,
+    required this.hasDataDays,
+    required this.monthNet,
+  });
+
+  final Map<DateTime, double> netByDay;
+  final Set<DateTime> hasDataDays;
+  final double monthNet;
 }
 
 class _DayCell extends StatelessWidget {
@@ -846,18 +941,5 @@ class _MonthNetGrid extends StatelessWidget {
         );
       }).toList(),
     );
-  }
-}
-
-class _NumberFormatter {
-  static String format(double value) {
-    final absValue = value.abs();
-    if (absValue >= 100000000) {
-      return '${(value / 100000000).toStringAsFixed(1)}${AppStrings.unitYi}';
-    } else if (absValue >= 10000) {
-      return '${(value / 10000).toStringAsFixed(1)}${AppStrings.unitWan}';
-    } else {
-      return value.toStringAsFixed(2);
-    }
   }
 }

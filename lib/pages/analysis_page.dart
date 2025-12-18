@@ -350,15 +350,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                             const SizedBox(height: 12),
                                           ],
                                         ),
-                                        if (showLoadingOverlay)
-                                          const Positioned(
-                                            left: 0,
-                                            right: 0,
-                                            top: 0,
-                                            child: LinearProgressIndicator(
-                                              minHeight: 2,
-                                            ),
-                                          ),
                                       ],
                                     ),
                                   ),
@@ -422,13 +413,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     ),
                   ),
                 ),
-                if (showLoadingOverlay)
-                  const Positioned(
-                    left: 0,
-                    right: 0,
-                    top: 0,
-                    child: LinearProgressIndicator(minHeight: 2),
-                  ),
               ],
             ),
           ),
