@@ -179,6 +179,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             backgroundColor: Colors.transparent,
           ),
           body: SafeArea(
+            top: false,
             child: Stack(
               children: [
                 Center(
@@ -1491,18 +1492,16 @@ class _HeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-      final brand = Theme.of(context).extension<BrandTheme>();
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          gradient: brand?.headerGradient,
+          color: cs.surfaceContainerHighest,
           border: Border.all(
             color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
           ),
           borderRadius: BorderRadius.circular(24),
-          boxShadow: isDark ? null : brand?.headerShadow,
         ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

@@ -345,6 +345,8 @@ class _HomePageState extends State<HomePage> {
 
       body: SafeArea(
 
+        top: false,
+
         bottom: false, // 禁用底部 SafeArea，手动处理底部导航栏
 
         child: Align(
@@ -4850,7 +4852,6 @@ class _BalanceCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     final cs = theme.colorScheme;
-    final brand = theme.extension<BrandTheme>();
 
     final isDark = theme.brightness == Brightness.dark;
 
@@ -4868,12 +4869,11 @@ class _BalanceCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
 
           decoration: BoxDecoration(
-            gradient: brand?.headerGradient,
+            color: cs.surfaceContainerHighest,
             border: Border.all(
               color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
             ),
             borderRadius: BorderRadius.circular(24),
-            boxShadow: isDark ? null : brand?.headerShadow,
           ),
 
         child: Column(

@@ -5,6 +5,10 @@ enum AppThemeStyle {
   ocean,
   amber,
   graphite,
+  mint,
+  rose,
+  violet,
+  coral,
 }
 
 enum AppVisualTone {
@@ -89,8 +93,16 @@ class AppTheme {
     final seed = switch (style) {
       AppThemeStyle.ocean => const Color(0xFF2F6BFF),
       AppThemeStyle.amber => const Color(0xFFB66A2E),
-      AppThemeStyle.graphite => const Color(0xFF4A5568),
+      AppThemeStyle.graphite => const Color(0xFF6B7280),
+      AppThemeStyle.mint => const Color(0xFF14B8A6),
+      AppThemeStyle.rose => const Color(0xFFDB2777),
+      AppThemeStyle.violet => const Color(0xFF7C3AED),
+      AppThemeStyle.coral => const Color(0xFFFF6B4A),
     };
+
+    Color tint(Color base, double amount) {
+      return Color.lerp(base, seed, amount) ?? base;
+    }
 
     final base = ThemeData(
       useMaterial3: true,
@@ -99,14 +111,17 @@ class AppTheme {
         seedColor: seed,
         brightness: brightness,
       ).copyWith(
-        surface: isDark ? const Color(0xFF0B0D10) : const Color(0xFFF5F6F8),
+        surface: tint(
+          isDark ? const Color(0xFF0B0D10) : const Color(0xFFF5F6F8),
+          isDark ? 0.06 : 0.02,
+        ),
         surfaceContainerHighest:
-            isDark ? const Color(0xFF12151B) : const Color(0xFFFFFFFF),
-        surfaceContainer: isDark ? const Color(0xFF0F1217) : const Color(0xFFF0F2F5),
+            tint(isDark ? const Color(0xFF12151B) : const Color(0xFFFFFFFF), isDark ? 0.05 : 0.012),
+        surfaceContainer: tint(
+          isDark ? const Color(0xFF0F1217) : const Color(0xFFF0F2F5),
+          isDark ? 0.07 : 0.025,
+        ),
         outlineVariant: isDark ? const Color(0xFF252A33) : const Color(0xFFE3E5EA),
-        secondary: style == AppThemeStyle.amber
-            ? const Color(0xFFB66A2E)
-            : const Color(0xFF2F6BFF),
         tertiary: const Color(0xFF10B981),
         error: const Color(0xFFEF4444),
       ),

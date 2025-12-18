@@ -308,12 +308,18 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       backgroundColor: cs.surface,
+      appBar: AppBar(
+        elevation: 0,
+        toolbarHeight: 0,
+        backgroundColor: cs.surface,
+      ),
       body: SafeArea(
+        top: false,
         child: Center(
            child: ConstrainedBox(
              constraints: const BoxConstraints(maxWidth: 430),
               child: ListView(
-               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+               padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
                 children: [                
                  if (!isLoggedIn) ...[
                    _buildLoginHintCard(context),
@@ -1041,9 +1047,37 @@ class _ProfilePageState extends State<ProfilePage> {
                           _ThemePresetChip(
                             title: '石墨灰',
                             subtitle: '极简高级',
-                            color: const Color(0xFF4A5568),
+                            color: const Color(0xFF6B7280),
                             selected: currentStyle == AppThemeStyle.graphite,
                             onTap: () => themeProvider.setStyle(AppThemeStyle.graphite),
+                          ),
+                          _ThemePresetChip(
+                            title: '薄荷青',
+                            subtitle: '清爽明亮',
+                            color: const Color(0xFF14B8A6),
+                            selected: currentStyle == AppThemeStyle.mint,
+                            onTap: () => themeProvider.setStyle(AppThemeStyle.mint),
+                          ),
+                          _ThemePresetChip(
+                            title: '玫瑰粉',
+                            subtitle: '柔和精致',
+                            color: const Color(0xFFDB2777),
+                            selected: currentStyle == AppThemeStyle.rose,
+                            onTap: () => themeProvider.setStyle(AppThemeStyle.rose),
+                          ),
+                          _ThemePresetChip(
+                            title: '紫罗兰',
+                            subtitle: '高级克制',
+                            color: const Color(0xFF7C3AED),
+                            selected: currentStyle == AppThemeStyle.violet,
+                            onTap: () => themeProvider.setStyle(AppThemeStyle.violet),
+                          ),
+                          _ThemePresetChip(
+                            title: '珊瑚橙',
+                            subtitle: '活力温暖',
+                            color: const Color(0xFFFF6B4A),
+                            selected: currentStyle == AppThemeStyle.coral,
+                            onTap: () => themeProvider.setStyle(AppThemeStyle.coral),
                           ),
                         ],
                       ),

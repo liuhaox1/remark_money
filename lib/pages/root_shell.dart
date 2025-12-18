@@ -204,6 +204,7 @@ class _AssetsPageBody extends StatelessWidget {
         backgroundColor: Colors.transparent,
       ),
       body: SafeArea(
+        top: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
@@ -414,7 +415,6 @@ class _AssetsPageBody extends StatelessWidget {
     Widget build(BuildContext context) {
       final theme = Theme.of(context);
       final cs = theme.colorScheme;
-      final brand = theme.extension<BrandTheme>();
       final isDark = theme.brightness == Brightness.dark;
  
     return Padding(
@@ -422,12 +422,11 @@ class _AssetsPageBody extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            gradient: brand?.headerGradient,
+            color: cs.surfaceContainerHighest,
             border: Border.all(
               color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
             ),
             borderRadius: BorderRadius.circular(24),
-            boxShadow: isDark ? null : brand?.headerShadow,
           ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
