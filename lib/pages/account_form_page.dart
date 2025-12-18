@@ -40,7 +40,6 @@ class _AccountFormPageState extends State<AccountFormPage> {
   late final TextEditingController _amountCtrl;
   late final TextEditingController _noteCtrl;
   late final TextEditingController _counterpartyCtrl;
-  final FocusNode _amountFocusNode = FocusNode();
   bool _includeInOverview = true;
   DateTime? _dueDate;
   String? _brandKey;
@@ -85,13 +84,187 @@ class _AccountFormPageState extends State<AccountFormPage> {
     }
 
     // 如果是新建账户，在页面构建后自动聚焦到金额输入框
-    if (account == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _amountFocusNode.requestFocus();
-        }
+    // 金额/卡号输入使用自定义数字键盘（与“记一笔”一致），不依赖系统软键盘
+  }
+
+  Future<void> _openNumberPad({
+    required TextEditingController controller,
+    bool allowDecimal = true,
+    int? maxLength,
+    bool formatFixed2 = false,
+  }) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    var expression = controller.text.trim();
+
+    void setExpression(void Function(void Function()) setState, String next) {
+      setState(() {
+        if (maxLength != null && next.length > maxLength) return;
+        expression = next;
       });
     }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: false,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (ctx) {
+        final bottom = MediaQuery.of(ctx).padding.bottom;
+        final cs = Theme.of(ctx).colorScheme;
+        final keyBackground = cs.surfaceContainerHighest.withOpacity(0.25);
+
+        Widget buildKey({
+          required String label,
+          VoidCallback? onTap,
+          Color? background,
+          Color? textColor,
+          FontWeight fontWeight = FontWeight.w500,
+        }) {
+          return Expanded(
+            child: InkWell(
+              onTap: onTap,
+              child: Container(
+                height: 56,
+                alignment: Alignment.center,
+                color: background ?? keyBackground,
+                child: Text(
+                  label,
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontSize: 18,
+                        color: textColor ?? cs.onSurface,
+                        fontWeight: fontWeight,
+                      ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            void onDigit(String d) {
+              setExpression(setState, '$expression$d');
+            }
+
+            void onDot() {
+              if (!allowDecimal) return;
+              if (expression.contains('.')) return;
+              if (expression.isEmpty) {
+                setExpression(setState, '0.');
+              } else {
+                setExpression(setState, '$expression.');
+              }
+            }
+
+            void onBackspace() {
+              if (expression.isEmpty) return;
+              setExpression(
+                setState,
+                expression.substring(0, expression.length - 1),
+              );
+            }
+
+            void onClear() {
+              setExpression(setState, '');
+            }
+
+            void onDone() {
+              final raw = expression.trim();
+              if (raw.isEmpty) {
+                controller.text = '';
+                Navigator.pop(ctx);
+                return;
+              }
+              final normalized = raw.startsWith('.') ? '0$raw' : raw;
+              final value = double.tryParse(normalized);
+              if (value == null) return;
+              controller.text = formatFixed2 ? value.toStringAsFixed(2) : raw;
+              Navigator.pop(ctx);
+            }
+
+            return SafeArea(
+              top: false,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(0, 4, 0, bottom > 0 ? 0 : 4),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(ctx).dividerColor.withOpacity(0.35),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          expression.isEmpty ? '0' : expression,
+                          style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        buildKey(label: '7', onTap: () => onDigit('7')),
+                        buildKey(label: '8', onTap: () => onDigit('8')),
+                        buildKey(label: '9', onTap: () => onDigit('9')),
+                        buildKey(
+                          label: '清空',
+                          onTap: onClear,
+                          textColor: cs.onSurface.withOpacity(0.75),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        buildKey(label: '4', onTap: () => onDigit('4')),
+                        buildKey(label: '5', onTap: () => onDigit('5')),
+                        buildKey(label: '6', onTap: () => onDigit('6')),
+                        buildKey(
+                          label: '⌫',
+                          onTap: onBackspace,
+                          textColor: cs.onSurface.withOpacity(0.75),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        buildKey(label: '1', onTap: () => onDigit('1')),
+                        buildKey(label: '2', onTap: () => onDigit('2')),
+                        buildKey(label: '3', onTap: () => onDigit('3')),
+                        buildKey(
+                          label: allowDecimal ? '.' : '',
+                          onTap: allowDecimal ? onDot : null,
+                          textColor: cs.onSurface.withOpacity(0.75),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        buildKey(label: '0', onTap: () => onDigit('0')),
+                        buildKey(
+                          label: '完成',
+                          onTap: onDone,
+                          background: cs.primary,
+                          textColor: cs.onPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -100,7 +273,6 @@ class _AccountFormPageState extends State<AccountFormPage> {
     _amountCtrl.dispose();
     _noteCtrl.dispose();
     _counterpartyCtrl.dispose();
-    _amountFocusNode.dispose();
     super.dispose();
   }
 
@@ -255,6 +427,13 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: _amountLabel(kind),
+                  onTap: !isEditing
+                      ? () => _openNumberPad(
+                            controller: _amountCtrl,
+                            allowDecimal: true,
+                            formatFixed2: true,
+                          )
+                      : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
                     keyboardType: const TextInputType.numberWithOptions(
@@ -267,7 +446,14 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     helperText: isEditing
                         ? '编辑账户时不能修改余额，请在账户详情页使用“调整余额”'
                         : null,
-                    focusNode: !isEditing ? _amountFocusNode : null,
+                    readOnly: true,
+                    onTap: !isEditing
+                        ? () => _openNumberPad(
+                              controller: _amountCtrl,
+                              allowDecimal: true,
+                              formatFixed2: true,
+                            )
+                        : null,
                   ),
                 ),
                 if (_showCounterparty(kind, subtype)) ...[
@@ -363,7 +549,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     final isOtherBank = (_brandKey ?? widget.initialBrandKey) == 'other_bank' ||
         (_brandKey ?? widget.initialBrandKey) == 'other_credit';
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(0, 16, 0, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -391,11 +577,22 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: '卡号（后四位）',
+                  onTap: () => _openNumberPad(
+                    controller: _counterpartyCtrl,
+                    allowDecimal: false,
+                    maxLength: 4,
+                  ),
                   child: _buildPlainTextField(
                     controller: _counterpartyCtrl,
                     hintText: '选填',
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.right,
+                    readOnly: true,
+                    onTap: () => _openNumberPad(
+                      controller: _counterpartyCtrl,
+                      allowDecimal: false,
+                      maxLength: 4,
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
@@ -412,6 +609,13 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: subtype == AccountSubtype.creditCard ? '金额' : '余额',
+                  onTap: !isEditing
+                      ? () => _openNumberPad(
+                            controller: _amountCtrl,
+                            allowDecimal: true,
+                            formatFixed2: true,
+                          )
+                      : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
                     keyboardType:
@@ -421,7 +625,14 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     enabled: !isEditing,
                     helperText:
                         isEditing ? '请前往账户详情页>调整余额进行修改' : null,
-                    focusNode: !isEditing ? _amountFocusNode : null,
+                    readOnly: true,
+                    onTap: !isEditing
+                        ? () => _openNumberPad(
+                              controller: _amountCtrl,
+                              allowDecimal: true,
+                              formatFixed2: true,
+                            )
+                        : null,
                   ),
                 ),
               ],
@@ -454,7 +665,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     // 支付宝和微信不需要名称输入框，只有"其他虚拟账户"才需要
     final isOtherVirtual = widget.presetName == '虚拟账户';
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(0, 16, 0, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -488,13 +699,27 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: '余额',
+                  onTap: !isEditing
+                      ? () => _openNumberPad(
+                            controller: _amountCtrl,
+                            allowDecimal: true,
+                            formatFixed2: true,
+                          )
+                      : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
                     autofocus: !isEditing,
-                    focusNode: !isEditing ? _amountFocusNode : null,
+                    readOnly: true,
+                    onTap: !isEditing
+                        ? () => _openNumberPad(
+                              controller: _amountCtrl,
+                              allowDecimal: true,
+                              formatFixed2: true,
+                            )
+                        : null,
                   ),
                 ),
               ],
@@ -525,7 +750,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     bool isEditing,
   ) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(0, 16, 0, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -555,6 +780,13 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: '金额',
+                  onTap: !isEditing
+                      ? () => _openNumberPad(
+                            controller: _amountCtrl,
+                            allowDecimal: true,
+                            formatFixed2: true,
+                          )
+                      : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
                     keyboardType:
@@ -564,7 +796,14 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     enabled: !isEditing,
                     helperText:
                         isEditing ? '请前往账户详情页>调整余额进行修改' : null,
-                    focusNode: !isEditing ? _amountFocusNode : null,
+                    readOnly: true,
+                    onTap: !isEditing
+                        ? () => _openNumberPad(
+                              controller: _amountCtrl,
+                              allowDecimal: true,
+                              formatFixed2: true,
+                            )
+                        : null,
                   ),
                 ),
               ],
@@ -598,7 +837,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     final isInvest = subtype == AccountSubtype.invest;
     final isOtherInvest = isInvest && widget.presetName == '投资账户';
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(0, 16, 0, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -637,13 +876,27 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: '余额',
+                  onTap: !isEditing
+                      ? () => _openNumberPad(
+                            controller: _amountCtrl,
+                            allowDecimal: true,
+                            formatFixed2: true,
+                          )
+                      : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
                     autofocus: !isEditing,
-                    focusNode: !isEditing ? _amountFocusNode : null,
+                    readOnly: true,
+                    onTap: !isEditing
+                        ? () => _openNumberPad(
+                              controller: _amountCtrl,
+                              allowDecimal: true,
+                              formatFixed2: true,
+                            )
+                        : null,
                   ),
                 ),
               ],
@@ -674,7 +927,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     bool isEditing,
   ) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(0, 16, 0, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -705,13 +958,27 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: '余额',
+                  onTap: !isEditing
+                      ? () => _openNumberPad(
+                            controller: _amountCtrl,
+                            allowDecimal: true,
+                            formatFixed2: true,
+                          )
+                      : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
                     autofocus: !isEditing,
-                    focusNode: !isEditing ? _amountFocusNode : null,
+                    readOnly: true,
+                    onTap: !isEditing
+                        ? () => _openNumberPad(
+                              controller: _amountCtrl,
+                              allowDecimal: true,
+                              formatFixed2: true,
+                            )
+                        : null,
                   ),
                 ),
               ],
@@ -1008,27 +1275,31 @@ class _AccountFormPageState extends State<AccountFormPage> {
     BuildContext context, {
     required String label,
     required Widget child,
+    VoidCallback? onTap,
   }) {
     final labelColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Row(
-        children: [
-          SizedBox(
-            width: _kFormLabelWidth,
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: labelColor,
-                    fontWeight: FontWeight.w500,
-                  ),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            SizedBox(
+              width: _kFormLabelWidth,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: labelColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Align(alignment: Alignment.centerRight, child: child)),
-        ],
+            const SizedBox(width: 12),
+            Expanded(child: child),
+          ],
+        ),
       ),
     );
   }
@@ -1036,12 +1307,11 @@ class _AccountFormPageState extends State<AccountFormPage> {
   BoxDecoration _iosFormSectionDecoration(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
     return BoxDecoration(
-      color: cs.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(
-        color: cs.outlineVariant.withOpacity(isDark ? 0.5 : 0.8),
+      color: cs.surface,
+      border: Border(
+        top: BorderSide(color: cs.outlineVariant.withOpacity(0.3)),
+        bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.3)),
       ),
     );
   }
@@ -1055,6 +1325,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
     TextAlign textAlign = TextAlign.right,
     bool autofocus = false,
     FocusNode? focusNode,
+    bool readOnly = false,
+    VoidCallback? onTap,
   }) {
     final cs = Theme.of(context).colorScheme;
     return Column(
@@ -1064,17 +1336,25 @@ class _AccountFormPageState extends State<AccountFormPage> {
         TextField(
           controller: controller,
           enabled: enabled,
+          readOnly: readOnly,
           keyboardType: keyboardType,
           textAlign: textAlign,
+          textAlignVertical: TextAlignVertical.center,
+          maxLines: 1,
           autofocus: autofocus,
           focusNode: focusNode,
+          onTap: onTap,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: cs.onSurface,
               ),
           decoration: InputDecoration(
             hintText: hintText,
             border: InputBorder.none,
-            isDense: true,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+            filled: false,
+            isCollapsed: true,
             contentPadding: EdgeInsets.zero,
             hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: cs.onSurface.withOpacity(0.55),
