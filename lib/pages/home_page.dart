@@ -291,10 +291,6 @@ class _HomePageState extends State<HomePage> {
 
     final monthExpense = _cachedMonthExpense ?? recordProvider.monthExpense(selectedMonth, bookId);
 
-    final monthBalance = monthIncome - monthExpense;
-
-
-
      final timeRange = _currentTimeRange();
 
      _ensurePeriodRecordsFuture(
@@ -365,7 +361,6 @@ class _HomePageState extends State<HomePage> {
                   _BalanceCard(
                     income: monthIncome,
                     expense: monthExpense,
-                    balance: monthBalance,
                     dateLabel: dateLabel,
                     onTapDate: _pickDate,
                     onTapSearch: _openFilterSheet,
@@ -4825,8 +4820,6 @@ class _BalanceCard extends StatelessWidget {
 
     required this.expense,
 
-    required this.balance,
-
     required this.dateLabel,
 
     required this.onTapDate,
@@ -4840,8 +4833,6 @@ class _BalanceCard extends StatelessWidget {
   final double income;
 
   final double expense;
-
-  final double balance;
 
   final String dateLabel;
 
@@ -4864,6 +4855,7 @@ class _BalanceCard extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final valueColor = cs.onSurface;
+    final balance = income - expense;
 
 
 

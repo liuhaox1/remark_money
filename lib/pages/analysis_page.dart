@@ -763,13 +763,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
         ? ((thisYearExpense - lastYearExpense) / lastYearExpense * 100)
         : 0.0;
     
-    // 计算月度平均
-    final avgMonthlyExpense = filteredYearRecords.isNotEmpty
-        ? thisYearExpense / 12 
-        : 0.0;
+    // 计算月度平均：只按「有记录的月份」计算，避免新用户/数据稀疏时被 12 个月平均拉得过低
+    final expenseByMonth = <int, double>{};
+    for (final r in filteredYearRecords.where((r) => r.isExpense)) {
+      expenseByMonth[r.date.month] = (expenseByMonth[r.date.month] ?? 0) + r.amount;
+    }
+    final monthsWithExpense = expenseByMonth.length;
+    final avgMonthlyExpense =
+        monthsWithExpense > 0 ? (thisYearExpense / monthsWithExpense) : 0.0;
     
-    // 预测本月总支出（基于当前月份和平均）
-    final currentMonth = DateTime.now();
+    // 预测本月总支出（仅在查看「当前年份」时展示）
+    final nowDate = DateTime.now();
+    final predictionAvailable = year == nowDate.year;
+    final currentMonth = nowDate;
     final currentMonthStart = DateTime(currentMonth.year, currentMonth.month, 1);
     final currentMonthEnd = DateTime(currentMonth.year, currentMonth.month + 1, 0, 23, 59, 59);
     final currentMonthRecords = yearRecords.where((r) => 
@@ -779,13 +785,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
     ).toList();
     final filteredCurrentMonthRecords =
         currentMonthRecords.where(_isCountedRecord).toList();
-    final currentMonthExpense =
-        filteredCurrentMonthRecords.fold<double>(0, (sum, r) => sum + r.amount);
+    final currentMonthExpense = predictionAvailable
+        ? filteredCurrentMonthRecords.fold<double>(0, (sum, r) => sum + r.amount)
+        : 0.0;
     final daysPassed = currentMonth.day;
     final totalDays = currentMonthEnd.day;
-    final predictedMonthExpense = daysPassed > 0 
+    final predictedMonthExpense = predictionAvailable && daysPassed > 0
         ? (currentMonthExpense / daysPassed * totalDays)
-        : avgMonthlyExpense;
+        : 0.0;
     
     // 生成洞察
     final insights = <String>[];
@@ -817,6 +824,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
       'yearOverYearChange': yearOverYearChange,
       'avgMonthlyExpense': avgMonthlyExpense,
       'predictedMonthExpense': predictedMonthExpense,
+      'currentMonthExpense': currentMonthExpense,
+      'monthsWithExpense': monthsWithExpense,
+      'predictionAvailable': predictionAvailable,
       'insights': insights,
       'thisYearExpense': thisYearExpense,
       'lastYearExpense': lastYearExpense,
@@ -1019,10 +1029,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   /// 构建预测分析卡片
   Widget _buildPredictionCard(ColorScheme cs, Map<String, dynamic> data) {
+    final predictionAvailable = data['predictionAvailable'] as bool? ?? true;
+    if (!predictionAvailable) return const SizedBox.shrink();
+
     final predictedMonthExpense = data['predictedMonthExpense'] as double? ?? 0.0;
     final avgMonthlyExpense = data['avgMonthlyExpense'] as double? ?? 0.0;
+    final currentMonthExpense = data['currentMonthExpense'] as double? ?? 0.0;
+    final monthsWithExpense = data['monthsWithExpense'] as int? ?? 0;
     
-    if (predictedMonthExpense == 0 && avgMonthlyExpense == 0) return const SizedBox.shrink();
+    if (predictedMonthExpense == 0 &&
+        avgMonthlyExpense == 0 &&
+        currentMonthExpense == 0) {
+      return const SizedBox.shrink();
+    }
     
     final diff = predictedMonthExpense - avgMonthlyExpense;
     final diffPercent = avgMonthlyExpense > 0 ? (diff / avgMonthlyExpense * 100) : 0.0;
@@ -1055,7 +1074,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '预测本月支出',
+                      '本月已支出',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '¥${currentMonthExpense.toStringAsFixed(0)}',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '预计本月支出',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 12,
                         color: cs.onSurface.withOpacity(0.7),
@@ -1072,30 +1112,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     ),
                   ],
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '月均支出',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 12,
-                        color: cs.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '¥${avgMonthlyExpense.toStringAsFixed(0)}',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
-            if (diffPercent.abs() > 5)
+            if (monthsWithExpense > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  '参考：近$monthsWithExpense个月月均支出 ¥${avgMonthlyExpense.toStringAsFixed(0)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+              ),
+            if (monthsWithExpense >= 2 && diffPercent.abs() > 20)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Container(
@@ -1119,8 +1149,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       Expanded(
                         child: Text(
                           diffPercent > 0
-                              ? '预测本月支出将比月均高出${diffPercent.toStringAsFixed(1)}%，建议控制支出'
-                              : '预测本月支出将比月均低${diffPercent.abs().toStringAsFixed(1)}%，继续保持',
+                              ? '预计本月支出将比近$monthsWithExpense个月均高出${diffPercent.toStringAsFixed(1)}%，建议控制支出'
+                              : '预计本月支出将比近$monthsWithExpense个月均低${diffPercent.abs().toStringAsFixed(1)}%，继续保持',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontSize: 12,
                             color: cs.onSurface.withOpacity(0.8),

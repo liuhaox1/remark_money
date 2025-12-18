@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/category.dart';
 import '../models/record.dart';
-import '../providers/category_provider.dart';
-import '../providers/record_provider.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/record_provider.dart';
 import '../services/speech_service.dart';
 import '../services/voice_record_parser.dart';
 import '../utils/error_handler.dart';
-import 'add_record_page.dart';
 
-/// 语音记账页面
+/// 语音记账页
+///
+/// 流程：
+/// 1) 先说话，语音转文字（可编辑）
+/// 2) 点击“发送”后解析文本（支持多条）
+/// 3) 预览无误后批量保存
 class VoiceRecordPage extends StatefulWidget {
   const VoiceRecordPage({super.key});
 
@@ -22,11 +25,12 @@ class VoiceRecordPage extends StatefulWidget {
 
 class _VoiceRecordPageState extends State<VoiceRecordPage> {
   final SpeechService _speechService = SpeechService();
-  String _recognizedText = '';
-  String _statusText = '点击按钮开始语音记账';
+  final TextEditingController _inputCtrl = TextEditingController();
+
   bool _isListening = false;
-  ParsedRecord? _parsedRecord;
-  Category? _matchedCategory;
+  bool _isSaving = false;
+  String _statusText = '先说一句话（可多句），识别成文字后点击“发送”解析';
+  List<ParsedRecordItem> _items = const [];
 
   @override
   void initState() {
@@ -37,6 +41,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
   @override
   void dispose() {
     _speechService.dispose();
+    _inputCtrl.dispose();
     super.dispose();
   }
 
@@ -53,9 +58,8 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
   }
 
   Future<void> _startListening() async {
-    if (_isListening) return;
+    if (_isListening || _isSaving) return;
 
-    // 检查权限
     final hasPermission = await _speechService.checkPermission();
     if (!hasPermission) {
       final granted = await _speechService.requestPermission();
@@ -69,415 +73,388 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
 
     setState(() {
       _isListening = true;
-      _recognizedText = '';
-      _statusText = '正在聆听...';
-      _parsedRecord = null;
-      _matchedCategory = null;
+      _items = const [];
+      _statusText = '正在聆听…';
+      _inputCtrl.text = '';
     });
 
     await _speechService.startListening(
       onResult: (text) {
-        if (mounted) {
-          setState(() {
-            _recognizedText = text;
-            // 实时解析
-            _parsedRecord = VoiceRecordParser.parse(text);
-            if (_parsedRecord != null && _parsedRecord!.categoryHint.isNotEmpty) {
-              final categories = context.read<CategoryProvider>().categories;
-              _matchedCategory = VoiceRecordParser.matchCategory(
-                _parsedRecord!.categoryHint,
-                categories,
-              );
-            }
-          });
-        }
+        if (!mounted) return;
+        setState(() {
+          _inputCtrl.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+        });
       },
       onError: (error) {
-        if (mounted) {
-          setState(() {
-            _isListening = false;
-            _statusText = '识别出错: $error';
-          });
-          // 显示详细错误信息，特别是 Windows 平台的提示
-          ErrorHandler.showError(context, error);
-        }
+        if (!mounted) return;
+        setState(() {
+          _isListening = false;
+          _statusText = '识别出错：$error';
+        });
+        ErrorHandler.showError(context, error);
       },
       onDone: () {
-        if (mounted) {
-          setState(() {
-            _isListening = false;
-            if (_recognizedText.isEmpty) {
-              _statusText = '未识别到内容，请重试';
-            } else {
-              _statusText = '识别完成';
-            }
-          });
-        }
+        if (!mounted) return;
+        setState(() {
+          _isListening = false;
+          if (_inputCtrl.text.trim().isEmpty) {
+            _statusText = '未识别到内容，请重试';
+          } else {
+            _statusText = '识别完成，可编辑后点击“发送”解析';
+          }
+        });
       },
     );
   }
 
   Future<void> _stopListening() async {
     await _speechService.stopListening();
-    if (mounted) {
-      setState(() {
-        _isListening = false;
-        _statusText = '识别完成';
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _isListening = false;
+      _statusText = '识别已停止，可编辑后点击“发送”解析';
+    });
   }
 
-  Future<void> _saveRecord() async {
-    if (_parsedRecord == null) {
-      ErrorHandler.showWarning(context, '请先进行语音识别');
+  Future<void> _parseText() async {
+    if (_isSaving) return;
+    if (_isListening) {
+      await _stopListening();
+      if (!mounted) return;
+    }
+
+    final text = _inputCtrl.text.trim();
+    if (text.isEmpty) {
+      ErrorHandler.showWarning(context, '请先说一句话或输入文本');
       return;
     }
+
+    final parsed = VoiceRecordParser.parseMany(text);
+    if (!mounted) return;
+    if (parsed.isEmpty) {
+      setState(() {
+        _items = const [];
+        _statusText = '未识别到金额，请尝试包含金额（如：吃饭30）';
+      });
+      ErrorHandler.showWarning(context, '未识别到金额');
+      return;
+    }
+
+    setState(() {
+      _items = parsed;
+      _statusText = '解析完成：共 ${parsed.length} 条';
+    });
+  }
+
+  void _clearAll() {
+    if (_isSaving) return;
+    setState(() {
+      _inputCtrl.text = '';
+      _items = const [];
+      _statusText = '先说一句话（可多句），识别成文字后点击“发送”解析';
+    });
+  }
+
+  void _removeItem(int index) {
+    setState(() {
+      final next = [..._items]..removeAt(index);
+      _items = next;
+      _statusText = next.isEmpty ? '没有可保存的记录' : '解析完成：共 ${next.length} 条';
+    });
+  }
+
+  Future<void> _saveAll() async {
+    if (_isSaving) return;
+    if (_items.isEmpty) {
+      ErrorHandler.showWarning(context, '请先点击“发送”解析');
+      return;
+    }
+
+    setState(() => _isSaving = true);
 
     final recordProvider = context.read<RecordProvider>();
     final accountProvider = context.read<AccountProvider>();
     final bookProvider = context.read<BookProvider>();
     final categoryProvider = context.read<CategoryProvider>();
-
-    final fallbackAccount =
-        await accountProvider.ensureDefaultWallet(bookId: bookProvider.activeBookId);
-
-    // 使用匹配的分类，如果没有匹配则使用默认分类
-    String? categoryKey = _matchedCategory?.key;
-    if (categoryKey == null) {
-      // 使用默认分类
-      final defaultCategory = categoryProvider.categories.firstWhere(
-        (c) => c.isExpense == _parsedRecord!.isExpense,
-        orElse: () => categoryProvider.categories.first,
-      );
-      categoryKey = defaultCategory.key;
-    }
+    final categories = categoryProvider.categories;
+    final bookId = bookProvider.activeBookId;
 
     try {
-      await recordProvider.addRecord(
-        amount: _parsedRecord!.amount,
-        remark: _parsedRecord!.remark.isEmpty
-            ? '语音记账'
-            : _parsedRecord!.remark,
-        date: DateTime.now(),
-        categoryKey: categoryKey,
-        bookId: bookProvider.activeBookId,
-        accountId: fallbackAccount.id,
-        direction: _parsedRecord!.isExpense
-            ? TransactionDirection.out
-            : TransactionDirection.income,
-        includeInStats: true,
-        accountProvider: accountProvider,
-      );
+      final fallbackAccount = await accountProvider.ensureDefaultWallet(bookId: bookId);
 
-      if (mounted) {
-        ErrorHandler.showSuccess(context, '记账成功');
-        Navigator.pop(context);
+      var saved = 0;
+      for (final item in _items) {
+        final matched = item.categoryHint.trim().isEmpty
+            ? null
+            : VoiceRecordParser.matchCategory(item.categoryHint, categories);
+
+        String? categoryKey = matched?.key;
+        if (categoryKey == null) {
+          final defaultCategory = categories.firstWhere(
+            (c) => c.isExpense == item.isExpense,
+            orElse: () => categories.first,
+          );
+          categoryKey = defaultCategory.key;
+        }
+
+        final remarkBase = item.remark.trim();
+        final remark = remarkBase.isEmpty
+            ? (matched?.name ?? item.categoryHint).trim().isEmpty
+                ? '语音记账'
+                : (matched?.name ?? item.categoryHint)
+            : remarkBase;
+
+        await recordProvider.addRecord(
+          amount: item.amount,
+          remark: remark,
+          date: item.date,
+          categoryKey: categoryKey,
+          bookId: bookId,
+          accountId: fallbackAccount.id,
+          direction: item.isExpense ? TransactionDirection.out : TransactionDirection.income,
+          includeInStats: true,
+          accountProvider: accountProvider,
+        );
+
+        saved += 1;
       }
+
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, '已保存 $saved 条记录');
+      Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) {
-        ErrorHandler.handleAsyncError(context, e);
-      }
-    }
-  }
-
-  Future<void> _editRecord() async {
-    if (_parsedRecord == null) {
-      ErrorHandler.showWarning(context, '请先进行语音识别');
-      return;
-    }
-
-    // 跳转到编辑页面，预填充数据
-    final accountProvider = context.read<AccountProvider>();
-    final bookProvider = context.read<BookProvider>();
-    final categoryProvider = context.read<CategoryProvider>();
-
-    final fallbackAccount =
-        await accountProvider.ensureDefaultWallet(bookId: bookProvider.activeBookId);
-
-    String? categoryKey = _matchedCategory?.key;
-    if (categoryKey == null) {
-      final defaultCategory = categoryProvider.categories.firstWhere(
-        (c) => c.isExpense == _parsedRecord!.isExpense,
-        orElse: () => categoryProvider.categories.first,
-      );
-      categoryKey = defaultCategory.key;
-    }
-
-    // 创建临时记录用于编辑
-    final tempRecord = Record(
-      id: 'temp_voice_${DateTime.now().millisecondsSinceEpoch}',
-      amount: _parsedRecord!.amount,
-      remark: _parsedRecord!.remark.isEmpty
-          ? '语音记账'
-          : _parsedRecord!.remark,
-      date: DateTime.now(),
-      categoryKey: categoryKey,
-      bookId: bookProvider.activeBookId,
-      accountId: fallbackAccount.id,
-      direction: _parsedRecord!.isExpense
-          ? TransactionDirection.out
-          : TransactionDirection.income,
-      includeInStats: true,
-    );
-
-    if (!mounted) return;
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddRecordPage(
-          initialRecord: tempRecord,
-          isExpense: _parsedRecord!.isExpense,
-        ),
-      ),
-    );
-    if (!mounted) return;
-    if (result == true) {
-      Navigator.pop(context);
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e, onRetry: _saveAll);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final categories = context.watch<CategoryProvider>().categories;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('语音记账'),
-        backgroundColor: cs.surface,
-        foregroundColor: cs.onSurface,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              // 状态提示
-              Text(
-                _statusText,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: cs.onSurface.withOpacity(0.7),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _statusText,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurface.withOpacity(0.75),
                     ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              // 语音按钮
-              GestureDetector(
-                onTap: _isListening ? _stopListening : _startListening,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _isListening
-                        ? cs.error
-                        : cs.primary,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_isListening ? cs.error : cs.primary)
-                            .withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
                   ),
-                  child: Icon(
-                    _isListening ? Icons.stop : Icons.mic,
-                    size: 60,
-                    color: cs.onPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-              // 识别文本显示
-              if (_recognizedText.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _recognizedText,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: cs.onSurface,
-                        ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-              // 解析结果展示
-              if (_parsedRecord != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 12),
+                  _buildInputCard(context),
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            _parsedRecord!.isExpense
-                                ? Icons.arrow_downward
-                                : Icons.arrow_upward,
-                            color: _parsedRecord!.isExpense
-                                ? cs.error
-                                : cs.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _parsedRecord!.isExpense ? '支出' : '收入',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: _parsedRecord!.isExpense
-                                      ? cs.error
-                                      : cs.primary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '金额：¥${_parsedRecord!.amount.toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: cs.onPrimaryContainer,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      if (_parsedRecord!.remark.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          '备注：${_parsedRecord!.remark}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: cs.onPrimaryContainer),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isSaving
+                              ? null
+                              : (_isListening ? _stopListening : _startListening),
+                          icon: Icon(_isListening ? Icons.stop : Icons.mic),
+                          label: Text(_isListening ? '停止' : '说一句话'),
                         ),
-                      ],
-                      if (_matchedCategory != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          '分类：${_matchedCategory!.name}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: cs.onPrimaryContainer),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // 操作按钮
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _startListening,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text('重新识别'),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: _editRecord,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _isSaving ? null : _parseText,
+                          icon: const Icon(Icons.send),
+                          label: const Text('发送'),
                         ),
-                        child: const Text('编辑'),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: _saveRecord,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text('保存'),
-                      ),
-                    ),
-                  ],
-                ),
-              ] else if (_recognizedText.isNotEmpty) ...[
-                // 识别到文本但解析失败
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cs.errorContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.info_outline, color: cs.onErrorContainer),
-                      const SizedBox(height: 8),
-                      Text(
-                        '未能识别到金额，请说清楚金额，例如："支出50元吃饭"',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: cs.onErrorContainer),
-                        textAlign: TextAlign.center,
+                      const SizedBox(width: 12),
+                      IconButton(
+                        tooltip: '清空',
+                        onPressed: (_isSaving || _isListening) ? null : _clearAll,
+                        icon: const Icon(Icons.backspace_outlined),
                       ),
                     ],
                   ),
-                ),
-              ],
-              const Spacer(),
-              // 使用提示
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '使用提示',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(color: cs.onSurface),
+                  const SizedBox(height: 12),
+                  if (_items.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '预览（${_items.length} 条）',
+                            style: theme.textTheme.titleSmall,
+                          ),
+                        ),
+                        if (_isSaving)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    _buildTip('支出50元吃饭'),
-                    _buildTip('收入1000工资'),
-                    _buildTip('今天花了30块打车'),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: _items.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final item = _items[index];
+                          final matched = item.categoryHint.trim().isEmpty
+                              ? null
+                              : VoiceRecordParser.matchCategory(
+                                  item.categoryHint,
+                                  categories,
+                                );
+                          final title = (matched?.name ?? item.categoryHint).trim().isEmpty
+                              ? (item.isExpense ? '支出' : '收入')
+                              : (matched?.name ?? item.categoryHint);
+
+                          final remark = item.remark.trim().isEmpty ? title : item.remark;
+                          final dateStr =
+                              '${item.date.year}-${item.date.month.toString().padLeft(2, '0')}-${item.date.day.toString().padLeft(2, '0')}';
+                          final amountColor = item.isExpense ? cs.error : cs.tertiary;
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: cs.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              leading: Icon(
+                                item.isExpense ? Icons.arrow_downward : Icons.arrow_upward,
+                                color: amountColor,
+                              ),
+                              title: Text(
+                                remark,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(dateStr),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${item.isExpense ? '-' : '+'}${item.amount.toStringAsFixed(2)}',
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      color: amountColor,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: '移除',
+                                    onPressed: _isSaving ? null : () => _removeItem(index),
+                                    icon: const Icon(Icons.close),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _isSaving ? null : _saveAll,
+                      child: Text('保存 ${_items.length} 条'),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 8),
+                    Expanded(child: _buildTips(context)),
                   ],
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTip(String text) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Row(
+  Widget _buildInputCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: TextField(
+        controller: _inputCtrl,
+        enabled: !_isListening && !_isSaving,
+        maxLines: 5,
+        minLines: 3,
+        textInputAction: TextInputAction.newline,
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          hintText: '例如：我今天吃饭花了30，喝水花50\n也支持：昨天工资5000，买咖啡18\n或：12月17日 买咖啡 18',
+        ),
+        style: theme.textTheme.bodyLarge,
+      ),
+    );
+  }
+
+  Widget _buildTips(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    const tips = [
+      '我今天吃饭花了30，喝水花50',
+      '昨天工资5000，买咖啡18',
+      '12月17日 买咖啡 18',
+      '前天打车花了25',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.circle, size: 6, color: cs.onSurface.withOpacity(0.5)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
+          Text('使用提示', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          ...tips.map(
+            (t) => Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.circle, size: 6, color: cs.onSurface.withOpacity(0.4)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      t,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(0.75),
+                      ),
+                    ),
                   ),
+                ],
+              ),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '提示：解析结果会先预览，确认无误再保存。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurface.withOpacity(0.6),
             ),
           ),
         ],
