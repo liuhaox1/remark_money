@@ -230,72 +230,74 @@ class _AccountFormPageState extends State<AccountFormPage> {
         children: [
           _buildTypeHeader(kind, subtype),
           const SizedBox(height: 12),
-          TextField(
-            controller: _nameCtrl,
-            decoration: const InputDecoration(
-              labelText: '账户名称',
-              hintText: '例如：招商银行(尾号1234)',
+          Container(
+            decoration: _iosFormSectionDecoration(context),
+            child: Column(
+              children: [
+                _buildBankInputRow(
+                  context,
+                  label: '名称',
+                  child: _buildPlainTextField(
+                    controller: _nameCtrl,
+                    hintText: '请输入名称',
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildBankInputRow(
+                  context,
+                  label: _amountLabel(kind),
+                  child: _buildPlainTextField(
+                    controller: _amountCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: false,
+                    ),
+                    enabled: !isEditing,
+                    hintText: '0.00',
+                    helperText: isEditing
+                        ? '编辑账户时不能修改余额，请在账户详情页使用“调整余额”'
+                        : null,
+                    focusNode: !isEditing ? _amountFocusNode : null,
+                  ),
+                ),
+                if (_showCounterparty(kind, subtype)) ...[
+                  const Divider(height: 1),
+                  _buildBankInputRow(
+                    context,
+                    label: '对方',
+                    child: _buildPlainTextField(
+                      controller: _counterpartyCtrl,
+                      hintText: '选填',
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _buildTapValueRow(
+                    context,
+                    label: '到期日',
+                    value: _dueDate == null ? '未设置' : _formatDate(_dueDate!),
+                    placeholderOpacity: _dueDate == null ? 0.55 : 1.0,
+                    onTap: _pickDate,
+                  ),
+                ],
+                const Divider(height: 1),
+                _buildBankInputRow(
+                  context,
+                  label: '备注',
+                  child: _buildPlainTextField(
+                    controller: _noteCtrl,
+                    hintText: '选填',
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
             ),
           ),
-          if (!isEditing) ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: _amountCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true, signed: false),
-              decoration: InputDecoration(
-                labelText: _amountLabel(kind),
-                hintText: '0.00',
-              ),
-            ),
-          ] else ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: _amountCtrl,
-              enabled: false,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true, signed: false),
-              decoration: InputDecoration(
-                labelText: _amountLabel(kind),
-                hintText: '0.00',
-                helperText: '编辑账户时不能修改余额，请在账户详情页使用"调整余额"功能',
-              ),
-            ),
-          ],
           if (_shouldShowBrandSelector(subtype)) ...[
             const SizedBox(height: 12),
             _buildBrandSelector(context),
           ],
-          const SizedBox(height: 12),
-          if (_showCounterparty(kind, subtype)) ...[
-            TextField(
-              controller: _counterpartyCtrl,
-              decoration: const InputDecoration(
-                labelText: '对方名称（可选）',
-                hintText: '如：银行/朋友姓名',
-              ),
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: _pickDate,
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: '预计还清/收回日期（可选）',
-                  border: OutlineInputBorder(),
-                ),
-                child: Text(_dueDate == null ? '未设置' : _formatDate(_dueDate!)),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          TextField(
-            controller: _noteCtrl,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: '备注（可选）',
-              border: OutlineInputBorder(),
-            ),
-          ),
           const SizedBox(height: 12),
           if (widget.showAdvancedSettings)
             ExpansionTile(
@@ -357,17 +359,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+            decoration: _iosFormSectionDecoration(context),
             child: Column(
               children: [
                 if (showBankSelectorRow) ...[
@@ -397,15 +389,17 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     textAlign: TextAlign.right,
                   ),
                 ),
+                const Divider(height: 1),
                 _buildBankInputRow(
                   context,
                   label: '备注',
                   child: _buildPlainTextField(
                     controller: _noteCtrl,
-                    hintText: '（选填）',
+                    hintText: '选填',
                     textAlign: TextAlign.right,
                   ),
                 ),
+                const Divider(height: 1),
                 _buildBankInputRow(
                   context,
                   label: subtype == AccountSubtype.creditCard ? '金额' : '余额',
@@ -455,17 +449,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+            decoration: _iosFormSectionDecoration(context),
             child: Column(
               children: [
                 // 只有"其他虚拟账户"才显示名称输入框
@@ -486,7 +470,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   label: '备注',
                   child: _buildPlainTextField(
                     controller: _noteCtrl,
-                    hintText: '（选填）',
+                    hintText: '选填',
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -499,6 +483,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
+                    focusNode: !isEditing ? _amountFocusNode : null,
                   ),
                 ),
               ],
@@ -534,17 +519,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+            decoration: _iosFormSectionDecoration(context),
             child: Column(
               children: [
                 _buildBankInputRow(
@@ -561,7 +536,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   label: '备注',
                   child: _buildPlainTextField(
                     controller: _noteCtrl,
-                    hintText: '（选填）',
+                    hintText: '选填',
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -621,17 +596,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
             const SizedBox(height: 12),
           ],
           Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+            decoration: _iosFormSectionDecoration(context),
             child: Column(
               children: [
                 // 只有"其他投资账户"才显示名称输入框
@@ -652,7 +617,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   label: '备注',
                   child: _buildPlainTextField(
                     controller: _noteCtrl,
-                    hintText: '（选填）',
+                    hintText: '选填',
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -701,30 +666,16 @@ class _AccountFormPageState extends State<AccountFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+            decoration: _iosFormSectionDecoration(context),
             child: Column(
               children: [
                 _buildBankInputRow(
                   context,
                   label: '名称',
-                  child: Text(
-                    '现金',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.6),
-                        ),
+                  child: _buildPlainTextField(
+                    controller: _nameCtrl,
+                    hintText: '现金',
+                    textAlign: TextAlign.right,
                   ),
                 ),
                 const Divider(height: 1),
@@ -733,7 +684,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   label: '备注',
                   child: _buildPlainTextField(
                     controller: _noteCtrl,
-                    hintText: '（选填）',
+                    hintText: '选填',
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -746,7 +697,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
-                    autofocus: true,
+                    focusNode: _amountFocusNode,
                   ),
                 ),
               ],
@@ -993,6 +944,47 @@ class _AccountFormPageState extends State<AccountFormPage> {
     );
   }
 
+  Widget _buildTapValueRow(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+    double placeholderOpacity = 1.0,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final labelColor = cs.onSurface.withOpacity(0.7);
+    final valueColor = cs.onSurface.withOpacity(placeholderOpacity);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: labelColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const Spacer(),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: valueColor,
+                  ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.chevron_right,
+              color: labelColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBankInputRow(
     BuildContext context, {
     required String label,
@@ -1000,7 +992,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
   }) {
     final labelColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         children: [
           Text(
@@ -1013,6 +1005,19 @@ class _AccountFormPageState extends State<AccountFormPage> {
           const SizedBox(width: 12),
           Expanded(child: Align(alignment: Alignment.centerRight, child: child)),
         ],
+      ),
+    );
+  }
+
+  BoxDecoration _iosFormSectionDecoration(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    return BoxDecoration(
+      color: cs.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: cs.outlineVariant.withOpacity(isDark ? 0.5 : 0.8),
       ),
     );
   }

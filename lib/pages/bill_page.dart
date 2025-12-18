@@ -16,7 +16,6 @@ import '../models/category.dart';
 import '../models/period_type.dart';
 import '../models/record.dart';
 import '../utils/csv_utils.dart';
-import '../utils/records_export_bundle.dart';
 import '../utils/error_handler.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -27,7 +26,9 @@ import 'package:share_plus/share_plus.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
 import '../widgets/timeline_item.dart';
+import '../services/records_export_service.dart';
 import 'add_record_page.dart';
+import 'export_data_page.dart';
 import 'report_detail_page.dart';
 
 class BillPage extends StatefulWidget {
@@ -817,7 +818,97 @@ class _BillPageState extends State<BillPage> {
           IconButton(
             tooltip: '导出数据',
             icon: const Icon(Icons.ios_share_outlined),
-            onPressed: () => _showExportMenuV2(context, bookId),
+            onPressed: () async {
+              final range = _currentRange();
+
+              final choice = await showModalBottomSheet<RecordsExportFormat>(
+                context: context,
+                backgroundColor: Theme.of(context).colorScheme.surface,
+                showDragHandle: true,
+                builder: (ctx) {
+                  final cs = Theme.of(ctx).colorScheme;
+                  final tt = Theme.of(ctx).textTheme;
+                  return SafeArea(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          leading: Icon(
+                            Icons.grid_on_outlined,
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
+                          title: Text(
+                            '导出 Excel',
+                            style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                          ),
+                          subtitle: Text(
+                            '适合表格查看与二次处理',
+                            style: tt.bodySmall?.copyWith(
+                              color: cs.onSurface.withOpacity(0.7),
+                            ),
+                          ),
+                          onTap: () => Navigator.pop(
+                            ctx,
+                            RecordsExportFormat.excel,
+                          ),
+                        ),
+                        ListTile(
+                          leading: Icon(
+                            Icons.picture_as_pdf_outlined,
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
+                          title: Text(
+                            '导出 PDF',
+                            style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                          ),
+                          subtitle: Text(
+                            '适合发送/打印留存',
+                            style: tt.bodySmall?.copyWith(
+                              color: cs.onSurface.withOpacity(0.7),
+                            ),
+                          ),
+                          onTap: () => Navigator.pop(
+                            ctx,
+                            RecordsExportFormat.pdf,
+                          ),
+                        ),
+                        ListTile(
+                          leading: Icon(
+                            Icons.table_chart_outlined,
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
+                          title: Text(
+                            '导出 CSV',
+                            style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                          ),
+                          subtitle: Text(
+                            '适合 Excel/表格查看与分析',
+                            style: tt.bodySmall?.copyWith(
+                              color: cs.onSurface.withOpacity(0.7),
+                            ),
+                          ),
+                          onTap: () => Navigator.pop(
+                            ctx,
+                            RecordsExportFormat.csv,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+
+              if (!context.mounted || choice == null) return;
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ExportDataPage(
+                    bookId: bookId,
+                    initialRange: range,
+                    format: choice,
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -1317,40 +1408,6 @@ class _BillPageState extends State<BillPage> {
     );
   }
 
-  Future<void> _showExportMenu(BuildContext context, String bookId) async {
-    final range = _currentRange();
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('导出 CSV（用于 Excel 查看）'),
-                onTap: () => Navigator.pop(ctx, 'csv'),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                title: const Text('导出 JSON（用于备份 / 迁移）'),
-                onTap: () => Navigator.pop(ctx, 'json'),
-              ),
-              const SizedBox(height: 4),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (!context.mounted || choice == null) return;
-
-    if (choice == 'csv') {
-      await _exportCsv(context, bookId, range);
-    } else if (choice == 'json') {
-      await _exportJson(context, bookId, range);
-    }
-  }
-
   Future<void> _exportCsv(
     BuildContext context,
     String bookId,
@@ -1477,83 +1534,6 @@ class _BillPageState extends State<BillPage> {
       if (context.mounted) {
         ErrorHandler.handleAsyncError(context, e);
       }
-    }
-  }
-
-  Future<void> _exportJson(
-    BuildContext context,
-    String bookId,
-    DateTimeRange range,
-  ) async {
-    final recordProvider = context.read<RecordProvider>();
-
-    // 显示加载提示
-    if (context.mounted) {
-      ErrorHandler.showInfo(context, '正在导出...');
-    }
-
-    final records = recordProvider.recordsForPeriod(
-      bookId,
-      start: range.start,
-      end: range.end,
-    );
-    if (records.isEmpty) {
-      if (context.mounted) {
-        ErrorHandler.showWarning(context, '当前时间范围内暂无记录');
-      }
-      return;
-    }
-
-    final bundle = RecordsExportBundle(
-      version: 1,
-      exportedAt: DateTime.now().toUtc(),
-      type: 'records',
-      bookId: bookId,
-      start: range.start,
-      end: range.end,
-      records: records,
-    );
-
-    final dir = await getTemporaryDirectory();
-    final bookProvider = context.read<BookProvider>();
-    final bookName = bookProvider.activeBook?.name ?? '默认账本';
-    // Windows 文件名不允许包含特殊字符，使用简洁的日期格式
-    final startStr = '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
-    final endStr = '${range.end.year}-${range.end.month.toString().padLeft(2, '0')}-${range.end.day.toString().padLeft(2, '0')}';
-    // 文件名包含账本名称，更友好
-    final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-    final fileName = '${safeBookName}_${startStr}_$endStr.json';
-    final file = File('${dir.path}/$fileName');
-
-    await file.writeAsString(bundle.toJson(), encoding: utf8);
-
-    if (!context.mounted) return;
-
-    // Windows 平台使用文件保存对话框，其他平台使用共享
-    if (Platform.isWindows) {
-      final savedPath = await FilePicker.platform.saveFile(
-        dialogTitle: '保存 JSON 备份文件',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-      
-      if (savedPath != null) {
-        await file.copy(savedPath);
-        if (context.mounted) {
-          final fileSize = await File(savedPath).length();
-          final sizeStr = fileSize > 1024 * 1024
-              ? '${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'
-              : '${(fileSize / 1024).toStringAsFixed(2)} KB';
-          ErrorHandler.showSuccess(context, '导出成功！共 ${records.length} 条记录，文件大小：$sizeStr');
-        }
-      }
-    } else {
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      subject: '指尖记账导出 JSON 备份',
-      text: '指尖记账记录 JSON 备份，可用于导入或迁移。',
-    );
     }
   }
 

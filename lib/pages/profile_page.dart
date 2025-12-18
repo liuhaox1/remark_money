@@ -14,18 +14,19 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
-import '../providers/reminder_provider.dart';
 import '../providers/theme_provider.dart';
 import '../theme/brand_theme.dart';
 import '../models/book.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
 import '../services/gift_code_service.dart';
+import '../services/records_export_service.dart';
 import '../services/sync_outbox_service.dart';
 import '../services/sync_v2_conflict_store.dart';
 import 'account_settings_page.dart';
 import 'vip_purchase_page.dart';
 import 'sync_conflicts_page.dart';
+import 'export_data_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
 import '../widgets/user_stats_card.dart';
@@ -296,13 +297,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final bookProvider = context.watch<BookProvider>();
     final categoryProvider = context.watch<CategoryProvider>();
-    final reminderProvider = context.watch<ReminderProvider>();
     final cs = Theme.of(context).colorScheme;
 
     final activeBookName = bookProvider.activeBook?.name ?? AppStrings.book;
     final bookCount = bookProvider.books.length;
 	    final categoryCount = categoryProvider.categories.length;
-	    final reminderEnabled = reminderProvider.enabled;
 	    final isLoggedIn = (_token != null && _token!.isNotEmpty);
 	    final activeBookId = bookProvider.activeBookId;
 
@@ -360,11 +359,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 _buildHeaderCard(
                   context,
                   title: '设置',
-                  subtitle: '管理你的账本、主题、预算和提醒',
+                  subtitle: '管理你的账本、主题和预算',
                   activeBook: activeBookName,
                   bookCount: bookCount,
                   categoryCount: categoryCount,
-                  reminderEnabled: reminderEnabled,
                   isLoggedIn: isLoggedIn,
                 ),
                 const SizedBox(height: 12),
@@ -374,7 +372,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 12),
                 _buildActionGrid(
                   context,
-                  reminderProvider: reminderProvider,
                 ),
                 const SizedBox(height: 12),
                 _buildSettingsList(context),
@@ -552,9 +549,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildActionGrid(
-    BuildContext context, {
-    required ReminderProvider reminderProvider,
-  }) {
+    BuildContext context,
+  ) {
     final cs = Theme.of(context).colorScheme;
     final actions = [
       _ProfileAction(
@@ -589,11 +585,6 @@ class _ProfilePageState extends State<ProfilePage> {
           final csInner = Theme.of(context).colorScheme;
           _showDataSecuritySheet(context, csInner);
         },
-      ),
-      _ProfileAction(
-        icon: Icons.alarm_outlined,
-        label: '提醒设置',
-        onTap: () => _showReminderSheet(context, reminderProvider),
       ),
     ];
 
@@ -701,7 +692,6 @@ class _ProfilePageState extends State<ProfilePage> {
       required String activeBook,
       required int bookCount,
       required int categoryCount,
-      required bool reminderEnabled,
       required bool isLoggedIn,
     }) {
     final cs = Theme.of(context).colorScheme;
@@ -785,11 +775,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 context,
                 label: '分类数量',
                 value: '$categoryCount',
-              ),
-              _buildHeaderStat(
-                context,
-                label: '提醒',
-                value: reminderEnabled ? '已开启' : '未开启',
               ),
             ],
           ),
@@ -1093,72 +1078,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _showReminderSheet(
-    BuildContext context,
-    ReminderProvider provider,
-  ) async {
-    final cs = Theme.of(context).colorScheme;
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: cs.surface,
-      showDragHandle: true,
-      builder: (ctx) {
-        final tt = Theme.of(ctx).textTheme;
-        final time = provider.timeOfDay;
-        final timeLabel =
-            '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SwitchListTile(
-                  value: provider.enabled,
-                  title: Text(
-                    '开启每日记账提醒',
-                    style: tt.titleSmall?.copyWith(color: cs.onSurface),
-                  ),
-                  subtitle: Text(
-                    '每天固定时间提醒你打开指尖记账',
-                    style: tt.bodySmall?.copyWith(
-                      color: cs.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  onChanged: (v) => provider.setEnabled(v),
-                ),
-                ListTile(
-                  leading: Icon(Icons.schedule_outlined,
-                      color: cs.onSurface.withOpacity(0.8)),
-                  title: Text(
-                    '提醒时间',
-                    style: tt.titleSmall?.copyWith(color: cs.onSurface),
-                  ),
-                  subtitle: Text(
-                    timeLabel,
-                    style: tt.bodySmall?.copyWith(
-                      color: cs.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  onTap: () async {
-                    final current = provider.timeOfDay;
-                    final picked = await showTimePicker(
-                      context: context,
-                      initialTime: current,
-                    );
-                    if (picked != null) {
-                      await provider.setTime(picked);
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _showImportExportSheet(BuildContext context) async {
     final cs = Theme.of(context).colorScheme;
     await showModalBottomSheet<void>(
@@ -1224,6 +1143,25 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         final tt = Theme.of(ctx).textTheme;
+        final bookId = context.read<BookProvider>().activeBookId;
+        final now = DateTime.now();
+        final initialRange = DateTimeRange(
+          start: DateTime(now.year, now.month, 1),
+          end: DateTime(now.year, now.month, now.day, 23, 59, 59, 999),
+        );
+
+        void openExport(RecordsExportFormat format) {
+          Navigator.pop(ctx);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ExportDataPage(
+                bookId: bookId,
+                initialRange: initialRange,
+                format: format,
+              ),
+            ),
+          );
+        }
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1247,22 +1185,55 @@ class _ProfilePageState extends State<ProfilePage> {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.table_chart_outlined,
-                    color: cs.onSurface.withOpacity(0.7)),
+                leading: Icon(
+                  Icons.grid_on_outlined,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
                 title: Text(
-                  '导出 CSV 数据',
+                  '导出 Excel',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
                 subtitle: Text(
-                  '导出当前账本的全部记账记录',
+                  '适合表格查看与二次处理',
                   style: tt.bodySmall?.copyWith(
                     color: cs.onSurface.withOpacity(0.7),
                   ),
                 ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showExportSheet(context);
-                },
+                onTap: () => openExport(RecordsExportFormat.excel),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.picture_as_pdf_outlined,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+                title: Text(
+                  '导出 PDF',
+                  style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                ),
+                subtitle: Text(
+                  '适合发送/打印留存',
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                onTap: () => openExport(RecordsExportFormat.pdf),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.table_chart_outlined,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+                title: Text(
+                  '导出 CSV',
+                  style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                ),
+                subtitle: Text(
+                  '适合 Excel/表格查看与分析',
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                onTap: () => openExport(RecordsExportFormat.csv),
               ),
             ],
           ),
@@ -1279,13 +1250,68 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         final tt = Theme.of(ctx).textTheme;
+        final bookId = context.read<BookProvider>().activeBookId;
+        final now = DateTime.now();
+        final initialRange = DateTimeRange(
+          start: DateTime(now.year, now.month, 1),
+          end: DateTime(now.year, now.month, now.day, 23, 59, 59, 999),
+        );
+
+        void openExport(RecordsExportFormat format) {
+          Navigator.pop(ctx);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ExportDataPage(
+                bookId: bookId,
+                initialRange: initialRange,
+                format: format,
+              ),
+            ),
+          );
+        }
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.table_view_outlined,
-                    color: cs.onSurface.withOpacity(0.7)),
+                leading: Icon(
+                  Icons.grid_on_outlined,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+                title: Text(
+                  '导出为 Excel',
+                  style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                ),
+                subtitle: Text(
+                  '适合表格查看与二次处理',
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                onTap: () => openExport(RecordsExportFormat.excel),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.picture_as_pdf_outlined,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+                title: Text(
+                  '导出为 PDF',
+                  style: tt.titleSmall?.copyWith(color: cs.onSurface),
+                ),
+                subtitle: Text(
+                  '适合发送/打印留存',
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                onTap: () => openExport(RecordsExportFormat.pdf),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.table_view_outlined,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
                 title: Text(
                   '导出为 CSV',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
@@ -1296,10 +1322,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     color: cs.onSurface.withOpacity(0.7),
                   ),
                 ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _exportAllCsv(context);
-                },
+                onTap: () => openExport(RecordsExportFormat.csv),
               ),
             ],
           ),
