@@ -778,12 +778,22 @@ class AccountDetailPage extends StatelessWidget {
     final balanceCtrl = TextEditingController(
       text: account.currentBalance.toStringAsFixed(2),
     );
+    final balanceFocusNode = FocusNode();
+    var didRequestFocus = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
+        if (!didRequestFocus) {
+          didRequestFocus = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (ctx.mounted) {
+              FocusScope.of(ctx).requestFocus(balanceFocusNode);
+            }
+          });
+        }
         final bottom = MediaQuery.of(ctx).viewInsets.bottom + 12;
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, bottom),
@@ -807,6 +817,7 @@ class AccountDetailPage extends StatelessWidget {
               const SizedBox(height: 16),
               TextField(
                 controller: balanceCtrl,
+                focusNode: balanceFocusNode,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 autofocus: true,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -889,7 +900,10 @@ class AccountDetailPage extends StatelessWidget {
           ),
         );
       },
-    );
+    ).whenComplete(() {
+      balanceCtrl.dispose();
+      balanceFocusNode.dispose();
+    });
   }
 }
 

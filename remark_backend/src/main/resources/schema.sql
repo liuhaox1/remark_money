@@ -181,6 +181,19 @@ CREATE TABLE IF NOT EXISTS id_sequence (
   next_id BIGINT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 意见反馈（MVP：文字+联系方式）
+CREATE TABLE IF NOT EXISTS feedback (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT DEFAULT NULL,
+  content TEXT NOT NULL,
+  contact VARCHAR(128) DEFAULT NULL,
+  ip VARCHAR(64) DEFAULT NULL,
+  user_agent VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_feedback_user (user_id),
+  INDEX idx_feedback_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================================
 -- 数据库迁移脚本（从旧版本升级到新版本）
 -- ============================================================================

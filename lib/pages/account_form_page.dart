@@ -34,6 +34,8 @@ class AccountFormPage extends StatefulWidget {
 }
 
 class _AccountFormPageState extends State<AccountFormPage> {
+  static const double _kFormLabelWidth = 104;
+
   late final TextEditingController _nameCtrl;
   late final TextEditingController _amountCtrl;
   late final TextEditingController _noteCtrl;
@@ -75,7 +77,13 @@ class _AccountFormPageState extends State<AccountFormPage> {
     _dueDate = account?.dueDate;
     _brandKey = account?.brandKey ?? widget.initialBrandKey;
     _customTitle = widget.customTitle;
-    
+
+    if (_brandKey == null && widget.subtype == AccountSubtype.virtual) {
+      final preset = widget.presetName ?? account?.name;
+      if (preset == '支付宝') _brandKey = 'alipay';
+      if (preset == '微信') _brandKey = 'wechat';
+    }
+
     // 如果是新建账户，在页面构建后自动聚焦到金额输入框
     if (account == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -253,6 +261,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                       decimal: true,
                       signed: false,
                     ),
+                    autofocus: !isEditing,
                     enabled: !isEditing,
                     hintText: '0.00',
                     helperText: isEditing
@@ -408,6 +417,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
+                    autofocus: !isEditing,
                     enabled: !isEditing,
                     helperText:
                         isEditing ? '请前往账户详情页>调整余额进行修改' : null,
@@ -483,6 +493,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
+                    autofocus: !isEditing,
                     focusNode: !isEditing ? _amountFocusNode : null,
                   ),
                 ),
@@ -549,6 +560,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
+                    autofocus: !isEditing,
                     enabled: !isEditing,
                     helperText:
                         isEditing ? '请前往账户详情页>调整余额进行修改' : null,
@@ -630,6 +642,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
+                    autofocus: !isEditing,
                     focusNode: !isEditing ? _amountFocusNode : null,
                   ),
                 ),
@@ -697,7 +710,8 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
-                    focusNode: _amountFocusNode,
+                    autofocus: !isEditing,
+                    focusNode: !isEditing ? _amountFocusNode : null,
                   ),
                 ),
               ],
@@ -960,12 +974,17 @@ class _AccountFormPageState extends State<AccountFormPage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: labelColor,
-                    fontWeight: FontWeight.w500,
-                  ),
+            SizedBox(
+              width: _kFormLabelWidth,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: labelColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
             ),
             const Spacer(),
             Text(
@@ -995,12 +1014,17 @@ class _AccountFormPageState extends State<AccountFormPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: labelColor,
-                  fontWeight: FontWeight.w500,
-                ),
+          SizedBox(
+            width: _kFormLabelWidth,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: labelColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(child: Align(alignment: Alignment.centerRight, child: child)),

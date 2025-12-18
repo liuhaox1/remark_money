@@ -68,3 +68,15 @@ CREATE TABLE sync_scope_state (
 );
 
 CREATE UNIQUE INDEX uk_book_scope ON sync_scope_state(book_id, scope_user_id);
+
+DROP TABLE IF EXISTS feedback;
+
+CREATE TABLE feedback (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT DEFAULT NULL,
+  content CLOB NOT NULL,
+  contact VARCHAR(128) DEFAULT NULL,
+  ip VARCHAR(64) DEFAULT NULL,
+  user_agent VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

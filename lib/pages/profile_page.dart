@@ -19,6 +19,7 @@ import '../theme/brand_theme.dart';
 import '../models/book.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
+import 'feedback_page.dart';
 import '../services/gift_code_service.dart';
 import '../services/records_export_service.dart';
 import '../services/sync_outbox_service.dart';
@@ -663,7 +664,11 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             trailing:
                 Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
-            onTap: () => _showPlaceholder(context, '意见反馈'),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const FeedbackPage()),
+              );
+            },
           ),
           const Divider(height: 1),
           ListTile(

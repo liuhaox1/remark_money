@@ -1,8 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../constants/bank_brands.dart';
 import '../models/account.dart';
 import 'account_form_page.dart';
+
+Widget _buildSvgLeading(String assetPath, Color backgroundColor) {
+  return Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(22),
+    ),
+    padding: const EdgeInsets.all(10),
+    child: SvgPicture.asset(
+      assetPath,
+      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+    ),
+  );
+}
+
+Widget _buildIconLeading(IconData icon, Color color) {
+  return Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.15),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Icon(icon, color: color, size: 24),
+  );
+}
 
 class AddAccountTypePage extends StatelessWidget {
   const AddAccountTypePage({super.key});
@@ -11,7 +40,7 @@ class AddAccountTypePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    final options = _options;
+    const options = _options;
     return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(
@@ -27,15 +56,9 @@ class AddAccountTypePage extends StatelessWidget {
             color: cs.surface,
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-              leading: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: option.color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(option.icon, color: option.color, size: 24),
-              ),
+              leading: option.svgAsset != null
+                  ? _buildSvgLeading(option.svgAsset!, option.color)
+                  : _buildIconLeading(option.icon, option.color),
               title: Text(
                 option.title,
                 style: tt.titleSmall?.copyWith(
@@ -133,6 +156,7 @@ class AccountTypeOption {
     required this.subtype,
     required this.icon,
     required this.color,
+    this.svgAsset,
   });
 
   final String title;
@@ -141,6 +165,7 @@ class AccountTypeOption {
   final AccountSubtype subtype;
   final IconData icon;
   final Color color;
+  final String? svgAsset;
 }
 
 const List<AccountTypeOption> _options = [
@@ -159,6 +184,7 @@ const List<AccountTypeOption> _options = [
     subtype: AccountSubtype.savingCard,
     icon: Icons.credit_card,
     color: Color(0xFFFFA000),
+    svgAsset: 'assets/brands/debit_card.svg',
   ),
   AccountTypeOption(
     title: '信用卡',
@@ -359,6 +385,7 @@ class _VirtualAccountOption {
     required this.presetName,
     required this.color,
     required this.icon,
+    this.svgAsset,
     this.showAdvancedSettings = false,
   });
 
@@ -367,6 +394,7 @@ class _VirtualAccountOption {
   final String presetName;
   final Color color;
   final IconData icon;
+  final String? svgAsset;
   final bool showAdvancedSettings;
 }
 
@@ -377,6 +405,7 @@ const List<_VirtualAccountOption> _virtualOptions = [
     presetName: '支付宝',
     color: Color(0xFF0AA1E4),
     icon: Icons.currency_yuan,
+    svgAsset: 'assets/brands/alipay.svg',
   ),
   _VirtualAccountOption(
     title: '微信',
@@ -384,6 +413,7 @@ const List<_VirtualAccountOption> _virtualOptions = [
     presetName: '微信',
     color: Color(0xFF22B573),
     icon: Icons.wechat_rounded,
+    svgAsset: 'assets/brands/wechat.svg',
   ),
   _VirtualAccountOption(
     title: '其他虚拟账户',
@@ -420,15 +450,9 @@ class VirtualAccountSelectionPage extends StatelessWidget {
           return Container(
             color: cs.surface,
             child: ListTile(
-              leading: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: item.color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(item.icon, color: item.color),
-              ),
+              leading: item.svgAsset != null
+                  ? _buildSvgLeading(item.svgAsset!, item.color)
+                  : _buildIconLeading(item.icon, item.color),
               title: Text(
                 item.title,
                 style: tt.titleSmall?.copyWith(

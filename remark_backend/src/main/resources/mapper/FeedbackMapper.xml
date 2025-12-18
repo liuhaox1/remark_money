@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.remark.money.mapper.FeedbackMapper">
+
+  <resultMap id="FeedbackMap" type="com.remark.money.entity.Feedback">
+    <id column="id" property="id" />
+    <result column="user_id" property="userId" />
+    <result column="content" property="content" />
+    <result column="contact" property="contact" />
+    <result column="ip" property="ip" />
+    <result column="user_agent" property="userAgent" />
+    <result column="created_at" property="createdAt" />
+  </resultMap>
+
+  <insert id="insert" parameterType="com.remark.money.entity.Feedback" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO feedback (
+      user_id,
+      content,
+      contact,
+      ip,
+      user_agent
+    ) VALUES (
+      #{userId},
+      #{content},
+      #{contact},
+      #{ip},
+      #{userAgent}
+    )
+  </insert>
+
+  <select id="listRecent" resultMap="FeedbackMap">
+    SELECT id, user_id, content, contact, ip, user_agent, created_at
+    FROM feedback
+    ORDER BY id DESC
+    LIMIT #{limit}
+  </select>
+
+</mapper>
+

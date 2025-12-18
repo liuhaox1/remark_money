@@ -33,6 +33,7 @@ dependencies:
   fl_chart: ^0.63.0
   flutter_slidable: ^3.0.1
   google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10
   
   # 语音识别
   speech_to_text: ^6.6.0
