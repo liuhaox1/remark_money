@@ -182,9 +182,8 @@ const List<AccountTypeOption> _options = [
     subtitle: '借记卡/储蓄卡',
     kind: AccountKind.asset,
     subtype: AccountSubtype.savingCard,
-    icon: Icons.credit_card,
+    icon: Icons.credit_card_rounded,
     color: Color(0xFFFFA000),
-    svgAsset: 'assets/brands/debit_card.svg',
   ),
   AccountTypeOption(
     title: '信用卡',
