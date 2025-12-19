@@ -39,6 +39,7 @@ import '../widgets/home_budget_bar.dart';
 import '../widgets/period_selector.dart';
 
 import '../widgets/timeline_item.dart';
+import '../widgets/tag_picker_bottom_sheet.dart';
 
 import '../widgets/week_strip.dart';
 
@@ -134,6 +135,7 @@ class _HomePageState extends State<HomePage> {
   HomeTimeRangeType _timeRangeType = HomeTimeRangeType.month;
 
   Set<String> _filterCategoryKeys = {}; // 改为多选
+  Set<String> _filterTagIds = <String>{};
 
   double? _minAmount;
 
@@ -318,8 +320,7 @@ class _HomePageState extends State<HomePage> {
 
     };
 
-     final filteredRecords = _applyFilters(allRecords, categoryMap);
-     _currentVisibleRecords = filteredRecords;
+     // 过滤依赖标签（异步加载），在下方记录列表区域内处理
 
 
 
@@ -434,35 +435,88 @@ class _HomePageState extends State<HomePage> {
 
                         ),
 
-                  RepositoryFactory.isUsingDatabase
-                      ? FutureBuilder<List<Record>>(
-                          future: _periodRecordsFuture,
-                          builder: (ctx, snap) {
-                            final all = snap.data ?? _lastPeriodRecords ?? const <Record>[];
-                            final filtered = _applyFilters(all, categoryMap);
+                   RepositoryFactory.isUsingDatabase
+                       ? FutureBuilder<List<Record>>(
+                           future: _periodRecordsFuture,
+                           builder: (ctx, snap) {
+                             final all = snap.data ??
+                                 _lastPeriodRecords ??
+                                 const <Record>[];
+                             final tagProvider = context.read<TagProvider>();
+                             final recordIds = all.map((r) => r.id).toList();
 
-                            final key = all.isEmpty
-                                ? '0'
-                                : '${all.length}:${all.first.id}:${all.last.id}';
-                            if (_lastPeriodRecordsKey != key) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted) return;
-                                if (_lastPeriodRecordsKey == key) return;
-                                setState(() {
-                                  _lastPeriodRecordsKey = key;
-                                  _lastPeriodRecords = all;
-                                  _currentVisibleRecords = filtered;
-                                });
-                              });
-                            }
+                             return FutureBuilder<Map<String, List<Tag>>>(
+                               future: tagProvider.loadTagsForRecords(recordIds),
+                               builder: (ctx, tagSnap) {
+                                 final tagsByRecordId = tagSnap.data ??
+                                     const <String, List<Tag>>{};
+                                 final filtered = _applyFilters(
+                                   all,
+                                   categoryMap,
+                                   tagsByRecordId: tagsByRecordId,
+                                 );
 
-                            if (all.isEmpty) return _buildEmptyState(context);
-                            return _buildMonthTimeline(filtered, categoryMap);
-                          },
-                        )
-                      : (hasRecords
-                          ? _buildMonthTimeline(filteredRecords, categoryMap)
-                          : _buildEmptyState(context)),
+                                 final key = all.isEmpty
+                                     ? '0'
+                                     : '${all.length}:${all.first.id}:${all.last.id}';
+                                 if (_lastPeriodRecordsKey != key) {
+                                   WidgetsBinding.instance
+                                       .addPostFrameCallback((_) {
+                                     if (!mounted) return;
+                                     if (_lastPeriodRecordsKey == key) return;
+                                     setState(() {
+                                       _lastPeriodRecordsKey = key;
+                                       _lastPeriodRecords = all;
+                                       _currentVisibleRecords = filtered;
+                                     });
+                                   });
+                                 } else {
+                                   _currentVisibleRecords = filtered;
+                                 }
+
+                                 if (all.isEmpty) {
+                                   return _buildEmptyState(context);
+                                 }
+                                 return _buildMonthTimeline(
+                                   filtered,
+                                   categoryMap,
+                                   tagsByRecordId,
+                                 );
+                               },
+                             );
+                           },
+                         )
+                       : (hasRecords
+                           ? Builder(
+                               builder: (ctx) {
+                                 final tagProvider = context.read<TagProvider>();
+                                 final recordIds =
+                                     allRecords.map((r) => r.id).toList();
+                                 return FutureBuilder<Map<String, List<Tag>>>(
+                                   future:
+                                       tagProvider.loadTagsForRecords(recordIds),
+                                   builder: (ctx, tagSnap) {
+                                     final tagsByRecordId = tagSnap.data ??
+                                         const <String, List<Tag>>{};
+                                     final filtered = _applyFilters(
+                                       allRecords,
+                                       categoryMap,
+                                       tagsByRecordId: tagsByRecordId,
+                                     );
+                                     _currentVisibleRecords = filtered;
+                                     if (filtered.isEmpty) {
+                                       return _buildEmptyState(context);
+                                     }
+                                     return _buildMonthTimeline(
+                                       filtered,
+                                       categoryMap,
+                                       tagsByRecordId,
+                                     );
+                                   },
+                                 );
+                               },
+                             )
+                           : _buildEmptyState(context)),
 
                     ],
 
@@ -654,6 +708,8 @@ class _HomePageState extends State<HomePage> {
 
     final hasCategory = _filterCategoryKeys.isNotEmpty;
 
+    final hasTags = _filterTagIds.isNotEmpty;
+
     final hasAmount = _minAmount != null || _maxAmount != null;
 
     final hasType = _filterIncomeExpense != null;
@@ -664,7 +720,13 @@ class _HomePageState extends State<HomePage> {
 
         _timeRangeType == HomeTimeRangeType.month && _startDate == null && _endDate == null;
 
-    return hasKeyword || hasCategory || hasAmount || hasType || hasAccounts || !isDefaultRange;
+    return hasKeyword ||
+        hasCategory ||
+        hasTags ||
+        hasAmount ||
+        hasType ||
+        hasAccounts ||
+        !isDefaultRange;
 
   }
 
@@ -952,6 +1014,8 @@ class _HomePageState extends State<HomePage> {
 
       _filterCategoryKeys = <String>{};
 
+      _filterTagIds = <String>{};
+
       _minAmount = null;
 
       _maxAmount = null;
@@ -1042,6 +1106,12 @@ class _HomePageState extends State<HomePage> {
 
     }
 
+    if (_filterTagIds.isNotEmpty) {
+
+      parts.add('标签${_filterTagIds.length}个');
+
+    }
+
 
 
     if (_minAmount != null && _maxAmount != null) {
@@ -1089,6 +1159,7 @@ class _HomePageState extends State<HomePage> {
     List<Record> records,
 
     Map<String, Category> categoryMap,
+    {Map<String, List<Tag>>? tagsByRecordId}
 
   ) {
 
@@ -1112,14 +1183,27 @@ class _HomePageState extends State<HomePage> {
 
         final amountStr = r.absAmount.toStringAsFixed(2);
 
+        final tagHit = (tagsByRecordId?[r.id] ?? const <Tag>[])
+            .any((t) => t.name.toLowerCase().contains(keyword));
+
         return remark.contains(keyword) ||
 
             categoryName.contains(keyword) ||
 
-            amountStr.contains(keyword);
+            amountStr.contains(keyword) ||
+            tagHit;
 
       }).toList();
 
+    }
+
+    // 标签筛选：命中任一已选标签即可
+    if (_filterTagIds.isNotEmpty) {
+      filtered = filtered.where((r) {
+        final tags = tagsByRecordId?[r.id] ?? const <Tag>[];
+        if (tags.isEmpty) return false;
+        return tags.any((t) => _filterTagIds.contains(t.id));
+      }).toList();
     }
 
 
@@ -1358,6 +1442,10 @@ class _HomePageState extends State<HomePage> {
 
     required Set<String> categoryKeys,
 
+    Set<String>? tagIds,
+
+    Map<String, List<Tag>>? tagsByRecordId,
+
     required Set<String> accountIds,
 
     required double? minAmount,
@@ -1396,6 +1484,14 @@ class _HomePageState extends State<HomePage> {
 
           .toList();
 
+    }
+
+    if (tagIds != null && tagIds.isNotEmpty) {
+      filtered = filtered.where((r) {
+        final tags = tagsByRecordId?[r.id] ?? const <Tag>[];
+        if (tags.isEmpty) return false;
+        return tags.any((t) => tagIds.contains(t.id));
+      }).toList();
     }
 
 
@@ -1711,6 +1807,7 @@ class _HomePageState extends State<HomePage> {
     List<Record> records,
 
     Map<String, Category> categoryMap,
+    Map<String, List<Tag>> tagsByRecordId,
 
   ) {
 
@@ -1794,14 +1891,7 @@ class _HomePageState extends State<HomePage> {
 
     
 
-    final tagProvider = context.read<TagProvider>();
-    final recordIds = records.map((r) => r.id).toList();
-
-    return FutureBuilder<Map<String, List<Tag>>>(
-      future: tagProvider.loadTagsForRecords(recordIds),
-      builder: (context, tagSnap) {
-        final tagsByRecordId = tagSnap.data ?? const <String, List<Tag>>{};
-        return Padding(
+    return Padding(
 
       padding: EdgeInsets.only(bottom: bottomPadding),
 
@@ -1979,8 +2069,6 @@ class _HomePageState extends State<HomePage> {
 
       ),
 
-        );
-      },
     );
 
   }
@@ -2308,11 +2396,12 @@ class _HomePageState extends State<HomePage> {
 
   }
 
-    Future<void> _openFilterSheet() async {
+  Future<void> _openFilterSheet() async {
     final categories = context.read<CategoryProvider>().categories;
     final accounts = context.read<AccountProvider>().accounts;
     final recordProvider = context.read<RecordProvider>();
     final bookProvider = context.read<BookProvider>();
+    final tagProvider = context.read<TagProvider>();
     final bookId = bookProvider.activeBookId;
     final categoryMap = {for (final c in categories) c.key: c};
 
@@ -2329,6 +2418,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     Set<String> tempCategoryKeys = Set<String>.from(_filterCategoryKeys);
+    Set<String> tempTagIds = Set<String>.from(_filterTagIds);
     Set<String> tempAccountIds = Set<String>.from(_filterAccountIds);
     bool? tempIncomeExpense = _filterIncomeExpense;
     DateTime? tempStartDate = _startDate;
@@ -2338,6 +2428,11 @@ class _HomePageState extends State<HomePage> {
 
     final minCtrl = TextEditingController(text: _minAmount?.toString() ?? '');
     final maxCtrl = TextEditingController(text: _maxAmount?.toString() ?? '');
+
+    await tagProvider.loadForBook(bookId);
+    final tagsByRecordId = await tagProvider.loadTagsForRecords(
+      allRecords.map((r) => r.id).toList(),
+    );
 
     await showModalBottomSheet(
       context: context,
@@ -2373,6 +2468,8 @@ class _HomePageState extends State<HomePage> {
                     allRecords: allRecords,
                     categoryMap: categoryMap,
                     categoryKeys: tempCategoryKeys,
+                    tagIds: tempTagIds,
+                    tagsByRecordId: tagsByRecordId,
                     accountIds: tempAccountIds,
                     minAmount: min,
                     maxAmount: max,
@@ -2385,6 +2482,7 @@ class _HomePageState extends State<HomePage> {
                 void resetTemp() {
                   setModalState(() {
                     tempCategoryKeys.clear();
+                    tempTagIds.clear();
                     tempAccountIds.clear();
                     tempIncomeExpense = null;
                     tempStartDate = null;
@@ -2444,6 +2542,28 @@ class _HomePageState extends State<HomePage> {
                   }
                 }
 
+                Future<void> openTagSelector() async {
+                  await showModalBottomSheet<void>(
+                    context: ctx,
+                    useRootNavigator: true,
+                    isScrollControlled: true,
+                    backgroundColor: Theme.of(ctx).colorScheme.surface,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (_) {
+                      return TagPickerBottomSheet(
+                        initialSelectedIds: tempTagIds,
+                        onChanged: (ids) {
+                          setModalState(() {
+                            tempTagIds = Set<String>.from(ids);
+                          });
+                        },
+                      );
+                    },
+                  );
+                }
+
                 final summaryText = _buildInlineFilterSummary(
                   incomeExpense: tempIncomeExpense,
                   startDate: quickDateKey != null
@@ -2453,6 +2573,7 @@ class _HomePageState extends State<HomePage> {
                       ? _getQuickDateRange(quickDateKey!)?.end
                       : tempEndDate,
                   categoryCount: tempCategoryKeys.length,
+                  tagCount: tempTagIds.length,
                   amountMin: _currentMin(quickAmountKey, minCtrl.text),
                   amountMax: _currentMax(quickAmountKey, maxCtrl.text),
                   accountCount: tempAccountIds.length,
@@ -2465,6 +2586,7 @@ class _HomePageState extends State<HomePage> {
                   incomeExpense: tempIncomeExpense,
                 );
                 final commonAccounts = accounts.take(4).toList();
+                final commonTags = tagProvider.tags.take(8).toList();
 
                 Widget buildSectionTitle(String label) {
                   return Padding(
@@ -2715,6 +2837,64 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 16),
 
+                            buildSectionTitle('标签'),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final t in commonTags)
+                                  buildChoiceChip(
+                                    label: t.name,
+                                    selected: tempTagIds.contains(t.id),
+                                    onTap: () {
+                                      setModalState(() {
+                                        if (tempTagIds.contains(t.id)) {
+                                          tempTagIds.remove(t.id);
+                                        } else {
+                                          tempTagIds.add(t.id);
+                                        }
+                                      });
+                                    },
+                                  ),
+                                buildChoiceChip(
+                                  label:
+                                      '全部标签${tempTagIds.isEmpty ? '' : '（已选）'}',
+                                  selected: tempTagIds.isEmpty,
+                                  onTap: () =>
+                                      setModalState(() => tempTagIds.clear()),
+                                ),
+                                GestureDetector(
+                                  onTap: openTagSelector,
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: cs.surfaceVariant.withOpacity(0.4),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: cs.primary,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '更多',
+                                      style: Theme.of(ctx)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: cs.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
                             buildSectionTitle('按金额'),
                             Wrap(
                               spacing: 8,
@@ -2930,6 +3110,7 @@ class _HomePageState extends State<HomePage> {
 
                               setState(() {
                                 _filterCategoryKeys = tempCategoryKeys;
+                                _filterTagIds = tempTagIds;
                                 _filterAccountIds = tempAccountIds;
                                 _filterIncomeExpense = tempIncomeExpense;
                                 _minAmount = min;
@@ -2960,6 +3141,7 @@ class _HomePageState extends State<HomePage> {
     DateTime? startDate,
     DateTime? endDate,
     required int categoryCount,
+    required int tagCount,
     double? amountMin,
     double? amountMax,
     required int accountCount,
@@ -2975,6 +3157,9 @@ class _HomePageState extends State<HomePage> {
     }
     if (categoryCount > 0) {
       parts.add('分类 $categoryCount');
+    }
+    if (tagCount > 0) {
+      parts.add('标签 $tagCount');
     }
     if (amountMin != null || amountMax != null) {
       if (amountMin != null && amountMax != null) {

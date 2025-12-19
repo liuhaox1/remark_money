@@ -15,6 +15,7 @@ import '../models/account.dart';
 import '../models/category.dart';
 import '../models/period_type.dart';
 import '../models/record.dart';
+import '../models/tag.dart';
 import '../utils/csv_utils.dart';
 import '../utils/error_handler.dart';
 import 'dart:convert';
@@ -26,6 +27,7 @@ import 'package:share_plus/share_plus.dart';
 import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
 import '../widgets/timeline_item.dart';
+import '../providers/tag_provider.dart';
 import '../services/records_export_service.dart';
 import 'add_record_page.dart';
 import 'export_data_page.dart';
@@ -1749,19 +1751,32 @@ class _BillPageState extends State<BillPage> {
         }
         final showLoadingOverlay =
             snapshot.connectionState == ConnectionState.waiting;
-        double totalIncome = 0;
-        double totalExpense = 0;
-        int emptyDays = 0;
+        final tagProvider = context.read<TagProvider>();
+        final recordIds = allWeekRecords.map((r) => r.id).toList();
 
-        final items = <Widget>[];
+        return FutureBuilder<Map<String, List<Tag>>>(
+          future: tagProvider.loadTagsForRecords(recordIds),
+          builder: (context, tagSnap) {
+            final tagsByRecordId =
+                tagSnap.data ?? const <String, List<Tag>>{};
 
-        for (final d in days) {
-          final dayDate = DateTime(d.year, d.month, d.day);
-          // 从已加载的记录中筛选当天的记录
-          final allRecords = allWeekRecords.where((r) => 
-            DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId
-          ).toList();
-          final records = _applyFilters(allRecords, categoryMap);
+            double totalIncome = 0;
+            double totalExpense = 0;
+            int emptyDays = 0;
+
+            final items = <Widget>[];
+
+            for (final d in days) {
+              final dayDate = DateTime(d.year, d.month, d.day);
+              // 从已加载的记录中筛选当天的记录
+              final allRecords = allWeekRecords
+                  .where((r) => DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId)
+                  .toList();
+              final records = _applyFilters(
+                allRecords,
+                categoryMap,
+                tagsByRecordId: tagsByRecordId,
+              );
 
       double income = 0;
       double expense = 0;
@@ -1805,6 +1820,7 @@ class _BillPageState extends State<BillPage> {
                 leftSide: false,
                 category: category,
                 subtitle: r.remark.isEmpty ? null : r.remark,
+                tags: tagsByRecordId[r.id] ?? const <Tag>[],
                 onTap: () => _openEditRecord(r),
                 onDelete: () => _confirmAndDeleteRecord(r),
               ),
@@ -1831,21 +1847,23 @@ class _BillPageState extends State<BillPage> {
           ),
         );
 
-        final list = ListView(
-          padding: const EdgeInsets.all(12),
-          children: items,
-        );
-        if (!showLoadingOverlay) return list;
-        return Stack(
-          children: [
-            list,
-            const Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              child: LinearProgressIndicator(minHeight: 2),
-            ),
-          ],
+            final list = ListView(
+              padding: const EdgeInsets.all(12),
+              children: items,
+            );
+            if (!showLoadingOverlay) return list;
+            return Stack(
+              children: [
+                list,
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -1887,19 +1905,32 @@ class _BillPageState extends State<BillPage> {
         }
         final showLoadingOverlay =
             snapshot.connectionState == ConnectionState.waiting;
-        double totalIncome = 0;
-        double totalExpense = 0;
-        double maxDailyExpense = 0;
-        int recordedDays = 0;
+        final tagProvider = context.read<TagProvider>();
+        final recordIds = allMonthRecords.map((r) => r.id).toList();
 
-        final nonEmptyDays = <DateTime>[];
+        return FutureBuilder<Map<String, List<Tag>>>(
+          future: tagProvider.loadTagsForRecords(recordIds),
+          builder: (context, tagSnap) {
+            final tagsByRecordId =
+                tagSnap.data ?? const <String, List<Tag>>{};
 
-        for (final d in days) {
-          // 从已加载的记录中筛选当天的记录
-          final allRecords = allMonthRecords.where((r) => 
-            DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId
-          ).toList();
-          final records = _applyFilters(allRecords, categoryMap);
+            double totalIncome = 0;
+            double totalExpense = 0;
+            double maxDailyExpense = 0;
+            int recordedDays = 0;
+
+            final nonEmptyDays = <DateTime>[];
+
+            for (final d in days) {
+              // 从已加载的记录中筛选当天的记录
+              final allRecords = allMonthRecords
+                  .where((r) => DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId)
+                  .toList();
+              final records = _applyFilters(
+                allRecords,
+                categoryMap,
+                tagsByRecordId: tagsByRecordId,
+              );
 
       double income = 0;
       double expense = 0;
@@ -1955,10 +1986,14 @@ class _BillPageState extends State<BillPage> {
 
         for (final d in nonEmptyDays) {
           // 从已加载的记录中筛选当天的记录
-          final allRecords = allMonthRecords.where((r) => 
-            DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId
-          ).toList();
-          final records = _applyFilters(allRecords, categoryMap);
+          final allRecords = allMonthRecords
+              .where((r) => DateUtilsX.isSameDay(r.date, d) && r.bookId == bookId)
+              .toList();
+          final records = _applyFilters(
+            allRecords,
+            categoryMap,
+            tagsByRecordId: tagsByRecordId,
+          );
 
           double income = 0;
           double expense = 0;
@@ -1989,6 +2024,7 @@ class _BillPageState extends State<BillPage> {
                 leftSide: false,
                 category: category,
                 subtitle: r.remark.isEmpty ? null : r.remark,
+                tags: tagsByRecordId[r.id] ?? const <Tag>[],
                 onTap: () => _openEditRecord(r),
                 onDelete: () => _confirmAndDeleteRecord(r),
               ),
@@ -1996,21 +2032,23 @@ class _BillPageState extends State<BillPage> {
           }
         }
 
-        final list = ListView(
-          padding: const EdgeInsets.all(12),
-          children: items,
-        );
-        if (!showLoadingOverlay) return list;
-        return Stack(
-          children: [
-            list,
-            const Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              child: LinearProgressIndicator(minHeight: 2),
-            ),
-          ],
+            final list = ListView(
+              padding: const EdgeInsets.all(12),
+              children: items,
+            );
+            if (!showLoadingOverlay) return list;
+            return Stack(
+              children: [
+                list,
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -3341,6 +3379,7 @@ class _BillPageState extends State<BillPage> {
   List<Record> _applyFilters(
     List<Record> records,
     Map<String, Category> categoryMap,
+    {Map<String, List<Tag>>? tagsByRecordId}
   ) {
     // 账单明细只展示“收支记录”，不展示转账/借还款等不计入统计的记录
     var filtered = records
@@ -3355,9 +3394,12 @@ class _BillPageState extends State<BillPage> {
         final categoryName =
             (categoryMap[r.categoryKey]?.name ?? '').toLowerCase();
         final amountStr = r.absAmount.toStringAsFixed(2);
+        final tagHit = (tagsByRecordId?[r.id] ?? const <Tag>[])
+            .any((t) => t.name.toLowerCase().contains(keyword));
         return remark.contains(keyword) ||
             categoryName.contains(keyword) ||
-            amountStr.contains(keyword);
+            amountStr.contains(keyword) ||
+            tagHit;
       }).toList();
     }
 
