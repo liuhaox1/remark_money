@@ -22,6 +22,7 @@ import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
 import 'providers/reminder_provider.dart';
 import 'providers/tag_provider.dart';
+import 'providers/recurring_record_provider.dart';
 import 'repository/repository_factory.dart';
 import 'database/database_helper.dart';
 import 'l10n/app_strings.dart';
@@ -71,6 +72,7 @@ Future<void> main() async {
   final accountProvider = AccountProvider();
   final reminderProvider = ReminderProvider();
   final tagProvider = TagProvider();
+  final recurringRecordProvider = RecurringRecordProvider();
 
   await bookProvider.load();
   await Future.wait([
@@ -79,6 +81,7 @@ Future<void> main() async {
     budgetProvider.load(),
     accountProvider.load(),
     reminderProvider.load(),
+    recurringRecordProvider.load(),
     themeProvider.load(),
   ]);
   await tagProvider.loadForBook(bookProvider.activeBookId);
@@ -94,6 +97,7 @@ Future<void> main() async {
       themeProvider: themeProvider,
       reminderProvider: reminderProvider,
       tagProvider: tagProvider,
+      recurringRecordProvider: recurringRecordProvider,
     ),
   );
 }
@@ -109,6 +113,7 @@ class RemarkMoneyApp extends StatelessWidget {
     required this.themeProvider,
     required this.reminderProvider,
     required this.tagProvider,
+    required this.recurringRecordProvider,
   });
 
   final BookProvider bookProvider;
@@ -119,6 +124,7 @@ class RemarkMoneyApp extends StatelessWidget {
   final ThemeProvider themeProvider;
   final ReminderProvider reminderProvider;
   final TagProvider tagProvider;
+  final RecurringRecordProvider recurringRecordProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +138,7 @@ class RemarkMoneyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: themeProvider),
         ChangeNotifierProvider.value(value: reminderProvider),
         ChangeNotifierProvider.value(value: tagProvider),
+        ChangeNotifierProvider.value(value: recurringRecordProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) {

@@ -7,7 +7,6 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
-import '../widgets/app_top_bar.dart';
 
 class AccountFormPage extends StatefulWidget {
   const AccountFormPage({
@@ -410,15 +409,14 @@ class _AccountFormPageState extends State<AccountFormPage> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: subtype == AccountSubtype.savingCard
-          ? AppBar(
-              backgroundColor: cs.surface,
-              elevation: 0,
-              surfaceTintColor: Colors.transparent,
-              title: Text(appBarTitle),
-              centerTitle: true,
-            )
-          : AppTopBar(title: appBarTitle),
+      appBar: AppBar(
+        backgroundColor: cs.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        title: Text(appBarTitle),
+        centerTitle: false,
+      ),
       body: isBankCard
           ? _buildBankCardForm(context, kind, subtype, isEditing)
           : isVirtual

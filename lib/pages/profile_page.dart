@@ -28,6 +28,7 @@ import 'account_settings_page.dart';
 import 'vip_purchase_page.dart';
 import 'sync_conflicts_page.dart';
 import 'export_data_page.dart';
+import 'recurring_records_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
 import '../widgets/user_stats_card.dart';
@@ -578,6 +579,14 @@ class _ProfilePageState extends State<ProfilePage> {
         icon: Icons.category_outlined,
         label: AppStrings.categoryManager,
         onTap: () => Navigator.pushNamed(context, '/category-manager'),
+      ),
+      _ProfileAction(
+        icon: Icons.schedule_rounded,
+        label: '定时记账',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const RecurringRecordsPage()),
+        ),
       ),
       _ProfileAction(
         icon: Icons.privacy_tip_outlined,

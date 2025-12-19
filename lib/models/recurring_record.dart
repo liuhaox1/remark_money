@@ -12,8 +12,16 @@ class RecurringRecordPlan {
   final bool includeInStats;
   final double amount;
   final String remark;
+  final bool enabled;
   final RecurringPeriodType periodType;
+  final DateTime startDate;
   final DateTime nextDate;
+  final DateTime? lastRunAt;
+  final List<String> tagIds;
+  /// Weekly: 1-7 (Mon..Sun). When null, fallback to startDate.weekday.
+  final int? weekday;
+  /// Monthly: 1-31. When null, fallback to startDate.day.
+  final int? monthDay;
 
   const RecurringRecordPlan({
     required this.id,
@@ -24,8 +32,14 @@ class RecurringRecordPlan {
     required this.includeInStats,
     required this.amount,
     required this.remark,
+    this.enabled = true,
     required this.periodType,
+    required this.startDate,
     required this.nextDate,
+    this.lastRunAt,
+    this.tagIds = const <String>[],
+    this.weekday,
+    this.monthDay,
   });
 
   RecurringRecordPlan copyWith({
@@ -37,8 +51,14 @@ class RecurringRecordPlan {
     bool? includeInStats,
     double? amount,
     String? remark,
+    bool? enabled,
     RecurringPeriodType? periodType,
+    DateTime? startDate,
     DateTime? nextDate,
+    DateTime? lastRunAt,
+    List<String>? tagIds,
+    int? weekday,
+    int? monthDay,
   }) {
     return RecurringRecordPlan(
       id: id ?? this.id,
@@ -49,8 +69,14 @@ class RecurringRecordPlan {
       includeInStats: includeInStats ?? this.includeInStats,
       amount: amount ?? this.amount,
       remark: remark ?? this.remark,
+      enabled: enabled ?? this.enabled,
       periodType: periodType ?? this.periodType,
+      startDate: startDate ?? this.startDate,
       nextDate: nextDate ?? this.nextDate,
+      lastRunAt: lastRunAt ?? this.lastRunAt,
+      tagIds: tagIds ?? this.tagIds,
+      weekday: weekday ?? this.weekday,
+      monthDay: monthDay ?? this.monthDay,
     );
   }
 
@@ -64,8 +90,14 @@ class RecurringRecordPlan {
       'includeInStats': includeInStats,
       'amount': amount,
       'remark': remark,
+      'enabled': enabled,
       'periodType': periodType == RecurringPeriodType.weekly ? 'week' : 'month',
+      'startDate': startDate.toIso8601String(),
       'nextDate': nextDate.toIso8601String(),
+      'lastRunAt': lastRunAt?.toIso8601String(),
+      'tagIds': tagIds,
+      'weekday': weekday,
+      'monthDay': monthDay,
     };
   }
 
@@ -77,6 +109,15 @@ class RecurringRecordPlan {
     final rawPeriod = map['periodType'] as String? ?? 'month';
     final periodType =
         rawPeriod == 'week' ? RecurringPeriodType.weekly : RecurringPeriodType.monthly;
+    final enabled = map['enabled'] as bool? ?? true;
+    final rawStart = map['startDate'] as String? ?? map['nextDate'] as String;
+    final rawLast = map['lastRunAt'] as String?;
+    final rawTags = map['tagIds'];
+    final tagIds = rawTags is List
+        ? rawTags.map((e) => e.toString()).toList()
+        : const <String>[];
+    final weekdayRaw = map['weekday'];
+    final monthDayRaw = map['monthDay'];
     return RecurringRecordPlan(
       id: map['id'] as String,
       bookId: map['bookId'] as String? ?? 'default-book',
@@ -86,9 +127,14 @@ class RecurringRecordPlan {
       includeInStats: map['includeInStats'] as bool? ?? true,
       amount: (map['amount'] as num).toDouble(),
       remark: map['remark'] as String? ?? '',
+      enabled: enabled,
       periodType: periodType,
+      startDate: DateTime.parse(rawStart),
       nextDate: DateTime.parse(map['nextDate'] as String),
+      lastRunAt: rawLast == null ? null : DateTime.parse(rawLast),
+      tagIds: tagIds,
+      weekday: weekdayRaw is int ? weekdayRaw : int.tryParse('$weekdayRaw'),
+      monthDay: monthDayRaw is int ? monthDayRaw : int.tryParse('$monthDayRaw'),
     );
   }
 }
-

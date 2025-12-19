@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'dart:convert';
 
 import '../database/database_helper.dart';
 import '../models/recurring_record.dart';
@@ -90,14 +91,21 @@ class RecurringRecordRepositoryDb {
     final now = DateTime.now().millisecondsSinceEpoch;
     return {
       'id': plan.id,
+      'book_id': plan.bookId,
       'category_key': plan.categoryKey,
       'account_id': plan.accountId,
       'amount': plan.amount,
       'is_expense': plan.direction == TransactionDirection.out ? 1 : 0,
+      'include_in_stats': plan.includeInStats ? 1 : 0,
+      'enabled': plan.enabled ? 1 : 0,
       'period_type': plan.periodType == RecurringPeriodType.weekly ? 'weekly' : 'monthly',
-      'start_date': plan.nextDate.millisecondsSinceEpoch, // 使用 nextDate 作为开始日期
+      'weekday': plan.weekday,
+      'month_day': plan.monthDay,
+      'start_date': plan.startDate.millisecondsSinceEpoch,
       'next_due_date': plan.nextDate.millisecondsSinceEpoch,
       'remark': plan.remark,
+      'tag_ids': jsonEncode(plan.tagIds),
+      'last_run_at': plan.lastRunAt?.millisecondsSinceEpoch,
       'created_at': now,
       'updated_at': now,
     };
@@ -109,23 +117,42 @@ class RecurringRecordRepositoryDb {
     final periodType = periodTypeStr == 'weekly'
         ? RecurringPeriodType.weekly
         : RecurringPeriodType.monthly;
+    final tagIdsRaw = map['tag_ids'] as String?;
+    List<String> tagIds = const <String>[];
+    if (tagIdsRaw != null && tagIdsRaw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(tagIdsRaw);
+        if (decoded is List) {
+          tagIds = decoded.map((e) => e.toString()).toList();
+        }
+      } catch (_) {}
+    }
 
     return RecurringRecordPlan(
       id: map['id'] as String,
-      bookId: 'default-book', // 默认账本，可以从记录中获取
+      bookId: map['book_id'] as String? ?? 'default-book',
       categoryKey: map['category_key'] as String,
       accountId: map['account_id'] as String,
       direction: (map['is_expense'] as int) == 1
           ? TransactionDirection.out
           : TransactionDirection.income,
-      includeInStats: true,
+      includeInStats: (map['include_in_stats'] as int? ?? 1) == 1,
       amount: (map['amount'] as num).toDouble(),
       remark: map['remark'] as String? ?? '',
+      enabled: (map['enabled'] as int? ?? 1) == 1,
       periodType: periodType,
+      startDate: DateTime.fromMillisecondsSinceEpoch(
+        map['start_date'] as int? ?? map['next_due_date'] as int,
+      ),
       nextDate: DateTime.fromMillisecondsSinceEpoch(
         map['next_due_date'] as int? ?? map['start_date'] as int,
       ),
+      lastRunAt: map['last_run_at'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(map['last_run_at'] as int),
+      tagIds: tagIds,
+      weekday: map['weekday'] as int?,
+      monthDay: map['month_day'] as int?,
     );
   }
 }
-

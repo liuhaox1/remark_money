@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 5;
+const int _databaseVersion = 7;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -177,6 +177,56 @@ class DatabaseHelper {
           'CREATE INDEX IF NOT EXISTS idx_record_tags_tag ON ${Tables.recordTags}(tag_id)',
         );
         break;
+      case 6:
+        // recurring_records: add enabled/book_id/include_in_stats/tag_ids/last_run_at
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.recurringRecords} ADD COLUMN book_id TEXT',
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.recurringRecords} ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1',
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.recurringRecords} ADD COLUMN include_in_stats INTEGER NOT NULL DEFAULT 1',
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            "ALTER TABLE ${Tables.recurringRecords} ADD COLUMN tag_ids TEXT NOT NULL DEFAULT '[]'",
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.recurringRecords} ADD COLUMN last_run_at INTEGER',
+          );
+        } catch (_) {}
+        // Backfill legacy rows (book_id was newly introduced and could be NULL).
+        try {
+          await db.execute(
+            "UPDATE ${Tables.recurringRecords} SET book_id = 'default-book' WHERE book_id IS NULL OR book_id = ''",
+          );
+        } catch (_) {}
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_recurring_enabled_next ON ${Tables.recurringRecords}(enabled, next_due_date)',
+        );
+        break;
+      case 7:
+        // recurring_records: add weekday/month_day (for "每周几/每月几号")
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.recurringRecords} ADD COLUMN weekday INTEGER',
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.recurringRecords} ADD COLUMN month_day INTEGER',
+          );
+        } catch (_) {}
+        break;
       default:
         break;
     }
@@ -292,14 +342,21 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${Tables.recurringRecords} (
         id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
         category_key TEXT NOT NULL,
         account_id TEXT NOT NULL,
         amount REAL NOT NULL,
         is_expense INTEGER NOT NULL,
+        include_in_stats INTEGER NOT NULL DEFAULT 1,
+        enabled INTEGER NOT NULL DEFAULT 1,
         period_type TEXT NOT NULL,
+        weekday INTEGER,
+        month_day INTEGER,
         start_date INTEGER NOT NULL,
         next_due_date INTEGER NOT NULL,
         remark TEXT,
+        tag_ids TEXT NOT NULL DEFAULT '[]',
+        last_run_at INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
@@ -400,6 +457,10 @@ class DatabaseHelper {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_record_tags_tag ON ${Tables.recordTags}(tag_id)',
+    );
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_recurring_enabled_next ON ${Tables.recurringRecords}(enabled, next_due_date)',
     );
   }
 
@@ -644,6 +705,7 @@ class DatabaseHelper {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('recurring_records_v1');
     if (raw == null || raw.isEmpty) return;
+    final fallbackBookId = prefs.getString('active_book_v1') ?? 'default-book';
 
     for (final jsonStr in raw) {
       try {
@@ -653,6 +715,14 @@ class DatabaseHelper {
         final direction = map['direction'] as String? ?? 'out';
         final isExpense = direction == 'in' ? 0 : 1;
         final periodType = map['periodType'] as String? ?? 'monthly';
+        final includeInStats = map['includeInStats'] as bool? ?? true;
+        final enabled = map['enabled'] as bool? ?? true;
+        final bookId = (map['bookId'] as String?)?.trim();
+        final weekday = map['weekday'] as int?;
+        final monthDay = map['monthDay'] as int?;
+        final rawTags = map['tagIds'];
+        final tagIds = rawTags is List ? rawTags.map((e) => e.toString()).toList() : const <String>[];
+        final rawLastRunAt = map['lastRunAt'] as String?;
         final nextDate = map['nextDate'] != null
             ? DateTime.parse(map['nextDate'] as String).millisecondsSinceEpoch
             : (map['nextDueDate'] != null
@@ -660,14 +730,23 @@ class DatabaseHelper {
                 : DateTime.now().millisecondsSinceEpoch);
         await txn.insert(Tables.recurringRecords, {
           'id': map['id'],
+          'book_id': (bookId == null || bookId.isEmpty) ? fallbackBookId : bookId,
           'category_key': map['categoryKey'],
           'account_id': map['accountId'] ?? '',
           'amount': (map['amount'] as num).toDouble(),
           'is_expense': isExpense,
+          'include_in_stats': includeInStats ? 1 : 0,
+          'enabled': enabled ? 1 : 0,
           'period_type': periodType == 'weekly' ? 'weekly' : 'monthly',
+          'weekday': weekday,
+          'month_day': monthDay,
           'start_date': nextDate,
           'next_due_date': nextDate,
           'remark': map['remark'],
+          'tag_ids': await _encodeJson(tagIds),
+          'last_run_at': rawLastRunAt == null
+              ? null
+              : DateTime.tryParse(rawLastRunAt)?.millisecondsSinceEpoch,
           'created_at': DateTime.now().millisecondsSinceEpoch,
           'updated_at': DateTime.now().millisecondsSinceEpoch,
         }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);

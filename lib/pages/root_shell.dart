@@ -10,8 +10,8 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
 import '../services/background_sync_manager.dart';
+import '../services/recurring_record_runner.dart';
 import '../theme/app_tokens.dart';
-import '../theme/brand_theme.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../utils/error_handler.dart';
@@ -54,6 +54,8 @@ class _RootShellState extends State<RootShell> {
             _performLoginSync();
             // 启动透明后台同步
             BackgroundSyncManager.instance.start(context);
+            // 启动定时记账（前台补齐）
+            RecurringRecordRunner.instance.start(context);
           }
         });
       }
@@ -95,6 +97,7 @@ class _RootShellState extends State<RootShell> {
   @override
   void dispose() {
     BackgroundSyncManager.instance.stop();
+    RecurringRecordRunner.instance.stop();
     super.dispose();
   }
 
