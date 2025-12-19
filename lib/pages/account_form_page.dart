@@ -102,10 +102,16 @@ class _AccountFormPageState extends State<AccountFormPage> {
         if (maxLength != null && next.length > maxLength) return;
         expression = next;
       });
+      controller.value = controller.value.copyWith(
+        text: expression,
+        selection: TextSelection.collapsed(offset: expression.length),
+        composing: TextRange.empty,
+      );
     }
 
     await showModalBottomSheet<void>(
       context: context,
+      showDragHandle: true,
       isScrollControlled: false,
       backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) {
@@ -166,20 +172,6 @@ class _AccountFormPageState extends State<AccountFormPage> {
 
             void onClear() {
               setExpression(setState, '');
-            }
-
-            void onDone() {
-              final raw = expression.trim();
-              if (raw.isEmpty) {
-                controller.text = '';
-                Navigator.pop(ctx);
-                return;
-              }
-              final normalized = raw.startsWith('.') ? '0$raw' : raw;
-              final value = double.tryParse(normalized);
-              if (value == null) return;
-              controller.text = formatFixed2 ? value.toStringAsFixed(2) : raw;
-              Navigator.pop(ctx);
             }
 
             return SafeArea(
@@ -247,14 +239,26 @@ class _AccountFormPageState extends State<AccountFormPage> {
                     ),
                     Row(
                       children: [
-                        buildKey(label: '0', onTap: () => onDigit('0')),
-                        buildKey(
-                          label: '完成',
-                          onTap: onDone,
-                          background: cs.primary,
-                          textColor: cs.onPrimary,
-                          fontWeight: FontWeight.w600,
+                        Expanded(
+                          flex: 3,
+                          child: InkWell(
+                            onTap: () => onDigit('0'),
+                            child: Container(
+                              height: 56,
+                              alignment: Alignment.center,
+                              color: keyBackground,
+                              child: Text(
+                                '0',
+                                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                                      fontSize: 18,
+                                      color: cs.onSurface,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                              ),
+                            ),
+                          ),
                         ),
+                        const Spacer(),
                       ],
                     ),
                   ],
@@ -264,6 +268,19 @@ class _AccountFormPageState extends State<AccountFormPage> {
           },
         );
       },
+    );
+
+    if (!formatFixed2) return;
+    final raw = controller.text.trim();
+    if (raw.isEmpty) return;
+    final normalized = raw.startsWith('.') ? '0$raw' : raw;
+    final value = double.tryParse(normalized);
+    if (value == null) return;
+    final text = value.toStringAsFixed(2);
+    controller.value = controller.value.copyWith(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+      composing: TextRange.empty,
     );
   }
 
