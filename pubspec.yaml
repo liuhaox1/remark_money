@@ -1,4 +1,4 @@
-name: remark_money
+﻿name: remark_money
 description: A simple personal accounting app.
 publish_to: 'none'
 
@@ -11,11 +11,11 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # 基础依赖
+  # 鍩虹渚濊禆
   cupertino_icons: ^1.0.2
   provider: ^6.0.5
   http: ^1.2.2
-  shared_preferences: ^2.2.3  # 保留用于迁移和回退
+  shared_preferences: ^2.2.3  # 淇濈暀鐢ㄤ簬杩佺Щ鍜屽洖閫€
   intl: ^0.18.1
   path_provider: ^2.1.1
   file_picker: ^5.5.0
@@ -24,22 +24,22 @@ dependencies:
   pdf: ^3.11.3
   printing: ^5.13.4
   
-  # 数据库
+  # 鏁版嵁搴?
   sqflite: ^2.3.0
-  sqflite_sqlcipher: ^2.2.0  # 加密数据库支持
-  sqflite_common_ffi: ^2.3.0  # 桌面端 FFI 支持
+  sqflite_sqlcipher: ^2.2.0  # 鍔犲瘑鏁版嵁搴撴敮鎸?
+  sqflite_common_ffi: ^2.3.0  # 妗岄潰绔?FFI 鏀寔
 
-  # 图表
+  # 鍥捐〃
   fl_chart: ^0.63.0
   flutter_slidable: ^3.0.1
   google_fonts: ^6.2.1
   flutter_svg: ^2.0.10
   
-  # 语音识别
+  # 璇煶璇嗗埆
   speech_to_text: ^6.6.0
   permission_handler: ^11.0.1
   
-  # Windows 平台支持 - 移除直接依赖，使用传递依赖
+  # Windows 骞冲彴鏀寔 - 绉婚櫎鐩存帴渚濊禆锛屼娇鐢ㄤ紶閫掍緷璧?
   # win32: ^5.2.0
 
 dev_dependencies:
@@ -48,13 +48,18 @@ dev_dependencies:
   flutter_lints: ^2.0.0
 
 dependency_overrides:
-  # 临时覆盖 win32 以修复 UnmodifiableUint8ListView 兼容性问题
-  # 尝试使用 5.5.1 版本，可能修复了 Dart 3.5.0 兼容性问题
+  # 涓存椂瑕嗙洊 win32 浠ヤ慨澶?UnmodifiableUint8ListView 鍏煎鎬ч棶棰?
+  # 灏濊瘯浣跨敤 5.5.1 鐗堟湰锛屽彲鑳戒慨澶嶄簡 Dart 3.5.0 鍏煎鎬ч棶棰?
   win32: 5.5.1
 
 flutter:
   uses-material-design: true
 
-  # 静态资源目录
+  # 闈欐€佽祫婧愮洰褰?
   assets:
+    - assets/brands/
+    - assets/brands/banks_png/
+    - assets/brands/banks_icon_trim/
     - assets/
+
+

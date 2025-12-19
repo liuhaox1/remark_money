@@ -40,6 +40,9 @@ class _AccountFormPageState extends State<AccountFormPage> {
   late final TextEditingController _amountCtrl;
   late final TextEditingController _noteCtrl;
   late final TextEditingController _counterpartyCtrl;
+  late final FocusNode _amountFocusNode;
+  bool _didAutoOpenAmountPad = false;
+  bool _isNumberPadOpen = false;
   bool _includeInOverview = true;
   DateTime? _dueDate;
   String? _brandKey;
@@ -72,6 +75,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     );
     _noteCtrl = TextEditingController(text: account?.note ?? '');
     _counterpartyCtrl = TextEditingController(text: account?.counterparty ?? '');
+    _amountFocusNode = FocusNode();
     _includeInOverview = account?.includeInOverview ?? true;
     _dueDate = account?.dueDate;
     _brandKey = account?.brandKey ?? widget.initialBrandKey;
@@ -87,13 +91,57 @@ class _AccountFormPageState extends State<AccountFormPage> {
     // 金额/卡号输入使用自定义数字键盘（与“记一笔”一致），不依赖系统软键盘
   }
 
+  bool _shouldAutoOpenAmountPad() {
+    if (widget.account != null) return false;
+    switch (widget.subtype) {
+      case AccountSubtype.cash:
+      case AccountSubtype.savingCard:
+      case AccountSubtype.creditCard:
+      case AccountSubtype.virtual:
+      case AccountSubtype.customAsset:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didAutoOpenAmountPad) return;
+    if (!_shouldAutoOpenAmountPad()) return;
+
+    _didAutoOpenAmountPad = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Delay until after route transition; otherwise the bottom sheet may not appear.
+      void tryOpen() {
+        if (!mounted || _isNumberPadOpen) return;
+        _openNumberPad(
+          controller: _amountCtrl,
+          allowDecimal: true,
+          formatFixed2: true,
+          focusNode: _amountFocusNode,
+        );
+      }
+
+      Future<void>.delayed(const Duration(milliseconds: 320), tryOpen);
+      Future<void>.delayed(const Duration(milliseconds: 900), tryOpen);
+    });
+  }
+
   Future<void> _openNumberPad({
     required TextEditingController controller,
     bool allowDecimal = true,
     int? maxLength,
     bool formatFixed2 = false,
+    FocusNode? focusNode,
   }) async {
-    FocusManager.instance.primaryFocus?.unfocus();
+    if (focusNode != null) {
+      focusNode.requestFocus();
+    } else {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
 
     var expression = controller.text.trim();
 
@@ -109,8 +157,10 @@ class _AccountFormPageState extends State<AccountFormPage> {
       );
     }
 
+    _isNumberPadOpen = true;
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       isScrollControlled: false,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -269,6 +319,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
         );
       },
     );
+    _isNumberPadOpen = false;
 
     if (!formatFixed2) return;
     final raw = controller.text.trim();
@@ -290,6 +341,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     _amountCtrl.dispose();
     _noteCtrl.dispose();
     _counterpartyCtrl.dispose();
+    _amountFocusNode.dispose();
     super.dispose();
   }
 
@@ -358,7 +410,15 @@ class _AccountFormPageState extends State<AccountFormPage> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: AppTopBar(title: appBarTitle),
+      appBar: subtype == AccountSubtype.savingCard
+          ? AppBar(
+              backgroundColor: cs.surface,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              title: Text(appBarTitle),
+              centerTitle: true,
+            )
+          : AppTopBar(title: appBarTitle),
       body: isBankCard
           ? _buildBankCardForm(context, kind, subtype, isEditing)
           : isVirtual
@@ -449,15 +509,18 @@ class _AccountFormPageState extends State<AccountFormPage> {
                             controller: _amountCtrl,
                             allowDecimal: true,
                             formatFixed2: true,
+                            focusNode: _amountFocusNode,
                           )
                       : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
+                    focusNode: _amountFocusNode,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                       signed: false,
                     ),
-                    autofocus: !isEditing,
+                    autofocus: false,
+                    showCursor: true,
                     enabled: !isEditing,
                     hintText: '0.00',
                     helperText: isEditing
@@ -469,6 +532,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                               controller: _amountCtrl,
                               allowDecimal: true,
                               formatFixed2: true,
+                              focusNode: _amountFocusNode,
                             )
                         : null,
                   ),
@@ -627,29 +691,33 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   context,
                   label: subtype == AccountSubtype.creditCard ? '金额' : '余额',
                   onTap: !isEditing
-                      ? () => _openNumberPad(
-                            controller: _amountCtrl,
-                            allowDecimal: true,
-                            formatFixed2: true,
-                          )
-                      : null,
+                       ? () => _openNumberPad(
+                             controller: _amountCtrl,
+                             allowDecimal: true,
+                             formatFixed2: true,
+                             focusNode: _amountFocusNode,
+                           )
+                       : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
+                    focusNode: _amountFocusNode,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
-                    autofocus: !isEditing,
+                    autofocus: false,
+                    showCursor: true,
                     enabled: !isEditing,
                     helperText:
                         isEditing ? '请前往账户详情页>调整余额进行修改' : null,
                     readOnly: true,
                     onTap: !isEditing
-                        ? () => _openNumberPad(
-                              controller: _amountCtrl,
-                              allowDecimal: true,
-                              formatFixed2: true,
-                            )
-                        : null,
+                       ? () => _openNumberPad(
+                             controller: _amountCtrl,
+                             allowDecimal: true,
+                             formatFixed2: true,
+                             focusNode: _amountFocusNode,
+                           )
+                       : null,
                   ),
                 ),
               ],
@@ -716,29 +784,33 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: '余额',
-                  onTap: !isEditing
-                      ? () => _openNumberPad(
-                            controller: _amountCtrl,
-                            allowDecimal: true,
-                            formatFixed2: true,
-                          )
-                      : null,
-                  child: _buildPlainTextField(
-                    controller: _amountCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    textAlign: TextAlign.right,
-                    autofocus: !isEditing,
-                    readOnly: true,
-                    onTap: !isEditing
-                        ? () => _openNumberPad(
-                              controller: _amountCtrl,
-                              allowDecimal: true,
-                              formatFixed2: true,
-                            )
-                        : null,
-                  ),
-                ),
+                   onTap: !isEditing
+                       ? () => _openNumberPad(
+                             controller: _amountCtrl,
+                             allowDecimal: true,
+                             formatFixed2: true,
+                             focusNode: _amountFocusNode,
+                           )
+                       : null,
+                   child: _buildPlainTextField(
+                     controller: _amountCtrl,
+                     focusNode: _amountFocusNode,
+                     keyboardType:
+                         const TextInputType.numberWithOptions(decimal: true),
+                     textAlign: TextAlign.right,
+                     autofocus: false,
+                     showCursor: true,
+                     readOnly: true,
+                     onTap: !isEditing
+                         ? () => _openNumberPad(
+                               controller: _amountCtrl,
+                               allowDecimal: true,
+                               formatFixed2: true,
+                               focusNode: _amountFocusNode,
+                             )
+                         : null,
+                   ),
+                 ),
               ],
             ),
           ),
@@ -799,17 +871,20 @@ class _AccountFormPageState extends State<AccountFormPage> {
                   label: '金额',
                   onTap: !isEditing
                       ? () => _openNumberPad(
-                            controller: _amountCtrl,
-                            allowDecimal: true,
-                            formatFixed2: true,
-                          )
-                      : null,
+                             controller: _amountCtrl,
+                             allowDecimal: true,
+                             formatFixed2: true,
+                             focusNode: _amountFocusNode,
+                           )
+                       : null,
                   child: _buildPlainTextField(
                     controller: _amountCtrl,
+                    focusNode: _amountFocusNode,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     textAlign: TextAlign.right,
-                    autofocus: !isEditing,
+                    autofocus: false,
+                    showCursor: true,
                     enabled: !isEditing,
                     helperText:
                         isEditing ? '请前往账户详情页>调整余额进行修改' : null,
@@ -819,6 +894,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
                               controller: _amountCtrl,
                               allowDecimal: true,
                               formatFixed2: true,
+                              focusNode: _amountFocusNode,
                             )
                         : null,
                   ),
@@ -893,29 +969,33 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: '余额',
-                  onTap: !isEditing
-                      ? () => _openNumberPad(
-                            controller: _amountCtrl,
-                            allowDecimal: true,
-                            formatFixed2: true,
-                          )
-                      : null,
-                  child: _buildPlainTextField(
-                    controller: _amountCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    textAlign: TextAlign.right,
-                    autofocus: !isEditing,
-                    readOnly: true,
-                    onTap: !isEditing
-                        ? () => _openNumberPad(
-                              controller: _amountCtrl,
-                              allowDecimal: true,
-                              formatFixed2: true,
-                            )
-                        : null,
-                  ),
-                ),
+                   onTap: !isEditing
+                       ? () => _openNumberPad(
+                             controller: _amountCtrl,
+                             allowDecimal: true,
+                             formatFixed2: true,
+                             focusNode: _amountFocusNode,
+                           )
+                       : null,
+                   child: _buildPlainTextField(
+                     controller: _amountCtrl,
+                     focusNode: _amountFocusNode,
+                     keyboardType:
+                         const TextInputType.numberWithOptions(decimal: true),
+                     textAlign: TextAlign.right,
+                     autofocus: false,
+                     showCursor: true,
+                     readOnly: true,
+                     onTap: !isEditing
+                         ? () => _openNumberPad(
+                               controller: _amountCtrl,
+                               allowDecimal: true,
+                               formatFixed2: true,
+                               focusNode: _amountFocusNode,
+                             )
+                         : null,
+                   ),
+                 ),
               ],
             ),
           ),
@@ -975,29 +1055,33 @@ class _AccountFormPageState extends State<AccountFormPage> {
                 _buildBankInputRow(
                   context,
                   label: '余额',
-                  onTap: !isEditing
-                      ? () => _openNumberPad(
-                            controller: _amountCtrl,
-                            allowDecimal: true,
-                            formatFixed2: true,
-                          )
-                      : null,
-                  child: _buildPlainTextField(
-                    controller: _amountCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    textAlign: TextAlign.right,
-                    autofocus: !isEditing,
-                    readOnly: true,
-                    onTap: !isEditing
-                        ? () => _openNumberPad(
-                              controller: _amountCtrl,
-                              allowDecimal: true,
-                              formatFixed2: true,
-                            )
-                        : null,
-                  ),
-                ),
+                   onTap: !isEditing
+                       ? () => _openNumberPad(
+                             controller: _amountCtrl,
+                             allowDecimal: true,
+                             formatFixed2: true,
+                             focusNode: _amountFocusNode,
+                           )
+                       : null,
+                   child: _buildPlainTextField(
+                     controller: _amountCtrl,
+                     focusNode: _amountFocusNode,
+                     keyboardType:
+                         const TextInputType.numberWithOptions(decimal: true),
+                     textAlign: TextAlign.right,
+                     autofocus: false,
+                     showCursor: true,
+                     readOnly: true,
+                     onTap: !isEditing
+                         ? () => _openNumberPad(
+                               controller: _amountCtrl,
+                               allowDecimal: true,
+                               formatFixed2: true,
+                               focusNode: _amountFocusNode,
+                             )
+                         : null,
+                   ),
+                 ),
               ],
             ),
           ),
@@ -1343,6 +1427,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
     bool autofocus = false,
     FocusNode? focusNode,
     bool readOnly = false,
+    bool? showCursor,
     VoidCallback? onTap,
   }) {
     final cs = Theme.of(context).colorScheme;
@@ -1354,6 +1439,7 @@ class _AccountFormPageState extends State<AccountFormPage> {
           controller: controller,
           enabled: enabled,
           readOnly: readOnly,
+          showCursor: showCursor,
           keyboardType: keyboardType,
           textAlign: textAlign,
           textAlignVertical: TextAlignVertical.center,

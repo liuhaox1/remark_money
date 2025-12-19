@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../constants/bank_brands.dart';
 import '../models/account.dart';
+import '../widgets/brand_logo_avatar.dart';
 import 'account_form_page.dart';
 
 Widget _buildSvgLeading(String assetPath, Color backgroundColor) {
@@ -252,21 +253,15 @@ class BankSelectionPage extends StatelessWidget {
           return Container(
             color: cs.surface,
             child: ListTile(
-              leading: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: brand.color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  brand.shortName,
-                  style: tt.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: brand.color,
-                  ),
-                ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              minLeadingWidth: 44,
+              horizontalTitleGap: 12,
+              leading: BrandLogoAvatar(
+                size: 44,
+                brandKey: brand.key,
+                icon: Icons.account_balance_outlined,
+                iconColor: brand.color,
+                backgroundColor: brand.color.withOpacity(0.15),
               ),
               title: Text(
                 brand.displayName,
@@ -327,21 +322,15 @@ class CreditCardSelectionPage extends StatelessWidget {
           return Container(
             color: cs.surface,
             child: ListTile(
-              leading: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: brand.color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  brand.shortName,
-                  style: tt.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: brand.color,
-                  ),
-                ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              minLeadingWidth: 44,
+              horizontalTitleGap: 12,
+              leading: BrandLogoAvatar(
+                size: 44,
+                brandKey: brand.key,
+                icon: Icons.credit_card_rounded,
+                iconColor: brand.color,
+                backgroundColor: brand.color.withOpacity(0.15),
               ),
               title: Text(
                 brand.displayName,
