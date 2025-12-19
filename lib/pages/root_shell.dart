@@ -10,6 +10,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
 import '../services/background_sync_manager.dart';
+import '../services/app_settings_service.dart';
 import '../services/recurring_record_runner.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
@@ -184,8 +185,47 @@ class AssetsPage extends StatelessWidget {
   }
 }
 
-class _AssetsPageBody extends StatelessWidget {
+class _AssetsPageBody extends StatefulWidget {
   const _AssetsPageBody();
+
+  @override
+  State<_AssetsPageBody> createState() => _AssetsPageBodyState();
+}
+
+class _AssetsPageBodyState extends State<_AssetsPageBody> {
+  bool _hideAmounts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHideAmounts();
+  }
+
+  Future<void> _loadHideAmounts() async {
+    final value = await AppSettingsService.instance.getBool(
+      AppSettingsService.keyHideAmountsAssets,
+      defaultValue: false,
+    );
+    if (!mounted) return;
+    setState(() {
+      _hideAmounts = value;
+    });
+  }
+
+  Future<void> _toggleHideAmounts() async {
+    final next = !_hideAmounts;
+    setState(() {
+      _hideAmounts = next;
+    });
+    try {
+      await AppSettingsService.instance.setBool(
+        AppSettingsService.keyHideAmountsAssets,
+        next,
+      );
+    } catch (_) {
+      // ignore persistence errors; UI state already updated
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -221,6 +261,8 @@ class _AssetsPageBody extends StatelessWidget {
                         totalAssets: totalAssets,
                         totalDebts: totalDebts,
                         netWorth: netWorth,
+                        hideAmounts: _hideAmounts,
+                        onToggleHideAmounts: _toggleHideAmounts,
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -390,6 +432,7 @@ class _AssetsPageBody extends StatelessWidget {
                             for (final group in grouped)
                               _AccountGroupPanel(
                                 group: group,
+                                hideAmounts: _hideAmounts,
                               ),
                           ],
                         ),
@@ -403,22 +446,26 @@ class _AssetsPageBody extends StatelessWidget {
   }
 }
 
-  class _AssetSummaryCard extends StatelessWidget {
+class _AssetSummaryCard extends StatelessWidget {
   const _AssetSummaryCard({
     required this.totalAssets,
     required this.totalDebts,
     required this.netWorth,
+    required this.hideAmounts,
+    required this.onToggleHideAmounts,
   });
 
   final double totalAssets;
   final double totalDebts;
   final double netWorth;
+  final bool hideAmounts;
+  final VoidCallback onToggleHideAmounts;
 
   @override
-    Widget build(BuildContext context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
  
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
@@ -434,23 +481,42 @@ class _AssetsPageBody extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-	              Text(
-	              AppStrings.netWorth,
-	                style: theme.textTheme.labelMedium?.copyWith(
-	                  fontSize: 12,
-	                  fontWeight: FontWeight.w600,
-	                  color: cs.onSurface.withOpacity(0.8),
-	                ),
-	              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    AppStrings.netWorth,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface.withOpacity(0.8),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: onToggleHideAmounts,
+                  icon: Icon(
+                    hideAmounts
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 18,
+                  ),
+                  tooltip: hideAmounts ? '显示金额' : '隐藏金额',
+                  splashRadius: 18,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+              ],
+            ),
               const SizedBox(height: 2),
-	              Text(
-	              _formatAmount(netWorth),
-	                style: theme.textTheme.headlineSmall?.copyWith(
-	                  fontSize: 24,
-	                  fontWeight: FontWeight.w600,
-	                  color: cs.onSurface,
-	                ),
-	            ),
+            Text(
+              _displayAmount(netWorth),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -467,6 +533,11 @@ class _AssetsPageBody extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _displayAmount(double value) {
+    if (hideAmounts) return '****';
+    return _formatAmount(value);
   }
 
   String _formatAmount(double value) {
@@ -494,7 +565,7 @@ class _AssetsPageBody extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          _formatAmount(value),
+          _displayAmount(value),
           style: tt.bodyMedium?.copyWith(
             fontSize: 14,
             color: cs.onSurface,
@@ -509,9 +580,11 @@ class _AssetsPageBody extends StatelessWidget {
 class _AccountGroupPanel extends StatelessWidget {
   const _AccountGroupPanel({
     required this.group,
+    required this.hideAmounts,
   });
 
   final _AccountGroupData group;
+  final bool hideAmounts;
 
   @override
   Widget build(BuildContext context) {
@@ -550,6 +623,7 @@ class _AccountGroupPanel extends StatelessWidget {
                 _AccountTile(
                   account: account,
                   isLast: account == group.accounts.last,
+                  hideAmounts: hideAmounts,
                 ),
             ],
           ),
@@ -564,10 +638,12 @@ class _AccountTile extends StatelessWidget {
   const _AccountTile({
     required this.account,
     required this.isLast,
+    required this.hideAmounts,
   });
 
   final Account account;
   final bool isLast;
+  final bool hideAmounts;
 
   Future<void> _handleDelete(BuildContext context) async {
     final accountProvider = context.read<AccountProvider>();
@@ -672,6 +748,8 @@ class _AccountTile extends StatelessWidget {
     final hasIssue = _hasBalanceIssue(account);
     final amountColor = cs.onSurface;
     final icon = _iconForAccount(account);
+    final amountText =
+        hideAmounts ? '****' : account.currentBalance.toStringAsFixed(2);
 
     final tileContent = InkWell(
       onTap: () {
@@ -724,7 +802,7 @@ class _AccountTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                 Text(
-                  account.currentBalance.toStringAsFixed(2),
+                  amountText,
 	                  style: theme.textTheme.titleSmall?.copyWith(
 	                    fontSize: 15,
 	                    fontWeight: FontWeight.w600,

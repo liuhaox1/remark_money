@@ -765,10 +765,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                color: cs.onSurface.withOpacity(0.55),
-              ),
+              const SizedBox.shrink(),
             ],
           ),
           const SizedBox(height: 16),
