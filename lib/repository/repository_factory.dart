@@ -16,6 +16,8 @@ import 'record_template_repository.dart';
 import 'record_template_repository_db.dart';
 import 'recurring_record_repository.dart';
 import 'recurring_record_repository_db.dart';
+import 'tag_repository.dart';
+import 'tag_repository_db.dart';
 import '../database/database_helper.dart';
 
 /// Repository 工厂类
@@ -162,6 +164,14 @@ class RepositoryFactory {
       return RecurringRecordRepositoryDb();
     }
     return RecurringRecordRepository();
+  }
+
+  /// 创建标签仓库
+  static dynamic createTagRepository() {
+    if (_useDatabase) {
+      return TagRepositoryDb();
+    }
+    return TagRepository();
   }
 
   /// 获取当前存储后端信息（用于诊断）

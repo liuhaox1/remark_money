@@ -11,11 +11,13 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/account_provider.dart';
+import '../providers/tag_provider.dart';
 import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
+import '../widgets/tag_picker_bottom_sheet.dart';
 import '../repository/category_repository.dart';
 import '../repository/repository_factory.dart';
 import 'add_account_type_page.dart';
@@ -58,6 +60,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
   String? _selectedAccountId;
   bool _includeInStats = true;
   String _amountExpression = '';
+  List<String> _selectedTagIds = <String>[];
 
   // SharedPreferences / 数据库 两种实现共用相同方法签名
   final dynamic _templateRepository =
@@ -85,6 +88,21 @@ class _AddRecordPageState extends State<AddRecordPage> {
       _includeInStats = _lastIncludeInStats;
     }
     _loadTemplatesAndPlans();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final bookId = context.read<BookProvider>().activeBookId;
+      final tagProvider = context.read<TagProvider>();
+      await tagProvider.loadForBook(bookId);
+      if (!mounted) return;
+      final initial = widget.initialRecord;
+      if (initial != null) {
+        try {
+          final ids = await tagProvider.getTagIdsForRecord(initial.id);
+          if (!mounted) return;
+          setState(() => _selectedTagIds = ids);
+        } catch (_) {}
+      }
+    });
   }
 
   @override
@@ -211,6 +229,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
           ),
           const SizedBox(height: 6),
           _buildRemarkField(),
+          const SizedBox(height: 6),
+          _buildTagField(),
         ],
       ),
     );
@@ -924,6 +944,97 @@ class _AddRecordPageState extends State<AddRecordPage> {
     );
   }
 
+  Widget _buildTagField() {
+    final cs = Theme.of(context).colorScheme;
+    final tags = context.watch<TagProvider>().tags;
+    final selected = _selectedTagIds
+        .map((id) => tags.where((t) => t.id == id).toList())
+        .expand((x) => x)
+        .toList();
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _openTagPicker,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: cs.surface,
+          border: Border.all(
+            color: cs.outlineVariant.withOpacity(0.6),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.local_offer_outlined,
+              size: 18,
+              color: cs.onSurface.withOpacity(0.75),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: selected.isEmpty
+                  ? Text(
+                      '添加标签',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurface.withOpacity(0.6),
+                          ),
+                    )
+                  : Wrap(
+                      spacing: 6,
+                      runSpacing: -6,
+                      children: [
+                        for (final tag in selected)
+                          InputChip(
+                            label: Text(tag.name),
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            side: BorderSide(color: cs.outlineVariant),
+                            backgroundColor: tag.colorValue == null
+                                ? cs.surfaceContainerHighest.withOpacity(0.35)
+                                : Color(tag.colorValue!).withOpacity(0.14),
+                            onDeleted: () {
+                              setState(() => _selectedTagIds
+                                  .removeWhere((id) => id == tag.id));
+                            },
+                            deleteIconColor: cs.onSurface.withOpacity(0.6),
+                          ),
+                      ],
+                    ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: cs.onSurface.withOpacity(0.55),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openTagPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return TagPickerBottomSheet(
+          initialSelectedIds: _selectedTagIds.toSet(),
+          onChanged: (ids) {
+            if (!mounted) return;
+            setState(() => _selectedTagIds = ids.toList());
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildNumberPad() {
     final bottom = MediaQuery.of(context).padding.bottom;
     final cs = Theme.of(context).colorScheme;
@@ -1443,6 +1554,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final bookId = context.read<BookProvider>().activeBookId;
     final accountProvider = context.read<AccountProvider>();
     final recordProvider = context.read<RecordProvider>();
+    final tagProvider = context.read<TagProvider>();
 
     try {
       if (widget.initialRecord != null) {
@@ -1464,11 +1576,15 @@ class _AddRecordPageState extends State<AddRecordPage> {
           accountProvider: accountProvider,
         );
 
+        try {
+          await tagProvider.setTagsForRecord(updated.id, _selectedTagIds);
+        } catch (_) {}
+
         if (!mounted) return;
         ErrorHandler.showSuccess(context, '记录已更新');
       } else {
         // 新增记录
-        await recordProvider.addRecord(
+        final created = await recordProvider.addRecord(
           amount: amount,
           remark: remark,
           date: _selectedDate,
@@ -1479,6 +1595,10 @@ class _AddRecordPageState extends State<AddRecordPage> {
           includeInStats: _includeInStats,
           accountProvider: accountProvider,
         );
+
+        try {
+          await tagProvider.setTagsForRecord(created.id, _selectedTagIds);
+        } catch (_) {}
 
         if (_selectedAccountId != null && _selectedAccountId!.isNotEmpty) {
           _lastAccountId = _selectedAccountId;

@@ -21,6 +21,7 @@ import 'providers/budget_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
 import 'providers/reminder_provider.dart';
+import 'providers/tag_provider.dart';
 import 'repository/repository_factory.dart';
 import 'database/database_helper.dart';
 import 'l10n/app_strings.dart';
@@ -69,9 +70,10 @@ Future<void> main() async {
   final themeProvider = ThemeProvider();
   final accountProvider = AccountProvider();
   final reminderProvider = ReminderProvider();
+  final tagProvider = TagProvider();
 
+  await bookProvider.load();
   await Future.wait([
-    bookProvider.load(),
     recordProvider.load(),
     categoryProvider.load(),
     budgetProvider.load(),
@@ -79,6 +81,7 @@ Future<void> main() async {
     reminderProvider.load(),
     themeProvider.load(),
   ]);
+  await tagProvider.loadForBook(bookProvider.activeBookId);
   debugPrint('providers loaded: ${DateTime.now().toIso8601String()}');
 
   runApp(
@@ -90,6 +93,7 @@ Future<void> main() async {
       accountProvider: accountProvider,
       themeProvider: themeProvider,
       reminderProvider: reminderProvider,
+      tagProvider: tagProvider,
     ),
   );
 }
@@ -104,6 +108,7 @@ class RemarkMoneyApp extends StatelessWidget {
     required this.accountProvider,
     required this.themeProvider,
     required this.reminderProvider,
+    required this.tagProvider,
   });
 
   final BookProvider bookProvider;
@@ -113,6 +118,7 @@ class RemarkMoneyApp extends StatelessWidget {
   final AccountProvider accountProvider;
   final ThemeProvider themeProvider;
   final ReminderProvider reminderProvider;
+  final TagProvider tagProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +131,7 @@ class RemarkMoneyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: accountProvider),
         ChangeNotifierProvider.value(value: themeProvider),
         ChangeNotifierProvider.value(value: reminderProvider),
+        ChangeNotifierProvider.value(value: tagProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) {

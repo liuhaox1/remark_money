@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../models/category.dart';
 import '../models/record.dart';
+import '../models/tag.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/tag_provider.dart';
 import '../utils/date_utils.dart';
 import '../theme/app_tokens.dart';
 import 'add_record_page.dart';
@@ -87,147 +89,179 @@ class AccountRecordsPage extends StatelessWidget {
             .fold<double>(0, (sum, r) => sum + r.amount);
         final netChange = totalIncome - totalExpense;
 
-        return Scaffold(
-      appBar: AppBar(
-        title: Text('${account.name} - 流水'),
-      ),
-      body: Column(
-        children: [
-          // 统计卡片
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.shadow.withOpacity(0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    '收入',
-                    totalIncome,
-                    AppColors.success,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    '支出',
-                    totalExpense,
-                    AppColors.danger,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    '净变化',
-                    netChange,
-                    AppColors.amount(netChange),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // 流水列表
-          Expanded(
-            child: allRecords.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.receipt_long_outlined,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          '暂无流水记录',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => AddRecordPage(isExpense: false),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.add),
-                          label: const Text('记一笔'),
+        final tagProvider = context.read<TagProvider>();
+        final recordIds = allRecords.map((r) => r.id).toList();
+
+        return FutureBuilder<Map<String, List<Tag>>>(
+          future: tagProvider.loadTagsForRecords(recordIds),
+          builder: (context, tagSnap) {
+            final tagsByRecordId = tagSnap.data ?? const <String, List<Tag>>{};
+
+            return Scaffold(
+              appBar: AppBar(
+                title: Text('${account.name} - 流水'),
+              ),
+              body: Column(
+                children: [
+                  // 统计卡片
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .shadow
+                              .withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: groupedRecords.length,
-                    itemBuilder: (context, index) {
-                      final group = groupedRecords[index];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 日期标题
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              _formatDateHeader(group.date),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.outline,
-                                  ),
-                            ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatItem(
+                            context,
+                            '收入',
+                            totalIncome,
+                            AppColors.success,
                           ),
-                          // 记录列表
-                          Card(
-                            margin: EdgeInsets.zero,
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outline
+                              .withOpacity(0.2),
+                        ),
+                        Expanded(
+                          child: _buildStatItem(
+                            context,
+                            '支出',
+                            totalExpense,
+                            AppColors.danger,
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outline
+                              .withOpacity(0.2),
+                        ),
+                        Expanded(
+                          child: _buildStatItem(
+                            context,
+                            '净变化',
+                            netChange,
+                            AppColors.amount(netChange),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 流水列表
+                  Expanded(
+                    child: allRecords.isEmpty
+                        ? Center(
                             child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                for (var i = 0; i < group.records.length; i++)
-                                  _buildRecordTile(
-                                    context,
-                                    group.records[i],
-                                    categoryMap,
-                                    i < group.records.length - 1,
-                                  ),
+                                Icon(
+                                  Icons.receipt_long_outlined,
+                                  size: 64,
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '暂无流水记录',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .outline,
+                                      ),
+                                ),
+                                const SizedBox(height: 16),
+                                FilledButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            AddRecordPage(isExpense: false),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('记一笔'),
+                                ),
                               ],
                             ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: groupedRecords.length,
+                            itemBuilder: (context, index) {
+                              final group = groupedRecords[index];
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // 日期标题
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 8),
+                                    child: Text(
+                                      _formatDateHeader(group.date),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .outline,
+                                          ),
+                                    ),
+                                  ),
+                                  // 记录列表
+                                  Card(
+                                    margin: EdgeInsets.zero,
+                                    child: Column(
+                                      children: [
+                                        for (var i = 0;
+                                            i < group.records.length;
+                                            i++)
+                                          _buildRecordTile(
+                                            context,
+                                            group.records[i],
+                                            categoryMap,
+                                            tagsByRecordId[group.records[i].id] ??
+                                                const <Tag>[],
+                                            i < group.records.length - 1,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              );
+                            },
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                      );
-                    },
                   ),
-          ),
-        ],
-      ),
-    );
+                ],
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -262,6 +296,7 @@ class AccountRecordsPage extends StatelessWidget {
     BuildContext context,
     Record record,
     Map<String, Category> categoryMap,
+    List<Tag> tags,
     bool showDivider,
   ) {
     final category = categoryMap[record.categoryKey];
@@ -321,6 +356,19 @@ class AccountRecordsPage extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
+                      if (tags.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: -8,
+                          children: [
+                            for (final tag in tags.take(3))
+                              _buildTagChip(context, tag),
+                            if (tags.length > 3)
+                              _buildMoreChip(context, tags.length - 3),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -345,6 +393,48 @@ class AccountRecordsPage extends StatelessWidget {
                   .withOpacity(0.4),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTagChip(BuildContext context, Tag tag) {
+    final cs = Theme.of(context).colorScheme;
+    final bg = tag.colorValue == null
+        ? cs.surfaceContainerHighest.withOpacity(0.35)
+        : Color(tag.colorValue!).withOpacity(0.14);
+    final fg = tag.colorValue == null ? cs.onSurface : Color(tag.colorValue!);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.8)),
+      ),
+      child: Text(
+        tag.name,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: fg.withOpacity(0.9),
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+
+  Widget _buildMoreChip(BuildContext context, int moreCount) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.8)),
+      ),
+      child: Text(
+        '+$moreCount',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: cs.onSurface.withOpacity(0.75),
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }

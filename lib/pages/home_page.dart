@@ -13,6 +13,7 @@ import '../l10n/app_strings.dart';
 import '../models/account.dart';
 import '../models/category.dart';
 import '../models/record.dart';
+import '../models/tag.dart';
 
 import '../providers/book_provider.dart';
 
@@ -21,6 +22,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 
 import '../providers/account_provider.dart';
+import '../providers/tag_provider.dart';
 import '../repository/repository_factory.dart';
 
 import '../utils/date_utils.dart';
@@ -1792,7 +1794,14 @@ class _HomePageState extends State<HomePage> {
 
     
 
-    return Padding(
+    final tagProvider = context.read<TagProvider>();
+    final recordIds = records.map((r) => r.id).toList();
+
+    return FutureBuilder<Map<String, List<Tag>>>(
+      future: tagProvider.loadTagsForRecords(recordIds),
+      builder: (context, tagSnap) {
+        final tagsByRecordId = tagSnap.data ?? const <String, List<Tag>>{};
+        return Padding(
 
       padding: EdgeInsets.only(bottom: bottomPadding),
 
@@ -1926,17 +1935,19 @@ class _HomePageState extends State<HomePage> {
 
                   final selected = _selectedRecordIds.contains(record.id);
 
-                  return TimelineItem(
+                   return TimelineItem(
 
-                    key: ValueKey(record.id),
+                     key: ValueKey(record.id),
 
-                    record: record,
+                     record: record,
 
-                    category: categoryMap[record.categoryKey],
+                     category: categoryMap[record.categoryKey],
 
-                    leftSide: false,
+                     tags: tagsByRecordId[record.id] ?? const <Tag>[],
 
-                    onTap: () => _handleRecordTap(record),
+                     leftSide: false,
+
+                     onTap: () => _handleRecordTap(record),
 
                     onLongPress: () => _handleRecordLongPress(record),
 
@@ -1968,6 +1979,8 @@ class _HomePageState extends State<HomePage> {
 
       ),
 
+        );
+      },
     );
 
   }

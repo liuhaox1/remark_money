@@ -4,6 +4,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import '../l10n/app_strings.dart';
 import '../models/category.dart';
 import '../models/record.dart';
+import '../models/tag.dart';
 import '../theme/app_tokens.dart';
 import '../utils/category_name_helper.dart';
 
@@ -14,6 +15,7 @@ class TimelineItem extends StatelessWidget {
     required this.leftSide,
     this.category,
     this.subtitle,
+    this.tags = const <Tag>[],
     this.onTap,
     this.onLongPress,
     this.onDelete,
@@ -26,6 +28,7 @@ class TimelineItem extends StatelessWidget {
   final bool leftSide; // legacy param, layout no longer alternates
   final Category? category;
   final String? subtitle;
+  final List<Tag> tags;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onDelete;
@@ -134,6 +137,19 @@ class TimelineItem extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
+                        if (tags.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: -10,
+                            children: [
+                              for (final tag in tags.take(3))
+                                _TagChip(tag: tag),
+                              if (tags.length > 3)
+                                _MoreChip(count: tags.length - 3),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -178,6 +194,62 @@ class TimelineItem extends StatelessWidget {
           ],
         ),
         child: row,
+      ),
+    );
+  }
+}
+
+class _TagChip extends StatelessWidget {
+  const _TagChip({required this.tag});
+
+  final Tag tag;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final bg = tag.colorValue == null
+        ? cs.surfaceContainerHighest.withOpacity(0.35)
+        : Color(tag.colorValue!).withOpacity(0.14);
+    final fg = tag.colorValue == null ? cs.onSurface : Color(tag.colorValue!);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.7)),
+      ),
+      child: Text(
+        tag.name,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: fg.withOpacity(0.9),
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
+class _MoreChip extends StatelessWidget {
+  const _MoreChip({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.7)),
+      ),
+      child: Text(
+        '+$count',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: cs.onSurface.withOpacity(0.75),
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }

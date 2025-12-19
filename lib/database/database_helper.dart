@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 4;
+const int _databaseVersion = 5;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -31,6 +31,8 @@ class Tables {
   static const String appSettings = 'app_settings';
   static const String migrationLog = 'migration_log';
   static const String syncOutbox = 'sync_outbox';
+  static const String tags = 'tags';
+  static const String recordTags = 'record_tags';
 }
 
 /// 数据库管理类
@@ -140,6 +142,40 @@ class DatabaseHelper {
       case 4:
         // records: add server_version (v2 sync optimistic lock)
         await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN server_version INTEGER');
+        break;
+      case 5:
+        // tags + record_tags (many-to-many)
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS ${Tables.tags} (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            color INTEGER,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            UNIQUE(book_id, name)
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS ${Tables.recordTags} (
+            record_id TEXT NOT NULL,
+            tag_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(record_id, tag_id),
+            FOREIGN KEY (record_id) REFERENCES ${Tables.records}(id),
+            FOREIGN KEY (tag_id) REFERENCES ${Tables.tags}(id)
+          )
+        ''');
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_tags_book_sort ON ${Tables.tags}(book_id, sort_order, created_at)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_record_tags_record ON ${Tables.recordTags}(record_id)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_record_tags_tag ON ${Tables.recordTags}(tag_id)',
+        );
         break;
       default:
         break;
@@ -302,6 +338,32 @@ class DatabaseHelper {
         error_message TEXT
       )
     ''');
+
+    // 标签表
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${Tables.tags} (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        color INTEGER,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(book_id, name)
+      )
+    ''');
+
+    // 记录-标签关联表（多对多）
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${Tables.recordTags} (
+        record_id TEXT NOT NULL,
+        tag_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY(record_id, tag_id),
+        FOREIGN KEY (record_id) REFERENCES ${Tables.records}(id),
+        FOREIGN KEY (tag_id) REFERENCES ${Tables.tags}(id)
+      )
+    ''');
   }
 
   /// 创建索引
@@ -327,6 +389,17 @@ class DatabaseHelper {
     // 同步发件箱索引
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_created ON ${Tables.syncOutbox}(book_id, created_at)',
+    );
+
+    // 标签索引
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_tags_book_sort ON ${Tables.tags}(book_id, sort_order, created_at)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_record_tags_record ON ${Tables.recordTags}(record_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_record_tags_tag ON ${Tables.recordTags}(tag_id)',
     );
   }
 

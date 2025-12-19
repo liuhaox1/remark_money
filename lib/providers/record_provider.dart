@@ -352,6 +352,12 @@ class RecordProvider extends ChangeNotifier {
       _clearCache();
 
       if (old != null) {
+        // 清理标签关联（不影响主流程）
+        try {
+          final tagRepo = RepositoryFactory.createTagRepository();
+          await tagRepo.deleteLinksForRecord(id);
+        } catch (_) {}
+
         await _applyAccountDelta(accountProvider, old, reverse: true);
         // 数据修改时版本号+1
         await DataVersionService.incrementVersion(old.bookId);
