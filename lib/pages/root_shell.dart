@@ -578,8 +578,39 @@ class _AccountTile extends StatelessWidget {
     final usedCount =
         await recordProvider.countRecordsForAccount(bookId, account);
     if (usedCount > 0) {
-      ErrorHandler.showError(context, '该账户下还有 $usedCount 笔记录，无法删除。请先迁移或删除相关记录。');
-      return;
+      final action = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('无法直接删除'),
+          content: Text('该账户下还有 $usedCount 笔记录。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'force'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.danger,
+              ),
+              child: const Text('删除记录并删除账户'),
+            ),
+          ],
+        ),
+      );
+      if (!context.mounted) return;
+      if (action != 'force') return;
+
+      try {
+        final deleted = await recordProvider.deleteRecordsForAccount(bookId, account);
+        await accountProvider.refreshBalancesFromRecords();
+        if (!context.mounted) return;
+        ErrorHandler.showSuccess(context, '已删除 $deleted 笔记录');
+      } catch (e) {
+        if (!context.mounted) return;
+        ErrorHandler.handleAsyncError(context, e);
+        return;
+      }
     }
 
     // 2) 至少保留一个账户（记一笔/对账都需要稳定账户）

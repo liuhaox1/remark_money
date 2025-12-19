@@ -167,6 +167,15 @@ class AccountProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshBalancesFromRecords() async {
+    if (!_loaded) {
+      await load();
+      return;
+    }
+    await _rebuildBalancesFromRecordsIfPossible();
+    notifyListeners();
+  }
+
   Future<void> _persist() async {
     try {
       await _repository.saveAccounts(_accounts);

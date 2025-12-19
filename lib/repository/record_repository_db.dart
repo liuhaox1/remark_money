@@ -180,6 +180,48 @@ class RecordRepositoryDb {
     }
   }
 
+  Future<int> deleteRecordsByAccountIds({
+    required String bookId,
+    required List<String> accountIds,
+  }) async {
+    if (accountIds.isEmpty) return 0;
+    try {
+      final db = await _dbHelper.database;
+      final placeholders = List.filled(accountIds.length, '?').join(',');
+      return await db.transaction<int>((txn) async {
+        // Find affected record ids first (for record_tags cleanup)
+        final rows = await txn.rawQuery(
+          'SELECT id FROM ${Tables.records} WHERE book_id = ? AND account_id IN ($placeholders)',
+          <Object?>[bookId, ...accountIds],
+        );
+        final recordIds = rows
+            .map((e) => e['id']?.toString())
+            .whereType<String>()
+            .where((s) => s.isNotEmpty)
+            .toList(growable: false);
+        if (recordIds.isNotEmpty) {
+          final ridPlaceholders = List.filled(recordIds.length, '?').join(',');
+          await txn.delete(
+            Tables.recordTags,
+            where: 'record_id IN ($ridPlaceholders)',
+            whereArgs: recordIds,
+          );
+        }
+
+        final deleted = await txn.delete(
+          Tables.records,
+          where: 'book_id = ? AND account_id IN ($placeholders)',
+          whereArgs: <Object?>[bookId, ...accountIds],
+        );
+        return deleted;
+      });
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] deleteRecordsByAccountIds failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   /// 迁移账本ID（升级为多人账本时使用）
   Future<void> migrateBookId(String oldBookId, String newBookId) async {
     try {

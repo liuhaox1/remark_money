@@ -212,6 +212,49 @@ class RecordProvider extends ChangeNotifier {
     }
   }
 
+  Future<int> deleteRecordsForAccount(String bookId, Account account) async {
+    try {
+      final ids = <String>[account.id];
+      final sid = account.serverId;
+      if (sid != null) {
+        ids.add('server_$sid');
+        ids.add('$sid');
+      }
+
+      if (_isUsingDatabase &&
+          _repository.runtimeType.toString().contains('RecordRepositoryDb')) {
+        final dbRepo = _repository as dynamic;
+        final deleted = await dbRepo.deleteRecordsByAccountIds(
+          bookId: bookId,
+          accountIds: ids,
+        ) as int;
+
+        if (deleted > 0) {
+          _recentRecordsCache.removeWhere(
+            (r) => r.bookId == bookId && ids.contains(r.accountId),
+          );
+          _clearCache();
+          _notifyChanged();
+        }
+        return deleted;
+      }
+
+      // SharedPreferences 版本：加载并过滤后保存
+      final list = await _repository.loadRecords() as List<Record>;
+      final filtered = list.where((r) => !(r.bookId == bookId && ids.contains(r.accountId))).toList();
+      await _repository.saveRecords(filtered);
+      _recentRecordsCache
+        ..clear()
+        ..addAll(filtered.take(_maxCacheSize));
+      _clearCache();
+      _notifyChanged();
+      return list.length - filtered.length;
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.deleteRecordsForAccount', e, stackTrace);
+      rethrow;
+    }
+  }
+
   Future<void> updateRecord(
     Record updated, {
     AccountProvider? accountProvider,
