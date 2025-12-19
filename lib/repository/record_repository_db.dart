@@ -138,6 +138,48 @@ class RecordRepositoryDb {
     }
   }
 
+  Future<int> countRecordsByAccountIds({
+    required String bookId,
+    required List<String> accountIds,
+  }) async {
+    if (accountIds.isEmpty) return 0;
+    try {
+      final db = await _dbHelper.database;
+      final placeholders = List.filled(accountIds.length, '?').join(',');
+      final rows = await db.rawQuery(
+        'SELECT COUNT(*) AS cnt FROM ${Tables.records} WHERE book_id = ? AND account_id IN ($placeholders)',
+        <Object?>[bookId, ...accountIds],
+      );
+      final first = rows.isEmpty ? null : rows.first['cnt'];
+      if (first is int) return first;
+      if (first is num) return first.toInt();
+      return int.tryParse('$first') ?? 0;
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] countRecordsByAccountIds failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<Set<String>> loadUsedAccountIds({required String bookId}) async {
+    try {
+      final db = await _dbHelper.database;
+      final rows = await db.rawQuery(
+        'SELECT DISTINCT account_id AS aid FROM ${Tables.records} WHERE book_id = ?',
+        <Object?>[bookId],
+      );
+      return rows
+          .map((e) => e['aid']?.toString())
+          .whereType<String>()
+          .where((s) => s.isNotEmpty)
+          .toSet();
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] loadUsedAccountIds failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   /// 迁移账本ID（升级为多人账本时使用）
   Future<void> migrateBookId(String oldBookId, String newBookId) async {
     try {

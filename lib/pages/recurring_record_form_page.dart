@@ -42,7 +42,19 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
   List<String> _selectedTagIds = <String>[];
 
   @override
+  void initState() {
+    super.initState();
+    _amountCtrl.addListener(_onAmountChanged);
+  }
+
+  void _onAmountChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  @override
   void dispose() {
+    _amountCtrl.removeListener(_onAmountChanged);
     _amountCtrl.dispose();
     _remarkCtrl.dispose();
     super.dispose();
@@ -89,7 +101,29 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
       return;
     }
 
-    final picked = await showModalBottomSheet<String>(
+    final hasHierarchy = filtered.any((c) => c.parentKey != null);
+    final topLevel = hasHierarchy
+        ? filtered.where((c) => c.parentKey == null).toList()
+        : filtered;
+    final childrenByParent = <String, List<Category>>{};
+    if (hasHierarchy) {
+      for (final c in filtered.where((c) => c.parentKey != null)) {
+        final parent = c.parentKey!;
+        (childrenByParent[parent] ??= <Category>[]).add(c);
+      }
+    }
+
+    String? activeParentKey;
+    String? selectedKey = _selectedCategoryKey;
+    if (hasHierarchy && selectedKey != null) {
+      try {
+        final selected = filtered.firstWhere((c) => c.key == selectedKey);
+        activeParentKey = selected.parentKey ?? selected.key;
+      } catch (_) {}
+    }
+    activeParentKey ??= topLevel.isEmpty ? null : topLevel.first.key;
+
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -99,34 +133,11 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         final tt = Theme.of(ctx).textTheme;
-        final hasHierarchy = filtered.any((c) => c.parentKey != null);
-        final topLevel = hasHierarchy
-            ? filtered.where((c) => c.parentKey == null).toList()
-            : filtered;
-        final childrenByParent = <String, List<Category>>{};
-        if (hasHierarchy) {
-          for (final c in filtered.where((c) => c.parentKey != null)) {
-            final parent = c.parentKey!;
-            (childrenByParent[parent] ??= <Category>[]).add(c);
-          }
-        }
-
-        String? initialActiveParentKey;
-        final selectedKey = _selectedCategoryKey;
-        if (hasHierarchy && selectedKey != null) {
-          try {
-            final selected = filtered.firstWhere((c) => c.key == selectedKey);
-            initialActiveParentKey = selected.parentKey ?? selected.key;
-          } catch (_) {}
-        }
-        initialActiveParentKey ??=
-            topLevel.isEmpty ? null : topLevel.first.key;
 
         return SafeArea(
           top: false,
           child: StatefulBuilder(
             builder: (ctx, setSheetState) {
-              var activeParentKey = initialActiveParentKey;
               final activeChildren = (!hasHierarchy || activeParentKey == null)
                   ? topLevel
                   : (childrenByParent[activeParentKey] ??
@@ -166,17 +177,17 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
                                 for (final cat in topLevel)
                                   _CategoryTile(
                                     category: cat,
-                                    selected: cat.key == _selectedCategoryKey,
+                                    selected: cat.key == selectedKey,
                                     active:
                                         hasHierarchy && cat.key == activeParentKey,
                                     onTap: () {
                                       if (!hasHierarchy) {
-                                        Navigator.pop(ctx, cat.key);
+                                        setState(() => _selectedCategoryKey = cat.key);
+                                        Navigator.pop(ctx);
                                         return;
                                       }
                                       setSheetState(() {
                                         activeParentKey = cat.key;
-                                        initialActiveParentKey = cat.key;
                                       });
                                     },
                                   ),
@@ -196,8 +207,12 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
                                   for (final cat in activeChildren)
                                     _CategoryTile(
                                       category: cat,
-                                      selected: cat.key == _selectedCategoryKey,
-                                      onTap: () => Navigator.pop(ctx, cat.key),
+                                      selected: cat.key == selectedKey,
+                                      onTap: () {
+                                        setState(() => _selectedCategoryKey = cat.key);
+                                        setSheetState(() => selectedKey = cat.key);
+                                        Navigator.pop(ctx);
+                                      },
                                     ),
                                 ],
                               ),
@@ -214,9 +229,6 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
         );
       },
     );
-
-    if (!mounted || picked == null) return;
-    setState(() => _selectedCategoryKey = picked);
   }
 
   Future<void> _openAccountPicker() async {
@@ -738,14 +750,23 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
                   child: TextField(
                     controller: _remarkCtrl,
                     textAlign: TextAlign.end,
+                    textAlignVertical: TextAlignVertical.center,
                     maxLines: 1,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: cs.onSurface,
+                        ),
                     decoration: InputDecoration(
                       hintText: '选填',
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      filled: false,
+                      isCollapsed: true,
+                      contentPadding: EdgeInsets.zero,
+                      hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurface.withOpacity(0.55),
+                          ),
                     ),
                   ),
                 ),

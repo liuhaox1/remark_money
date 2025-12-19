@@ -539,12 +539,23 @@ class SyncEngine {
             final cloudAccounts = uploadResult.accounts!;
             await _outbox.runSuppressed(() async {
               await DataVersionService.runWithoutIncrement(() async {
-                await accountProvider.replaceFromCloud(cloudAccounts);
+                await accountProvider.replaceFromCloud(cloudAccounts, bookId: bookId);
               });
             });
             return;
           }
+
+          // accounts_changed 是“用户刚做了操作”的场景：上传失败时不要回退到 download 覆盖本地，
+          // 否则会出现“刚删除又回来”的体验。后续由下一次 sync 自动重试即可。
+          debugPrint('[SyncEngine] account upload failed, skip download to avoid overwrite');
+          if (!uploadResult.success) {
+            debugPrint('[SyncEngine] account upload error: ${uploadResult.error}');
+          }
+          return;
         }
+
+        // 本地账户为空时也不要回退到 download（同样会覆盖用户刚删除的结果）
+        return;
       }
 
       final downloadResult = await _syncService.downloadAccounts();
@@ -553,7 +564,7 @@ class SyncEngine {
       final cloudAccounts = downloadResult.accounts!;
       await _outbox.runSuppressed(() async {
         await DataVersionService.runWithoutIncrement(() async {
-          await accountProvider.replaceFromCloud(cloudAccounts);
+          await accountProvider.replaceFromCloud(cloudAccounts, bookId: bookId);
         });
       });
 

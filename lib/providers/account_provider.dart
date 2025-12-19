@@ -327,7 +327,10 @@ class AccountProvider extends ChangeNotifier {
 
   /// 云端覆盖本地账户列表（用于透明同步）。
   /// 不递增版本号，避免同步回环。
-  Future<void> replaceFromCloud(List<Map<String, dynamic>> cloudAccounts) async {
+  Future<void> replaceFromCloud(
+    List<Map<String, dynamic>> cloudAccounts, {
+    String? bookId,
+  }) async {
     final localById = <String, Account>{};
     for (final a in _accounts) {
       localById[a.id] = a;
@@ -352,10 +355,40 @@ class AccountProvider extends ChangeNotifier {
       seen.add(merged.id);
     }
 
-    // 保留云端暂未返回的本地账户（避免丢失记录引用，导致资产统计对不上）
+    // 仅保留“云端未返回”的本地账户中，仍被本地记录引用的部分；否则会导致资产列表出现越来越多的“幽灵账户”。
+    final usedAccountIds = <String>{};
+    if (bookId != null && RepositoryFactory.isUsingDatabase) {
+      try {
+        final repo = RepositoryFactory.createRecordRepository();
+        if (repo.runtimeType.toString().contains('RecordRepositoryDb')) {
+          final set = await (repo as dynamic).loadUsedAccountIds(bookId: bookId);
+          if (set is Set<String>) {
+            usedAccountIds.addAll(set);
+          } else if (set is List) {
+            usedAccountIds.addAll(set.map((e) => e.toString()));
+          }
+        }
+      } catch (_) {}
+    }
+
     for (final local in _accounts) {
       if (seen.contains(local.id)) continue;
-      next.add(local);
+      final isDefaultWallet = local.id == 'default_wallet' ||
+          local.brandKey == 'default_wallet' ||
+          local.name.trim() == '默认钱包';
+      if (isDefaultWallet) {
+        next.add(local);
+        continue;
+      }
+
+      final sid = local.serverId;
+      final referenced = usedAccountIds.contains(local.id) ||
+          (sid != null &&
+              (usedAccountIds.contains('server_$sid') ||
+                  usedAccountIds.contains('$sid')));
+      if (referenced) {
+        next.add(local);
+      }
     }
 
     _accounts

@@ -649,55 +649,57 @@ class _HomePageState extends State<HomePage> {
 
 
   DateTimeRange _currentTimeRange() {
-
-    final now = DateTime.now();
-
+ 
+    // Home 页顶部的日期选择代表“当前查看的月份/日期”。
+    // 这里必须以 _selectedDay 为基准，否则切换到其它月份时仍然会按“本月(今天)”筛选，导致列表为空。
+    final base = _selectedDay;
+ 
     switch (_timeRangeType) {
-
+ 
       case HomeTimeRangeType.month:
-
-        final start = DateTime(now.year, now.month, 1);
-
-        final end = _endOfDay(DateTime(now.year, now.month + 1, 0));
-
+ 
+        final start = DateTime(base.year, base.month, 1);
+ 
+        final end = _endOfDay(DateTime(base.year, base.month + 1, 0));
+ 
         return DateTimeRange(start: start, end: end);
-
+ 
       case HomeTimeRangeType.last3Months:
-
-        final start = DateTime(now.year, now.month - 2, 1);
-
-        final end = _endOfDay(DateTime(now.year, now.month + 1, 0));
-
+ 
+        final start = DateTime(base.year, base.month - 2, 1);
+ 
+        final end = _endOfDay(DateTime(base.year, base.month + 1, 0));
+ 
         return DateTimeRange(start: start, end: end);
-
+ 
       case HomeTimeRangeType.year:
-
-        final start = DateTime(now.year, 1, 1);
-
-        final end = _endOfDay(DateTime(now.year, 12, 31));
-
+ 
+        final start = DateTime(base.year, 1, 1);
+ 
+        final end = _endOfDay(DateTime(base.year, 12, 31));
+ 
         return DateTimeRange(start: start, end: end);
-
+ 
       case HomeTimeRangeType.all:
-
+ 
         return DateTimeRange(
-
+ 
           start: DateTime(2000, 1, 1),
-
+ 
           end: _endOfDay(DateTime(2100, 12, 31)),
-
+ 
         );
-
+ 
       case HomeTimeRangeType.custom:
-
-        final start = _startOfDay(_startDate ?? now);
-
-        final end = _endOfDay(_endDate ?? now);
-
+ 
+        final start = _startOfDay(_startDate ?? base);
+ 
+        final end = _endOfDay(_endDate ?? base);
+ 
         return DateTimeRange(start: start, end: end);
-
+ 
     }
-
+ 
   }
 
 

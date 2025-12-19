@@ -249,9 +249,8 @@ class _RecurringRecordsPageState extends State<RecurringRecordsPage> {
                               ),
                         ),
                       ),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             '${isExpense ? '-' : '+'}$amountText',
@@ -260,12 +259,15 @@ class _RecurringRecordsPageState extends State<RecurringRecordsPage> {
                                   color: amountColor,
                                 ),
                           ),
-                          const SizedBox(height: 2),
-                          Switch(
-                            value: plan.enabled,
-                            onChanged: (v) => context
-                                .read<RecurringRecordProvider>()
-                                .toggleEnabled(plan, v),
+                          const SizedBox(width: 8),
+                          Transform.scale(
+                            scale: 0.85,
+                            child: Switch(
+                              value: plan.enabled,
+                              onChanged: (v) => context
+                                  .read<RecurringRecordProvider>()
+                                  .toggleEnabled(plan, v),
+                            ),
                           ),
                         ],
                       ),

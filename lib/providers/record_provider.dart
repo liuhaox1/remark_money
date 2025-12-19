@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/record.dart';
+import '../models/account.dart';
 import '../models/import_result.dart';
 import '../repository/repository_factory.dart';
 import '../utils/date_utils.dart';
@@ -182,6 +183,31 @@ class RecordProvider extends ChangeNotifier {
       return record;
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.addRecord', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<int> countRecordsForAccount(String bookId, Account account) async {
+    try {
+      if (_isUsingDatabase &&
+          _repository.runtimeType.toString().contains('RecordRepositoryDb')) {
+        final dbRepo = _repository as dynamic;
+        final ids = <String>[account.id];
+        final sid = account.serverId;
+        if (sid != null) {
+          ids.add('server_$sid');
+          ids.add('$sid');
+        }
+        return await dbRepo.countRecordsByAccountIds(
+          bookId: bookId,
+          accountIds: ids,
+        ) as int;
+      }
+
+      final list = await _repository.loadRecords(bookId: bookId) as List<Record>;
+      return list.where((r) => r.accountId == account.id).length;
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.countRecordsForAccount', e, stackTrace);
       rethrow;
     }
   }

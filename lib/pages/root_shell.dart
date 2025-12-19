@@ -575,11 +575,8 @@ class _AccountTile extends StatelessWidget {
     final bookId = context.read<BookProvider>().activeBookId;
 
     // 1) 账户下还有流水：不允许删除（否则余额必然对不上/出现异常）
-    final resolvedTargetId = account.id;
-    final usedCount = recordProvider
-        .recordsForBook(bookId)
-        .where((r) => accountProvider.byId(r.accountId)?.id == resolvedTargetId)
-        .length;
+    final usedCount =
+        await recordProvider.countRecordsForAccount(bookId, account);
     if (usedCount > 0) {
       ErrorHandler.showError(context, '该账户下还有 $usedCount 笔记录，无法删除。请先迁移或删除相关记录。');
       return;
