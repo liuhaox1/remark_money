@@ -22,7 +22,6 @@ import '../repository/category_repository.dart';
 import '../repository/repository_factory.dart';
 import 'add_account_type_page.dart';
 import 'voice_record_page.dart';
-import '../widgets/app_top_bar.dart';
 
 class AddRecordPage extends StatefulWidget {
   const AddRecordPage({
@@ -59,6 +58,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
   String? _selectedCategoryKey;
   String? _selectedAccountId;
   bool _includeInStats = true;
+  bool _saveAsTemplate = false;
   String _amountExpression = '';
   List<String> _selectedTagIds = <String>[];
 
@@ -234,9 +234,20 @@ class _AddRecordPageState extends State<AddRecordPage> {
                 onTap: _onVoiceInputTap,
               ),
               _buildQuickToolItem(
-                icon: Icons.tune_outlined,
-                label: '更多',
-                onTap: _onQuickMoreTap,
+                icon: _includeInStats
+                    ? Icons.bar_chart_outlined
+                    : Icons.do_not_disturb_on_outlined,
+                label: '不计入统计',
+                selected: !_includeInStats,
+                onTap: () => setState(() => _includeInStats = !_includeInStats),
+              ),
+              _buildQuickToolItem(
+                icon: _saveAsTemplate
+                    ? Icons.bookmark_added_outlined
+                    : Icons.bookmark_add_outlined,
+                label: '保存模板',
+                selected: _saveAsTemplate,
+                onTap: () => setState(() => _saveAsTemplate = !_saveAsTemplate),
               ),
               _buildQuickToolItem(
                 icon: Icons.calendar_today_outlined,
@@ -258,8 +269,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    bool selected = false,
   }) {
     final cs = Theme.of(context).colorScheme;
+    final iconColor =
+        selected ? cs.primary : cs.onSurface.withOpacity(0.75);
+    final textColor =
+        selected ? cs.primary : cs.onSurface.withOpacity(0.87);
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
@@ -268,12 +284,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 20, color: cs.onSurface.withOpacity(0.75)),
+            Icon(icon, size: 20, color: iconColor),
             const SizedBox(height: 2),
             Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: cs.onSurface.withOpacity(0.87),
+                color: textColor,
+                fontWeight: selected ? FontWeight.w600 : null,
               ),
             ),
           ],
@@ -1376,71 +1393,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
       );
     }
 
-    Future<void> createTemplateFromCurrent() async {
-      final categoryKey = _selectedCategoryKey;
-      if (categoryKey == null || categoryKey.isEmpty) {
-        ErrorHandler.showError(context, '请先选择分类');
-        return;
-      }
-
-      final accountId = _selectedAccountId ?? '';
-      final nameDefault = _remarkCtrl.text.trim().isNotEmpty
-          ? _remarkCtrl.text.trim()
-          : (categoriesByKey[categoryKey]?.name ?? categoryKey);
-
-      final controller = TextEditingController(text: nameDefault);
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) {
-          return AlertDialog(
-            title: const Text('保存为模板'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '模板名称',
-                hintText: '例如：早餐 / 通勤地铁',
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('取消'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('保存'),
-              ),
-            ],
-          );
-        },
-      );
-      if (ok != true || !mounted) return;
-
-      final template = RecordTemplate(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        categoryKey: categoryKey,
-        accountId: accountId,
-        direction: _isExpense ? TransactionDirection.out : TransactionDirection.income,
-        includeInStats: _includeInStats,
-        remark: controller.text.trim(),
-        createdAt: DateTime.now(),
-        lastUsedAt: DateTime.now(),
-      );
-
-      try {
-        final updated = await _templateRepository.upsertTemplate(template);
-        if (!mounted) return;
-        setState(() {
-          _templates = updated;
-        });
-        ErrorHandler.showSuccess(context, '已保存为模板');
-      } catch (e) {
-        if (!mounted) return;
-        ErrorHandler.showError(context, '保存模板失败：$e');
-      }
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1457,17 +1409,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
             TextButton.icon(
               onPressed: _showTemplatePicker,
               icon: const Icon(Icons.grid_view_rounded, size: 18),
-              label: const Text('更多'),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-            ),
-            const SizedBox(width: 6),
-            TextButton.icon(
-              onPressed: createTemplateFromCurrent,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('保存'),
+              label: const Text('模板'),
               style: TextButton.styleFrom(
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1479,7 +1421,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
         if (_templates.isEmpty)
           InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: createTemplateFromCurrent,
+            onTap: _showTemplatePicker,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
@@ -1509,7 +1451,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '选好分类/账户后点右上角“保存”',
+                          '点击右上角“模板”创建，或从当前填写内容生成',
                           style: tt.bodySmall?.copyWith(
                             color: cs.onSurface.withOpacity(0.62),
                           ),
@@ -1536,6 +1478,63 @@ class _AddRecordPageState extends State<AddRecordPage> {
     );
   }
 
+  Future<void> _saveTemplateFromCurrentFields({
+    required TransactionDirection direction,
+  }) async {
+    if (_selectedCategoryKey == null || _selectedCategoryKey!.isEmpty) return;
+
+    final categories = context.read<CategoryProvider>().categories;
+    final categoriesByKey = <String, Category>{for (final c in categories) c.key: c};
+    final categoryKey = _selectedCategoryKey!;
+    final accountId = _selectedAccountId ?? '';
+    final includeInStats = _includeInStats;
+    final remark = _remarkCtrl.text.trim();
+    final name = remark.isNotEmpty
+        ? remark
+        : (categoriesByKey[categoryKey]?.name ?? categoryKey);
+
+    try {
+      final existing = await _templateRepository.loadTemplates();
+      final same = existing.firstWhere(
+        (t) =>
+            t.remark.trim() == name &&
+            t.categoryKey == categoryKey &&
+            t.accountId == accountId &&
+            t.direction == direction &&
+            t.includeInStats == includeInStats,
+        orElse: () => RecordTemplate(
+          id: '',
+          categoryKey: '',
+          accountId: '',
+          direction: TransactionDirection.out,
+          includeInStats: true,
+          remark: '',
+          createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+      );
+
+      final now = DateTime.now();
+      final tpl = (same.id.isNotEmpty)
+          ? same.copyWith(lastUsedAt: now)
+          : RecordTemplate(
+              id: now.microsecondsSinceEpoch.toString(),
+              categoryKey: categoryKey,
+              accountId: accountId,
+              direction: direction,
+              includeInStats: includeInStats,
+              remark: name,
+              createdAt: now,
+              lastUsedAt: now,
+            );
+
+      final list = await _templateRepository.upsertTemplate(tpl);
+      if (!mounted) return;
+      setState(() => _templates = list);
+    } catch (_) {
+      // 静默失败：不影响记账主流程
+    }
+  }
+
   Future<void> _showTemplatePicker({String? highlightId}) async {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
@@ -1544,6 +1543,15 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final categoriesByKey = <String, Category>{for (final c in categories) c.key: c};
     final accounts = context.read<AccountProvider>().accounts;
     final accountsById = <String, Account>{for (final a in accounts) a.id: a};
+    List<RecordTemplate> sheetTemplates = List<RecordTemplate>.from(_templates);
+
+    Future<void> saveAsTemplateFromCurrent() async {
+      // 改成“开关式”：开启后本次记一笔保存时自动存模板
+      setState(() => _saveAsTemplate = true);
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1553,10 +1561,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return SafeArea(
+        return StatefulBuilder(
+          builder: (sheetCtx, sheetSetState) {
+            return SafeArea(
           child: Padding(
             padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
             ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 520),
@@ -1581,8 +1591,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         const Spacer(),
+                        TextButton.icon(
+                          onPressed: saveAsTemplateFromCurrent,
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('保存为模板'),
+                        ),
                         IconButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
+                          onPressed: () => Navigator.of(sheetCtx).pop(),
                           icon: const Icon(Icons.close_rounded),
                         ),
                       ],
@@ -1590,7 +1605,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                   ),
                   const Divider(height: 1),
                   Expanded(
-                    child: _templates.isEmpty
+                    child: sheetTemplates.isEmpty
                         ? Center(
                             child: Text(
                               '还没有模板',
@@ -1601,10 +1616,10 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           )
                         : ListView.separated(
                             padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
-                            itemCount: _templates.length,
+                            itemCount: sheetTemplates.length,
                             separatorBuilder: (_, __) => const SizedBox(height: 8),
                             itemBuilder: (_, i) {
-                              final t = _templates[i];
+                              final t = sheetTemplates[i];
                               final title = t.remark.trim().isNotEmpty
                                   ? t.remark.trim()
                                   : (categoriesByKey[t.categoryKey]?.name ?? t.categoryKey);
@@ -1627,7 +1642,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
                               return InkWell(
                                 borderRadius: BorderRadius.circular(14),
                                 onTap: () async {
-                                  Navigator.of(ctx).pop();
+                                  Navigator.of(sheetCtx).pop();
                                   await _applyTemplate(t);
                                 },
                                 child: Container(
@@ -1675,9 +1690,44 @@ class _AddRecordPageState extends State<AddRecordPage> {
                                           ],
                                         ),
                                       ),
-                                      Icon(
-                                        Icons.chevron_right,
-                                        color: cs.onSurface.withOpacity(0.45),
+                                      IconButton(
+                                        tooltip: '删除模板',
+                                        onPressed: () async {
+                                          final ok = await showDialog<bool>(
+                                            context: sheetCtx,
+                                            builder: (dctx) {
+                                              return AlertDialog(
+                                                title: const Text('删除模板？'),
+                                                content: Text('“$title”将被删除，无法恢复。'),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.of(dctx).pop(false),
+                                                    child: const Text('取消'),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () => Navigator.of(dctx).pop(true),
+                                                    child: const Text('删除'),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                          );
+                                          if (ok == true) {
+                                            final list = sheetTemplates
+                                                .where((e) => e.id != t.id)
+                                                .toList(growable: false);
+                                            try {
+                                              await _templateRepository.saveTemplates(list);
+                                              if (!mounted) return;
+                                              setState(() => _templates = list);
+                                              sheetSetState(() => sheetTemplates = list);
+                                            } catch (_) {}
+                                          }
+                                        },
+                                        icon: Icon(
+                                          Icons.delete_outline_rounded,
+                                          color: cs.onSurface.withOpacity(0.55),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1690,6 +1740,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
               ),
             ),
           ),
+            );
+          },
         );
       },
     );
@@ -1994,6 +2046,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
         try {
           await tagProvider.setTagsForRecord(created.id, _selectedTagIds);
         } catch (_) {}
+
+        if (_saveAsTemplate) {
+          await _saveTemplateFromCurrentFields(direction: direction);
+          if (mounted) {
+            setState(() => _saveAsTemplate = false);
+          }
+        }
 
         if (_selectedAccountId != null && _selectedAccountId!.isNotEmpty) {
           _lastAccountId = _selectedAccountId;
