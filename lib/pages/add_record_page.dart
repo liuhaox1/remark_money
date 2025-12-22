@@ -1308,6 +1308,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Widget _buildTemplatesSection() {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
+    final currentDirection =
+        _isExpense ? TransactionDirection.out : TransactionDirection.income;
+    final visibleTemplates = _templates
+        .where((t) => t.direction == currentDirection)
+        .toList(growable: false);
 
     final categories = context.watch<CategoryProvider>().categories;
     final categoriesByKey = <String, Category>{for (final c in categories) c.key: c};
@@ -1419,7 +1424,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
           ],
         ),
         const SizedBox(height: 8),
-        if (_templates.isEmpty)
+        if (visibleTemplates.isEmpty)
           InkWell(
             borderRadius: BorderRadius.circular(14),
             onTap: _showTemplatePicker,
@@ -1472,9 +1477,10 @@ class _AddRecordPageState extends State<AddRecordPage> {
               behavior: const _DesktopDragScrollBehavior(),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: _templates.length > 8 ? 8 : _templates.length,
+                itemCount: visibleTemplates.length > 8 ? 8 : visibleTemplates.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (ctx, index) => buildTemplateTile(_templates[index]),
+                itemBuilder: (ctx, index) =>
+                    buildTemplateTile(visibleTemplates[index]),
               ),
             ),
           ),
@@ -1541,12 +1547,16 @@ class _AddRecordPageState extends State<AddRecordPage> {
   Future<void> _showTemplatePicker({String? highlightId}) async {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
+    final currentDirection =
+        _isExpense ? TransactionDirection.out : TransactionDirection.income;
 
     final categories = context.read<CategoryProvider>().categories;
     final categoriesByKey = <String, Category>{for (final c in categories) c.key: c};
     final accounts = context.read<AccountProvider>().accounts;
     final accountsById = <String, Account>{for (final a in accounts) a.id: a};
-    List<RecordTemplate> sheetTemplates = List<RecordTemplate>.from(_templates);
+    List<RecordTemplate> sheetTemplates = _templates
+        .where((t) => t.direction == currentDirection)
+        .toList(growable: false);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1656,14 +1666,21 @@ class _AddRecordPageState extends State<AddRecordPage> {
                                     },
                                   );
                                   if (ok == true) {
-                                    final list = sheetTemplates
+                                    final list = _templates
                                         .where((e) => e.id != t.id)
                                         .toList(growable: false);
                                     try {
                                       await _templateRepository.saveTemplates(list);
                                       if (!mounted) return;
                                       setState(() => _templates = list);
-                                      sheetSetState(() => sheetTemplates = list);
+                                      sheetSetState(
+                                        () => sheetTemplates = list
+                                            .where(
+                                              (t) =>
+                                                  t.direction == currentDirection,
+                                            )
+                                            .toList(growable: false),
+                                      );
                                     } catch (_) {}
                                   }
                                 },
@@ -1735,14 +1752,21 @@ class _AddRecordPageState extends State<AddRecordPage> {
                                             },
                                           );
                                           if (ok == true) {
-                                            final list = sheetTemplates
+                                            final list = _templates
                                                 .where((e) => e.id != t.id)
                                                 .toList(growable: false);
                                             try {
                                               await _templateRepository.saveTemplates(list);
                                               if (!mounted) return;
                                               setState(() => _templates = list);
-                                              sheetSetState(() => sheetTemplates = list);
+                                              sheetSetState(
+                                                () => sheetTemplates = list
+                                                    .where(
+                                                      (t) =>
+                                                          t.direction == currentDirection,
+                                                    )
+                                                    .toList(growable: false),
+                                              );
                                             } catch (_) {}
                                           }
                                         },
