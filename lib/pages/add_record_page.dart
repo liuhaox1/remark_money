@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -1339,7 +1340,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       return InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () => _applyTemplate(t),
-        onLongPress: () => _showTemplatePicker(highlightId: t.id),
+        onLongPress: () => _confirmDeleteTemplate(t, title: displayTitle(t)),
         child: Container(
           width: 138,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1467,11 +1468,14 @@ class _AddRecordPageState extends State<AddRecordPage> {
         else
           SizedBox(
             height: 56,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _templates.length > 8 ? 8 : _templates.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (ctx, index) => buildTemplateTile(_templates[index]),
+            child: ScrollConfiguration(
+              behavior: const _DesktopDragScrollBehavior(),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _templates.length > 8 ? 8 : _templates.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (ctx, index) => buildTemplateTile(_templates[index]),
+              ),
             ),
           ),
       ],
@@ -1488,16 +1492,15 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final categoryKey = _selectedCategoryKey!;
     final accountId = _selectedAccountId ?? '';
     final includeInStats = _includeInStats;
-    final remark = _remarkCtrl.text.trim();
-    final name = remark.isNotEmpty
-        ? remark
-        : (categoriesByKey[categoryKey]?.name ?? categoryKey);
+    // 模板里的 remark 仅代表“预填备注内容”，不用于存模板标题。
+    // 标题展示：remark 为空时用分类名兜底（见 displayTitle）。
+    final presetRemark = _remarkCtrl.text.trim();
 
     try {
       final existing = await _templateRepository.loadTemplates();
       final same = existing.firstWhere(
         (t) =>
-            t.remark.trim() == name &&
+            t.remark.trim() == presetRemark &&
             t.categoryKey == categoryKey &&
             t.accountId == accountId &&
             t.direction == direction &&
@@ -1522,7 +1525,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
               accountId: accountId,
               direction: direction,
               includeInStats: includeInStats,
-              remark: name,
+              remark: presetRemark,
               createdAt: now,
               lastUsedAt: now,
             );
@@ -1544,14 +1547,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
     final accounts = context.read<AccountProvider>().accounts;
     final accountsById = <String, Account>{for (final a in accounts) a.id: a};
     List<RecordTemplate> sheetTemplates = List<RecordTemplate>.from(_templates);
-
-    Future<void> saveAsTemplateFromCurrent() async {
-      // 改成“开关式”：开启后本次记一笔保存时自动存模板
-      setState(() => _saveAsTemplate = true);
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1591,11 +1586,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         const Spacer(),
-                        TextButton.icon(
-                          onPressed: saveAsTemplateFromCurrent,
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: const Text('保存为模板'),
-                        ),
                         IconButton(
                           onPressed: () => Navigator.of(sheetCtx).pop(),
                           icon: const Icon(Icons.close_rounded),
@@ -1642,8 +1632,40 @@ class _AddRecordPageState extends State<AddRecordPage> {
                               return InkWell(
                                 borderRadius: BorderRadius.circular(14),
                                 onTap: () async {
-                                  Navigator.of(sheetCtx).pop();
                                   await _applyTemplate(t);
+                                  Navigator.of(sheetCtx).pop();
+                                },
+                                onLongPress: () async {
+                                  final ok = await showDialog<bool>(
+                                    context: sheetCtx,
+                                    builder: (dctx) {
+                                      return AlertDialog(
+                                        title: const Text('删除模板？'),
+                                        content: Text('“$title”将被删除，无法恢复。'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(dctx).pop(false),
+                                            child: const Text('取消'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => Navigator.of(dctx).pop(true),
+                                            child: const Text('删除'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                  if (ok == true) {
+                                    final list = sheetTemplates
+                                        .where((e) => e.id != t.id)
+                                        .toList(growable: false);
+                                    try {
+                                      await _templateRepository.saveTemplates(list);
+                                      if (!mounted) return;
+                                      setState(() => _templates = list);
+                                      sheetSetState(() => sheetTemplates = list);
+                                    } catch (_) {}
+                                  }
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -2084,14 +2106,19 @@ class _AddRecordPageState extends State<AddRecordPage> {
 
 
   Future<void> _applyTemplate(RecordTemplate template) async {
+    final trimmedRemark = template.remark.trim();
+    // 兼容旧逻辑：之前把“分类名”写进了模板 remark 作为标题，导致应用模板时备注被误填。
+    final categories = context.read<CategoryProvider>().categories;
+    final categoriesByKey = <String, Category>{for (final c in categories) c.key: c};
+    final categoryName = categoriesByKey[template.categoryKey]?.name ?? template.categoryKey;
+    final shouldPrefillRemark = trimmedRemark.isNotEmpty && trimmedRemark != categoryName;
+
     setState(() {
       _isExpense = template.direction == TransactionDirection.out;
       _selectedCategoryKey = template.categoryKey;
       _selectedAccountId = template.accountId;
       _includeInStats = template.includeInStats;
-      if (template.remark.isNotEmpty) {
-        _remarkCtrl.text = template.remark;
-      }
+      _remarkCtrl.text = shouldPrefillRemark ? trimmedRemark : '';
     });
     try {
       final list = await _templateRepository.markUsed(template.id);
@@ -2102,4 +2129,51 @@ class _AddRecordPageState extends State<AddRecordPage> {
     } catch (_) {}
   }
 
+  Future<void> _confirmDeleteTemplate(
+    RecordTemplate template, {
+    required String title,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) {
+        return AlertDialog(
+          title: const Text('删除模板？'),
+          content: Text('“$title”将被删除，无法恢复。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dctx).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dctx).pop(true),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true) return;
+
+    final list =
+        _templates.where((e) => e.id != template.id).toList(growable: false);
+    try {
+      await _templateRepository.saveTemplates(list);
+      if (!mounted) return;
+      setState(() => _templates = list);
+    } catch (_) {}
+  }
+
+}
+
+class _DesktopDragScrollBehavior extends MaterialScrollBehavior {
+  const _DesktopDragScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.touch,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.unknown,
+      };
 }
