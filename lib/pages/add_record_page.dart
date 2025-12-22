@@ -132,8 +132,28 @@ class _AddRecordPageState extends State<AddRecordPage> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: AppTopBar(
-        title: widget.initialRecord == null ? AppStrings.addRecord : AppStrings.edit,
+      appBar: AppBar(
+        backgroundColor: cs.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: cs.onSurface,
+            size: 18,
+          ),
+        ),
+        title: Text(
+          widget.initialRecord == null ? AppStrings.addRecord : AppStrings.edit,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: cs.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
       ),
       body: SafeArea(
         child: Center(
@@ -166,10 +186,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
                           children: [
                             _buildAmountAndTypeRow(),
                             const SizedBox(height: 4),
-                            if (_templates.isNotEmpty) ...[
-                              _buildTemplateChips(),
-                              const SizedBox(height: 16),
-                            ],
+                            _buildTemplatesSection(),
+                            const SizedBox(height: 16),
                             _buildCategorySection(filtered),
                             const SizedBox(height: 12),
                           ],
@@ -1269,34 +1287,411 @@ class _AddRecordPageState extends State<AddRecordPage> {
     );
   }
 
-  Widget _buildTemplateChips() {
+  Widget _buildTemplatesSection() {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    final categories = context.watch<CategoryProvider>().categories;
+    final categoriesByKey = <String, Category>{for (final c in categories) c.key: c};
+    final accounts = context.watch<AccountProvider>().accounts;
+    final accountsById = <String, Account>{for (final a in accounts) a.id: a};
+
+    String displayTitle(RecordTemplate t) {
+      final name = t.remark.trim();
+      if (name.isNotEmpty) return name;
+      return categoriesByKey[t.categoryKey]?.name ?? t.categoryKey;
+    }
+
+    String displaySubtitle(RecordTemplate t) {
+      final category = categoriesByKey[t.categoryKey]?.name;
+      final account = accountsById[t.accountId]?.name;
+      if (category != null && account != null) return '$category · $account';
+      if (category != null) return category;
+      if (account != null) return account;
+      return '';
+    }
+
+    Widget buildTemplateTile(RecordTemplate t) {
+      final isExpense = t.direction == TransactionDirection.out;
+      final icon = categoriesByKey[t.categoryKey]?.icon ?? Icons.flash_on_outlined;
+      final iconBg = isExpense
+          ? cs.error.withOpacity(0.12)
+          : cs.primary.withOpacity(0.12);
+      final iconFg = isExpense ? cs.error : cs.primary;
+
+      return InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _applyTemplate(t),
+        onLongPress: () => _showTemplatePicker(highlightId: t.id),
+        child: Container(
+          width: 138,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.22)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: iconFg),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayTitle(t),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      displaySubtitle(t),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(0.62),
+                        height: 1.05,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Future<void> createTemplateFromCurrent() async {
+      final categoryKey = _selectedCategoryKey;
+      if (categoryKey == null || categoryKey.isEmpty) {
+        ErrorHandler.showError(context, '请先选择分类');
+        return;
+      }
+
+      final accountId = _selectedAccountId ?? '';
+      final nameDefault = _remarkCtrl.text.trim().isNotEmpty
+          ? _remarkCtrl.text.trim()
+          : (categoriesByKey[categoryKey]?.name ?? categoryKey);
+
+      final controller = TextEditingController(text: nameDefault);
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('保存为模板'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '模板名称',
+                hintText: '例如：早餐 / 通勤地铁',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('保存'),
+              ),
+            ],
+          );
+        },
+      );
+      if (ok != true || !mounted) return;
+
+      final template = RecordTemplate(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        categoryKey: categoryKey,
+        accountId: accountId,
+        direction: _isExpense ? TransactionDirection.out : TransactionDirection.income,
+        includeInStats: _includeInStats,
+        remark: controller.text.trim(),
+        createdAt: DateTime.now(),
+        lastUsedAt: DateTime.now(),
+      );
+
+      try {
+        final updated = await _templateRepository.upsertTemplate(template);
+        if (!mounted) return;
+        setState(() {
+          _templates = updated;
+        });
+        ErrorHandler.showSuccess(context, '已保存为模板');
+      } catch (e) {
+        if (!mounted) return;
+        ErrorHandler.showError(context, '保存模板失败：$e');
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '常用模板',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          children: [
+            Text(
+              '常用模板',
+              style: tt.bodyMedium?.copyWith(
+                color: cs.onSurface.withOpacity(0.8),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _showTemplatePicker,
+              icon: const Icon(Icons.grid_view_rounded, size: 18),
+              label: const Text('更多'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+            ),
+            const SizedBox(width: 6),
+            TextButton.icon(
+              onPressed: createTemplateFromCurrent,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('保存'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _templates
-              .map(
-                (t) => ChoiceChip(
-                  label: Text(
-                    t.remark.isNotEmpty ? t.remark : t.categoryKey,
-                    overflow: TextOverflow.ellipsis,
+        if (_templates.isEmpty)
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: createTemplateFromCurrent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.22)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.auto_awesome, size: 18, color: cs.primary),
                   ),
-                  selected: false,
-                  onSelected: (_) => _applyTemplate(t),
-                ),
-              )
-              .toList(),
-        ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '还没有模板',
+                          style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '选好分类/账户后点右上角“保存”',
+                          style: tt.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(0.62),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.45)),
+                ],
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 56,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _templates.length > 8 ? 8 : _templates.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (ctx, index) => buildTemplateTile(_templates[index]),
+            ),
+          ),
       ],
+    );
+  }
+
+  Future<void> _showTemplatePicker({String? highlightId}) async {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    final categories = context.read<CategoryProvider>().categories;
+    final categoriesByKey = <String, Category>{for (final c in categories) c.key: c};
+    final accounts = context.read<AccountProvider>().accounts;
+    final accountsById = <String, Account>{for (final a in accounts) a.id: a};
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 520),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: cs.onSurface.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Text(
+                          '模板',
+                          style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: _templates.isEmpty
+                        ? Center(
+                            child: Text(
+                              '还没有模板',
+                              style: tt.bodyMedium?.copyWith(
+                                color: cs.onSurface.withOpacity(0.6),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+                            itemCount: _templates.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (_, i) {
+                              final t = _templates[i];
+                              final title = t.remark.trim().isNotEmpty
+                                  ? t.remark.trim()
+                                  : (categoriesByKey[t.categoryKey]?.name ?? t.categoryKey);
+                              final subtitleParts = <String>[];
+                              final category = categoriesByKey[t.categoryKey]?.name;
+                              final account = accountsById[t.accountId]?.name;
+                              if (category != null) subtitleParts.add(category);
+                              if (account != null) subtitleParts.add(account);
+                              final subtitle = subtitleParts.join(' · ');
+
+                              final icon = categoriesByKey[t.categoryKey]?.icon ?? Icons.flash_on_outlined;
+                              final isExpense = t.direction == TransactionDirection.out;
+                              final iconBg = isExpense
+                                  ? cs.error.withOpacity(0.12)
+                                  : cs.primary.withOpacity(0.12);
+                              final iconFg = isExpense ? cs.error : cs.primary;
+
+                              final highlighted = highlightId != null && t.id == highlightId;
+
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () async {
+                                  Navigator.of(ctx).pop();
+                                  await _applyTemplate(t);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: highlighted
+                                        ? cs.primary.withOpacity(0.08)
+                                        : cs.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: cs.outlineVariant.withOpacity(0.22)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: iconBg,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Icon(icon, size: 18, color: iconFg),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                                            ),
+                                            if (subtitle.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                subtitle,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: tt.bodySmall?.copyWith(
+                                                  color: cs.onSurface.withOpacity(0.62),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.chevron_right,
+                                        color: cs.onSurface.withOpacity(0.45),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1639,7 +2034,13 @@ class _AddRecordPageState extends State<AddRecordPage> {
         _remarkCtrl.text = template.remark;
       }
     });
-    await _templateRepository.markUsed(template.id);
+    try {
+      final list = await _templateRepository.markUsed(template.id);
+      if (!mounted) return;
+      setState(() {
+        _templates = list;
+      });
+    } catch (_) {}
   }
 
 }
