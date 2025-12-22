@@ -2595,8 +2595,9 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
                       label,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                         color: cs.onSurface,
                       ),
                     ),
@@ -2627,8 +2628,9 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: Text(
                         label,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 13,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                           color: selected ? cs.primary : cs.onSurface,
                         ),
                       ),
@@ -2652,8 +2654,9 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         Text(
                           '高级筛选',
-                          style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
+                          style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                             color: cs.onSurface,
                           ),
                         ),
@@ -2684,7 +2687,7 @@ class _HomePageState extends State<HomePage> {
                                   Text(
                                     summaryText,
                                     style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                      fontSize: 12,
+                                      fontSize: 11,
                                       color: cs.onSurface,
                                     ),
                                   ),
@@ -2692,7 +2695,7 @@ class _HomePageState extends State<HomePage> {
                                   Text(
                                     '预计找到 ${filteredCount()} 条记录',
                                     style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                      fontSize: 12,
+                                      fontSize: 11,
                                       color: cs.primary,
                                     ),
                                   ),
@@ -2754,7 +2757,8 @@ class _HomePageState extends State<HomePage> {
                                     ? '自定义日期'
                                     : '${DateUtilsX.ymd(tempStartDate!)} ~ ${DateUtilsX.ymd(tempEndDate!)}',
                                 style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
@@ -2939,6 +2943,11 @@ class _HomePageState extends State<HomePage> {
                                       isDense: true,
                                       prefixText: '￥ ',
                                       hintText: '最小金额',
+                                      hintStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w400,
+                                            color: cs.onSurface.withOpacity(0.5),
+                                          ),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(10),
                                       ),
@@ -2950,6 +2959,11 @@ class _HomePageState extends State<HomePage> {
                                         ),
                                       ),
                                     ),
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w400,
+                                          color: cs.onSurface,
+                                        ),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -2967,6 +2981,11 @@ class _HomePageState extends State<HomePage> {
                                       isDense: true,
                                       prefixText: '￥ ',
                                       hintText: '最大金额',
+                                      hintStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w400,
+                                            color: cs.onSurface.withOpacity(0.5),
+                                          ),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(10),
                                       ),
@@ -2978,6 +2997,11 @@ class _HomePageState extends State<HomePage> {
                                         ),
                                       ),
                                     ),
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w400,
+                                          color: cs.onSurface,
+                                        ),
                                   ),
                                 ),
                               ],
@@ -3027,8 +3051,8 @@ class _HomePageState extends State<HomePage> {
                                       '更多',
                                       style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
                                         color: cs.primary,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
                                       ),
                                     ),
                                   ),
@@ -3053,7 +3077,13 @@ class _HomePageState extends State<HomePage> {
                               ),
                               splashFactory: NoSplash.splashFactory,
                             ),
-                            child: const Text('重置'),
+                            child: Text(
+                              '重置',
+                              style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -3123,7 +3153,13 @@ class _HomePageState extends State<HomePage> {
                               });
                               Navigator.pop(ctx);
                             },
-                            child: Text('查看 ${filteredCount()} 条结果'),
+                            child: Text(
+                              '查看 ${filteredCount()} 条结果',
+                              style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
                           ),
                         ),
                       ],
@@ -3511,6 +3547,11 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             Text(
                               '已选 ${selected.length} 个',
+                              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w400,
+                                    color: cs.onSurface.withOpacity(0.8),
+                                  ),
                             ),
                             const Spacer(),
                             FilledButton(
@@ -3518,7 +3559,13 @@ class _HomePageState extends State<HomePage> {
                                 splashFactory: NoSplash.splashFactory,
                               ),
                               onPressed: () => Navigator.pop(ctx, selected),
-                              child: const Text('确认'),
+                              child: Text(
+                                '确认',
+                                style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                              ),
                             ),
                           ],
                         ),
@@ -3736,19 +3783,19 @@ class _HomeSearchBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
 
       child: Container(
-
+ 
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-
+ 
         decoration: BoxDecoration(
-
+ 
           color: cs.surface,
-
-          borderRadius: BorderRadius.circular(20),
-
+ 
+          borderRadius: BorderRadius.circular(12),
+ 
           border: Border.all(
-
+ 
             color: cs.outline.withOpacity(0.2),
-
+ 
             width: 1,
 
           ),
@@ -3780,14 +3827,18 @@ class _HomeSearchBar extends StatelessWidget {
                   isDense: true,
 
                   border: InputBorder.none,
-
+ 
                   hintText: AppStrings.searchHint,
                   hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
                     color: cs.onSurface.withOpacity(0.5),
                   ),
-
+ 
                 ),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
                   color: cs.onSurface,
                 ),
 

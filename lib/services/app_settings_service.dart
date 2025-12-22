@@ -10,6 +10,53 @@ class AppSettingsService {
 
   static const String keyHideAmountsAssets = 'hide_amounts_assets';
 
+  Future<String?> getString(String key) async {
+    try {
+      if (RepositoryFactory.isUsingDatabase) {
+        final db = await DatabaseHelper().database;
+        final maps = await db.query(
+          Tables.appSettings,
+          columns: ['value'],
+          where: 'key = ?',
+          whereArgs: [key],
+          limit: 1,
+        );
+        if (maps.isEmpty) return null;
+        return maps.first['value'] as String?;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(key);
+    } catch (e) {
+      debugPrint('[AppSettingsService] getString failed key=$key err=$e');
+      return null;
+    }
+  }
+
+  Future<void> setString(String key, String value) async {
+    try {
+      if (RepositoryFactory.isUsingDatabase) {
+        final db = await DatabaseHelper().database;
+        await db.insert(
+          Tables.appSettings,
+          {
+            'key': key,
+            'value': value,
+            'updated_at': DateTime.now().millisecondsSinceEpoch,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, value);
+    } catch (e) {
+      debugPrint('[AppSettingsService] setString failed key=$key err=$e');
+      rethrow;
+    }
+  }
+
   Future<bool> getBool(
     String key, {
     bool defaultValue = false,

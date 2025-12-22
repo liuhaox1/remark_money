@@ -357,9 +357,9 @@ class VoiceRecordParser {
   static Map<String, String> _extractRemarkAndCategory(String text, double amount) {
     var cleaned = text
         // 移除阿拉伯金额
-        .replaceAll(RegExp(r'\d+(?:\.\d+)?\s*(?:万|千)?\s*(?:元|块|￥|¥)?'), ' ')
+        .replaceAll(RegExp(r'\d+(?:\.\d+)?\s*(?:万|千)?\s*(?:人民币|rmb|RMB)?\s*(?:元|块钱|块|钱|￥|¥)?'), ' ')
         // 移除中文金额
-        .replaceAll(RegExp(r'[一二三四五六七八九零两十百千万]+\s*(?:万|千)?\s*(?:元|块)?'), ' ')
+        .replaceAll(RegExp(r'[一二三四五六七八九零两十百千万]+\s*(?:万|千)?\s*(?:人民币)?\s*(?:元|块钱|块|钱)?'), ' ')
         .trim();
 
     const stopWords = [
@@ -392,6 +392,13 @@ class VoiceRecordParser {
     }
 
     cleaned = cleaned.replaceAll(RegExp(r'[，,。;；、]'), ' ');
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // 处理口语里“花100/用100”这种结构：金额被移除后，尾部会残留动词（如：打车花）。
+    cleaned = cleaned.replaceAll(
+      RegExp(r'(?:花了|花费|消费|用了|支付|付款|花|用|付)\s*$'),
+      ' ',
+    );
     cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
 
     final words = cleaned.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();

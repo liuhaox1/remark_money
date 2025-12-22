@@ -512,8 +512,8 @@ class _AssetSummaryCard extends StatelessWidget {
             Text(
               _displayAmount(netWorth),
               style: theme.textTheme.headlineSmall?.copyWith(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
+                fontSize: 20,
+                fontWeight: FontWeight.w400,
                 color: cs.onSurface,
               ),
             ),
