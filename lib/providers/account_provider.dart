@@ -390,6 +390,16 @@ class AccountProvider extends ChangeNotifier {
         continue;
       }
 
+      // 避免“刚新增账户 -> 透明同步下载空列表 -> 本地新账户被清掉”的竞态：
+      // 最近改动过的账户先保留，等待下一次上传成功后由云端回包收敛。
+      final updatedAt = local.updatedAt;
+      final recentlyChanged = updatedAt != null &&
+          DateTime.now().difference(updatedAt).inMinutes < 10;
+      if (recentlyChanged) {
+        next.add(local);
+        continue;
+      }
+
       final sid = local.serverId;
       final referenced = usedAccountIds.contains(local.id) ||
           (sid != null &&

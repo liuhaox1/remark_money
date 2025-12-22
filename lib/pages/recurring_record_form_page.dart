@@ -856,8 +856,9 @@ class _FormRow extends StatelessWidget {
               ),
             Text(
               label,
-              style: tt.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
+              style: tt.bodyMedium?.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
                 color: cs.onSurface,
               ),
             ),
@@ -875,8 +876,9 @@ class _FormRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.end,
-                        style: tt.bodyLarge?.copyWith(
-                          fontWeight: valueEmphasis ? FontWeight.w700 : FontWeight.w400,
+                        style: tt.bodyMedium?.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
                           color: displayValue.isEmpty || displayValue.contains('请选择') || displayValue == '请输入金额'
                               ? cs.onSurface.withOpacity(0.45)
                               : cs.onSurface.withOpacity(0.82),
