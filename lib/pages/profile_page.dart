@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -12,16 +13,25 @@ import '../l10n/app_strings.dart';
 import '../models/import_result.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
+import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/recurring_record_provider.dart';
 import '../providers/record_provider.dart';
+import '../providers/reminder_provider.dart';
+import '../providers/tag_provider.dart';
 import '../providers/theme_provider.dart';
 import '../theme/brand_theme.dart';
 import '../models/book.dart';
+import '../database/database_helper.dart';
+import '../repository/repository_factory.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
+import '../services/background_sync_manager.dart';
 import 'feedback_page.dart';
 import '../services/gift_code_service.dart';
+import '../services/local_data_reset_service.dart';
 import '../services/records_export_service.dart';
+import '../services/recurring_record_runner.dart';
 import '../services/sync_outbox_service.dart';
 import '../services/sync_v2_conflict_store.dart';
 import 'account_settings_page.dart';
@@ -44,6 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final AuthService _authService = const AuthService();
   String? _token;
   bool _loadingToken = true;
+  bool _wiping = false;
 
   Future<int> _conflictCountForDisplay(String bookId) async {
     final recordProvider = context.read<RecordProvider>();
@@ -75,6 +86,113 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     if (changed == true) {
       await _loadToken();
+    }
+  }
+
+  Future<void> _confirmWipeAllLocalData() async {
+    if (!kDebugMode || _wiping) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('清空本地数据？'),
+          content: const Text(
+            '此操作会删除本机所有数据（账本/账户/记账/标签/同步队列/设置/登录信息），不可恢复。\n\n仅用于测试。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('清空'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (ok != true || !mounted) return;
+    await _wipeAllLocalData();
+  }
+
+  Future<void> _wipeAllLocalData() async {
+    if (_wiping) return;
+    setState(() => _wiping = true);
+
+    BackgroundSyncManager.instance.stop();
+    RecurringRecordRunner.instance.stop();
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return const AlertDialog(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Expanded(child: Text('正在清空数据...')),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      await LocalDataResetService.wipeAllLocalData();
+
+      await DatabaseHelper().database;
+      await RepositoryFactory.initialize();
+
+      final bookProvider = context.read<BookProvider>();
+      final recordProvider = context.read<RecordProvider>();
+      final categoryProvider = context.read<CategoryProvider>();
+      final budgetProvider = context.read<BudgetProvider>();
+      final accountProvider = context.read<AccountProvider>();
+      final reminderProvider = context.read<ReminderProvider>();
+      final recurringProvider = context.read<RecurringRecordProvider>();
+      final themeProvider = context.read<ThemeProvider>();
+      final tagProvider = context.read<TagProvider>();
+
+      await bookProvider.load();
+      await Future.wait([
+        recordProvider.load(),
+        categoryProvider.load(),
+        budgetProvider.load(),
+        accountProvider.load(),
+        reminderProvider.load(),
+        recurringProvider.load(),
+        themeProvider.load(),
+      ]);
+      await tagProvider.loadForBook(bookProvider.activeBookId);
+      await _loadToken();
+
+      if (!mounted) return;
+      BackgroundSyncManager.instance.start(context);
+      RecurringRecordRunner.instance.start(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已清空本地数据')),
+      );
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('ProfilePage.wipeAllLocalData', e, stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('清空失败：$e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        setState(() => _wiping = false);
+      }
     }
   }
 
@@ -694,6 +812,34 @@ class _ProfilePageState extends State<ProfilePage> {
                 Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
             onTap: () => _showPlaceholder(context, '关于指尖记账 1.0.0'),
           ),
+          if (kDebugMode) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(Icons.delete_forever_outlined,
+                  color: cs.error.withOpacity(0.9)),
+              title: Text(
+                '一键清空本地数据（测试）',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: cs.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              subtitle: Text(
+                '删除账本/账户/记账/标签/设置/登录信息',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface.withOpacity(0.6),
+                    ),
+              ),
+              trailing: _wiping
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: _confirmWipeAllLocalData,
+            ),
+          ],
         ],
       ),
     );

@@ -7,6 +7,7 @@ import '../providers/book_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/record_provider.dart';
 import '../repository/repository_factory.dart';
+import '../repository/record_repository_db.dart';
 import 'auth_service.dart';
 import 'data_version_service.dart';
 import 'sync_outbox_service.dart';
@@ -105,6 +106,8 @@ class SyncEngine {
       }
 
       final toDelete = <SyncOutboxItem>[];
+      final syncStateUpdates =
+          <({String billId, int? serverId, int? serverVersion})>[];
       for (final item in pending) {
         final opId = item.payload['opId'] as String?;
         if (opId == null) {
@@ -135,10 +138,8 @@ class SyncEngine {
             final serverId = r['serverId'] as int?;
             final version = r['version'] as int?;
             if (localId != null && serverId != null) {
-              await recordProvider.setServerSyncState(
-                localId,
-                serverId: serverId,
-                serverVersion: version,
+              syncStateUpdates.add(
+                (billId: localId, serverId: serverId, serverVersion: version),
               );
             }
           }
@@ -175,10 +176,8 @@ class SyncEngine {
                   (r['serverId'] as int?) ?? (serverBill['serverId'] as int?);
               final version = r['version'] as int?;
               if (serverId != null) {
-                await recordProvider.setServerSyncState(
-                  localId,
-                  serverId: serverId,
-                  serverVersion: version,
+                syncStateUpdates.add(
+                  (billId: localId, serverId: serverId, serverVersion: version),
                 );
                 await SyncV2ConflictStore.remove(bookId, opId: opId);
                 toDelete.add(item);
@@ -214,6 +213,9 @@ class SyncEngine {
         return;
       }
 
+      if (syncStateUpdates.isNotEmpty) {
+        await recordProvider.setServerSyncStatesBulk(syncStateUpdates);
+      }
       await _outbox.deleteItems(bookId, toDelete);
 
       // 如果还有未处理项（缺结果等），留待下一次触发，避免本次循环内反复重试
@@ -314,14 +316,42 @@ class SyncEngine {
         final accountProvider = context.read<AccountProvider>();
         await _outbox.runSuppressed(() async {
           await DataVersionService.runWithoutIncrement(() async {
-            for (final c in changes) {
-              final bill = (c['bill'] as Map?)?.cast<String, dynamic>();
-              if (bill == null) continue;
-              await _applyCloudBill(
-                bill,
-                recordProvider: recordProvider,
-                accountProvider: accountProvider,
-              );
+            // 性能关键：DB 模式下批量应用变更，避免逐条 add/update/delete 触发大量 notify/落库。
+            if (RepositoryFactory.isUsingDatabase) {
+              final repo = RepositoryFactory.createRecordRepository();
+              if (repo is RecordRepositoryDb) {
+                final bills = <Map<String, dynamic>>[];
+                for (final c in changes) {
+                  final bill = (c['bill'] as Map?)?.cast<String, dynamic>();
+                  if (bill != null) bills.add(bill);
+                }
+                if (bills.isNotEmpty) {
+                  await repo.applyCloudBillsV2(bookId: bookId, bills: bills);
+                  // 同步后：刷新最近记录缓存 + 统一重算余额（一次落库/一次 notify）
+                  await recordProvider.refreshRecentCache(bookId: bookId);
+                  await accountProvider.refreshBalancesFromRecords();
+                }
+              } else {
+                for (final c in changes) {
+                  final bill = (c['bill'] as Map?)?.cast<String, dynamic>();
+                  if (bill == null) continue;
+                  await _applyCloudBill(
+                    bill,
+                    recordProvider: recordProvider,
+                    accountProvider: accountProvider,
+                  );
+                }
+              }
+            } else {
+              for (final c in changes) {
+                final bill = (c['bill'] as Map?)?.cast<String, dynamic>();
+                if (bill == null) continue;
+                await _applyCloudBill(
+                  bill,
+                  recordProvider: recordProvider,
+                  accountProvider: accountProvider,
+                );
+              }
             }
           });
         });
@@ -539,7 +569,10 @@ class SyncEngine {
             final cloudAccounts = uploadResult.accounts!;
             await _outbox.runSuppressed(() async {
               await DataVersionService.runWithoutIncrement(() async {
-                await accountProvider.replaceFromCloud(cloudAccounts, bookId: bookId);
+                await accountProvider.replaceFromCloud(
+                  cloudAccounts,
+                  bookId: bookId,
+                );
               });
             });
             return;

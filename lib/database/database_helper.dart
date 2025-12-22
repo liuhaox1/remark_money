@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 7;
+const int _databaseVersion = 8;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -227,6 +227,18 @@ class DatabaseHelper {
           );
         } catch (_) {}
         break;
+      case 8:
+        // sync/perf indexes
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_records_book_server_id ON ${Tables.records}(book_id, server_id)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_op_record ON ${Tables.syncOutbox}(book_id, op, record_id)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_server ON ${Tables.syncOutbox}(book_id, server_id)',
+        );
+        break;
       default:
         break;
     }
@@ -432,6 +444,7 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_records_account ON ${Tables.records}(account_id)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_records_date_book ON ${Tables.records}(book_id, date)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_records_expense ON ${Tables.records}(is_expense, date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_book_server_id ON ${Tables.records}(book_id, server_id)');
 
     // 分类表索引
     await db.execute('CREATE INDEX IF NOT EXISTS idx_categories_parent ON ${Tables.categories}(parent_key)');
@@ -446,6 +459,12 @@ class DatabaseHelper {
     // 同步发件箱索引
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_created ON ${Tables.syncOutbox}(book_id, created_at)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_op_record ON ${Tables.syncOutbox}(book_id, op, record_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_server ON ${Tables.syncOutbox}(book_id, server_id)',
     );
 
     // 标签索引

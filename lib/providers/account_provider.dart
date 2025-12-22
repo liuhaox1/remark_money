@@ -339,6 +339,7 @@ class AccountProvider extends ChangeNotifier {
   Future<void> replaceFromCloud(
     List<Map<String, dynamic>> cloudAccounts, {
     String? bookId,
+    bool preserveRecentlyChanged = true,
   }) async {
     final localById = <String, Account>{};
     for (final a in _accounts) {
@@ -395,7 +396,7 @@ class AccountProvider extends ChangeNotifier {
       final updatedAt = local.updatedAt;
       final recentlyChanged = updatedAt != null &&
           DateTime.now().difference(updatedAt).inMinutes < 10;
-      if (recentlyChanged) {
+      if (preserveRecentlyChanged && recentlyChanged) {
         next.add(local);
         continue;
       }

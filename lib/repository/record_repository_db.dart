@@ -346,6 +346,34 @@ class RecordRepositoryDb {
     }
   }
 
+  Future<void> updateServerSyncStatesBulk(
+    List<({String billId, int? serverId, int? serverVersion})> updates,
+  ) async {
+    if (updates.isEmpty) return;
+
+    final db = await _dbHelper.database;
+    final updatedAt = DateTime.now().millisecondsSinceEpoch;
+
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (final u in updates) {
+        final values = <String, Object?>{
+          if (u.serverId != null) 'server_id': u.serverId,
+          if (u.serverVersion != null) 'server_version': u.serverVersion,
+          'updated_at': updatedAt,
+        };
+        if (values.length <= 1) continue;
+        batch.update(
+          Tables.records,
+          values,
+          where: 'id = ?',
+          whereArgs: [u.billId],
+        );
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
   Future<List<Record>> remove(String id, {String? bookId}) async {
     try {
       final db = await _dbHelper.database;
@@ -360,6 +388,155 @@ class RecordRepositoryDb {
       debugPrint('Stack trace: $stackTrace');
       rethrow;
     }
+  }
+
+  /// 批量应用云端账单变更（v2 pull 的 hot path）
+  /// - 在单个事务中完成 upsert/delete
+  /// - 按 server_version 去重，避免重复写
+  /// - delete 会清理 record_tags
+  Future<void> applyCloudBillsV2({
+    required String bookId,
+    required List<Map<String, dynamic>> bills,
+  }) async {
+    if (bills.isEmpty) return;
+    final db = await _dbHelper.database;
+
+    // 仅处理带 serverId 的账单（v2 必须有）
+    final serverIds = bills
+        .map((b) => (b['id'] as int?) ?? (b['serverId'] as int?))
+        .whereType<int>()
+        .toSet()
+        .toList(growable: false);
+    if (serverIds.isEmpty) return;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    const maxSqlVars = 900; // sqlite 默认 999，预留 bookId 等参数
+
+    await db.transaction((txn) async {
+      // 1) 预加载已有记录映射：server_id -> (local id, server_version)
+      final localIdByServerId = <int, String>{};
+      final localVersionByServerId = <int, int?>{};
+      for (var i = 0; i < serverIds.length; i += maxSqlVars) {
+        final chunk = serverIds.sublist(
+          i,
+          (i + maxSqlVars) > serverIds.length ? serverIds.length : (i + maxSqlVars),
+        );
+        final placeholders = List.filled(chunk.length, '?').join(',');
+        final rows = await txn.rawQuery(
+          'SELECT id, server_id, server_version FROM ${Tables.records} WHERE book_id = ? AND server_id IN ($placeholders)',
+          <Object?>[bookId, ...chunk],
+        );
+        for (final r in rows) {
+          final sid = r['server_id'];
+          final lid = r['id'];
+          if (sid == null || lid == null) continue;
+          final sidInt = sid is int ? sid : int.tryParse('$sid');
+          if (sidInt == null) continue;
+          localIdByServerId[sidInt] = lid.toString();
+          final v = r['server_version'];
+          localVersionByServerId[sidInt] = v is int ? v : int.tryParse('$v');
+        }
+      }
+
+      // 2) 批处理：先 delete（避免 upsert 后立刻被删）
+      final deleteLocalIds = <String>[];
+      for (final bill in bills) {
+        final serverId = (bill['id'] as int?) ?? (bill['serverId'] as int?);
+        if (serverId == null) continue;
+        final isDelete = (bill['isDelete'] as int? ?? 0) == 1;
+        if (!isDelete) continue;
+
+        final serverVersion =
+            bill['version'] as int? ?? bill['serverVersion'] as int?;
+        final localVersion = localVersionByServerId[serverId];
+        if (serverVersion != null && localVersion != null && serverVersion <= localVersion) {
+          continue;
+        }
+
+        final localId = localIdByServerId[serverId];
+        if (localId != null) deleteLocalIds.add(localId);
+      }
+
+      if (deleteLocalIds.isNotEmpty) {
+        for (var i = 0; i < deleteLocalIds.length; i += maxSqlVars) {
+          final chunk = deleteLocalIds.sublist(
+            i,
+            (i + maxSqlVars) > deleteLocalIds.length
+                ? deleteLocalIds.length
+                : (i + maxSqlVars),
+          );
+          final ridPlaceholders = List.filled(chunk.length, '?').join(',');
+          await txn.delete(
+            Tables.recordTags,
+            where: 'record_id IN ($ridPlaceholders)',
+            whereArgs: chunk,
+          );
+          await txn.delete(
+            Tables.records,
+            where: 'id IN ($ridPlaceholders) AND book_id = ?',
+            whereArgs: <Object?>[...chunk, bookId],
+          );
+        }
+      }
+
+      // 3) upsert
+      final batch = txn.batch();
+      for (final bill in bills) {
+        final serverId = (bill['id'] as int?) ?? (bill['serverId'] as int?);
+        if (serverId == null) continue;
+        final isDelete = (bill['isDelete'] as int? ?? 0) == 1;
+        if (isDelete) continue;
+
+        final serverVersion =
+            bill['version'] as int? ?? bill['serverVersion'] as int?;
+        final localVersion = localVersionByServerId[serverId];
+        if (serverVersion != null && localVersion != null && serverVersion <= localVersion) {
+          continue;
+        }
+
+        final direction = (bill['direction'] as int? ?? 0) == 1
+            ? TransactionDirection.income
+            : TransactionDirection.out;
+        final date = DateTime.tryParse(bill['billDate'] as String? ?? '');
+        if (date == null) continue;
+
+        final values = <String, Object?>{
+          'server_id': serverId,
+          if (serverVersion != null) 'server_version': serverVersion,
+          'book_id': bookId,
+          'category_key': bill['categoryKey']?.toString() ?? '',
+          'account_id': bill['accountId']?.toString() ?? '',
+          'amount': (bill['amount'] as num?)?.toDouble() ?? 0.0,
+          'is_expense': direction == TransactionDirection.out ? 1 : 0,
+          'date': date.millisecondsSinceEpoch,
+          'remark': bill['remark']?.toString() ?? '',
+          'include_in_stats': (bill['includeInStats'] as int? ?? 1),
+          'updated_at': now,
+        };
+
+        final localId = localIdByServerId[serverId];
+        if (localId != null) {
+          batch.update(
+            Tables.records,
+            values,
+            where: 'id = ? AND book_id = ?',
+            whereArgs: [localId, bookId],
+          );
+        } else {
+          final id = 'server_$serverId';
+          batch.insert(
+            Tables.records,
+            {
+              'id': id,
+              ...values,
+              'created_at': now,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   /// 批量插入记录（增量写入）

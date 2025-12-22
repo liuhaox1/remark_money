@@ -6,7 +6,15 @@ import 'auth_service.dart';
 const String kApiBaseUrl = 'http://localhost:8080';
 
 class SyncService {
+  SyncService._();
+
+  static final SyncService instance = SyncService._();
+
+  factory SyncService() => instance;
+
   final AuthService _authService = const AuthService();
+  final http.Client _client = http.Client();
+  String? _deviceId;
 
   Uri _uri(String path) => Uri.parse('$kApiBaseUrl$path');
 
@@ -15,6 +23,8 @@ class SyncService {
   }
 
   Future<String> _getDeviceId() async {
+    final cached = _deviceId;
+    if (cached != null) return cached;
     final prefs = await SharedPreferences.getInstance();
     String? deviceId = prefs.getString('device_id');
     if (deviceId == null) {
@@ -23,6 +33,7 @@ class SyncService {
           (100000 + (DateTime.now().microsecond % 900000)).toString();
       await prefs.setString('device_id', deviceId);
     }
+    _deviceId = deviceId;
     return deviceId;
   }
 
@@ -37,7 +48,7 @@ class SyncService {
     }
 
     final deviceId = await _getDeviceId();
-    final resp = await http.post(
+    final resp = await _client.post(
       _uri('/api/sync/budget/upload'),
       headers: {
         'Authorization': 'Bearer $token',
@@ -66,7 +77,7 @@ class SyncService {
     }
 
     final deviceId = await _getDeviceId();
-    final resp = await http.get(
+    final resp = await _client.get(
       _uri('/api/sync/budget/download?deviceId=$deviceId&bookId=$bookId'),
       headers: {
         'Authorization': 'Bearer $token',
@@ -93,7 +104,7 @@ class SyncService {
     }
 
     final deviceId = await _getDeviceId();
-    final resp = await http.post(
+    final resp = await _client.post(
       _uri('/api/sync/account/upload'),
       headers: {
         'Authorization': 'Bearer $token',
@@ -125,7 +136,7 @@ class SyncService {
     }
 
     final deviceId = await _getDeviceId();
-    final resp = await http.get(
+    final resp = await _client.get(
       _uri('/api/sync/account/download?deviceId=$deviceId'),
       headers: {
         'Authorization': 'Bearer $token',
@@ -156,7 +167,7 @@ class SyncService {
 
     final requestId = DateTime.now().microsecondsSinceEpoch.toString();
     final deviceId = await _getDeviceId();
-    final resp = await http.post(
+    final resp = await _client.post(
       _uri('/api/sync/v2/push'),
       headers: {
         'Authorization': 'Bearer $token',
@@ -192,7 +203,7 @@ class SyncService {
       url += '&afterChangeId=$afterChangeId';
     }
 
-    final resp = await http.get(
+    final resp = await _client.get(
       _uri(url),
       headers: {
         'Authorization': 'Bearer $token',
@@ -216,7 +227,7 @@ class SyncService {
 
     final requestId = DateTime.now().microsecondsSinceEpoch.toString();
     final deviceId = await _getDeviceId();
-    final resp = await http.post(
+    final resp = await _client.post(
       _uri('/api/sync/v2/ids/allocate'),
       headers: {
         'Authorization': 'Bearer $token',

@@ -107,7 +107,6 @@ class SyncOutboxService {
 
   Future<void> enqueueUpsert(Record record) async {
     if (_suppressed) return;
-    if (!record.includeInStats) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
     // v2 语义：
@@ -229,21 +228,26 @@ class SyncOutboxService {
 
     if (RepositoryFactory.isUsingDatabase) {
       final db = await DatabaseHelper().database;
-      for (final it in items) {
-        final id = it.id;
-        if (id == null) continue;
-        final bill = (it.payload['bill'] as Map?)?.cast<String, dynamic>();
-        final serverId = it.payload['serverId'] as int? ?? (bill?['serverId'] as int?);
-        await db.update(
-          Tables.syncOutbox,
-          {
-            'payload': jsonEncode(it.payload),
-            'server_id': serverId,
-          },
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
+      await db.transaction((txn) async {
+        final batch = txn.batch();
+        for (final it in items) {
+          final id = it.id;
+          if (id == null) continue;
+          final bill = (it.payload['bill'] as Map?)?.cast<String, dynamic>();
+          final serverId =
+              it.payload['serverId'] as int? ?? (bill?['serverId'] as int?);
+          batch.update(
+            Tables.syncOutbox,
+            {
+              'payload': jsonEncode(it.payload),
+              'server_id': serverId,
+            },
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+        await batch.commit(noResult: true);
+      });
       return;
     }
 

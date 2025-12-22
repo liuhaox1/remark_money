@@ -6,6 +6,7 @@ import '../models/record.dart';
 import '../models/account.dart';
 import '../models/import_result.dart';
 import '../repository/repository_factory.dart';
+import '../repository/record_repository_db.dart';
 import '../utils/date_utils.dart';
 import '../utils/validation_utils.dart';
 import '../utils/error_handler.dart';
@@ -81,6 +82,38 @@ class RecordProvider extends ChangeNotifier {
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.load', e, stackTrace);
       _loaded = false;
+      rethrow;
+    }
+  }
+
+  /// 刷新最近记录缓存（用于同步后 UI 立即更新，避免逐条 notify/落库带来的卡顿）
+  Future<void> refreshRecentCache({String? bookId}) async {
+    if (!_loaded) {
+      await load();
+      return;
+    }
+    if (!_isUsingDatabase) {
+      _notifyChanged();
+      return;
+    }
+
+    try {
+      final dbRepo = _repository as dynamic;
+      if (!(dbRepo.runtimeType.toString().contains('RecordRepositoryDb'))) {
+        _notifyChanged();
+        return;
+      }
+      final recent = await dbRepo.loadRecordsPaginated(
+        bookId: bookId,
+        limit: _maxCacheSize,
+      );
+      _recentRecordsCache
+        ..clear()
+        ..addAll(recent);
+      _clearCache();
+      _notifyChanged();
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('RecordProvider.refreshRecentCache', e, stackTrace);
       rethrow;
     }
   }
@@ -384,6 +417,35 @@ class RecordProvider extends ChangeNotifier {
       _recentRecordsCache
         ..clear()
         ..addAll(list);
+    }
+  }
+
+  Future<void> setServerSyncStatesBulk(
+    List<({String billId, int? serverId, int? serverVersion})> updates,
+  ) async {
+    if (updates.isEmpty) return;
+
+    if (_isUsingDatabase && _repository is RecordRepositoryDb) {
+      await (_repository as RecordRepositoryDb).updateServerSyncStatesBulk(updates);
+
+      for (final u in updates) {
+        final index = _recentRecordsCache.indexWhere((r) => r.id == u.billId);
+        if (index == -1) continue;
+        _recentRecordsCache[index] = _recentRecordsCache[index].copyWith(
+          serverId: u.serverId ?? _recentRecordsCache[index].serverId,
+          serverVersion: u.serverVersion ?? _recentRecordsCache[index].serverVersion,
+        );
+      }
+      _clearCache();
+      return;
+    }
+
+    for (final u in updates) {
+      await setServerSyncState(
+        u.billId,
+        serverId: u.serverId,
+        serverVersion: u.serverVersion,
+      );
     }
   }
 
