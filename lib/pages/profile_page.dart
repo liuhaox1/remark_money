@@ -38,6 +38,7 @@ import 'account_settings_page.dart';
 import 'vip_purchase_page.dart';
 import 'sync_conflicts_page.dart';
 import 'export_data_page.dart';
+import 'savings_plans_page.dart';
 import 'recurring_records_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
@@ -704,6 +705,14 @@ class _ProfilePageState extends State<ProfilePage> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const RecurringRecordsPage()),
+        ),
+      ),
+      _ProfileAction(
+        icon: Icons.savings_outlined,
+        label: '存钱计划',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SavingsPlansPage()),
         ),
       ),
       _ProfileAction(
