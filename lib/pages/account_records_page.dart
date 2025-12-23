@@ -23,6 +23,12 @@ class AccountRecordsPage extends StatelessWidget {
 
   final String accountId;
 
+  static const Map<String, ({String name, IconData icon})> _internalCategoryUi =
+      {
+    'saving-in': (name: '存入', icon: Icons.call_received_rounded),
+    'saving-out': (name: '转出', icon: Icons.call_made_rounded),
+  };
+
   @override
   Widget build(BuildContext context) {
     final accountProvider = context.watch<AccountProvider>();
@@ -300,8 +306,11 @@ class AccountRecordsPage extends StatelessWidget {
     bool showDivider,
   ) {
     final category = categoryMap[record.categoryKey];
+    final internalUi = _internalCategoryUi[record.categoryKey];
     final isIncome = record.isIncome;
     final amountColor = isIncome ? AppColors.success : AppColors.danger;
+    final title = category?.name ?? internalUi?.name ?? record.categoryKey;
+    final icon = category?.icon ?? internalUi?.icon ?? Icons.category_outlined;
 
     return InkWell(
       onTap: () {
@@ -329,7 +338,7 @@ class AccountRecordsPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Icon(
-                    category?.icon ?? Icons.category_outlined,
+                    icon,
                     size: 18,
                     color: Theme.of(context).colorScheme.primary,
                   ),
@@ -340,7 +349,7 @@ class AccountRecordsPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        category?.name ?? record.categoryKey,
+                        title,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
