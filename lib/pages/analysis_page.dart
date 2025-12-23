@@ -778,6 +778,71 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final predictedMonthExpense = predictionAvailable && daysPassed > 0
         ? (currentMonthExpense / daysPassed * totalDays)
         : 0.0;
+
+    // 更稳健的预测：基于近几个月的日均（中位数） + 当前月偏离程度修正，降低“单笔大额/月初月末”误差。
+    // 数据不足（天数过少/历史过少）时自动降级到线性外推或直接不展示。
+    const minPredictionDays = 5;
+    final currentExpenseDays = filteredCurrentMonthRecords
+        .map((r) => DateTime(r.date.year, r.date.month, r.date.day))
+        .toSet()
+        .length;
+
+    double robustPredicted = predictedMonthExpense;
+    double robustPredictedLow = 0.0;
+    double robustPredictedHigh = 0.0;
+    int robustHistoryMonths = 0;
+    String predictionMethod = '按天线性外推';
+    bool predictionLowConfidence = false;
+
+    final canTryRobust = predictionAvailable && daysPassed >= minPredictionDays;
+    if (canTryRobust) {
+      final history = <double>[];
+      // 取最近 6 个「已结束」月份（跨年则取去年），用月总支出/当月天数得到日均。
+      // 只统计计入统计的支出记录。
+      final allForHistory = <Record>[...yearRecords, ...lastYearRecords]
+          .where(_isCountedRecord)
+          .where((r) => r.isExpense)
+          .toList();
+
+      DateTime cursor = DateTime(currentMonth.year, currentMonth.month, 1);
+      for (var i = 0; i < 6; i++) {
+        cursor = DateTime(cursor.year, cursor.month - 1, 1);
+        final monthStart = cursor;
+        final monthEnd = DateTime(cursor.year, cursor.month + 1, 0, 23, 59, 59);
+        final monthExpense = allForHistory
+            .where((r) =>
+                !r.date.isBefore(monthStart) && !r.date.isAfter(monthEnd))
+            .fold<double>(0, (s, r) => s + r.amount);
+        if (monthExpense > 0) {
+          history.add(monthExpense / monthEnd.day);
+        }
+      }
+
+      history.sort();
+      robustHistoryMonths = history.length;
+      if (history.length >= 3) {
+        final dailyMedian = _quantileSorted(history, 0.5);
+        final dailyP25 = _quantileSorted(history, 0.25);
+        final dailyP75 = _quantileSorted(history, 0.75);
+
+        // 当前月到今天的实际累计 vs 历史日均的“应有累计”，做温和修正（避免过拟合）。
+        final expectedSoFar = dailyMedian * daysPassed;
+        final rawRatio =
+            expectedSoFar > 0 ? (currentMonthExpense / expectedSoFar) : 1.0;
+        final ratio = rawRatio.clamp(0.6, 1.6);
+        // 记录很少时降低置信度（例如只有 1-2 天有支出）。
+        predictionLowConfidence = currentExpenseDays < 3;
+
+        robustPredicted = dailyMedian * totalDays * ratio;
+        robustPredictedLow = dailyP25 * totalDays * ratio;
+        robustPredictedHigh = dailyP75 * totalDays * ratio;
+        predictionMethod = '近${history.length}个月日均中位数';
+      } else if (daysPassed > 0) {
+        // 历史不足：仍允许显示，但视为低置信度
+        predictionLowConfidence = true;
+        predictionMethod = '按天线性外推';
+      }
+    }
     
     // 生成洞察
     final insights = <String>[];
@@ -808,14 +873,32 @@ class _AnalysisPageState extends State<AnalysisPage> {
       }).toList(),
       'yearOverYearChange': yearOverYearChange,
       'avgMonthlyExpense': avgMonthlyExpense,
-      'predictedMonthExpense': predictedMonthExpense,
+      'predictedMonthExpense': robustPredicted,
+      'predictedMonthExpenseLow': robustPredictedLow,
+      'predictedMonthExpenseHigh': robustPredictedHigh,
       'currentMonthExpense': currentMonthExpense,
       'monthsWithExpense': monthsWithExpense,
       'predictionAvailable': predictionAvailable,
+      'predictionMethod': predictionMethod,
+      'predictionLowConfidence': predictionLowConfidence,
+      'predictionHistoryMonths': robustHistoryMonths,
       'insights': insights,
       'thisYearExpense': thisYearExpense,
       'lastYearExpense': lastYearExpense,
     };
+  }
+
+  /// 已排序数组的分位数（0..1），线性插值
+  static double _quantileSorted(List<double> sorted, double q) {
+    if (sorted.isEmpty) return 0.0;
+    if (sorted.length == 1) return sorted.first;
+    final clamped = q.clamp(0.0, 1.0);
+    final pos = (sorted.length - 1) * clamped;
+    final lower = pos.floor();
+    final upper = pos.ceil();
+    if (lower == upper) return sorted[lower];
+    final weight = pos - lower;
+    return sorted[lower] * (1 - weight) + sorted[upper] * weight;
   }
 
   /// 构建趋势分析卡片
@@ -824,7 +907,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
     if (trendData.isEmpty) return const SizedBox.shrink();
     final compareTrendData =
         data['compareTrendData'] as List<Map<String, dynamic>>? ?? [];
-     
+
+    final totalIncome = trendData.fold<double>(
+      0.0,
+      (sum, item) => sum + (item['income'] as double? ?? 0.0),
+    );
+    final totalExpense = trendData.fold<double>(
+      0.0,
+      (sum, item) => sum + (item['expense'] as double? ?? 0.0),
+    );
+    final units = trendData.isEmpty ? 1 : trendData.length;
+    final avgIncome = totalIncome / units;
+    final avgExpense = totalExpense / units;
+    final unitLabel = _periodType == PeriodType.year ? '月' : '天';
+      
     return Card(
       color: cs.surface,
       child: Padding(
@@ -845,7 +941,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
+            Text(
+              '总支出：${totalExpense.toStringAsFixed(2)}    总收入：${totalIncome.toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.65),
+                    height: 1.3,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '平均值：支出 ${avgExpense.toStringAsFixed(2)}/$unitLabel    收入 ${avgIncome.toStringAsFixed(2)}/$unitLabel',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.65),
+                    height: 1.3,
+                  ),
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               height: 200,
               child: _buildTrendChart(trendData, compareTrendData, cs),
@@ -1018,9 +1132,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
     if (!predictionAvailable) return const SizedBox.shrink();
 
     final predictedMonthExpense = data['predictedMonthExpense'] as double? ?? 0.0;
+    final predictedMonthExpenseLow =
+        data['predictedMonthExpenseLow'] as double? ?? 0.0;
+    final predictedMonthExpenseHigh =
+        data['predictedMonthExpenseHigh'] as double? ?? 0.0;
     final avgMonthlyExpense = data['avgMonthlyExpense'] as double? ?? 0.0;
     final currentMonthExpense = data['currentMonthExpense'] as double? ?? 0.0;
     final monthsWithExpense = data['monthsWithExpense'] as int? ?? 0;
+    final predictionMethod = data['predictionMethod'] as String? ?? '';
+    final predictionLowConfidence =
+        data['predictionLowConfidence'] as bool? ?? false;
+    final predictionHistoryMonths =
+        data['predictionHistoryMonths'] as int? ?? 0;
     
     if (predictedMonthExpense == 0 &&
         avgMonthlyExpense == 0 &&
@@ -1030,6 +1153,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
     
     final diff = predictedMonthExpense - avgMonthlyExpense;
     final diffPercent = avgMonthlyExpense > 0 ? (diff / avgMonthlyExpense * 100) : 0.0;
+    final hasRange = predictedMonthExpenseLow > 0 &&
+        predictedMonthExpenseHigh > 0 &&
+        (predictedMonthExpenseHigh - predictedMonthExpenseLow).abs() >= 1;
     
     return Card(
       color: cs.surface,
@@ -1095,6 +1221,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         color: cs.onSurface,
                       ),
                     ),
+                    if (hasRange) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '范围 ¥${predictedMonthExpenseLow.toStringAsFixed(0)} - ¥${predictedMonthExpenseHigh.toStringAsFixed(0)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontSize: 11,
+                              color: cs.onSurface.withOpacity(0.65),
+                            ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -1103,11 +1239,24 @@ class _AnalysisPageState extends State<AnalysisPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  '参考：近$monthsWithExpense个月月均支出 ¥${avgMonthlyExpense.toStringAsFixed(0)}',
+                  predictionHistoryMonths >= 3 && predictionMethod.isNotEmpty
+                      ? '参考：$predictionMethod（近$monthsWithExpense个月月均 ¥${avgMonthlyExpense.toStringAsFixed(0)}）'
+                      : '参考：近$monthsWithExpense个月月均支出 ¥${avgMonthlyExpense.toStringAsFixed(0)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 12,
                     color: cs.onSurface.withOpacity(0.7),
                   ),
+                ),
+              ),
+            if (predictionLowConfidence && predictionHistoryMonths >= 3)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '提示：本月数据较少，预测仅供参考',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontSize: 11,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
                 ),
               ),
             if (monthsWithExpense >= 2 && diffPercent.abs() > 20)

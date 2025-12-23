@@ -635,6 +635,327 @@ class _BillPageState extends State<BillPage> {
     }
   }
 
+  int _weekIndexForYear(DateTime weekStart, int year) {
+    final first = DateUtilsX.startOfWeek(DateTime(year, 1, 1));
+    final diff = weekStart.difference(first).inDays;
+    return (diff ~/ 7) + 1;
+  }
+
+  DateTime _weekStartForIndex(int weekIndex, int year) {
+    final first = DateUtilsX.startOfWeek(DateTime(year, 1, 1));
+    return first.add(Duration(days: (weekIndex - 1) * 7));
+  }
+
+  int _maxWeekIndexForYear(int year) {
+    final lastStart = DateUtilsX.startOfWeek(DateTime(year, 12, 31));
+    return _weekIndexForYear(lastStart, year);
+  }
+
+  Widget _buildGranularityBar(ColorScheme cs) {
+    final tt = Theme.of(context).textTheme;
+    final selectedBg = cs.onSurface.withOpacity(0.88);
+    final unselectedFg = cs.onSurface.withOpacity(0.85);
+    final selectedFg = cs.surface;
+
+    Widget buildItem(PeriodType type, String label) {
+      final selected = _periodType == type;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            if (_periodType == type) return;
+            setState(() {
+              _periodType = type;
+              if (_periodType == PeriodType.week) {
+                _selectedWeek = DateUtilsX.weekRange(_selectedMonth);
+              } else if (_periodType == PeriodType.year) {
+                _selectedYear = _selectedMonth.year;
+              }
+            });
+          },
+          child: Container(
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? selectedBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              label,
+              style: tt.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: selected ? selectedFg : unselectedFg,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
+      ),
+      child: Row(
+        children: [
+          buildItem(PeriodType.week, '周'),
+          const SizedBox(width: 4),
+          buildItem(PeriodType.month, '月'),
+          const SizedBox(width: 4),
+          buildItem(PeriodType.year, '年'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPeriodQuickStrip(ColorScheme cs) {
+    switch (_periodType) {
+      case PeriodType.week:
+        return _buildWeekQuickStrip(cs);
+      case PeriodType.month:
+        return _buildMonthQuickStrip(cs);
+      case PeriodType.year:
+        return _buildYearQuickStrip(cs);
+    }
+  }
+
+  Widget _buildWeekQuickStrip(ColorScheme cs) {
+    final tt = Theme.of(context).textTheme;
+    final now = DateTime.now();
+    final year = _selectedYear;
+    final selectedIndex = _weekIndexForYear(_selectedWeek.start, year);
+    final maxIndex = year == now.year
+        ? _weekIndexForYear(DateUtilsX.startOfWeek(now), year)
+        : _maxWeekIndexForYear(year);
+
+    final startIndex = (selectedIndex - 4).clamp(1, maxIndex);
+    final indices = <int>[
+      for (var i = startIndex; i <= selectedIndex; i++) i,
+    ].where((i) => i >= 1 && i <= maxIndex).toList();
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          for (final i in indices) ...[
+            InkWell(
+              onTap: () {
+                final weekStart = _weekStartForIndex(i, year);
+                setState(() {
+                  _selectedWeek = DateUtilsX.weekRange(weekStart);
+                  _selectedMonth = DateTime(
+                    _selectedWeek.start.year,
+                    _selectedWeek.start.month,
+                    1,
+                  );
+                  _selectedYear = year;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${i}周',
+                      style: tt.bodyMedium?.copyWith(
+                        color: i == selectedIndex
+                            ? cs.onSurface
+                            : cs.onSurface.withOpacity(0.45),
+                        fontWeight:
+                            i == selectedIndex ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      height: 2,
+                      width: 26,
+                      decoration: BoxDecoration(
+                        color: i == selectedIndex
+                            ? cs.onSurface.withOpacity(0.85)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMonthQuickStrip(ColorScheme cs) {
+    final tt = Theme.of(context).textTheme;
+    final now = DateTime.now();
+    final selected = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
+    final isCurrentYear = selected.year == now.year;
+
+    List<({DateTime value, String label})> items;
+    if (isCurrentYear &&
+        (selected.month == now.month ||
+            selected.month == now.month - 1 ||
+            selected.month == now.month - 2)) {
+      final m2 = DateTime(now.year, now.month - 2, 1);
+      final m1 = DateTime(now.year, now.month - 1, 1);
+      final m0 = DateTime(now.year, now.month, 1);
+      items = [
+        (value: m2, label: '${m2.month}月'),
+        (value: m1, label: '上月'),
+        (value: m0, label: '本月'),
+      ];
+    } else {
+      final prev = DateTime(selected.year, selected.month - 1, 1);
+      final next = DateTime(selected.year, selected.month + 1, 1);
+      items = [
+        (value: prev, label: '${prev.month}月'),
+        (value: selected, label: '${selected.month}月'),
+        (value: next, label: '${next.month}月'),
+      ];
+    }
+
+    bool canSelect(DateTime m) {
+      final month = DateTime(m.year, m.month, 1);
+      final current = DateTime(now.year, now.month, 1);
+      return !month.isAfter(current);
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          for (final it in items) ...[
+            InkWell(
+              onTap: canSelect(it.value)
+                  ? () {
+                      setState(() {
+                        _selectedMonth = it.value;
+                        _selectedYear = it.value.year;
+                        _selectedWeek = DateUtilsX.weekRange(_selectedMonth);
+                      });
+                    }
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      it.label,
+                      style: tt.bodyMedium?.copyWith(
+                        color: DateUtilsX.isSameMonth(it.value, selected)
+                            ? cs.onSurface
+                            : canSelect(it.value)
+                                ? cs.onSurface.withOpacity(0.45)
+                                : cs.onSurface.withOpacity(0.25),
+                        fontWeight: DateUtilsX.isSameMonth(it.value, selected)
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      height: 2,
+                      width: 26,
+                      decoration: BoxDecoration(
+                        color: DateUtilsX.isSameMonth(it.value, selected)
+                            ? cs.onSurface.withOpacity(0.85)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildYearQuickStrip(ColorScheme cs) {
+    final tt = Theme.of(context).textTheme;
+    final now = DateTime.now();
+    final selectedYear = _selectedYear;
+    final years = <int>[
+      selectedYear - 1,
+      selectedYear,
+    ];
+    if (selectedYear < now.year) {
+      years.add(selectedYear + 1);
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          for (final y in years) ...[
+            InkWell(
+              onTap: y <= now.year
+                  ? () {
+                      setState(() {
+                        _selectedYear = y;
+                        _selectedMonth = DateTime(y, _selectedMonth.month, 1);
+                        _selectedWeek = DateUtilsX.weekRange(_selectedMonth);
+                      });
+                    }
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      y == now.year ? '今年' : '${y}年',
+                      style: tt.bodyMedium?.copyWith(
+                        color: y == selectedYear
+                            ? cs.onSurface
+                            : cs.onSurface.withOpacity(0.45),
+                        fontWeight:
+                            y == selectedYear ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      height: 2,
+                      width: 26,
+                      decoration: BoxDecoration(
+                        color: y == selectedYear
+                            ? cs.onSurface.withOpacity(0.85)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          InkWell(
+            onTap: _pickYear,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Icon(Icons.keyboard_arrow_down_rounded,
+                  color: cs.onSurface.withOpacity(0.6)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _periodLabel() {
     switch (_periodType) {
       case PeriodType.week:
@@ -950,52 +1271,18 @@ class _BillPageState extends State<BillPage> {
             ),
 
           // -----------------------------------
-          // 🔘 周 / 月 / 年 Segmented Button
+          // 🔘 周 / 月 / 年（按截图：上方分段 + 下方周期条）
           // -----------------------------------
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<PeriodType>(
-              segments: const [
-                ButtonSegment(
-                  value: PeriodType.week,
-                  label: Text(AppStrings.weeklyBill),
-                ),
-                ButtonSegment(
-                  value: PeriodType.month,
-                  label: Text(AppStrings.monthlyBill),
-                ),
-                ButtonSegment(
-                  value: PeriodType.year,
-                  label: Text(AppStrings.yearlyBill),
-                ),
-              ],
-              selected: {_periodType},
-              onSelectionChanged: (s) => setState(() {
-                _periodType = s.first;
-                if (_periodType == PeriodType.week) {
-                  _selectedWeek = DateUtilsX.weekRange(_selectedMonth);
-                } else if (_periodType == PeriodType.year) {
-                  _selectedYear = _selectedMonth.year;
-                }
-              }),
-            ),
+            child: _buildGranularityBar(cs),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: PeriodSelector(
-              label: _periodLabel(),
-              periodType: _periodType,
-              onPrev: () => _shiftPeriod(-1),
-              onNext: () => _shiftPeriod(1),
-              onTap: _pickPeriod,
-              canGoNext: _canGoNext(),
-            ),
-          ),
+          _buildPeriodQuickStrip(cs),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
