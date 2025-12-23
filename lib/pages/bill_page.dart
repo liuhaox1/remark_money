@@ -755,10 +755,11 @@ class _BillPageState extends State<BillPage> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: _buildMonthBill2(
+              child: _buildDayBill(
                 context,
                 cs,
                 bookId,
+                date: DateTime(date.year, date.month, date.day),
                 recordProvider: recordProvider,
                 categoryProvider: categoryProvider,
                 recordChangeCounter: recordChangeCounter,
@@ -2036,6 +2037,131 @@ class _BillPageState extends State<BillPage> {
               padding: const EdgeInsets.all(12),
               children: items,
             );
+            if (!showLoadingOverlay) return list;
+            return Stack(
+              children: [
+                list,
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDayBill(
+    BuildContext context,
+    ColorScheme cs,
+    String bookId, {
+    required DateTime date,
+    required RecordProvider recordProvider,
+    required CategoryProvider categoryProvider,
+    required int recordChangeCounter,
+  }) {
+    _ensureMonthRecordsFuture(
+      recordProvider: recordProvider,
+      bookId: bookId,
+      recordChangeCounter: recordChangeCounter,
+    );
+
+    final categoryMap = {
+      for (final c in categoryProvider.categories) c.key: c,
+    };
+
+    return FutureBuilder<List<Record>>(
+      future: _monthRecordsFuture,
+      initialData: _monthRecordsCache,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('加载失败: ${snapshot.error}'));
+        }
+
+        final allMonthRecords = snapshot.data ?? const <Record>[];
+        if (snapshot.connectionState == ConnectionState.done) {
+          _monthRecordsCache = allMonthRecords;
+        }
+
+        final showLoadingOverlay = snapshot.connectionState == ConnectionState.waiting;
+        final tagProvider = context.read<TagProvider>();
+
+        final allRecords = allMonthRecords
+            .where((r) => r.bookId == bookId && DateUtilsX.isSameDay(r.date, date))
+            .toList();
+
+        allRecords.sort((a, b) => b.date.compareTo(a.date));
+
+        final recordIds = allRecords.map((r) => r.id).toList();
+        return FutureBuilder<Map<String, List<Tag>>>(
+          future: tagProvider.loadTagsForRecords(recordIds),
+          builder: (context, tagSnap) {
+            final tagsByRecordId = tagSnap.data ?? const <String, List<Tag>>{};
+
+            final records = _applyFilters(
+              allRecords,
+              categoryMap,
+              tagsByRecordId: tagsByRecordId,
+            );
+
+            if (records.isEmpty && !showLoadingOverlay) {
+              return Center(
+                child: Text(
+                  '当天暂无记录',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: cs.onSurface.withOpacity(0.6)),
+                ),
+              );
+            }
+
+            double income = 0;
+            double expense = 0;
+            for (final r in records) {
+              if (r.isIncome) {
+                income += r.incomeValue;
+              } else {
+                expense += r.expenseValue;
+              }
+            }
+
+            final items = <Widget>[
+              _billCard(
+                title: AppStrings.monthDayLabel(date.month, date.day),
+                subtitle: DateUtilsX.weekdayShort(date),
+                income: income,
+                expense: expense,
+                balance: income - expense,
+                cs: cs,
+                highlight: true,
+              ),
+            ];
+
+            for (final r in records) {
+              final category = categoryMap[r.categoryKey];
+              items.add(
+                TimelineItem(
+                  record: r,
+                  leftSide: false,
+                  category: category,
+                  subtitle: r.remark.isEmpty ? null : r.remark,
+                  tags: tagsByRecordId[r.id] ?? const <Tag>[],
+                  onTap: () => _openEditRecord(r),
+                  onDelete: () => _confirmAndDeleteRecord(r),
+                ),
+              );
+            }
+
+            final list = ListView(
+              padding: const EdgeInsets.all(12),
+              children: items,
+            );
+
             if (!showLoadingOverlay) return list;
             return Stack(
               children: [

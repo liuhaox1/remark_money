@@ -2018,25 +2018,59 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Set<int> _findAnomalyIndices(List<ChartEntry> entries) {
-    if (entries.length < 3) return const <int>{};
+    // 目的：提示“明显高于平时”的支出日，避免小样本/小金额误报。
+    // - 月视图：至少 10 天数据再做异常点（否则容易误报）
+    // - 周视图：7 天可用，但仍要求足够的非零天数
+    if (entries.length < 7) return const <int>{};
+    if (_isMonthMode && entries.length < 10) return const <int>{};
+
     final values = entries.map((e) => max(0.0, e.value)).toList();
-    final mean = values.reduce((a, b) => a + b) / values.length;
+    final nonZeroCount = values.where((v) => v > 0).length;
+    if (nonZeroCount < 3) return const <int>{};
+
+    final total = values.fold<double>(0, (a, b) => a + b);
+    // 本期总支出很小（例如只有几块钱）时，不提示异常点，避免“红点吓人”。
+    if (total < 20) return const <int>{};
+
+    final mean = total / values.length;
     final variance = values
             .map((v) => (v - mean) * (v - mean))
             .reduce((a, b) => a + b) /
         values.length;
     final std = sqrt(variance);
+
+    // 最小绝对阈值：至少达到 20 元，或占本期总支出的 15%（取更大者）。
+    final minAbs = max(20.0, total * 0.15);
+
     final anomalies = <int>{};
     for (var i = 0; i < values.length; i++) {
-      if (values[i] > 0 && values[i] >= mean + 3 * std) {
+      final v = values[i];
+      if (v <= 0 || v < minAbs) continue;
+      if (std <= 0) continue;
+
+      final z = (v - mean) / std;
+      // Z 分数 + 相对均值双保险，减少误报
+      final relativeOk = mean <= 0 ? true : v >= mean * 2.0;
+      if (z >= 2.6 && relativeOk) {
         anomalies.add(i);
       }
     }
+
+    // 兜底规则：若最大值远高于第二大值，也提示一次（但仍受 minAbs 约束）
     final sorted = values.asMap().entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    if (sorted.length >= 2 && sorted.first.value > sorted[1].value * 2) {
-      anomalies.add(sorted.first.key);
+    if (sorted.length >= 2) {
+      final top = sorted[0];
+      final second = sorted[1];
+      final topRelOk = mean <= 0 ? true : top.value >= mean * 2.0;
+      if (top.value >= minAbs &&
+          topRelOk &&
+          second.value > 0 &&
+          top.value >= second.value * 2) {
+        anomalies.add(top.key);
+      }
     }
+
     return anomalies;
   }
 

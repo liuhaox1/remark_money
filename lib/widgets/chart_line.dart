@@ -157,14 +157,13 @@ class ChartLine extends StatelessWidget {
                   }
 
                   final day = index + 1;
-                  // 显示关键日期：1, 5, 10, 15, 20, 25, 30 等，以及最后一天
+                  // 显示关键日期：1, 5, 10, 15, 20, 25 等，以及最后一天（避免 30/31 同时显示重叠）
                   if (day == 1 || 
                       day == 5 || 
                       day == 10 || 
                       day == 15 || 
                       day == 20 || 
                       day == 25 || 
-                      day == 30 ||
                       day == entries.length || // 显示最后一天
                       (entries.length <= 7 && day <= entries.length)) {
                     return Text(
