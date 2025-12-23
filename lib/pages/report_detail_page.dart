@@ -2364,10 +2364,30 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             entries: dailyEntries,
             compareEntries: compareEntries,
             budgetY: budgetY,
-            avgY: avgExpense,
+            // 趋势图不显示“均值”线（周/月/年一致），避免干扰读数
             highlightIndices: anomalyIndices,
-            bottomLabelBuilder:
-                _isYearMode ? (index, entry) => entry.label : null,
+            bottomLabelBuilder: (index, entry) {
+              if (_isYearMode) {
+                final month = index + 1;
+                if (month == 1 || month % 3 == 0) return '$month月';
+                return null;
+              }
+              if (_isWeekMode) {
+                final start = DateUtilsX.startOfWeek(_periodRange().start);
+                final d = start.add(Duration(days: index));
+                final mm = d.month.toString().padLeft(2, '0');
+                final dd = d.day.toString().padLeft(2, '0');
+                return '$mm-$dd';
+              }
+              // month mode: show 01/05/10/15/20/25 and last day; avoid 30+31 overlap
+              final lastDay = DateTime(widget.year, (widget.month ?? 1) + 1, 0).day;
+              final day = index + 1;
+              if (day == 30 && lastDay == 31) return null;
+              if (day == 1 || day % 5 == 0 || day == lastDay) {
+                return day.toString().padLeft(2, '0');
+              }
+              return null;
+            },
           ),
         ),
         const SizedBox(height: 12),

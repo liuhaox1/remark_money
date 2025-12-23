@@ -3796,7 +3796,12 @@ class _BillPageState extends State<BillPage> {
   ) {
     // 账单明细只展示“收支记录”，不展示转账/借还款等不计入统计的记录
     var filtered = records
-        .where((r) => r.includeInStats && !r.categoryKey.startsWith('transfer'))
+        .where(
+          (r) =>
+              r.includeInStats &&
+              !r.categoryKey.startsWith('transfer') &&
+              !r.categoryKey.startsWith('saving-'),
+        )
         .toList();
 
     // 关键词搜索

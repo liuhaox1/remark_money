@@ -27,6 +27,9 @@ class AccountRecordsPage extends StatelessWidget {
       {
     'saving-in': (name: '存入', icon: Icons.call_received_rounded),
     'saving-out': (name: '转出', icon: Icons.call_made_rounded),
+    'transfer-in': (name: '转入', icon: Icons.call_received_rounded),
+    'transfer-out': (name: '转出', icon: Icons.call_made_rounded),
+    'transfer-fee': (name: '手续费', icon: Icons.receipt_long_rounded),
   };
 
   @override

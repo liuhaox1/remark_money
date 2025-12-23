@@ -749,58 +749,60 @@ class _AnalysisPageState extends State<AnalysisPage> {
         lastYearRecords.where(_isCountedRecord).toList();
 
     final flowIsExpense = flowMetric == _FlowMetric.expense;
-    
+
+    DateTimeRange periodRange;
+    if (periodType == PeriodType.year) {
+      periodRange = DateTimeRange(start: yearStart, end: yearEnd);
+    } else if (periodType == PeriodType.month) {
+      final month = year == now.year ? now.month : 12;
+      final start = DateTime(year, month, 1);
+      final end = DateTime(year, month + 1, 0, 23, 59, 59);
+      periodRange = DateTimeRange(start: start, end: end);
+    } else {
+      final base = year == now.year ? now : DateTime(year, 12, 31, 23, 59, 59);
+      final baseDate = DateTime(base.year, base.month, base.day);
+      final range = DateUtilsX.weekRange(baseDate);
+      final start = DateTime(range.start.year, range.start.month, range.start.day);
+      final end = DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59);
+      periodRange = DateTimeRange(start: start, end: end);
+    }
+
+    final periodRecords = yearRecords
+        .where((r) => !r.date.isBefore(periodRange.start) && !r.date.isAfter(periodRange.end))
+        .toList();
+    final lastPeriodRecords = lastYearRecords
+        .where((r) => !r.date.isBefore(DateTime(
+              periodRange.start.year - 1,
+              periodRange.start.month,
+              periodRange.start.day,
+            )) &&
+            !r.date.isAfter(DateTime(
+              periodRange.end.year - 1,
+              periodRange.end.month,
+              periodRange.end.day,
+              23,
+              59,
+              59,
+            )))
+        .toList();
+
+    final filteredPeriodRecords = periodRecords.where(_isCountedRecord).toList();
+    final filteredLastPeriodRecords =
+        lastPeriodRecords.where(_isCountedRecord).toList();
+
     // 根据 periodType 生成趋势数据
     final trendData = <Map<String, dynamic>>[];
     final compareTrendData = <Map<String, dynamic>>[];
-
-    DateTime anchor = now;
-    if (year != now.year) {
-      anchor = DateTime(year, 12, 31, 23, 59, 59);
-    }
 
     if (periodType == PeriodType.year) {
       // 年模式：12个月月趋势 + 去年同比
       for (int month = 1; month <= 12; month++) {
         final monthDate = DateTime(year, month, 1);
-        final monthStats =
-            await recordProvider.getMonthStatsAsync(monthDate, bookId);
-        final expense = math.max(0.0, monthStats.expense);
-        trendData.add({
-          'label': '$month月',
-          'income': monthStats.income,
-          'expense': expense,
-          'balance': monthStats.income - monthStats.expense,
-        });
-
-        final lastYearMonthDate = DateTime(year - 1, month, 1);
-        final lastStats =
-            await recordProvider.getMonthStatsAsync(lastYearMonthDate, bookId);
-        compareTrendData.add({
-          'label': '$month月',
-          'value': flowIsExpense
-              ? math.max(0.0, lastStats.expense)
-              : math.max(0.0, lastStats.income),
-        });
-      }
-    } else if (periodType == PeriodType.month) {
-      // 月账单：近6个月月趋势
-      final sixMonthsAgo = DateTime(anchor.year, anchor.month - 5, 1);
-      final recentRecords = await recordProvider.recordsForPeriodAsync(
-        bookId,
-        start: sixMonthsAgo,
-        end: anchor,
-      );
-      final filteredRecentRecords = recentRecords.where(_isCountedRecord).toList();
-
-      for (int i = 5; i >= 0; i--) {
-        final month = DateTime(anchor.year, anchor.month - i, 1);
-        final monthEnd =
-            DateTime(month.year, month.month + 1, 0, 23, 59, 59);
-        final monthRecords = filteredRecentRecords.where((r) =>
-            r.date.isAfter(month.subtract(const Duration(days: 1))) &&
-            r.date.isBefore(monthEnd.add(const Duration(days: 1)))).toList();
-
+        final monthEnd = DateTime(year, month + 1, 0, 23, 59, 59);
+        final monthRecords = filteredYearRecords
+            .where((r) =>
+                !r.date.isBefore(monthDate) && !r.date.isAfter(monthEnd))
+            .toList();
         final income = monthRecords
             .where((r) => r.isIncome)
             .fold<double>(0, (sum, r) => sum + r.amount);
@@ -808,37 +810,70 @@ class _AnalysisPageState extends State<AnalysisPage> {
             .where((r) => r.isExpense)
             .fold<double>(0, (sum, r) => sum + r.amount);
         trendData.add({
-          'label': '${month.month}月',
+          'label': '$month月',
+          'income': income,
+          'expense': math.max(0.0, expense),
+          'balance': income - expense,
+        });
+
+        final lastYearMonthDate = DateTime(year - 1, month, 1);
+        final lastYearMonthEnd =
+            DateTime(year - 1, month + 1, 0, 23, 59, 59);
+        final lastMonthValue = filteredLastYearRecords
+            .where((r) =>
+                !r.date.isBefore(lastYearMonthDate) &&
+                !r.date.isAfter(lastYearMonthEnd))
+            .where((r) => flowIsExpense ? r.isExpense : r.isIncome)
+            .fold<double>(0, (sum, r) => sum + r.amount);
+        compareTrendData.add({
+          'label': '$month月',
+          'value': math.max(0.0, lastMonthValue),
+        });
+      }
+    } else if (periodType == PeriodType.month) {
+      // 月账单：当月每日趋势
+      final start = DateTime(periodRange.start.year, periodRange.start.month, 1);
+      final lastDay = DateTime(start.year, start.month + 1, 0).day;
+      for (int day = 1; day <= lastDay; day++) {
+        final dayDate = DateTime(start.year, start.month, day);
+        final dayRecords = filteredPeriodRecords
+            .where((r) => DateUtilsX.isSameDay(r.date, dayDate))
+            .toList();
+        final income = dayRecords
+            .where((r) => r.isIncome)
+            .fold<double>(0, (sum, r) => sum + r.amount);
+        final expense = dayRecords
+            .where((r) => r.isExpense)
+            .fold<double>(0, (sum, r) => sum + r.amount);
+        trendData.add({
+          'label': day.toString().padLeft(2, '0'),
           'income': income,
           'expense': math.max(0.0, expense),
           'balance': income - expense,
         });
       }
     } else {
-      // 周报：近8周周趋势（按周汇总）
-      final start = anchor.subtract(const Duration(days: 7 * 7));
-      final recentRecords = await recordProvider.recordsForPeriodAsync(
-        bookId,
-        start: start,
-        end: anchor,
+      // 周账单：本周每日趋势（7天）
+      final start = DateTime(
+        periodRange.start.year,
+        periodRange.start.month,
+        periodRange.start.day,
       );
-      final filteredRecentRecords = recentRecords.where(_isCountedRecord).toList();
-
-      DateTime weekStart = DateUtilsX.startOfWeek(anchor);
-      for (int i = 7; i >= 0; i--) {
-        final ws = weekStart.subtract(Duration(days: 7 * i));
-        final we = ws.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-        final weekRecords = filteredRecentRecords.where((r) =>
-            !r.date.isBefore(ws) && !r.date.isAfter(we)).toList();
-        final expense = weekRecords
+      for (int i = 0; i < 7; i++) {
+        final dayDate = start.add(Duration(days: i));
+        final dayRecords = filteredPeriodRecords
+            .where((r) => DateUtilsX.isSameDay(r.date, dayDate))
+            .toList();
+        final expense = dayRecords
             .where((r) => r.isExpense)
             .fold<double>(0, (sum, r) => sum + r.amount);
-        final income = weekRecords
+        final income = dayRecords
             .where((r) => r.isIncome)
             .fold<double>(0, (sum, r) => sum + r.amount);
-        final label = '${ws.month}/${ws.day}';
+        final mm = dayDate.month.toString().padLeft(2, '0');
+        final dd = dayDate.day.toString().padLeft(2, '0');
         trendData.add({
-          'label': label,
+          'label': '$mm-$dd',
           'income': income,
           'expense': math.max(0.0, expense),
           'balance': income - expense,
@@ -855,7 +890,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     // 计算分类数据（按展示名称聚合，避免出现“未分类”或未知key）
     final categoryMap = <String, double>{};
     for (final record
-        in filteredYearRecords.where((r) => flowIsExpense ? r.isExpense : r.isIncome)) {
+        in filteredPeriodRecords.where((r) => flowIsExpense ? r.isExpense : r.isIncome)) {
       final rawKey = record.categoryKey;
       // 排除不计入统计的记录（如转账、标记不统计的记录）
       if (!record.includeInStats) continue;
@@ -875,15 +910,23 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final categoryList = categoryMap.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     
-    // 计算同比数据
-    final thisYearExpense = filteredYearRecords
+    // 当前周期总额（用于占比/排行榜等）
+    final periodTotal = filteredPeriodRecords
         .where((r) => flowIsExpense ? r.isExpense : r.isIncome)
         .fold<double>(0, (sum, r) => sum + r.amount);
-    final lastYearExpense = filteredLastYearRecords
+    final lastPeriodTotal = filteredLastPeriodRecords
         .where((r) => flowIsExpense ? r.isExpense : r.isIncome)
         .fold<double>(0, (sum, r) => sum + r.amount);
-    final yearOverYearChange = lastYearExpense > 0 
-        ? ((thisYearExpense - lastYearExpense) / lastYearExpense * 100)
+
+    // 年度同比：仍以“本年 vs 去年”计算（更符合“洞察”语义）
+    final thisYearTotal = filteredYearRecords
+        .where((r) => flowIsExpense ? r.isExpense : r.isIncome)
+        .fold<double>(0, (sum, r) => sum + r.amount);
+    final lastYearTotal = filteredLastYearRecords
+        .where((r) => flowIsExpense ? r.isExpense : r.isIncome)
+        .fold<double>(0, (sum, r) => sum + r.amount);
+    final yearOverYearChange = lastYearTotal > 0
+        ? ((thisYearTotal - lastYearTotal) / lastYearTotal * 100)
         : 0.0;
     
     // 计算月度平均：只按「有记录的月份」计算，避免新用户/数据稀疏时被 12 个月平均拉得过低
@@ -894,7 +937,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
     final monthsWithExpense = expenseByMonth.length;
     final avgMonthlyExpense =
-        monthsWithExpense > 0 ? (thisYearExpense / monthsWithExpense) : 0.0;
+        monthsWithExpense > 0 ? (thisYearTotal / monthsWithExpense) : 0.0;
     
     // 预测本月总支出（仅在查看「当前年份」时展示）
     final nowDate = DateTime.now();
@@ -999,8 +1042,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     
     if (categoryList.isNotEmpty) {
       final topCategory = categoryList.first;
+      final topPercent =
+          periodTotal > 0 ? (topCategory.value / periodTotal * 100) : 0.0;
       insights.add(
-        '${topCategory.key}是您的主要${flowIsExpense ? '支出' : '收入'}类别，占比${(topCategory.value / thisYearExpense * 100).toStringAsFixed(1)}%',
+        '${topCategory.key}是您的主要${flowIsExpense ? '支出' : '收入'}类别，占比${topPercent.toStringAsFixed(1)}%',
       );
     }
     
@@ -1017,7 +1062,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         return {
           'category': e.key,
           'amount': e.value,
-          'percent': thisYearExpense > 0 ? (e.value / thisYearExpense * 100) : 0.0,
+          'percent': periodTotal > 0 ? (e.value / periodTotal * 100) : 0.0,
         };
       }).toList(),
       'yearOverYearChange': yearOverYearChange,
@@ -1033,8 +1078,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
       'predictionHistoryMonths': robustHistoryMonths,
       'flowIsExpense': flowIsExpense,
       'insights': insights,
-      'thisYearExpense': thisYearExpense,
-      'lastYearExpense': lastYearExpense,
+      'thisYearExpense': periodTotal,
+      'lastYearExpense': lastPeriodTotal,
     };
   }
 
@@ -1762,9 +1807,26 @@ class _AnalysisPageState extends State<AnalysisPage> {
       child: ChartLine(
         entries: entries,
         compareEntries: compareEntries.isEmpty ? null : compareEntries,
-        avgY: avgY > 0 ? avgY : null,
+        // 趋势图不显示“均值”线（周/月/年一致），避免干扰读数
         highlightIndices: anomalyIndices.isEmpty ? null : anomalyIndices,
-        bottomLabelBuilder: (index, entry) => entry.label,
+        bottomLabelBuilder: (index, entry) {
+          switch (_periodType) {
+            case PeriodType.year:
+              final month = index + 1;
+              if (month == 1 || month % 3 == 0) return entry.label;
+              return null;
+            case PeriodType.month:
+              final day = index + 1;
+              final lastDay = entries.length;
+              if (day == 30 && lastDay == 31) return null;
+              if (day == 1 || day % 5 == 0 || day == lastDay) {
+                return day.toString().padLeft(2, '0');
+              }
+              return null;
+            case PeriodType.week:
+              return entry.label;
+          }
+        },
       ),
     );
   }

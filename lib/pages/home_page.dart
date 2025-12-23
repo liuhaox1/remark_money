@@ -141,6 +141,13 @@ class _HomePageState extends State<HomePage> {
 
   double? _maxAmount;
 
+  bool _isHiddenRecordForHomeAndBill(Record record) {
+    final key = record.categoryKey;
+    if (key.startsWith('transfer')) return true;
+    if (key.startsWith('saving-')) return true;
+    return false;
+  }
+
   // 添加新的筛选状态变量
 
   bool? _filterIncomeExpense; // null: 全部, true: 只看收入, false: 只看支出
@@ -1165,7 +1172,7 @@ class _HomePageState extends State<HomePage> {
 
   ) {
 
-    var filtered = records;
+    var filtered = records.where((r) => !_isHiddenRecordForHomeAndBill(r)).toList();
 
 
 
@@ -1462,7 +1469,8 @@ class _HomePageState extends State<HomePage> {
 
   }) {
 
-    var filtered = allRecords;
+    var filtered =
+        allRecords.where((r) => !_isHiddenRecordForHomeAndBill(r)).toList();
 
 
 

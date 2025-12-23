@@ -857,7 +857,7 @@ class RecordProvider extends ChangeNotifier {
     }
   }
 
-  /// 账户间转账：仅调整账户余额，不写入交易记录
+  /// 账户间转账：写入双方流水，但不计入统计（首页/账单不展示）
   Future<void> transfer({
     required AccountProvider accountProvider,
     required String fromAccountId,
@@ -894,16 +894,55 @@ class RecordProvider extends ChangeNotifier {
     }
 
     try {
-      // 仅调整账户余额，不写入交易记录
-      // 资金流动：转出账户扣除转账金额，转入账户增加
-      await accountProvider.adjustBalance(fromAccountId, -amount, bookId: bookId);
-      await accountProvider.adjustBalance(toAccountId, amount, bookId: bookId);
+      // 需要在“资产-流水”中可追溯转账与存款，但不计入首页/账单统计：
+      // - 转出账户：transfer-out（out）
+      // - 转入账户：transfer-in（income）
+      // - 手续费：transfer-fee（out，可选）
+      final now = date ?? DateTime.now();
+      final text = (remark == null || remark.trim().isEmpty) ? '转账' : remark.trim();
+      final pairId = _generateId();
+
+      await addRecord(
+        amount: amount,
+        remark: text,
+        date: now,
+        categoryKey: 'transfer-out',
+        bookId: bookId,
+        accountId: fromAccountId,
+        direction: TransactionDirection.out,
+        includeInStats: false,
+        pairId: pairId,
+        accountProvider: accountProvider,
+      );
+
+      await addRecord(
+        amount: amount,
+        remark: text,
+        date: now,
+        categoryKey: 'transfer-in',
+        bookId: bookId,
+        accountId: toAccountId,
+        direction: TransactionDirection.income,
+        includeInStats: false,
+        pairId: pairId,
+        accountProvider: accountProvider,
+      );
+
       if (fee > 0) {
-        // 手续费只扣减，不计入交易
-        await accountProvider.adjustBalance(fromAccountId, -fee, bookId: bookId);
+        await addRecord(
+          amount: fee,
+          remark: '手续费',
+          date: now,
+          categoryKey: 'transfer-fee',
+          bookId: bookId,
+          accountId: fromAccountId,
+          direction: TransactionDirection.out,
+          includeInStats: false,
+          pairId: pairId,
+          accountProvider: accountProvider,
+        );
       }
-      // 同步版本号（记录未写入，手动更新）
-      await DataVersionService.incrementVersion(bookId);
+
       return;
     } catch (e, stackTrace) {
       ErrorHandler.logError('RecordProvider.transfer', e, stackTrace);

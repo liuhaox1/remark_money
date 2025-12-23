@@ -164,6 +164,7 @@ class ChartLine extends StatelessWidget {
                       day == 15 || 
                       day == 20 || 
                       day == 25 || 
+                      (day == 30 && entries.length == 30) ||
                       day == entries.length || // 显示最后一天
                       (entries.length <= 7 && day <= entries.length)) {
                     return Text(
