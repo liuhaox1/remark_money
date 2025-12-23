@@ -31,6 +31,8 @@ class AnalysisPage extends StatefulWidget {
 class _AnalysisPageState extends State<AnalysisPage> {
   int _selectedYear = DateTime.now().year;
   PeriodType _periodType = PeriodType.month;
+  _FlowMetric _flowMetric = _FlowMetric.expense;
+  final GlobalKey _flowSelectorKey = GlobalKey();
 
   bool _isCountedRecord(Record record) {
     if (!record.includeInStats) return false;
@@ -69,7 +71,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     required int categorySignature,
   }) {
     final key =
-        '$bookId:${_selectedYear}:${_periodType.name}:$recordChangeCounter:$categorySignature';
+        '$bookId:${_selectedYear}:${_periodType.name}:${_flowMetric.name}:$recordChangeCounter:$categorySignature';
     if (_deepAnalysisKey == key && _deepAnalysisFuture != null) return;
     _deepAnalysisKey = key;
     _deepAnalysisFuture = _loadDeepAnalysis(
@@ -77,8 +79,103 @@ class _AnalysisPageState extends State<AnalysisPage> {
       bookId,
       _selectedYear,
       _periodType,
+      _flowMetric,
       categoryProvider,
     );
+  }
+
+  Future<void> _openFlowSelector() async {
+    final ctx = _flowSelectorKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final offset = box.localToGlobal(Offset.zero);
+    final size = box.size;
+
+    final selected = await showDialog<_FlowMetric>(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.35),
+      builder: (dialogContext) {
+        final cs = Theme.of(dialogContext).colorScheme;
+        final tt = Theme.of(dialogContext).textTheme;
+        Widget item({
+          required _FlowMetric value,
+          required IconData icon,
+          required String title,
+        }) {
+          final isSelected = value == _flowMetric;
+          return InkWell(
+            onTap: () => Navigator.of(dialogContext).pop(value),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(icon, size: 18, color: cs.onSurface.withOpacity(0.75)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: tt.bodyMedium?.copyWith(
+                        color: cs.onSurface.withOpacity(0.9),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (isSelected)
+                    Icon(Icons.check_rounded, color: cs.primary, size: 20),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(dialogContext).pop(),
+          child: Material(
+            color: Colors.transparent,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  top: offset.dy + size.height + 8,
+                  child: Material(
+                    color: cs.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        item(
+                          value: _FlowMetric.expense,
+                          icon: Icons.south_rounded,
+                          title: '支出',
+                        ),
+                        Divider(height: 1, color: cs.outlineVariant.withOpacity(0.35)),
+                        item(
+                          value: _FlowMetric.income,
+                          icon: Icons.north_rounded,
+                          title: '收入',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selected == null) return;
+    if (selected == _flowMetric) return;
+    setState(() {
+      _flowMetric = selected;
+      // 强制刷新深度分析
+      _deepAnalysisKey = null;
+      _deepAnalysisFuture = null;
+    });
   }
 
   @override
@@ -232,6 +329,41 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
+                            Center(
+                              child: InkWell(
+                                key: _flowSelectorKey,
+                                borderRadius: BorderRadius.circular(999),
+                                onTap: _openFlowSelector,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _flowMetric == _FlowMetric.expense
+                                            ? '支出'
+                                            : '收入',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.arrow_drop_down_rounded,
+                                        size: 20,
+                                        color: cs.onSurface.withOpacity(0.7),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                             SegmentedButton<PeriodType>(
                               segments: const [
                                 ButtonSegment(
@@ -590,6 +722,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     String bookId,
     int year,
     PeriodType periodType,
+    _FlowMetric flowMetric,
     CategoryProvider categoryProvider,
   ) async {
     final now = DateTime.now();
@@ -614,6 +747,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
     final filteredLastYearRecords =
         lastYearRecords.where(_isCountedRecord).toList();
+
+    final flowIsExpense = flowMetric == _FlowMetric.expense;
     
     // 根据 periodType 生成趋势数据
     final trendData = <Map<String, dynamic>>[];
@@ -643,7 +778,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
             await recordProvider.getMonthStatsAsync(lastYearMonthDate, bookId);
         compareTrendData.add({
           'label': '$month月',
-          'expense': math.max(0.0, lastStats.expense),
+          'value': flowIsExpense
+              ? math.max(0.0, lastStats.expense)
+              : math.max(0.0, lastStats.income),
         });
       }
     } else if (periodType == PeriodType.month) {
@@ -717,7 +854,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     
     // 计算分类数据（按展示名称聚合，避免出现“未分类”或未知key）
     final categoryMap = <String, double>{};
-    for (final record in yearRecords.where((r) => r.isExpense)) {
+    for (final record
+        in filteredYearRecords.where((r) => flowIsExpense ? r.isExpense : r.isIncome)) {
       final rawKey = record.categoryKey;
       // 排除不计入统计的记录（如转账、标记不统计的记录）
       if (!record.includeInStats) continue;
@@ -739,10 +877,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     
     // 计算同比数据
     final thisYearExpense = filteredYearRecords
-        .where((r) => r.isExpense)
+        .where((r) => flowIsExpense ? r.isExpense : r.isIncome)
         .fold<double>(0, (sum, r) => sum + r.amount);
     final lastYearExpense = filteredLastYearRecords
-        .where((r) => r.isExpense)
+        .where((r) => flowIsExpense ? r.isExpense : r.isIncome)
         .fold<double>(0, (sum, r) => sum + r.amount);
     final yearOverYearChange = lastYearExpense > 0 
         ? ((thisYearExpense - lastYearExpense) / lastYearExpense * 100)
@@ -750,7 +888,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     
     // 计算月度平均：只按「有记录的月份」计算，避免新用户/数据稀疏时被 12 个月平均拉得过低
     final expenseByMonth = <int, double>{};
-    for (final r in filteredYearRecords.where((r) => r.isExpense)) {
+    for (final r in filteredYearRecords
+        .where((r) => flowIsExpense ? r.isExpense : r.isIncome)) {
       expenseByMonth[r.date.month] = (expenseByMonth[r.date.month] ?? 0) + r.amount;
     }
     final monthsWithExpense = expenseByMonth.length;
@@ -766,7 +905,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final currentMonthRecords = yearRecords.where((r) => 
       r.date.isAfter(currentMonthStart.subtract(const Duration(days: 1))) &&
       r.date.isBefore(currentMonthEnd.add(const Duration(days: 1))) &&
-      r.isExpense
+      (flowIsExpense ? r.isExpense : r.isIncome)
     ).toList();
     final filteredCurrentMonthRecords =
         currentMonthRecords.where(_isCountedRecord).toList();
@@ -801,7 +940,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       // 只统计计入统计的支出记录。
       final allForHistory = <Record>[...yearRecords, ...lastYearRecords]
           .where(_isCountedRecord)
-          .where((r) => r.isExpense)
+          .where((r) => flowIsExpense ? r.isExpense : r.isIncome)
           .toList();
 
       DateTime cursor = DateTime(currentMonth.year, currentMonth.month, 1);
@@ -847,18 +986,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
     // 生成洞察
     final insights = <String>[];
     if (yearOverYearChange > 10) {
-      insights.add('本年支出比去年增加${yearOverYearChange.toStringAsFixed(1)}%，建议控制支出');
+      insights.add(
+        '本年${flowIsExpense ? '支出' : '收入'}比去年增加${yearOverYearChange.toStringAsFixed(1)}%'
+        '${flowIsExpense ? '，建议控制支出' : ''}',
+      );
     } else if (yearOverYearChange < -10) {
-      insights.add('本年支出比去年减少${yearOverYearChange.abs().toStringAsFixed(1)}%，继续保持');
+      insights.add(
+        '本年${flowIsExpense ? '支出' : '收入'}比去年减少${yearOverYearChange.abs().toStringAsFixed(1)}%'
+        '${flowIsExpense ? '，继续保持' : ''}',
+      );
     }
     
     if (categoryList.isNotEmpty) {
       final topCategory = categoryList.first;
-      insights.add('${topCategory.key}是您的主要支出类别，占比${(topCategory.value / thisYearExpense * 100).toStringAsFixed(1)}%');
+      insights.add(
+        '${topCategory.key}是您的主要${flowIsExpense ? '支出' : '收入'}类别，占比${(topCategory.value / thisYearExpense * 100).toStringAsFixed(1)}%',
+      );
     }
     
     if (currentMonthExpense > avgMonthlyExpense * 1.2) {
-      insights.add('本月支出已超过月均支出20%，建议控制');
+      insights.add(flowIsExpense
+          ? '本月支出已超过月均支出20%，建议控制'
+          : '本月收入已超过月均收入20%');
     }
     
     return {
@@ -882,6 +1031,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       'predictionMethod': predictionMethod,
       'predictionLowConfidence': predictionLowConfidence,
       'predictionHistoryMonths': robustHistoryMonths,
+      'flowIsExpense': flowIsExpense,
       'insights': insights,
       'thisYearExpense': thisYearExpense,
       'lastYearExpense': lastYearExpense,
@@ -907,18 +1057,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
     if (trendData.isEmpty) return const SizedBox.shrink();
     final compareTrendData =
         data['compareTrendData'] as List<Map<String, dynamic>>? ?? [];
+    final flowIsExpense = data['flowIsExpense'] as bool? ?? true;
 
-    final totalIncome = trendData.fold<double>(
+    final totalValue = trendData.fold<double>(
       0.0,
-      (sum, item) => sum + (item['income'] as double? ?? 0.0),
-    );
-    final totalExpense = trendData.fold<double>(
-      0.0,
-      (sum, item) => sum + (item['expense'] as double? ?? 0.0),
+      (sum, item) =>
+          sum +
+          (flowIsExpense
+              ? (item['expense'] as double? ?? 0.0)
+              : (item['income'] as double? ?? 0.0)),
     );
     final units = trendData.isEmpty ? 1 : trendData.length;
-    final avgIncome = totalIncome / units;
-    final avgExpense = totalExpense / units;
+    final avgValue = totalValue / units;
     final unitLabel = _periodType == PeriodType.year ? '月' : '天';
       
     return Card(
@@ -933,7 +1083,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 Icon(Icons.trending_up, color: cs.primary, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  '支出趋势',
+                  flowIsExpense ? '支出趋势' : '收入趋势',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: cs.onSurface,
@@ -943,7 +1093,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             ),
             const SizedBox(height: 10),
             Text(
-              '总支出：${totalExpense.toStringAsFixed(2)}    总收入：${totalIncome.toStringAsFixed(2)}',
+              '${flowIsExpense ? '总支出' : '总收入'}：${totalValue.toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 12,
                     color: cs.onSurface.withOpacity(0.65),
@@ -952,7 +1102,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             ),
             const SizedBox(height: 2),
             Text(
-              '平均值：支出 ${avgExpense.toStringAsFixed(2)}/$unitLabel    收入 ${avgIncome.toStringAsFixed(2)}/$unitLabel',
+              '平均值：${avgValue.toStringAsFixed(2)}/$unitLabel',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 12,
                     color: cs.onSurface.withOpacity(0.65),
@@ -962,7 +1112,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             const SizedBox(height: 12),
             SizedBox(
               height: 200,
-              child: _buildTrendChart(trendData, compareTrendData, cs),
+              child: _buildTrendChart(trendData, compareTrendData, cs, flowIsExpense),
             ),
           ],
         ),
@@ -1130,6 +1280,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   Widget _buildPredictionCard(ColorScheme cs, Map<String, dynamic> data) {
     final predictionAvailable = data['predictionAvailable'] as bool? ?? true;
     if (!predictionAvailable) return const SizedBox.shrink();
+    final flowIsExpense = data['flowIsExpense'] as bool? ?? true;
 
     final predictedMonthExpense = data['predictedMonthExpense'] as double? ?? 0.0;
     final predictedMonthExpenseLow =
@@ -1185,7 +1336,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '本月已支出',
+                      flowIsExpense ? '本月已支出' : '本月已收入',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 12,
                         color: cs.onSurface.withOpacity(0.7),
@@ -1206,7 +1357,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '预计本月支出',
+                      flowIsExpense ? '预计本月支出' : '预计本月收入',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 12,
                         color: cs.onSurface.withOpacity(0.7),
@@ -1283,8 +1434,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       Expanded(
                         child: Text(
                           diffPercent > 0
-                              ? '预计本月支出将比近$monthsWithExpense个月均高出${diffPercent.toStringAsFixed(1)}%，建议控制支出'
-                              : '预计本月支出将比近$monthsWithExpense个月均低${diffPercent.abs().toStringAsFixed(1)}%，继续保持',
+                              ? '预计本月${flowIsExpense ? '支出' : '收入'}将比近$monthsWithExpense个月均高出${diffPercent.toStringAsFixed(1)}%'
+                                  '${flowIsExpense ? '，建议控制支出' : ''}'
+                              : '预计本月${flowIsExpense ? '支出' : '收入'}将比近$monthsWithExpense个月均低${diffPercent.abs().toStringAsFixed(1)}%'
+                                  '${flowIsExpense ? '，继续保持' : ''}',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontSize: 12,
                             color: cs.onSurface.withOpacity(0.8),
@@ -1539,6 +1692,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     List<Map<String, dynamic>> data,
     List<Map<String, dynamic>> compareData,
     ColorScheme cs,
+    bool flowIsExpense,
   ) {
     if (data.isEmpty) {
       return Center(
@@ -1555,7 +1709,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
         .map(
           (e) => ChartEntry(
             label: (e['label'] as String?) ?? '',
-            value: (e['expense'] as num?)?.toDouble() ?? 0.0,
+            value: (flowIsExpense
+                    ? (e['expense'] as num?)
+                    : (e['income'] as num?))
+                ?.toDouble() ??
+                0.0,
             color: cs.primary,
           ),
         )
@@ -1565,7 +1723,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         .map(
           (e) => ChartEntry(
             label: (e['label'] as String?) ?? '',
-            value: (e['expense'] as num?)?.toDouble() ?? 0.0,
+            value: (e['value'] as num?)?.toDouble() ?? 0.0,
             color: cs.outline,
           ),
         )
@@ -1611,6 +1769,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 }
+
+enum _FlowMetric { expense, income }
 
 class _HeaderCard extends StatelessWidget {
   const _HeaderCard({
