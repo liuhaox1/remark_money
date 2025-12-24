@@ -511,6 +511,11 @@ class RecordProvider extends ChangeNotifier {
     );
   }
 
+  /// 获取指定账本的全部记录（包含不计入统计的转账/存款等）
+  List<Record> recordsForBookAll(String bookId) {
+    return List<Record>.from(_recentRecordsCache.where((r) => r.bookId == bookId));
+  }
+
   /// 异步方法：获取指定账本的记录（使用数据库查询）
   Future<List<Record>> recordsForBookAsync(String bookId) async {
     if (_isUsingDatabase) {
@@ -522,6 +527,20 @@ class RecordProvider extends ChangeNotifier {
       );
     } else {
       return recordsForBook(bookId);
+    }
+  }
+
+  /// 异步方法：获取指定账本的全部记录（包含不计入统计的转账/存款等）
+  Future<List<Record>> recordsForBookAllAsync(String bookId) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.queryRecordsForPeriod(
+        bookId: bookId,
+        start: DateTime(1970, 1, 1),
+        end: DateTime.now().add(const Duration(days: 365)),
+      );
+    } else {
+      return recordsForBookAll(bookId);
     }
   }
 
@@ -582,6 +601,20 @@ class RecordProvider extends ChangeNotifier {
         .toList();
   }
 
+  /// 同步方法：获取指定时间段的全部记录（包含不计入统计的转账/存款等）
+  List<Record> recordsForPeriodAll(
+    String bookId, {
+    required DateTime start,
+    required DateTime end,
+  }) {
+    return _recentRecordsCache
+        .where((r) =>
+            r.bookId == bookId &&
+            !r.date.isBefore(start) &&
+            !r.date.isAfter(end))
+        .toList();
+  }
+
   /// 异步方法：获取指定时间段的记录（使用数据库查询）
   Future<List<Record>> recordsForPeriodAsync(
     String bookId, {
@@ -597,6 +630,24 @@ class RecordProvider extends ChangeNotifier {
       );
     } else {
       return recordsForPeriod(bookId, start: start, end: end);
+    }
+  }
+
+  /// 异步方法：获取指定时间段的全部记录（包含不计入统计的转账/存款等）
+  Future<List<Record>> recordsForPeriodAllAsync(
+    String bookId, {
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    if (_isUsingDatabase) {
+      final dbRepo = _repository as dynamic;
+      return await dbRepo.queryRecordsForPeriod(
+        bookId: bookId,
+        start: start,
+        end: end,
+      );
+    } else {
+      return recordsForPeriodAll(bookId, start: start, end: end);
     }
   }
 

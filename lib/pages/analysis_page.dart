@@ -1796,9 +1796,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       return anomalies;
     }
 
-    final values = entries.map((e) => math.max(0.0, e.value)).toList();
-    final avgY =
-        values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+    // 不展示均值线，仅保留异常点高亮
     final anomalyIndices = findAnomalyIndices(entries);
 
     return SizedBox(
@@ -1807,7 +1805,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       child: ChartLine(
         entries: entries,
         compareEntries: compareEntries.isEmpty ? null : compareEntries,
-        // 趋势图不显示“均值”线（周/月/年一致），避免干扰读数
         highlightIndices: anomalyIndices.isEmpty ? null : anomalyIndices,
         bottomLabelBuilder: (index, entry) {
           switch (_periodType) {
