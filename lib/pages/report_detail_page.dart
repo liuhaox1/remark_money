@@ -375,6 +375,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         final activity = data['activity'] as _PeriodActivity? ?? _PeriodActivity(recordCount: 0, activeDays: 0, streak: 0);
         
         return FutureBuilder<List<List<ChartEntry>>>(
+          key: ValueKey<_CompareMode>(_compareMode),
           future: Future.wait([
             _buildDailyEntriesAsync(recordProvider, bookId),
             _buildCompareEntriesAsync(recordProvider, bookId),
@@ -827,47 +828,37 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                                               ),
 
                                               SizedBox(
- 
-                                                width: 100,
- 
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                                  children: [
-                                                    Text(
-                                                      _formatAmount(entry.value),
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .bodyMedium
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color: cs.onSurface,
-                                                          ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      textAlign: TextAlign.right,
-                                                    ),
-                                                    const SizedBox(height: 2),
-                                                    Text(
-                                                      '(${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .bodySmall
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.normal,
-                                                            color: cs.onSurface
-                                                                .withOpacity(0.7),
-                                                          ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      textAlign: TextAlign.right,
-                                                    ),
-                                                  ],
+                                                width: 130,
+                                                child: Text.rich(
+                                                  TextSpan(
+                                                    children: [
+                                                      TextSpan(
+                                                        text: _formatAmount(entry.value),
+                                                        style: Theme.of(context)
+                                                            .textTheme
+                                                            .bodyMedium
+                                                            ?.copyWith(
+                                                              fontWeight: FontWeight.normal,
+                                                              color: cs.onSurface,
+                                                            ),
+                                                      ),
+                                                      TextSpan(
+                                                        text:
+                                                            ' (${(totalExpenseValue == 0 ? 0 : entry.value / totalExpenseValue * 100).toStringAsFixed(1)}%)',
+                                                        style: Theme.of(context)
+                                                            .textTheme
+                                                            .bodySmall
+                                                            ?.copyWith(
+                                                              fontWeight: FontWeight.normal,
+                                                              color: cs.onSurface.withOpacity(0.7),
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  textAlign: TextAlign.right,
                                                 ),
- 
                                               ),
 
                                             ],
@@ -1516,6 +1507,43 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return _weekIndexForYear(lastStart, year);
   }
 
+  DateTimeRange? _compareRangeFor(DateTimeRange currentRange, _CompareMode mode) {
+    if (_isYearMode) return null;
+
+    if (_isMonthMode) {
+      final month = widget.month ?? DateTime.now().month;
+      if (mode == _CompareMode.samePeriodLastYear) {
+        final start = DateTime(widget.year - 1, month, 1);
+        final end = DateTime(widget.year - 1, month + 1, 0);
+        return DateTimeRange(start: start, end: end);
+      }
+
+      final start =
+          DateTime(currentRange.start.year, currentRange.start.month - 1, 1);
+      final end = DateTime(start.year, start.month + 1, 0);
+      return DateTimeRange(start: start, end: end);
+    }
+
+    // week mode
+    if (mode == _CompareMode.samePeriodLastYear) {
+      final currentStart = DateUtilsX.startOfWeek(currentRange.start);
+      final weekIndex = _weekIndexForYear(currentStart, widget.year);
+      final maxLastYear = _maxWeekIndexForYear(widget.year - 1);
+      final clampedIndex = weekIndex.clamp(1, maxLastYear);
+      final start = _weekStartForIndex(clampedIndex, widget.year - 1);
+      return DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
+    }
+
+    final start =
+        DateUtilsX.startOfWeek(currentRange.start).subtract(const Duration(days: 7));
+    return DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
+  }
+
+  DateTimeRange? _compareRangeForCurrentPeriod([_CompareMode? mode]) {
+    final currentRange = _periodRange();
+    return _compareRangeFor(currentRange, mode ?? _compareMode);
+  }
+
 
 
   void _openBillDetail(
@@ -1748,15 +1776,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     }
 
     final currentRange = _periodRange();
-    final currentStart = DateUtilsX.startOfWeek(currentRange.start);
-    final weekIndex = _weekIndexForYear(currentStart, widget.year);
-    final maxLastYear = _maxWeekIndexForYear(widget.year - 1);
-    final clampedIndex = weekIndex.clamp(1, maxLastYear);
-    final lastYearStart = _weekStartForIndex(clampedIndex, widget.year - 1);
-    final lastYearRange = DateTimeRange(
-      start: lastYearStart,
-      end: lastYearStart.add(const Duration(days: 6)),
-    );
+    final lastYearRange =
+        _compareRangeFor(currentRange, _CompareMode.samePeriodLastYear)!;
     final expense = await recordProvider.periodExpense(
       bookId: bookId,
       start: lastYearRange.start,
@@ -1976,36 +1997,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     if (_isYearMode) return const <ChartEntry>[];
 
     final currentRange = _periodRange();
-    DateTimeRange compareRange;
-
-    if (_compareMode == _CompareMode.samePeriodLastYear) {
-      if (_isMonthMode) {
-        final month = widget.month ?? DateTime.now().month;
-        final start = DateTime(widget.year - 1, month, 1);
-        final end = DateTime(widget.year - 1, month + 1, 0);
-        compareRange = DateTimeRange(start: start, end: end);
-      } else {
-        final currentStart = DateUtilsX.startOfWeek(currentRange.start);
-        final weekIndex = _weekIndexForYear(currentStart, widget.year);
-        final maxLastYear = _maxWeekIndexForYear(widget.year - 1);
-        final clampedIndex = weekIndex.clamp(1, maxLastYear);
-        final start = _weekStartForIndex(clampedIndex, widget.year - 1);
-        compareRange = DateTimeRange(
-          start: start,
-          end: start.add(const Duration(days: 6)),
-        );
-      }
-    } else {
-      if (_isMonthMode) {
-        final start = DateTime(currentRange.start.year, currentRange.start.month - 1, 1);
-        final end = DateTime(start.year, start.month + 1, 0);
-        compareRange = DateTimeRange(start: start, end: end);
-      } else {
-        final start =
-            DateUtilsX.startOfWeek(currentRange.start).subtract(const Duration(days: 7));
-        compareRange = DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
-      }
-    }
+    final compareRange = _compareRangeFor(currentRange, _compareMode);
+    if (compareRange == null) return const <ChartEntry>[];
 
     DateTime start = currentRange.start;
     DateTime end = currentRange.end;
@@ -2126,6 +2119,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     final compareLabel =
         _compareMode == _CompareMode.samePeriodLastYear ? '去年同期' : '上期';
+    final compareRange = _compareRangeForCurrentPeriod();
+    final compareRangeText = compareRange == null
+        ? null
+        : '${DateUtilsX.ymd(compareRange.start)} ~ ${DateUtilsX.ymd(compareRange.end)}';
 
     
 
@@ -2376,6 +2373,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             ],
           ],
         ),
+        if (compareEntries.isNotEmpty && compareRangeText != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            '对比时段：$compareLabel  $compareRangeText',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurface.withOpacity(0.55),
+                ),
+          ),
+        ],
         const SizedBox(height: 8),
 
         // 图表：年模式不需要横向滚动，月/周模式需要
@@ -2868,8 +2874,10 @@ class _PeriodHeaderCard extends StatelessWidget {
                 ),
               ],
               selected: {compareMode},
-              onSelectionChanged: (value) =>
-                  onCompareModeChanged?.call(value.first),
+              onSelectionChanged: (value) {
+                if (value.isEmpty) return;
+                onCompareModeChanged?.call(value.single);
+              },
             ),
             const SizedBox(height: 12),
           ],
@@ -3041,9 +3049,9 @@ class _PeriodHeaderCard extends StatelessWidget {
     }
 
     if (!hasComparison || balanceDiff == null) {
-
-      return AppStrings.previousPeriodNoData;
-
+      return compareMode == _CompareMode.samePeriodLastYear
+          ? '去年同期暂无数据'
+          : AppStrings.previousPeriodNoData;
     }
 
     final verb = balanceDiff! >= 0 ? '增加' : '减少';
