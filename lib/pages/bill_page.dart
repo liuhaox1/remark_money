@@ -731,9 +731,19 @@ class _BillPageState extends State<BillPage> {
         ? _weekIndexForYear(DateUtilsX.startOfWeek(now), year)
         : _maxWeekIndexForYear(year);
 
-    final startIndex = (selectedIndex - 4).clamp(1, maxIndex);
+    const windowSize = 5;
+    var startIndex = selectedIndex - (windowSize ~/ 2);
+    var endIndex = startIndex + windowSize - 1;
+    if (startIndex < 1) {
+      startIndex = 1;
+      endIndex = (startIndex + windowSize - 1).clamp(1, maxIndex);
+    }
+    if (endIndex > maxIndex) {
+      endIndex = maxIndex;
+      startIndex = (endIndex - windowSize + 1).clamp(1, maxIndex);
+    }
     final indices = <int>[
-      for (var i = startIndex; i <= selectedIndex; i++) i,
+      for (var i = startIndex; i <= endIndex; i++) i,
     ].where((i) => i >= 1 && i <= maxIndex).toList();
 
     return SingleChildScrollView(
@@ -3952,7 +3962,7 @@ class _BillSearchBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: cs.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: cs.outline.withOpacity(0.2),
             width: 1,

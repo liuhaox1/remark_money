@@ -1499,6 +1499,23 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   }
 
+  int _weekIndexForYear(DateTime start, int year) {
+    final normalizedStart = DateUtilsX.startOfWeek(start);
+    final first = DateUtilsX.startOfWeek(DateTime(year, 1, 1));
+    final diff = normalizedStart.difference(first).inDays;
+    return (diff ~/ 7) + 1;
+  }
+
+  DateTime _weekStartForIndex(int weekIndex, int year) {
+    final first = DateUtilsX.startOfWeek(DateTime(year, 1, 1));
+    return first.add(Duration(days: (weekIndex - 1) * 7));
+  }
+
+  int _maxWeekIndexForYear(int year) {
+    final lastStart = DateUtilsX.startOfWeek(DateTime(year, 12, 31));
+    return _weekIndexForYear(lastStart, year);
+  }
+
 
 
   void _openBillDetail(
@@ -1731,8 +1748,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     }
 
     final currentRange = _periodRange();
-    final lastYearStart = DateUtilsX.startOfWeek(
-        currentRange.start.subtract(const Duration(days: 364)));
+    final currentStart = DateUtilsX.startOfWeek(currentRange.start);
+    final weekIndex = _weekIndexForYear(currentStart, widget.year);
+    final maxLastYear = _maxWeekIndexForYear(widget.year - 1);
+    final clampedIndex = weekIndex.clamp(1, maxLastYear);
+    final lastYearStart = _weekStartForIndex(clampedIndex, widget.year - 1);
     final lastYearRange = DateTimeRange(
       start: lastYearStart,
       end: lastYearStart.add(const Duration(days: 6)),
@@ -1965,9 +1985,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         final end = DateTime(widget.year - 1, month + 1, 0);
         compareRange = DateTimeRange(start: start, end: end);
       } else {
-        final start = DateUtilsX.startOfWeek(
-          currentRange.start.subtract(const Duration(days: 364)),
-        );
+        final currentStart = DateUtilsX.startOfWeek(currentRange.start);
+        final weekIndex = _weekIndexForYear(currentStart, widget.year);
+        final maxLastYear = _maxWeekIndexForYear(widget.year - 1);
+        final clampedIndex = weekIndex.clamp(1, maxLastYear);
+        final start = _weekStartForIndex(clampedIndex, widget.year - 1);
         compareRange = DateTimeRange(
           start: start,
           end: start.add(const Duration(days: 6)),
@@ -2834,6 +2856,7 @@ class _PeriodHeaderCard extends StatelessWidget {
 
           if (onCompareModeChanged != null) ...[
             SegmentedButton<_CompareMode>(
+              showSelectedIcon: false,
               segments: const [
                 ButtonSegment(
                   value: _CompareMode.previousPeriod,
