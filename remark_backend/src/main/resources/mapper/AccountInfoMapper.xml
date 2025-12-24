@@ -22,6 +22,7 @@
     <result property="dueDate" column="due_date"/>
     <result property="note" column="note"/>
     <result property="brandKey" column="brand_key"/>
+    <result property="isDelete" column="is_delete"/>
     <result property="updateTime" column="update_time"/>
     <result property="createdAt" column="created_at"/>
   </resultMap>
@@ -56,7 +57,9 @@
   </select>
 
   <select id="findAllByUserId" resultMap="AccountInfoResultMap">
-    SELECT * FROM account_info WHERE user_id = #{userId} ORDER BY sort_order ASC, id ASC
+    SELECT * FROM account_info
+    WHERE user_id = #{userId} AND is_delete = 0
+    ORDER BY sort_order ASC, id ASC
   </select>
 
   <delete id="deleteByUserIdAndAccountIdsNotIn">
@@ -69,28 +72,40 @@
       </foreach>
   </delete>
 
+  <update id="softDeleteById">
+    UPDATE account_info
+    SET is_delete = 1, update_time = NOW()
+    WHERE user_id = #{userId} AND id = #{id}
+  </update>
+
+  <update id="softDeleteByAccountId">
+    UPDATE account_info
+    SET is_delete = 1, update_time = NOW()
+    WHERE user_id = #{userId} AND account_id = #{accountId}
+  </update>
+
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
                             include_in_total, include_in_overview, currency, sort_order,
                             initial_balance, current_balance, counterparty, interest_rate,
-                            due_date, note, brand_key, update_time, created_at)
+                            due_date, note, brand_key, is_delete, update_time, created_at)
     VALUES (#{userId}, #{accountId}, #{name}, #{kind}, #{subtype}, #{type}, #{icon},
             #{includeInTotal}, #{includeInOverview}, #{currency}, #{sortOrder},
             #{initialBalance}, #{currentBalance}, #{counterparty}, #{interestRate},
-            #{dueDate}, #{note}, #{brandKey}, NOW(), NOW())
+            #{dueDate}, #{note}, #{brandKey}, #{isDelete}, NOW(), NOW())
   </insert>
 
   <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
                             include_in_total, include_in_overview, currency, sort_order,
                             initial_balance, current_balance, counterparty, interest_rate,
-                            due_date, note, brand_key, update_time, created_at)
+                            due_date, note, brand_key, is_delete, update_time, created_at)
     VALUES
     <foreach collection="list" item="item" separator=",">
       (#{item.userId}, #{item.accountId}, #{item.name}, #{item.kind}, #{item.subtype}, #{item.type}, #{item.icon},
        #{item.includeInTotal}, #{item.includeInOverview}, #{item.currency}, #{item.sortOrder},
        #{item.initialBalance}, #{item.currentBalance}, #{item.counterparty}, #{item.interestRate},
-       #{item.dueDate}, #{item.note}, #{item.brandKey}, NOW(), NOW())
+       #{item.dueDate}, #{item.note}, #{item.brandKey}, #{item.isDelete}, NOW(), NOW())
     </foreach>
   </insert>
 
@@ -112,6 +127,7 @@
       due_date = #{dueDate},
       note = #{note},
       brand_key = #{brandKey},
+      is_delete = #{isDelete},
       update_time = NOW()
     WHERE id = #{id} AND user_id = #{userId}
   </update>
@@ -215,6 +231,12 @@
           WHEN #{item.id} THEN #{item.brandKey}
         </foreach>
         ELSE brand_key
+      END,
+      is_delete = CASE id
+        <foreach collection="list" item="item">
+          WHEN #{item.id} THEN #{item.isDelete}
+        </foreach>
+        ELSE is_delete
       END,
       update_time = NOW()
     WHERE user_id = #{userId}

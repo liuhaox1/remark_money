@@ -101,6 +101,9 @@ public class SyncService {
 
     for (AccountInfo account : accounts) {
       account.setUserId(userId);
+      if (account.getIsDelete() == null) {
+        account.setIsDelete(0);
+      }
 
       AccountInfo existing = null;
       if (account.getId() != null) {
@@ -136,9 +139,8 @@ public class SyncService {
 
     // 账户同步约定：客户端在 accounts_changed 时上传全量账户列表。
     // 服务端应删除（硬删）不在本次全量列表中的旧账户，避免“删完又回来”。
-    if (!incomingAccountIds.isEmpty()) {
-      accountInfoMapper.deleteByUserIdAndAccountIdsNotIn(userId, incomingAccountIds);
-    }
+    // IMPORTANT: do NOT hard-delete "missing" accounts based on a potentially partial client list.
+    // Deletions must be explicit (tombstone) to avoid irreversible data loss.
 
     return AccountSyncResult.success(processed);
   }
@@ -152,6 +154,32 @@ public class SyncService {
       return AccountSyncResult.error(permissionError.getMessage());
     }
 
+    List<AccountInfo> accounts = accountInfoMapper.findAllByUserId(userId);
+    return AccountSyncResult.success(accounts);
+  }
+
+  @Transactional
+  public AccountSyncResult deleteAccounts(Long userId, List<Long> serverIds, List<String> accountIds) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return AccountSyncResult.error(permissionError.getMessage());
+    }
+
+    int affected = 0;
+    if (serverIds != null) {
+      for (Long id : serverIds) {
+        if (id == null || id <= 0) continue;
+        affected += accountInfoMapper.softDeleteById(userId, id);
+      }
+    }
+    if (accountIds != null) {
+      for (String aid : accountIds) {
+        if (aid == null || aid.trim().isEmpty()) continue;
+        affected += accountInfoMapper.softDeleteByAccountId(userId, aid);
+      }
+    }
+
+    // return latest server view (non-deleted) for client reconciliation if needed
     List<AccountInfo> accounts = accountInfoMapper.findAllByUserId(userId);
     return AccountSyncResult.success(accounts);
   }

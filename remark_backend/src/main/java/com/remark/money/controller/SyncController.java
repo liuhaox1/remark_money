@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -52,10 +53,62 @@ public class SyncController {
       List<Map<String, Object>> accountsData =
           (List<Map<String, Object>>) request.get("accounts");
 
-      List<AccountInfo> accounts =
-          accountsData.stream().map(this::mapToAccountInfo).collect(Collectors.toList());
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> deletedAccountsData =
+          (List<Map<String, Object>>) request.get("deletedAccounts");
 
-      SyncService.AccountSyncResult result = syncService.uploadAccounts(userId, accounts);
+      List<Long> deletedServerIds = null;
+      List<String> deletedAccountIds = null;
+      if (deletedAccountsData != null && !deletedAccountsData.isEmpty()) {
+        deletedServerIds = deletedAccountsData.stream()
+            .map(m -> m.get("serverId"))
+            .filter(v -> v instanceof Number)
+            .map(v -> ((Number) v).longValue())
+            .collect(Collectors.toList());
+        deletedAccountIds = deletedAccountsData.stream()
+            .map(m -> m.get("id"))
+            .filter(v -> v instanceof String)
+            .map(v -> ((String) v).trim())
+            .filter(v -> !v.isEmpty())
+            .collect(Collectors.toList());
+      }
+
+      SyncService.AccountSyncResult result;
+      if (accountsData == null) {
+        accountsData = Collections.emptyList();
+      }
+
+      if (accountsData.isEmpty()
+          && (deletedServerIds == null || deletedServerIds.isEmpty())
+          && (deletedAccountIds == null || deletedAccountIds.isEmpty())) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("error", "missing accounts");
+        return ResponseEntity.badRequest().body(response);
+      }
+
+      if (deletedServerIds != null || deletedAccountIds != null) {
+        // Apply explicit deletions first (soft delete), then upsert remaining accounts.
+        SyncService.AccountSyncResult del =
+            syncService.deleteAccounts(userId, deletedServerIds, deletedAccountIds);
+        if (!del.isSuccess()) {
+          Map<String, Object> response = new HashMap<>();
+          response.put("success", false);
+          response.put("error", del.getError());
+          return ResponseEntity.badRequest().body(response);
+        }
+        if (accountsData.isEmpty()) {
+          result = del;
+        } else {
+          List<AccountInfo> accounts =
+              accountsData.stream().map(this::mapToAccountInfo).collect(Collectors.toList());
+          result = syncService.uploadAccounts(userId, accounts);
+        }
+      } else {
+        List<AccountInfo> accounts =
+            accountsData.stream().map(this::mapToAccountInfo).collect(Collectors.toList());
+        result = syncService.uploadAccounts(userId, accounts);
+      }
 
       Map<String, Object> response = new HashMap<>();
       if (result.isSuccess()) {
@@ -139,6 +192,7 @@ public class SyncController {
     }
     account.setNote((String) map.get("note"));
     account.setBrandKey((String) map.get("brandKey"));
+    account.setIsDelete(asInt(map.get("isDelete"), 0));
     if (map.get("updateTime") != null) {
       account.setUpdateTime(
           LocalDateTime.parse(
@@ -193,6 +247,7 @@ public class SyncController {
     }
     map.put("note", account.getNote());
     map.put("brandKey", account.getBrandKey());
+    map.put("isDelete", account.getIsDelete());
     if (account.getUpdateTime() != null) {
       map.put("updateTime", account.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     }

@@ -97,6 +97,7 @@ class SyncService {
   /// 上传账户数据
   Future<SyncResult> uploadAccounts({
     required List<Map<String, dynamic>> accounts,
+    List<Map<String, dynamic>>? deletedAccounts,
   }) async {
     final token = await _getToken();
     if (token == null) {
@@ -113,6 +114,8 @@ class SyncService {
       body: jsonEncode({
         'deviceId': deviceId,
         'accounts': accounts,
+        if (deletedAccounts != null && deletedAccounts.isNotEmpty)
+          'deletedAccounts': deletedAccounts,
       }),
     );
 

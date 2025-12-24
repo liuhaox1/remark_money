@@ -7,6 +7,9 @@ public class SyncOpDedup {
   private Long userId;
   private String bookId;
   private String opId;
+  private String requestId;
+  private String deviceId;
+  private String syncReason;
   private Integer status; // 0=applied,1=conflict,2=error
   private Long billId;
   private Long billVersion;
@@ -43,6 +46,30 @@ public class SyncOpDedup {
 
   public void setOpId(String opId) {
     this.opId = opId;
+  }
+
+  public String getRequestId() {
+    return requestId;
+  }
+
+  public void setRequestId(String requestId) {
+    this.requestId = requestId;
+  }
+
+  public String getDeviceId() {
+    return deviceId;
+  }
+
+  public void setDeviceId(String deviceId) {
+    this.deviceId = deviceId;
+  }
+
+  public String getSyncReason() {
+    return syncReason;
+  }
+
+  public void setSyncReason(String syncReason) {
+    this.syncReason = syncReason;
   }
 
   public Integer getStatus() {
@@ -85,4 +112,3 @@ public class SyncOpDedup {
     this.createdAt = createdAt;
   }
 }
-

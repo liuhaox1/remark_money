@@ -4,6 +4,7 @@ import com.remark.money.entity.BillChangeLog;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -30,4 +31,15 @@ public interface BillChangeLogMapper {
                                 @Param("scopeUserId") Long scopeUserId,
                                 @Param("afterChangeId") Long afterChangeId,
                                 @Param("limit") int limit);
+
+  Long findMinChangeIdSince(@Param("bookId") String bookId,
+                            @Param("scopeUserId") Long scopeUserId,
+                            @Param("cutoff") LocalDateTime cutoff);
+
+  int deleteBefore(@Param("cutoff") LocalDateTime cutoff);
+
+  List<Long> findChangeIdsBefore(@Param("cutoff") LocalDateTime cutoff,
+                                 @Param("limit") int limit);
+
+  int deleteByChangeIds(@Param("ids") List<Long> ids);
 }

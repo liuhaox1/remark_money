@@ -257,6 +257,7 @@ class RecordRepositoryDb {
         'date': record.date.millisecondsSinceEpoch,
         'remark': record.remark,
         'include_in_stats': record.includeInStats ? 1 : 0,
+        'pair_id': record.pairId,
         'created_at': now,
         'updated_at': now,
       };
@@ -511,6 +512,7 @@ class RecordRepositoryDb {
           'date': date.millisecondsSinceEpoch,
           'remark': bill['remark']?.toString() ?? '',
           'include_in_stats': (bill['includeInStats'] as int? ?? 1),
+          'pair_id': bill['pairId']?.toString(),
           'updated_at': now,
         };
 
@@ -559,6 +561,7 @@ class RecordRepositoryDb {
             'date': record.date.millisecondsSinceEpoch,
             'remark': record.remark,
             'include_in_stats': record.includeInStats ? 1 : 0,
+            'pair_id': record.pairId,
             'created_at': now,
             'updated_at': now,
           },
@@ -600,6 +603,7 @@ class RecordRepositoryDb {
               'date': record.date.millisecondsSinceEpoch,
               'remark': record.remark,
               'include_in_stats': record.includeInStats ? 1 : 0,
+              'pair_id': record.pairId,
               'created_at': record.date.millisecondsSinceEpoch, // 使用原始日期
               'updated_at': now,
             },
@@ -945,7 +949,7 @@ class RecordRepositoryDb {
       date: DateTime.fromMillisecondsSinceEpoch(map['date'] as int),
       remark: map['remark'] as String? ?? '',
       includeInStats: (map['include_in_stats'] as int) == 1,
-      pairId: null, // 数据库中没有存储 pairId
+      pairId: map['pair_id'] as String?,
     );
   }
 }

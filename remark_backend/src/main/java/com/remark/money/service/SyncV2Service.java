@@ -15,7 +15,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -140,13 +143,36 @@ public class SyncV2Service {
 
     Object billDateObj = map.get("billDate");
     if (billDateObj instanceof String) {
-      bill.setBillDate(LocalDateTime.parse((String) billDateObj));
+      LocalDateTime parsed = parseClientDateTime((String) billDateObj);
+      if (parsed == null) {
+        throw new IllegalArgumentException("invalid billDate");
+      }
+      bill.setBillDate(parsed);
     }
 
     bill.setIncludeInStats(asInt(map.get("includeInStats")));
     bill.setPairId((String) map.get("pairId"));
     bill.setIsDelete(asInt(map.get("isDelete")));
     return bill;
+  }
+
+  private LocalDateTime parseClientDateTime(String raw) {
+    if (raw == null) return null;
+    String trimmed = raw.trim();
+    if (trimmed.isEmpty()) return null;
+    try {
+      return LocalDateTime.parse(trimmed);
+    } catch (Exception ignored) {
+    }
+    try {
+      return OffsetDateTime.parse(trimmed).toLocalDateTime();
+    } catch (Exception ignored) {
+    }
+    try {
+      return Instant.parse(trimmed).atZone(ZoneOffset.UTC).toLocalDateTime();
+    } catch (Exception ignored) {
+    }
+    return null;
   }
 
   private Map<String, Object> toBillMap(BillInfo bill) {
@@ -169,10 +195,26 @@ public class SyncV2Service {
   }
 
   private SyncOpDedup buildDedup(Long userId, String bookId, String opId, int status, Long billId, Long billVersion, String error) {
+    return buildDedup(userId, bookId, opId, status, billId, billVersion, error, null, null, null);
+  }
+
+  private SyncOpDedup buildDedup(Long userId,
+                                 String bookId,
+                                 String opId,
+                                 int status,
+                                 Long billId,
+                                 Long billVersion,
+                                 String error,
+                                 String requestId,
+                                 String deviceId,
+                                 String syncReason) {
     SyncOpDedup record = new SyncOpDedup();
     record.setUserId(userId);
     record.setBookId(bookId);
     record.setOpId(opId);
+    record.setRequestId(requestId);
+    record.setDeviceId(deviceId);
+    record.setSyncReason(syncReason);
     record.setStatus(status);
     record.setBillId(billId);
     record.setBillVersion(billVersion);
@@ -182,6 +224,16 @@ public class SyncV2Service {
 
   @Transactional
   public Map<String, Object> push(Long userId, String bookId, List<Map<String, Object>> ops) {
+    return push(userId, bookId, ops, null, null, null);
+  }
+
+  @Transactional
+  public Map<String, Object> push(Long userId,
+                                 String bookId,
+                                 List<Map<String, Object>> ops,
+                                 String requestId,
+                                 String deviceId,
+                                 String syncReason) {
     assertBookMember(userId, bookId);
     Long scopeUserId = isServerBook(bookId) ? 0L : userId;
     final boolean sharedBook = isServerBook(bookId);
@@ -240,6 +292,7 @@ public class SyncV2Service {
       if (opId == null || opId.trim().isEmpty()) {
         item.put("status", "error");
         item.put("error", "missing opId");
+        item.put("retryable", false);
         results.add(item);
         continue;
       }
@@ -249,6 +302,7 @@ public class SyncV2Service {
         item.put("status", statusName(dedup.getStatus()));
         item.put("serverId", dedup.getBillId());
         item.put("version", dedup.getBillVersion());
+        item.put("retryable", false);
         if (dedup.getStatus() != null && dedup.getStatus() == 1 && dedup.getBillId() != null) {
           BillInfo serverBill = sharedBook
               ? billInfoMapper.findByIdForBook(bookId, dedup.getBillId())
@@ -263,7 +317,7 @@ public class SyncV2Service {
 
       try {
         if ("delete".equalsIgnoreCase(type)) {
-          handleDelete(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups);
+          handleDelete(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups, requestId, deviceId, syncReason);
         } else {
           if (expectedVersion != null && expectedVersion == 0L) {
             Object billObj = op.get("bill");
@@ -281,15 +335,18 @@ public class SyncV2Service {
             }
             pendingCreates.add(new PendingCreate(opId, bill, item));
           } else {
-            handleUpsert(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups);
+            handleUpsert(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups, requestId, deviceId, syncReason);
           }
         }
       } catch (Exception e) {
         item.put("status", "error");
         item.put("error", e.getMessage());
-        try {
-          pendingDedups.add(buildDedup(userId, bookId, opId, 2, null, null, e.getMessage()));
-        } catch (Exception ignored) {
+        if (e instanceof IllegalArgumentException) {
+          item.put("retryable", false);
+          pendingDedups.add(buildDedup(userId, bookId, opId, 2, null, null, e.getMessage(), requestId, deviceId, syncReason));
+        } else {
+          // Unexpected server-side failure: abort whole batch so the transaction rolls back.
+          throw new RuntimeException("sync v2 push failed opId=" + opId + " msg=" + e.getMessage(), e);
         }
       }
 
@@ -303,7 +360,7 @@ public class SyncV2Service {
       for (PendingCreate p : pendingCreates) {
         long newVersion = 1L;
         pendingLogs.add(new BillChangeLog(bookId, scopeUserId, p.bill.getId(), 0, newVersion));
-        pendingDedups.add(buildDedup(userId, bookId, p.opId, 0, p.bill.getId(), newVersion, null));
+        pendingDedups.add(buildDedup(userId, bookId, p.opId, 0, p.bill.getId(), newVersion, null, requestId, deviceId, syncReason));
         p.item.put("status", "applied");
         p.item.put("serverId", p.bill.getId());
         p.item.put("version", newVersion);
@@ -337,10 +394,16 @@ public class SyncV2Service {
   }
 
   @SuppressWarnings("unchecked")
-  private void handleUpsert(Long userId, String bookId, Long scopeUserId, Map<String, Object> op,
+  private void handleUpsert(Long userId,
+                            String bookId,
+                            Long scopeUserId,
+                            Map<String, Object> op,
                             Map<String, Object> item,
                             List<BillChangeLog> pendingLogs,
-                            List<SyncOpDedup> pendingDedups) {
+                            List<SyncOpDedup> pendingDedups,
+                            String requestId,
+                            String deviceId,
+                            String syncReason) {
     String opId = op.get("opId").toString();
     Object expectedVersionObj = op.get("expectedVersion");
     Long expectedVersion = asLong(expectedVersionObj);
@@ -361,7 +424,7 @@ public class SyncV2Service {
       billInfoMapper.insert(bill);
       long newVersion = 1L;
       pendingLogs.add(new BillChangeLog(bookId, scopeUserId, bill.getId(), 0, newVersion));
-      pendingDedups.add(buildDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null));
+      pendingDedups.add(buildDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null, requestId, deviceId, syncReason));
       item.put("status", "applied");
       item.put("serverId", bill.getId());
       item.put("version", newVersion);
@@ -373,15 +436,17 @@ public class SyncV2Service {
           ? billInfoMapper.findByIdForBook(bookId, bill.getId())
           : billInfoMapper.findByIdForUserAndBook(userId, bookId, bill.getId());
       if (latest == null) {
-        pendingDedups.add(buildDedup(userId, bookId, opId, 2, bill.getId(), null, "not found"));
+        pendingDedups.add(buildDedup(userId, bookId, opId, 2, bill.getId(), null, "not found", requestId, deviceId, syncReason));
         item.put("status", "error");
         item.put("error", "not found");
+        item.put("retryable", false);
       } else {
-        pendingDedups.add(buildDedup(userId, bookId, opId, 1, bill.getId(), latest.getVersion(), null));
+        pendingDedups.add(buildDedup(userId, bookId, opId, 1, bill.getId(), latest.getVersion(), null, requestId, deviceId, syncReason));
         item.put("status", "conflict");
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
         item.put("serverBill", toBillMap(latest));
+        item.put("retryable", false);
       }
       return;
     }
@@ -394,31 +459,39 @@ public class SyncV2Service {
           ? billInfoMapper.findByIdForBook(bookId, bill.getId())
           : billInfoMapper.findByIdForUserAndBook(userId, bookId, bill.getId());
       if (latest == null) {
-        pendingDedups.add(buildDedup(userId, bookId, opId, 2, bill.getId(), null, "not found"));
+        pendingDedups.add(buildDedup(userId, bookId, opId, 2, bill.getId(), null, "not found", requestId, deviceId, syncReason));
         item.put("status", "error");
         item.put("error", "not found");
+        item.put("retryable", false);
       } else {
-        pendingDedups.add(buildDedup(userId, bookId, opId, 1, bill.getId(), latest.getVersion(), null));
+        pendingDedups.add(buildDedup(userId, bookId, opId, 1, bill.getId(), latest.getVersion(), null, requestId, deviceId, syncReason));
         item.put("status", "conflict");
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
         item.put("serverBill", toBillMap(latest));
+        item.put("retryable", false);
       }
       return;
     }
 
     long newVersion = expectedVersion + 1;
     pendingLogs.add(new BillChangeLog(bookId, scopeUserId, bill.getId(), 0, newVersion));
-    pendingDedups.add(buildDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null));
+    pendingDedups.add(buildDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null, requestId, deviceId, syncReason));
     item.put("status", "applied");
     item.put("serverId", bill.getId());
     item.put("version", newVersion);
   }
 
-  private void handleDelete(Long userId, String bookId, Long scopeUserId, Map<String, Object> op,
+  private void handleDelete(Long userId,
+                            String bookId,
+                            Long scopeUserId,
+                            Map<String, Object> op,
                             Map<String, Object> item,
                             List<BillChangeLog> pendingLogs,
-                            List<SyncOpDedup> pendingDedups) {
+                            List<SyncOpDedup> pendingDedups,
+                            String requestId,
+                            String deviceId,
+                            String syncReason) {
     String opId = op.get("opId").toString();
     Long billId = asLong(op.get("serverId"));
     if (billId == null) billId = asLong(op.get("billId"));
@@ -434,15 +507,17 @@ public class SyncV2Service {
           ? billInfoMapper.findByIdForBook(bookId, billId)
           : billInfoMapper.findByIdForUserAndBook(userId, bookId, billId);
       if (latest == null) {
-        pendingDedups.add(buildDedup(userId, bookId, opId, 2, billId, null, "not found"));
+        pendingDedups.add(buildDedup(userId, bookId, opId, 2, billId, null, "not found", requestId, deviceId, syncReason));
         item.put("status", "error");
         item.put("error", "not found");
+        item.put("retryable", false);
       } else {
-        pendingDedups.add(buildDedup(userId, bookId, opId, 1, billId, latest.getVersion(), null));
+        pendingDedups.add(buildDedup(userId, bookId, opId, 1, billId, latest.getVersion(), null, requestId, deviceId, syncReason));
         item.put("status", "conflict");
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
         item.put("serverBill", toBillMap(latest));
+        item.put("retryable", false);
       }
       return;
     }
@@ -455,22 +530,24 @@ public class SyncV2Service {
           ? billInfoMapper.findByIdForBook(bookId, billId)
           : billInfoMapper.findByIdForUserAndBook(userId, bookId, billId);
       if (latest == null) {
-        pendingDedups.add(buildDedup(userId, bookId, opId, 2, billId, null, "not found"));
+        pendingDedups.add(buildDedup(userId, bookId, opId, 2, billId, null, "not found", requestId, deviceId, syncReason));
         item.put("status", "error");
         item.put("error", "not found");
+        item.put("retryable", false);
       } else {
-        pendingDedups.add(buildDedup(userId, bookId, opId, 1, billId, latest.getVersion(), null));
+        pendingDedups.add(buildDedup(userId, bookId, opId, 1, billId, latest.getVersion(), null, requestId, deviceId, syncReason));
         item.put("status", "conflict");
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
         item.put("serverBill", toBillMap(latest));
+        item.put("retryable", false);
       }
       return;
     }
 
     long newVersion = expectedVersion + 1;
     pendingLogs.add(new BillChangeLog(bookId, scopeUserId, billId, 1, newVersion));
-    pendingDedups.add(buildDedup(userId, bookId, opId, 0, billId, newVersion, null));
+    pendingDedups.add(buildDedup(userId, bookId, opId, 0, billId, newVersion, null, requestId, deviceId, syncReason));
     item.put("status", "applied");
     item.put("serverId", billId);
     item.put("version", newVersion);
@@ -483,13 +560,16 @@ public class SyncV2Service {
 
     long cursor = afterChangeId != null ? afterChangeId : 0L;
     int realLimit = limit > 0 ? Math.min(limit, 500) : 200;
+    int fetchLimit = Math.min(realLimit + 1, 501);
+    LocalDateTime cutoff = LocalDateTime.now().minusDays(30);
 
     if (cursor == 0L) {
       // Avoid repeated COUNT(*) + heavy bootstrap for every fresh device.
       syncScopeStateMapper.ensureExists(bookId, scopeUserId);
       SyncScopeState state = syncScopeStateMapper.find(bookId, scopeUserId);
       boolean initialized = state != null && state.getInitialized() != null && state.getInitialized() == 1;
-      if (!initialized) {
+      boolean bootstrapExpired = state == null || state.getUpdatedAt() == null || state.getUpdatedAt().isBefore(cutoff);
+      if (!initialized || bootstrapExpired) {
         if (sharedBook) {
           billChangeLogMapper.bootstrapShared(bookId, scopeUserId);
         } else {
@@ -497,9 +577,28 @@ public class SyncV2Service {
         }
         syncScopeStateMapper.markInitialized(bookId, scopeUserId);
       }
+    } else {
+      // If the cursor points to a pruned range, ask client to reset to 0 so we can re-bootstrap.
+      Long minKept = billChangeLogMapper.findMinChangeIdSince(bookId, scopeUserId, cutoff);
+      if (minKept == null || cursor < minKept) {
+        syncScopeStateMapper.ensureExists(bookId, scopeUserId);
+        syncScopeStateMapper.resetInitialized(bookId, scopeUserId);
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("success", true);
+        resp.put("cursorExpired", true);
+        resp.put("minKeptChangeId", minKept);
+        resp.put("changes", new ArrayList<>());
+        resp.put("nextChangeId", 0);
+        resp.put("hasMore", false);
+        return resp;
+      }
     }
 
-    List<BillChangeLog> logs = billChangeLogMapper.findAfter(bookId, scopeUserId, cursor, realLimit);
+    List<BillChangeLog> logs = billChangeLogMapper.findAfter(bookId, scopeUserId, cursor, fetchLimit);
+    boolean hasMore = logs.size() > realLimit;
+    if (hasMore) {
+      logs = logs.subList(0, realLimit);
+    }
     List<Map<String, Object>> changes = new ArrayList<>();
 
     long nextCursor = cursor;
@@ -536,7 +635,7 @@ public class SyncV2Service {
     resp.put("success", true);
     resp.put("changes", changes);
     resp.put("nextChangeId", nextCursor);
-    resp.put("hasMore", logs.size() == realLimit);
+    resp.put("hasMore", hasMore);
     return resp;
   }
 }

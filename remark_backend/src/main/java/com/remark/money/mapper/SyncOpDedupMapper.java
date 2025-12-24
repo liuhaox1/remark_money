@@ -22,4 +22,9 @@ public interface SyncOpDedupMapper {
   void batchInsert(@Param("list") List<SyncOpDedup> list);
 
   int deleteBefore(@Param("cutoff") LocalDateTime cutoff);
+
+  List<Long> findIdsBefore(@Param("cutoff") LocalDateTime cutoff,
+                           @Param("limit") int limit);
+
+  int deleteByIds(@Param("ids") List<Long> ids);
 }

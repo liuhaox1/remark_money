@@ -12,5 +12,6 @@ public interface SyncScopeStateMapper {
   int ensureExists(@Param("bookId") String bookId, @Param("scopeUserId") Long scopeUserId);
 
   int markInitialized(@Param("bookId") String bookId, @Param("scopeUserId") Long scopeUserId);
-}
 
+  int resetInitialized(@Param("bookId") String bookId, @Param("scopeUserId") Long scopeUserId);
+}

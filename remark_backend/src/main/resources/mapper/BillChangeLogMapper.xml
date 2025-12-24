@@ -72,4 +72,32 @@
     LIMIT #{limit}
   </select>
 
+  <select id="findMinChangeIdSince" resultType="long">
+    SELECT MIN(change_id)
+    FROM bill_change_log
+    WHERE book_id = #{bookId}
+      AND scope_user_id = #{scopeUserId}
+      AND created_at &gt;= #{cutoff}
+  </select>
+
+  <delete id="deleteBefore">
+    DELETE FROM bill_change_log WHERE created_at &lt; #{cutoff}
+  </delete>
+
+  <select id="findChangeIdsBefore" resultType="long">
+    SELECT change_id
+    FROM bill_change_log
+    WHERE created_at &lt; #{cutoff}
+    ORDER BY created_at ASC, change_id ASC
+    LIMIT #{limit}
+  </select>
+
+  <delete id="deleteByChangeIds">
+    DELETE FROM bill_change_log
+    WHERE change_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </delete>
+
 </mapper>

@@ -8,12 +8,15 @@ import '../providers/budget_provider.dart';
 import '../providers/record_provider.dart';
 import '../repository/repository_factory.dart';
 import '../repository/record_repository_db.dart';
+import 'account_delete_queue.dart';
 import 'auth_service.dart';
 import 'data_version_service.dart';
 import 'sync_outbox_service.dart';
 import 'sync_service.dart';
 import 'sync_v2_conflict_store.dart';
 import 'sync_v2_cursor_store.dart';
+import 'sync_v2_pull_utils.dart';
+import 'sync_v2_push_retry.dart';
 
 class SyncEngine {
   SyncEngine({
@@ -106,6 +109,7 @@ class SyncEngine {
       }
 
       final toDelete = <SyncOutboxItem>[];
+      final toUpdate = <SyncOutboxItem>[];
       final syncStateUpdates =
           <({String billId, int? serverId, int? serverVersion})>[];
       for (final item in pending) {
@@ -122,8 +126,30 @@ class SyncEngine {
         }
         final r = resultByOpId[opId];
         if (r == null) {
-          // 服务端未返回该 opId 的结果：避免本次 sync 内死循环重试
+          // Server response missing this opId: keep it for retry with a capped attempt counter.
           debugPrint('[SyncEngine] v2Push missing result for opId=$opId');
+          final bumped = SyncV2PushRetry.bumpAttempt(
+            item.payload,
+            error: 'missing server result',
+          );
+          if (SyncV2PushRetry.shouldQuarantine(bumped)) {
+            await SyncV2ConflictStore.addConflict(bookId, {
+              'opId': opId,
+              'localOp': item.payload,
+              'error': 'missing server result (exceeded retry)',
+            });
+            toDelete.add(item);
+          } else {
+            toUpdate.add(
+              SyncOutboxItem(
+                id: item.id,
+                bookId: item.bookId,
+                op: item.op,
+                payload: bumped,
+                createdAtMs: item.createdAtMs,
+              ),
+            );
+          }
           continue;
         }
 
@@ -141,6 +167,34 @@ class SyncEngine {
               syncStateUpdates.add(
                 (billId: localId, serverId: serverId, serverVersion: version),
               );
+            } else {
+              // Unexpected: server says applied but missing critical fields; keep for retry.
+              final bumped = SyncV2PushRetry.bumpAttempt(
+                item.payload,
+                error: 'applied but missing serverId/localId',
+              );
+              if (SyncV2PushRetry.shouldQuarantine(bumped)) {
+                await SyncV2ConflictStore.addConflict(bookId, {
+                  'opId': opId,
+                  'localOp': item.payload,
+                  'serverId': r['serverId'],
+                  'serverVersion': r['version'],
+                  'error': 'applied but missing serverId/localId (exceeded retry)',
+                  'serverBill': r['serverBill'],
+                });
+                toDelete.add(item);
+              } else {
+                toUpdate.add(
+                  SyncOutboxItem(
+                    id: item.id,
+                    bookId: item.bookId,
+                    op: item.op,
+                    payload: bumped,
+                    createdAtMs: item.createdAtMs,
+                  ),
+                );
+              }
+              continue;
             }
           }
           toDelete.add(item);
@@ -195,20 +249,48 @@ class SyncEngine {
           });
           toDelete.add(item);
         } else {
-          // error/unknown：落盘并删除，避免无限重试压服务端
-          await SyncV2ConflictStore.addConflict(bookId, {
-            'opId': opId,
-            'localOp': item.payload,
-            'serverId': r['serverId'],
-            'serverVersion': r['version'],
-            'error': r['error'] ?? 'status=$status',
-          });
-          toDelete.add(item);
+          // error/unknown: retry a few times (transient failures), then quarantine to conflict store.
+          final retryable = r['retryable'] as bool?;
+          final err = (r['error'] as String?) ?? 'status=$status';
+          if (retryable == false) {
+            await SyncV2ConflictStore.addConflict(bookId, {
+              'opId': opId,
+              'localOp': item.payload,
+              'serverId': r['serverId'],
+              'serverVersion': r['version'],
+              'error': err,
+              'serverBill': r['serverBill'],
+            });
+            toDelete.add(item);
+          } else {
+            final bumped = SyncV2PushRetry.bumpAttempt(item.payload, error: err);
+            if (SyncV2PushRetry.shouldQuarantine(bumped)) {
+              await SyncV2ConflictStore.addConflict(bookId, {
+                'opId': opId,
+                'localOp': item.payload,
+                'serverId': r['serverId'],
+                'serverVersion': r['version'],
+                'error': err,
+                'serverBill': r['serverBill'],
+              });
+              toDelete.add(item);
+            } else {
+              toUpdate.add(
+                SyncOutboxItem(
+                  id: item.id,
+                  bookId: item.bookId,
+                  op: item.op,
+                  payload: bumped,
+                  createdAtMs: item.createdAtMs,
+                ),
+              );
+            }
+          }
         }
       }
 
       // 无进展保护：避免 while(true) 无限循环
-      if (toDelete.isEmpty) {
+      if (toDelete.isEmpty && toUpdate.isEmpty) {
         debugPrint('[SyncEngine] v2Push made no progress; stop this cycle');
         return;
       }
@@ -216,10 +298,16 @@ class SyncEngine {
       if (syncStateUpdates.isNotEmpty) {
         await recordProvider.setServerSyncStatesBulk(syncStateUpdates);
       }
-      await _outbox.deleteItems(bookId, toDelete);
+      if (toUpdate.isNotEmpty) {
+        await _outbox.updateItems(bookId, toUpdate);
+      }
+      if (toDelete.isNotEmpty) {
+        await _outbox.deleteItems(bookId, toDelete);
+      }
 
       // 如果还有未处理项（缺结果等），留待下一次触发，避免本次循环内反复重试
       if (toDelete.length < pending.length) return;
+      if (toUpdate.isNotEmpty) return;
     }
   }
 
@@ -292,13 +380,22 @@ class SyncEngine {
     required String reason,
   }) async {
     var cursor = await SyncV2CursorStore.getLastChangeId(bookId);
+    const pageSize = 200;
+    const maxPagesPerSync = 50;
+    var pages = 0;
 
     while (true) {
+      pages++;
+      if (pages > maxPagesPerSync) {
+        debugPrint('[SyncEngine] v2Pull reached max pages; stop (book=$bookId)');
+        return;
+      }
+
       final prevCursor = cursor;
       final resp = await _syncService.v2Pull(
         bookId: bookId,
         afterChangeId: cursor == 0 ? null : cursor,
-        limit: 200,
+        limit: pageSize,
         reason: reason,
       );
       if (resp['success'] != true) {
@@ -306,10 +403,26 @@ class SyncEngine {
         return;
       }
 
-      final next = resp['nextChangeId'] as int? ?? cursor;
+      if (resp['cursorExpired'] == true) {
+        debugPrint(
+          '[SyncEngine] v2Pull cursorExpired book=$bookId prevCursor=$prevCursor minKept=${resp['minKeptChangeId']}',
+        );
+        cursor = 0;
+        pages = 0;
+        await SyncV2CursorStore.setLastChangeId(bookId, 0);
+        continue;
+      }
+
       final changes = (resp['changes'] as List? ?? const [])
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList(growable: false);
+      final next = changes.isEmpty
+          ? prevCursor
+          : SyncV2PullUtils.computeNextCursor(
+              previousCursor: prevCursor,
+              nextChangeIdFromServer: resp['nextChangeId'],
+              changes: changes,
+            );
 
       if (changes.isNotEmpty) {
         final recordProvider = context.read<RecordProvider>();
@@ -357,13 +470,15 @@ class SyncEngine {
         });
       }
 
-      cursor = next;
-      await SyncV2CursorStore.setLastChangeId(bookId, cursor);
-
       final hasMore = resp['hasMore'] as bool? ?? false;
-      if (hasMore && next == prevCursor && changes.isEmpty) {
+      if (hasMore && next <= prevCursor) {
         debugPrint('[SyncEngine] v2Pull hasMore but cursor not advanced; stop to avoid loop');
         return;
+      }
+
+      if (next > prevCursor) {
+        cursor = next;
+        await SyncV2CursorStore.setLastChangeId(bookId, cursor);
       }
       if (!hasMore) break;
     }
@@ -551,8 +666,9 @@ class SyncEngine {
 
       // 用户在资产页修改账户后：优先上传，再用服务端回包回填 serverId/最新字段。
       if (reason == 'accounts_changed') {
+        final deletedAccounts = await AccountDeleteQueue.instance.load();
         final localAccounts = accountProvider.accounts;
-        if (localAccounts.isNotEmpty) {
+        if (localAccounts.isNotEmpty || deletedAccounts.isNotEmpty) {
           final payload = localAccounts
               .map(
                 (a) => {
@@ -563,8 +679,10 @@ class SyncEngine {
               )
               .toList(growable: false);
 
-          final uploadResult =
-              await _syncService.uploadAccounts(accounts: payload);
+          final uploadResult = await _syncService.uploadAccounts(
+            accounts: payload,
+            deletedAccounts: deletedAccounts,
+          );
           if (uploadResult.success && uploadResult.accounts != null) {
             final cloudAccounts = uploadResult.accounts!;
             await _outbox.runSuppressed(() async {
@@ -575,6 +693,9 @@ class SyncEngine {
                 );
               });
             });
+            if (deletedAccounts.isNotEmpty) {
+              await AccountDeleteQueue.instance.clear();
+            }
             return;
           }
 

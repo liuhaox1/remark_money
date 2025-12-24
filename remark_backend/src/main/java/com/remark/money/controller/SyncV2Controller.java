@@ -56,7 +56,7 @@ public class SyncV2Controller {
             requestId,
             deviceId);
       }
-      Map<String, Object> resp = syncV2Service.push(userId, bookId, ops);
+      Map<String, Object> resp = syncV2Service.push(userId, bookId, ops, requestId, deviceId, reason);
       return ResponseEntity.ok(resp);
     } catch (Exception e) {
       log.error("Sync v2 push error", e);

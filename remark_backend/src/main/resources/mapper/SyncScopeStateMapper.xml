@@ -35,5 +35,10 @@
     WHERE book_id = #{bookId} AND scope_user_id = #{scopeUserId}
   </update>
 
-</mapper>
+  <update id="resetInitialized">
+    UPDATE sync_scope_state
+    SET initialized = 0, updated_at = NOW()
+    WHERE book_id = #{bookId} AND scope_user_id = #{scopeUserId}
+  </update>
 
+</mapper>

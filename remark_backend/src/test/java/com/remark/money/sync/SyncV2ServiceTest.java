@@ -2,6 +2,7 @@ package com.remark.money.sync;
 
 import com.remark.money.entity.BillInfo;
 import com.remark.money.entity.BookMember;
+import com.remark.money.entity.SyncOpDedup;
 import com.remark.money.mapper.BillChangeLogMapper;
 import com.remark.money.mapper.BillInfoMapper;
 import com.remark.money.mapper.BookMemberMapper;
@@ -117,6 +118,29 @@ public class SyncV2ServiceTest {
     assertEquals("upsert", change.get("op"));
     assertNotNull(change.get("changeId"));
     assertNotNull(change.get("bill"));
+  }
+
+  @Test
+  public void push_acceptsBillDateWithTimezoneOffset() {
+    Long userId = 110L;
+    String bookId = "local-book";
+
+    Map<String, Object> bill = newBillPayload(bookId, "tz", new BigDecimal("12.00"));
+    bill.put("billDate", "2025-12-24T10:11:12Z");
+    Map<String, Object> resp = syncV2Service.push(userId, bookId, Collections.singletonList(
+        buildUpsertOp("op-tz", null, bill)
+    ));
+
+    List<Map<String, Object>> results = resultsOf(resp);
+    assertEquals(1, results.size());
+    assertEquals("applied", results.get(0).get("status"));
+    assertNotNull(results.get(0).get("serverId"));
+
+    Map<String, Object> pull = syncV2Service.pull(userId, bookId, null, 200);
+    List<Map<String, Object>> changes = changesOf(pull);
+    assertEquals(1, changes.size());
+    Map<String, Object> billMap = (Map<String, Object>) changes.get(0).get("bill");
+    assertEquals("2025-12-24T10:11:12", billMap.get("billDate"));
   }
 
   @Test
@@ -271,5 +295,110 @@ public class SyncV2ServiceTest {
     List<Map<String, Object>> changes2 = changesOf(pull2);
     assertEquals(1, changes2.size());
     assertNotNull(syncScopeStateMapper.find(bookId, userId));
+  }
+
+  @Test
+  public void pull_paginatesByChangeId_withoutMissingOrLooping() {
+    Long userId = 350L;
+    String bookId = "local-book";
+
+    // create 3 distinct changes
+    for (int i = 0; i < 3; i++) {
+      Map<String, Object> bill = newBillPayload(bookId, "p" + i, new BigDecimal("1.00"));
+      Map<String, Object> resp = syncV2Service.push(userId, bookId, Collections.singletonList(
+          buildUpsertOp("op-p-" + i, null, bill)
+      ));
+      assertEquals("applied", resultsOf(resp).get(0).get("status"));
+    }
+
+    Map<String, Object> p1 = syncV2Service.pull(userId, bookId, null, 2);
+    List<Map<String, Object>> c1 = changesOf(p1);
+    assertEquals(2, c1.size());
+    assertEquals(true, p1.get("hasMore"));
+    long next1 = ((Number) p1.get("nextChangeId")).longValue();
+    long cid1 = ((Number) c1.get(0).get("changeId")).longValue();
+    long cid2 = ((Number) c1.get(1).get("changeId")).longValue();
+    assertTrue(cid2 > cid1);
+    assertEquals(cid2, next1);
+
+    Map<String, Object> p2 = syncV2Service.pull(userId, bookId, next1, 2);
+    List<Map<String, Object>> c2 = changesOf(p2);
+    assertEquals(1, c2.size());
+    assertEquals(false, p2.get("hasMore"));
+    long cid3 = ((Number) c2.get(0).get("changeId")).longValue();
+    assertTrue(cid3 > next1);
+  }
+
+  @Test
+  public void pull_hasMoreFalseWhenExactlyLimitAndNoMore() {
+    Long userId = 361L;
+    String bookId = "local-book";
+
+    for (int i = 0; i < 2; i++) {
+      Map<String, Object> bill = newBillPayload(bookId, "hm" + i, new BigDecimal("1.00"));
+      Map<String, Object> resp = syncV2Service.push(userId, bookId, Collections.singletonList(
+          buildUpsertOp("op-hm-" + i, null, bill)
+      ));
+      assertEquals("applied", resultsOf(resp).get(0).get("status"));
+    }
+
+    Map<String, Object> p1 = syncV2Service.pull(userId, bookId, null, 2);
+    List<Map<String, Object>> c1 = changesOf(p1);
+    assertEquals(2, c1.size());
+    assertEquals(false, p1.get("hasMore"));
+  }
+
+  @Test
+  public void pull_cursorExpired_whenLogsPruned() {
+    Long userId = 370L;
+    String bookId = "local-book";
+
+    Map<String, Object> bill = newBillPayload(bookId, "prune", new BigDecimal("1.00"));
+    Map<String, Object> resp = syncV2Service.push(userId, bookId, Collections.singletonList(
+        buildUpsertOp("op-prune-1", null, bill)
+    ));
+    assertEquals("applied", resultsOf(resp).get(0).get("status"));
+
+    Map<String, Object> p1 = syncV2Service.pull(userId, bookId, null, 200);
+    List<Map<String, Object>> c1 = changesOf(p1);
+    assertEquals(1, c1.size());
+    long cursor = ((Number) p1.get("nextChangeId")).longValue();
+    assertTrue(cursor > 0);
+
+    // Simulate retention cleanup by deleting everything before a future cutoff.
+    billChangeLogMapper.deleteBefore(LocalDateTime.now().plusDays(1));
+
+    Map<String, Object> p2 = syncV2Service.pull(userId, bookId, cursor, 200);
+    assertEquals(true, p2.get("success"));
+    assertEquals(true, p2.get("cursorExpired"));
+    Object changes = p2.get("changes");
+    assertTrue(changes instanceof List);
+    assertEquals(0, ((List<?>) changes).size());
+    assertEquals(0L, ((Number) p2.get("nextChangeId")).longValue());
+  }
+
+  @Test
+  public void push_storesRequestAndDeviceMetadata_andMarksValidationErrorsNonRetryable() {
+    Long userId = 360L;
+    String bookId = "local-book";
+
+    Map<String, Object> badOp = new HashMap<>();
+    badOp.put("opId", "op-bad-1");
+    badOp.put("type", "upsert");
+    badOp.put("expectedVersion", 1L);
+    // missing bill => IllegalArgumentException("missing bill")
+
+    Map<String, Object> resp = syncV2Service.push(userId, bookId, Collections.singletonList(badOp),
+        "req-1", "dev-1", "test");
+    List<Map<String, Object>> results = resultsOf(resp);
+    assertEquals(1, results.size());
+    assertEquals("error", results.get(0).get("status"));
+    assertEquals(false, results.get(0).get("retryable"));
+
+    SyncOpDedup d = syncOpDedupMapper.find(userId, bookId, "op-bad-1");
+    assertNotNull(d);
+    assertEquals("req-1", d.getRequestId());
+    assertEquals("dev-1", d.getDeviceId());
+    assertEquals("test", d.getSyncReason());
   }
 }

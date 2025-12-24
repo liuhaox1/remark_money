@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 8;
+const int _databaseVersion = 9;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -41,6 +41,7 @@ class Tables {
 class DatabaseHelper {
   static DatabaseHelper? _instance;
   static sqflite.Database? _database;
+  static const String _migrationCompletedKey = 'db_migration_completed';
 
   DatabaseHelper._internal();
 
@@ -86,14 +87,24 @@ class DatabaseHelper {
   /// 检查是否需要从 SharedPreferences 迁移
   Future<bool> _checkMigrationNeeded() async {
     final prefs = await SharedPreferences.getInstance();
-    const migrationKey = 'db_migration_completed_v$_databaseVersion';
-    final completed = prefs.getBool(migrationKey);
-    return completed != true;
+    // Migration should run at most once per install, not per DB schema version.
+    if (prefs.getBool(_migrationCompletedKey) == true) return false;
+
+    // Backward-compat: older builds used versioned keys; treat any prior completion as final.
+    for (var v = 1; v <= _databaseVersion; v++) {
+      final legacyKey = 'db_migration_completed_v$v';
+      if (prefs.getBool(legacyKey) == true) {
+        await prefs.setBool(_migrationCompletedKey, true);
+        return false;
+      }
+    }
+    return true;
   }
 
   /// 标记迁移完成
   Future<void> _markMigrationCompleted() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_migrationCompletedKey, true);
     await prefs.setBool('db_migration_completed_v$_databaseVersion', true);
   }
 
@@ -239,6 +250,12 @@ class DatabaseHelper {
           'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_server ON ${Tables.syncOutbox}(book_id, server_id)',
         );
         break;
+      case 9:
+        // records: add pair_id (transfer pairing)
+        try {
+          await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN pair_id TEXT');
+        } catch (_) {}
+        break;
       default:
         break;
     }
@@ -260,6 +277,7 @@ class DatabaseHelper {
         date INTEGER NOT NULL,
         remark TEXT,
         include_in_stats INTEGER NOT NULL DEFAULT 1,
+        pair_id TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         FOREIGN KEY (book_id) REFERENCES ${Tables.books}(id),
@@ -652,6 +670,7 @@ class DatabaseHelper {
               : DateTime.now().millisecondsSinceEpoch,
           'remark': map['remark'] ?? '',
           'include_in_stats': map['includeInStats'] == true ? 1 : 0,
+          'pair_id': map['pairId'],
           'created_at': DateTime.now().millisecondsSinceEpoch,
           'updated_at': DateTime.now().millisecondsSinceEpoch,
         }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);

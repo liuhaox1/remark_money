@@ -23,6 +23,7 @@ public class AccountInfo {
   private LocalDateTime dueDate;
   private String note;
   private String brandKey;
+  private Integer isDelete; // 0=active,1=deleted
   private LocalDateTime updateTime;
   private LocalDateTime createdAt;
 
@@ -177,6 +178,14 @@ public class AccountInfo {
 
   public void setBrandKey(String brandKey) {
     this.brandKey = brandKey;
+  }
+
+  public Integer getIsDelete() {
+    return isDelete;
+  }
+
+  public void setIsDelete(Integer isDelete) {
+    this.isDelete = isDelete;
   }
 
   public LocalDateTime getUpdateTime() {

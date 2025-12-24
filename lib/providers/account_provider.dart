@@ -6,6 +6,7 @@ import '../models/account.dart';
 import '../models/record.dart';
 import '../repository/repository_factory.dart';
 import '../utils/error_handler.dart';
+import '../services/account_delete_queue.dart';
 import '../services/data_version_service.dart';
 import '../services/meta_sync_notifier.dart';
 
@@ -322,7 +323,14 @@ class AccountProvider extends ChangeNotifier {
     bool triggerSync = true,
   }) async {
     final resolved = _resolveId(id);
-    _accounts.removeWhere((a) => a.id == resolved);
+    final index = _accounts.indexWhere((a) => a.id == resolved);
+    if (index == -1) return;
+    final account = _accounts[index];
+    await AccountDeleteQueue.instance.enqueue(
+      accountId: account.id,
+      serverId: account.serverId,
+    );
+    _accounts.removeAt(index);
     await _persist();
     _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1

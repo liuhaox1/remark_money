@@ -32,6 +32,10 @@ public interface AccountInfoMapper {
   void deleteByUserIdAndAccountIdsNotIn(
       @Param("userId") Long userId, @Param("accountIds") Set<String> accountIds);
 
+  int softDeleteById(@Param("userId") Long userId, @Param("id") Long id);
+
+  int softDeleteByAccountId(@Param("userId") Long userId, @Param("accountId") String accountId);
+
   // 插入账户
   void insert(AccountInfo accountInfo);
 

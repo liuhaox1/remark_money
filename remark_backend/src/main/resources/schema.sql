@@ -127,9 +127,11 @@ CREATE TABLE IF NOT EXISTS account_info (
   due_date DATETIME DEFAULT NULL COMMENT '到期日期',
   note VARCHAR(512) DEFAULT NULL COMMENT '备注',
   brand_key VARCHAR(64) DEFAULT NULL COMMENT '品牌标识',
+  is_delete TINYINT NOT NULL DEFAULT 0 COMMENT '0=active,1=deleted',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_user_account_id (user_id, account_id),
+  INDEX idx_user_delete (user_id, is_delete),
   INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -144,6 +146,8 @@ CREATE TABLE IF NOT EXISTS bill_change_log (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_book_scope_change (book_id, scope_user_id, change_id),
   INDEX idx_book_scope_bill (book_id, scope_user_id, bill_id),
+  INDEX idx_bill_change_created (created_at),
+  INDEX idx_bill_change_created_id (created_at, change_id),
   INDEX idx_bill (bill_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -153,6 +157,9 @@ CREATE TABLE IF NOT EXISTS sync_op_dedup (
   user_id BIGINT NOT NULL,
   book_id VARCHAR(64) NOT NULL,
   op_id VARCHAR(64) NOT NULL,
+  request_id VARCHAR(64) DEFAULT NULL,
+  device_id VARCHAR(64) DEFAULT NULL,
+  sync_reason VARCHAR(64) DEFAULT NULL,
   status TINYINT NOT NULL DEFAULT 0 COMMENT '0=applied,1=conflict,2=error',
   bill_id BIGINT DEFAULT NULL,
   bill_version BIGINT DEFAULT NULL,
@@ -160,7 +167,8 @@ CREATE TABLE IF NOT EXISTS sync_op_dedup (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_book_op (user_id, book_id, op_id),
   INDEX idx_user_book (user_id, book_id),
-  INDEX idx_created_at (created_at)
+  INDEX idx_created_at (created_at),
+  INDEX idx_dedup_created_id (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- v2: scope bootstrap state (avoid repeated COUNT+bootstrap)
@@ -232,6 +240,48 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- bill_change_log: add created_at index for retention cleanup
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_change_log'
+      AND INDEX_NAME = 'idx_bill_change_created'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_bill_change_created ON bill_change_log(created_at)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- bill_change_log: add composite index (created_at, change_id) for batched retention cleanup
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_change_log'
+      AND INDEX_NAME = 'idx_bill_change_created_id'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_bill_change_created_id ON bill_change_log(created_at, change_id)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- sync_op_dedup: add composite index (created_at, id) for batched retention cleanup
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'sync_op_dedup'
+      AND INDEX_NAME = 'idx_dedup_created_id'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_dedup_created_id ON sync_op_dedup(created_at, id)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 8. bill_change_log æ·»åŠ  scope_user_id å­—æ®µï¼ˆå¦‚æžœä¸å­˜åœ¨ï¼‰
 SET @column_exists = (
     SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -260,7 +310,6 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- 6. bill_info æ·»åŠ  version å­—æ®µï¼ˆå¦‚æžœä¸å­˜åœ¨ï¼‰
 SET @column_exists = (
     SELECT COUNT(*) FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = @db_name
@@ -307,6 +356,73 @@ SET @column_exists = (
       AND COLUMN_NAME = 'bill_id'
 );
 SET @sql = IF(@column_exists > 0, 'ALTER TABLE bill_info DROP COLUMN bill_id', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- account_info: add is_delete column + index (soft delete to avoid accidental data loss)
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'account_info'
+      AND COLUMN_NAME = 'is_delete'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE account_info ADD COLUMN is_delete TINYINT NOT NULL DEFAULT 0 COMMENT ''0=active,1=deleted'' AFTER brand_key',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'account_info'
+      AND INDEX_NAME = 'idx_user_delete'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_user_delete ON account_info(user_id, is_delete)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- sync_op_dedup: add request_id/device_id/sync_reason for observability
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'sync_op_dedup'
+      AND COLUMN_NAME = 'request_id'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE sync_op_dedup ADD COLUMN request_id VARCHAR(64) DEFAULT NULL AFTER op_id',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'sync_op_dedup'
+      AND COLUMN_NAME = 'device_id'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE sync_op_dedup ADD COLUMN device_id VARCHAR(64) DEFAULT NULL AFTER request_id',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'sync_op_dedup'
+      AND COLUMN_NAME = 'sync_reason'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE sync_op_dedup ADD COLUMN sync_reason VARCHAR(64) DEFAULT NULL AFTER device_id',
+    'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
