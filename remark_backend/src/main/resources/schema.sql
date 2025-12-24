@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS bill_info (
   version BIGINT NOT NULL DEFAULT 1 COMMENT 'optimistic lock version (server-managed)',
   INDEX idx_user_book (user_id, book_id),
   INDEX idx_user_update (user_id, update_time),
+  INDEX idx_book (book_id),
   INDEX idx_delete (is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -142,6 +143,7 @@ CREATE TABLE IF NOT EXISTS bill_change_log (
   bill_version BIGINT NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_book_scope_change (book_id, scope_user_id, change_id),
+  INDEX idx_book_scope_bill (book_id, scope_user_id, bill_id),
   INDEX idx_bill (bill_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -216,6 +218,20 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- 9.1 bill_change_log add idx_book_scope_bill (fast bootstrap NOT EXISTS)
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_change_log'
+      AND INDEX_NAME = 'idx_book_scope_bill'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_book_scope_bill ON bill_change_log(book_id, scope_user_id, bill_id)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 8. bill_change_log æ·»åŠ  scope_user_id å­—æ®µï¼ˆå¦‚æžœä¸å­˜åœ¨ï¼‰
 SET @column_exists = (
     SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -265,6 +281,20 @@ SET @index_exists = (
       AND INDEX_NAME = 'idx_user_bill_id'
 );
 SET @sql = IF(@index_exists > 0, 'ALTER TABLE bill_info DROP INDEX idx_user_bill_id', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- bill_info add idx_book for shared-book queries
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_info'
+      AND INDEX_NAME = 'idx_book'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_book ON bill_info(book_id)',
+    'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

@@ -1,6 +1,7 @@
 package com.remark.money.controller;
 
 import com.remark.money.entity.AccountInfo;
+import com.remark.money.entity.BudgetInfo;
 import com.remark.money.service.SyncService;
 import com.remark.money.util.JwtUtil;
 import org.slf4j.Logger;
@@ -8,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -198,5 +200,127 @@ public class SyncController {
       map.put("createdAt", account.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     }
     return map;
+  }
+
+  /**
+   * 上传预算数据
+   */
+  @PostMapping("/budget/upload")
+  public ResponseEntity<Map<String, Object>> uploadBudget(
+      @RequestHeader("Authorization") String token,
+      @RequestBody Map<String, Object> request) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      String bookId = (String) request.get("bookId");
+      Object budgetObj = request.get("budget");
+      if (!(budgetObj instanceof Map)) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("error", "missing budget");
+        return ResponseEntity.badRequest().body(response);
+      }
+      @SuppressWarnings("unchecked")
+      Map<String, Object> budgetMap = (Map<String, Object>) budgetObj;
+
+      BudgetInfo budget = mapToBudgetInfo(budgetMap);
+      SyncService.BudgetSyncResult result = syncService.uploadBudget(userId, bookId, budget);
+
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("Budget upload error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
+  /**
+   * 下载预算数据
+   */
+  @GetMapping("/budget/download")
+  public ResponseEntity<Map<String, Object>> downloadBudget(
+      @RequestHeader("Authorization") String token,
+      @RequestParam("bookId") String bookId) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      SyncService.BudgetSyncResult result = syncService.downloadBudget(userId, bookId);
+
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put("budget", convertBudgetInfo(result.getBudget()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("Budget download error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
+  private BudgetInfo mapToBudgetInfo(Map<String, Object> map) {
+    BudgetInfo budget = new BudgetInfo();
+    budget.setTotal(asBigDecimal(map.get("total"), BigDecimal.ZERO));
+    budget.setAnnualTotal(asBigDecimal(map.get("annualTotal"), BigDecimal.ZERO));
+    budget.setCategoryBudgets(map.get("categoryBudgets") != null ? map.get("categoryBudgets").toString() : null);
+    budget.setAnnualCategoryBudgets(map.get("annualCategoryBudgets") != null ? map.get("annualCategoryBudgets").toString() : null);
+    budget.setPeriodStartDay(asInt(map.get("periodStartDay"), 1));
+    // updateTime is optional; server will overwrite to NOW() on upsert.
+    if (map.get("updateTime") instanceof String) {
+      try {
+        budget.setUpdateTime(LocalDateTime.parse((String) map.get("updateTime"), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+      } catch (Exception ignored) {
+      }
+    }
+    return budget;
+  }
+
+  private Map<String, Object> convertBudgetInfo(BudgetInfo budget) {
+    Map<String, Object> map = new HashMap<>();
+    if (budget == null) {
+      map.put("total", 0);
+      map.put("categoryBudgets", "{}");
+      map.put("periodStartDay", 1);
+      map.put("annualTotal", 0);
+      map.put("annualCategoryBudgets", "{}");
+      return map;
+    }
+    map.put("total", budget.getTotal());
+    map.put("categoryBudgets", budget.getCategoryBudgets());
+    map.put("periodStartDay", budget.getPeriodStartDay());
+    map.put("annualTotal", budget.getAnnualTotal());
+    map.put("annualCategoryBudgets", budget.getAnnualCategoryBudgets());
+    if (budget.getUpdateTime() != null) {
+      map.put("updateTime", budget.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    if (budget.getCreatedAt() != null) {
+      map.put("createdAt", budget.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    return map;
+  }
+
+  private BigDecimal asBigDecimal(Object value, BigDecimal defaultValue) {
+    if (value == null) return defaultValue;
+    if (value instanceof BigDecimal) return (BigDecimal) value;
+    try {
+      return new BigDecimal(value.toString());
+    } catch (Exception ignored) {
+      return defaultValue;
+    }
   }
 }

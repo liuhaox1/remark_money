@@ -134,8 +134,18 @@ class SyncOutboxService {
 
   Future<void> enqueueDelete(Record record) async {
     if (_suppressed) return;
+
+    // Delete for unsynced local records should not be uploaded, but we must remove any pending upsert,
+    // otherwise a previously-enqueued create/update could be pushed after the local deletion.
+    await _removePendingUpsertsForRecord(bookId: record.bookId, recordId: record.id);
     // 未同步过的本地记录，删除无需上报服务器
     if (record.serverId == null) return;
+
+    // Keep only the latest delete for this serverId to reduce outbox bloat / conflicts.
+    await _removePendingDeletesForServerId(
+      bookId: record.bookId,
+      serverId: record.serverId!,
+    );
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final payload = {
@@ -373,5 +383,76 @@ class SyncOutboxService {
     final remaining =
         list.where((s) => !removeSet.contains(s)).toList(growable: false);
     await prefs.setStringList(key, remaining);
+  }
+
+  Future<void> _removePendingUpsertsForRecord({
+    required String bookId,
+    required String recordId,
+  }) async {
+    if (bookId.isEmpty || recordId.isEmpty) return;
+
+    if (RepositoryFactory.isUsingDatabase) {
+      final db = await DatabaseHelper().database;
+      await db.delete(
+        Tables.syncOutbox,
+        where: 'book_id = ? AND op = ? AND record_id = ?',
+        whereArgs: [bookId, SyncOutboxOp.upsert.name, recordId],
+      );
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final key = '$_prefsKeyPrefix$bookId';
+    final list = prefs.getStringList(key) ?? <String>[];
+    if (list.isEmpty) return;
+
+    list.removeWhere((s) {
+      try {
+        final map = jsonDecode(s) as Map<String, dynamic>;
+        final item = SyncOutboxItem.fromJson(map);
+        if (item.op != SyncOutboxOp.upsert) return false;
+        final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
+        return bill != null && bill['localId'] == recordId;
+      } catch (_) {
+        return false;
+      }
+    });
+
+    await prefs.setStringList(key, list);
+  }
+
+  Future<void> _removePendingDeletesForServerId({
+    required String bookId,
+    required int serverId,
+  }) async {
+    if (bookId.isEmpty) return;
+
+    if (RepositoryFactory.isUsingDatabase) {
+      final db = await DatabaseHelper().database;
+      await db.delete(
+        Tables.syncOutbox,
+        where: 'book_id = ? AND op = ? AND server_id = ?',
+        whereArgs: [bookId, SyncOutboxOp.delete.name, serverId],
+      );
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final key = '$_prefsKeyPrefix$bookId';
+    final list = prefs.getStringList(key) ?? <String>[];
+    if (list.isEmpty) return;
+
+    list.removeWhere((s) {
+      try {
+        final map = jsonDecode(s) as Map<String, dynamic>;
+        final item = SyncOutboxItem.fromJson(map);
+        if (item.op != SyncOutboxOp.delete) return false;
+        return (item.payload['serverId'] as int?) == serverId;
+      } catch (_) {
+        return false;
+      }
+    });
+
+    await prefs.setStringList(key, list);
   }
 }

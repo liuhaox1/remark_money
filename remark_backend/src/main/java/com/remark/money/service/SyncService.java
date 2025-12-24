@@ -2,14 +2,17 @@ package com.remark.money.service;
 
 import com.remark.money.common.ErrorCode;
 import com.remark.money.entity.AccountInfo;
+import com.remark.money.entity.BudgetInfo;
 import com.remark.money.entity.User;
 import com.remark.money.mapper.AccountInfoMapper;
+import com.remark.money.mapper.BudgetInfoMapper;
 import com.remark.money.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,10 +28,12 @@ public class SyncService {
 
   private final UserMapper userMapper;
   private final AccountInfoMapper accountInfoMapper;
+  private final BudgetInfoMapper budgetInfoMapper;
 
-  public SyncService(UserMapper userMapper, AccountInfoMapper accountInfoMapper) {
+  public SyncService(UserMapper userMapper, AccountInfoMapper accountInfoMapper, BudgetInfoMapper budgetInfoMapper) {
     this.userMapper = userMapper;
     this.accountInfoMapper = accountInfoMapper;
+    this.budgetInfoMapper = budgetInfoMapper;
   }
 
   /**
@@ -151,6 +156,39 @@ public class SyncService {
     return AccountSyncResult.success(accounts);
   }
 
+  @Transactional
+  public BudgetSyncResult uploadBudget(Long userId, String bookId, BudgetInfo budget) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return BudgetSyncResult.error(permissionError.getMessage());
+    }
+    if (bookId == null || bookId.trim().isEmpty()) {
+      return BudgetSyncResult.error("missing bookId");
+    }
+    if (budget == null) {
+      return BudgetSyncResult.error("missing budget");
+    }
+    budget.setUserId(userId);
+    budget.setBookId(bookId);
+    if (budget.getTotal() == null) budget.setTotal(BigDecimal.ZERO);
+    if (budget.getAnnualTotal() == null) budget.setAnnualTotal(BigDecimal.ZERO);
+    if (budget.getPeriodStartDay() == null) budget.setPeriodStartDay(1);
+    budgetInfoMapper.upsert(budget);
+    return BudgetSyncResult.success();
+  }
+
+  public BudgetSyncResult downloadBudget(Long userId, String bookId) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return BudgetSyncResult.error(permissionError.getMessage());
+    }
+    if (bookId == null || bookId.trim().isEmpty()) {
+      return BudgetSyncResult.error("missing bookId");
+    }
+    BudgetInfo budget = budgetInfoMapper.findByUserIdAndBookId(userId, bookId);
+    return BudgetSyncResult.success(budget);
+  }
+
   public static class AccountSyncResult {
     private boolean success;
     private String error;
@@ -180,6 +218,44 @@ public class SyncService {
 
     public List<AccountInfo> getAccounts() {
       return accounts;
+    }
+  }
+
+  public static class BudgetSyncResult {
+    private boolean success;
+    private String error;
+    private BudgetInfo budget;
+
+    public static BudgetSyncResult error(String error) {
+      BudgetSyncResult result = new BudgetSyncResult();
+      result.success = false;
+      result.error = error;
+      return result;
+    }
+
+    public static BudgetSyncResult success() {
+      BudgetSyncResult result = new BudgetSyncResult();
+      result.success = true;
+      return result;
+    }
+
+    public static BudgetSyncResult success(BudgetInfo budget) {
+      BudgetSyncResult result = new BudgetSyncResult();
+      result.success = true;
+      result.budget = budget;
+      return result;
+    }
+
+    public boolean isSuccess() {
+      return success;
+    }
+
+    public String getError() {
+      return error;
+    }
+
+    public BudgetInfo getBudget() {
+      return budget;
     }
   }
 }

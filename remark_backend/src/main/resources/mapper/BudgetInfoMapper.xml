@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.remark.money.mapper.BudgetInfoMapper">
+
+  <resultMap id="BudgetInfoResultMap" type="com.remark.money.entity.BudgetInfo">
+    <id property="id" column="id"/>
+    <result property="userId" column="user_id"/>
+    <result property="bookId" column="book_id"/>
+    <result property="total" column="total"/>
+    <result property="categoryBudgets" column="category_budgets"/>
+    <result property="periodStartDay" column="period_start_day"/>
+    <result property="annualTotal" column="annual_total"/>
+    <result property="annualCategoryBudgets" column="annual_category_budgets"/>
+    <result property="updateTime" column="update_time"/>
+    <result property="createdAt" column="created_at"/>
+  </resultMap>
+
+  <select id="findByUserIdAndBookId" resultMap="BudgetInfoResultMap">
+    SELECT *
+    FROM budget_info
+    WHERE user_id = #{userId} AND book_id = #{bookId}
+    LIMIT 1
+  </select>
+
+  <insert id="upsert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO budget_info (
+      user_id,
+      book_id,
+      total,
+      category_budgets,
+      period_start_day,
+      annual_total,
+      annual_category_budgets,
+      update_time,
+      created_at
+    ) VALUES (
+      #{userId},
+      #{bookId},
+      #{total},
+      #{categoryBudgets},
+      #{periodStartDay},
+      #{annualTotal},
+      #{annualCategoryBudgets},
+      NOW(),
+      NOW()
+    )
+    ON DUPLICATE KEY UPDATE
+      total = VALUES(total),
+      category_budgets = VALUES(category_budgets),
+      period_start_day = VALUES(period_start_day),
+      annual_total = VALUES(annual_total),
+      annual_category_budgets = VALUES(annual_category_budgets),
+      update_time = NOW()
+  </insert>
+
+</mapper>
+

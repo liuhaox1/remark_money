@@ -40,7 +40,7 @@
       bi.version,
       NOW()
     FROM bill_info bi
-    WHERE bi.book_id = #{bookId} AND bi.include_in_stats = 1
+    WHERE bi.book_id = #{bookId}
       AND NOT EXISTS (
         SELECT 1 FROM bill_change_log bcl
         WHERE bcl.book_id = bi.book_id AND bcl.scope_user_id = #{scopeUserId} AND bcl.bill_id = bi.id
@@ -57,7 +57,7 @@
       bi.version,
       NOW()
     FROM bill_info bi
-    WHERE bi.user_id = #{userId} AND bi.book_id = #{bookId} AND bi.include_in_stats = 1
+    WHERE bi.user_id = #{userId} AND bi.book_id = #{bookId}
       AND NOT EXISTS (
         SELECT 1 FROM bill_change_log bcl
         WHERE bcl.book_id = bi.book_id AND bcl.scope_user_id = #{scopeUserId} AND bcl.bill_id = bi.id

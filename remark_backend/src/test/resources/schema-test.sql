@@ -3,6 +3,7 @@ DROP TABLE IF EXISTS sync_scope_state;
 DROP TABLE IF EXISTS bill_change_log;
 DROP TABLE IF EXISTS bill_info;
 DROP TABLE IF EXISTS book_member;
+DROP TABLE IF EXISTS budget_info;
 
 CREATE TABLE book_member (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -32,6 +33,20 @@ CREATE TABLE bill_info (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE budget_info (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  total DECIMAL(15,2) NOT NULL DEFAULT 0,
+  category_budgets CLOB,
+  period_start_day INT NOT NULL DEFAULT 1,
+  annual_total DECIMAL(15,2) NOT NULL DEFAULT 0,
+  annual_category_budgets CLOB,
+  update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, book_id)
+);
+
 CREATE TABLE bill_change_log (
   change_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   book_id VARCHAR(64) NOT NULL,
@@ -43,6 +58,7 @@ CREATE TABLE bill_change_log (
 );
 
 CREATE INDEX idx_book_scope_change ON bill_change_log(book_id, scope_user_id, change_id);
+CREATE INDEX idx_book_scope_bill ON bill_change_log(book_id, scope_user_id, bill_id);
 
 CREATE TABLE sync_op_dedup (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

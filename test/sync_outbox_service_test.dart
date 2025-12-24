@@ -89,5 +89,51 @@ void main() {
     expect(pending.first.payload['serverId'], 99);
     expect(pending.first.payload['expectedVersion'], 2);
   });
-}
 
+  test('enqueueDelete removes pending upsert for unsynced record', () async {
+    final outbox = SyncOutboxService.instance;
+    final record = Record(
+      id: 'local_4',
+      serverId: null,
+      serverVersion: null,
+      amount: 1,
+      remark: 'x',
+      date: DateTime.parse('2025-01-01T00:00:00Z'),
+      categoryKey: 'food',
+      bookId: 'book_4',
+      accountId: 'acc_1',
+      direction: TransactionDirection.out,
+    );
+
+    await outbox.enqueueUpsert(record);
+    expect((await outbox.loadPending('book_4')).length, 1);
+
+    await outbox.enqueueDelete(record);
+    expect(await outbox.loadPending('book_4'), isEmpty);
+  });
+
+  test('enqueueDelete collapses existing upsert for synced record', () async {
+    final outbox = SyncOutboxService.instance;
+    final record = Record(
+      id: 'server_101',
+      serverId: 101,
+      serverVersion: 7,
+      amount: 1,
+      remark: 'x',
+      date: DateTime.parse('2025-01-01T00:00:00Z'),
+      categoryKey: 'food',
+      bookId: 'book_5',
+      accountId: 'acc_1',
+      direction: TransactionDirection.out,
+    );
+
+    await outbox.enqueueUpsert(record);
+    expect((await outbox.loadPending('book_5')).length, 1);
+
+    await outbox.enqueueDelete(record);
+    final pending = await outbox.loadPending('book_5');
+    expect(pending.length, 1);
+    expect(pending.single.payload['type'], 'delete');
+    expect(pending.single.payload['serverId'], 101);
+  });
+}
