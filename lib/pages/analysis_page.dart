@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 
@@ -33,6 +34,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
   PeriodType _periodType = PeriodType.month;
   _FlowMetric _flowMetric = _FlowMetric.expense;
   final GlobalKey _flowSelectorKey = GlobalKey();
+  late DateTime _selectedWeekStart;
+  late final ScrollController _weekIndexController;
+
+  static const double _kWeekItemWidth = 52;
+  static const double _kWeekItemSpacing = 8;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _selectedWeekStart = DateUtilsX.startOfWeek(DateTime(now.year, now.month, now.day));
+    _weekIndexController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToSelectedWeek(jump: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _weekIndexController.dispose();
+    super.dispose();
+  }
 
   bool _isCountedRecord(Record record) {
     if (!record.includeInStats) return false;
@@ -70,8 +93,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
     required int recordChangeCounter,
     required int categorySignature,
   }) {
+    final weekKey = _periodType == PeriodType.week
+        ? ':${DateUtilsX.ymd(_selectedWeekStart)}'
+        : '';
     final key =
-        '$bookId:${_selectedYear}:${_periodType.name}:${_flowMetric.name}:$recordChangeCounter:$categorySignature';
+        '$bookId:${_selectedYear}:${_periodType.name}:${_flowMetric.name}$weekKey:$recordChangeCounter:$categorySignature';
     if (_deepAnalysisKey == key && _deepAnalysisFuture != null) return;
     _deepAnalysisKey = key;
     _deepAnalysisFuture = _loadDeepAnalysis(
@@ -81,6 +107,131 @@ class _AnalysisPageState extends State<AnalysisPage> {
       _periodType,
       _flowMetric,
       categoryProvider,
+      weekStart: _selectedWeekStart,
+    );
+  }
+
+  int _weekIndexForYear(DateTime weekStart, int year) {
+    final first = DateUtilsX.startOfWeek(DateTime(year, 1, 1));
+    final diff = weekStart.difference(first).inDays;
+    return (diff ~/ 7) + 1;
+  }
+
+  DateTime _weekStartForIndex(int weekIndex, int year) {
+    final first = DateUtilsX.startOfWeek(DateTime(year, 1, 1));
+    return first.add(Duration(days: (weekIndex - 1) * 7));
+  }
+
+  int _maxWeekIndexForYear(int year) {
+    final lastStart = DateUtilsX.startOfWeek(DateTime(year, 12, 31));
+    return _weekIndexForYear(lastStart, year);
+  }
+
+  void _ensureSelectedWeekInYear() {
+    final now = DateTime.now();
+    final maxIndex = _selectedYear == now.year
+        ? _weekIndexForYear(DateUtilsX.startOfWeek(DateTime(now.year, now.month, now.day)), _selectedYear)
+        : _maxWeekIndexForYear(_selectedYear);
+    var idx = _weekIndexForYear(_selectedWeekStart, _selectedYear);
+    if (idx < 1) idx = 1;
+    if (idx > maxIndex) idx = maxIndex;
+    final nextStart = _weekStartForIndex(idx, _selectedYear);
+    _selectedWeekStart = DateTime(nextStart.year, nextStart.month, nextStart.day);
+  }
+
+  void _scrollToSelectedWeek({bool jump = false}) {
+    if (!_weekIndexController.hasClients) return;
+    final idx = _weekIndexForYear(_selectedWeekStart, _selectedYear);
+    final rawOffset = (idx - 1) * (_kWeekItemWidth + _kWeekItemSpacing) - _kWeekItemWidth * 1.5;
+    final position = _weekIndexController.position;
+    final offset = rawOffset.clamp(0.0, position.maxScrollExtent);
+    if (jump) {
+      _weekIndexController.jumpTo(offset);
+    } else {
+      _weekIndexController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  Widget _buildWeekIndexStrip(ColorScheme cs) {
+    final tt = Theme.of(context).textTheme;
+    final now = DateTime.now();
+    final maxIndex = _selectedYear == now.year
+        ? _weekIndexForYear(DateUtilsX.startOfWeek(DateTime(now.year, now.month, now.day)), _selectedYear)
+        : _maxWeekIndexForYear(_selectedYear);
+    final selectedIndex = _weekIndexForYear(_selectedWeekStart, _selectedYear);
+
+    return SizedBox(
+      height: 46,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: const {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+          },
+        ),
+        child: ListView.separated(
+          controller: _weekIndexController,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          itemCount: maxIndex,
+          separatorBuilder: (_, __) => const SizedBox(width: _kWeekItemSpacing),
+          itemBuilder: (context, i) {
+            final index = i + 1;
+            final isSelected = index == selectedIndex;
+            return InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () {
+                final weekStart = _weekStartForIndex(index, _selectedYear);
+                setState(() {
+                  _selectedWeekStart = DateTime(
+                    weekStart.year,
+                    weekStart.month,
+                    weekStart.day,
+                  );
+                });
+                _scrollToSelectedWeek();
+              },
+              child: SizedBox(
+                width: _kWeekItemWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 10),
+                    Text(
+                      '${index}周',
+                      style: tt.bodyMedium?.copyWith(
+                        color: isSelected
+                            ? cs.onSurface
+                            : cs.onSurface.withOpacity(0.45),
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      height: 2,
+                      width: 26,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? cs.onSurface.withOpacity(0.85)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -294,8 +445,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       balance: yearBalance,
                       periodLabel: AppStrings.yearLabel(_selectedYear),
                       onTapPeriod: _pickYear,
-                      onPrevPeriod: () => setState(() => _selectedYear -= 1),
-                      onNextPeriod: () => setState(() => _selectedYear += 1),
+                      onPrevPeriod: () => setState(() {
+                        _selectedYear -= 1;
+                        _ensureSelectedWeekInYear();
+                        _scrollToSelectedWeek();
+                      }),
+                      onNextPeriod: () => setState(() {
+                        _selectedYear += 1;
+                        _ensureSelectedWeekInYear();
+                        _scrollToSelectedWeek();
+                      }),
                     ),
                     const SizedBox(height: 4),
                     if (hasYearRecords)
@@ -384,9 +543,33 @@ class _AnalysisPageState extends State<AnalysisPage> {
                               ],
                               selected: {_periodType},
                               onSelectionChanged: (value) {
-                                setState(() => _periodType = value.first);
+                                setState(() {
+                                  _periodType = value.first;
+                                  if (_periodType == PeriodType.week) {
+                                    // 切到周时，默认定位到该年的“当前周”（当年）或“最后一周”（非当年）
+                                    final now = DateTime.now();
+                                    final base = _selectedYear == now.year
+                                        ? DateTime(now.year, now.month, now.day)
+                                        : DateTime(_selectedYear, 12, 31);
+                                    final start = DateUtilsX.startOfWeek(base);
+                                    _selectedWeekStart =
+                                        DateTime(start.year, start.month, start.day);
+                                    _ensureSelectedWeekInYear();
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      _scrollToSelectedWeek();
+                                    });
+                                  }
+                                });
                               },
                             ),
+                            if (_periodType == PeriodType.week)
+                              SizedBox(
+                                width: double.infinity,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: _buildWeekIndexStrip(cs),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -659,7 +842,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
     if (selected != null) {
-      setState(() => _selectedYear = selected);
+      setState(() {
+        _selectedYear = selected;
+        _ensureSelectedWeekInYear();
+        _scrollToSelectedWeek();
+      });
     }
   }
 
@@ -724,6 +911,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     PeriodType periodType,
     _FlowMetric flowMetric,
     CategoryProvider categoryProvider,
+    {DateTime? weekStart}
   ) async {
     final now = DateTime.now();
     final yearStart = DateTime(year, 1, 1);
@@ -759,9 +947,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final end = DateTime(year, month + 1, 0, 23, 59, 59);
       periodRange = DateTimeRange(start: start, end: end);
     } else {
-      final base = year == now.year ? now : DateTime(year, 12, 31, 23, 59, 59);
-      final baseDate = DateTime(base.year, base.month, base.day);
-      final range = DateUtilsX.weekRange(baseDate);
+      final base = weekStart != null
+          ? DateTime(weekStart.year, weekStart.month, weekStart.day)
+          : (year == now.year ? DateTime(now.year, now.month, now.day) : DateTime(year, 12, 31));
+      final range = DateUtilsX.weekRange(base);
       final start = DateTime(range.start.year, range.start.month, range.start.day);
       final end = DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59);
       periodRange = DateTimeRange(start: start, end: end);

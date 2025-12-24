@@ -39,6 +39,10 @@ class AccountRecordsPage extends StatefulWidget {
 class _AccountRecordsPageState extends State<AccountRecordsPage> {
   late int _selectedYear;
   final Set<int> _expandedMonths = <int>{};
+  String? _recordsKey;
+  Future<List<Record>>? _recordsFuture;
+  String? _tagsKey;
+  Future<Map<String, List<Tag>>>? _tagsFuture;
 
   @override
   void initState() {
@@ -81,6 +85,10 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
       _expandedMonths
         ..clear()
         ..add(12);
+      _recordsKey = null;
+      _recordsFuture = null;
+      _tagsKey = null;
+      _tagsFuture = null;
     });
   }
 
@@ -257,14 +265,25 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
     final yearStart = DateTime(_selectedYear, 1, 1);
     final yearEnd = DateTime(_selectedYear, 12, 31, 23, 59, 59);
 
-    return FutureBuilder<List<Record>>(
-      future: recordProvider
+    final recordChangeCounter = recordProvider.changeCounter;
+    final nextKey =
+        '$bookId:${widget.accountId}:$_selectedYear:$recordChangeCounter';
+    if (_recordsKey != nextKey || _recordsFuture == null) {
+      _recordsKey = nextKey;
+      _recordsFuture = recordProvider
           .recordsForPeriodAllAsync(bookId, start: yearStart, end: yearEnd)
           .then((records) {
-        final filtered = records.where((r) => r.accountId == widget.accountId).toList();
+        final filtered =
+            records.where((r) => r.accountId == widget.accountId).toList();
         filtered.sort((a, b) => b.date.compareTo(a.date));
         return filtered;
-      }),
+      });
+      _tagsKey = null;
+      _tagsFuture = null;
+    }
+
+    return FutureBuilder<List<Record>>(
+      future: _recordsFuture,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return Scaffold(
@@ -282,8 +301,16 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
         final records = snap.data ?? const <Record>[];
         final recordIds = records.map((r) => r.id).toList(growable: false);
 
+        final nextTagsKey = '${_recordsKey ?? nextKey}:tags';
+        if (_tagsKey != nextTagsKey || _tagsFuture == null) {
+          _tagsKey = nextTagsKey;
+          _tagsFuture = recordIds.isEmpty
+              ? Future.value(const <String, List<Tag>>{})
+              : tagProvider.loadTagsForRecords(recordIds);
+        }
+
         return FutureBuilder<Map<String, List<Tag>>>(
-          future: tagProvider.loadTagsForRecords(recordIds),
+          future: _tagsFuture,
           builder: (context, tagSnap) {
             final tagsByRecordId = tagSnap.data ?? const <String, List<Tag>>{};
             final categoryMap = {for (final c in categoryProvider.categories) c.key: c};
@@ -291,13 +318,6 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
             return Scaffold(
               appBar: AppBar(
                 title: const Text('资产详情'),
-                actions: [
-                  TextButton(
-                    onPressed: () => _openActionsSheet(account),
-                    child: const Text('操作'),
-                  ),
-                  const SizedBox(width: 8),
-                ],
               ),
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -694,4 +714,3 @@ class _RecordGroup {
   final DateTime date;
   final List<Record> records;
 }
-
