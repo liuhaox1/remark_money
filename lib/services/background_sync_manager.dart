@@ -20,6 +20,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   StreamSubscription<String>? _tagsSub;
   Timer? _debounce;
   Timer? _metaDebounce;
+  Timer? _periodicPullTimer;
   final Set<String> _pendingBooks = <String>{};
   final Map<String, String> _pendingReasonsByBook = <String, String>{};
   bool _syncing = false;
@@ -33,6 +34,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   // 多人账本的“实时性”后续用 SSE/WebSocket 来做；当前版本优先保证性能与稳定。
   static const int _resumeMinIntervalMs = 5 * 60 * 1000; // 5min
   static const int _resumeMinBackgroundMs = 30 * 1000; // 30s
+  static const int _periodicPullIntervalMs = 3 * 60 * 1000; // 3min
+  static const int _metaPeriodicIntervalMs = 60 * 60 * 1000; // 60min
 
   void start(BuildContext context) {
     if (_started) return;
@@ -64,8 +67,28 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     final activeBookId = context.read<BookProvider>().activeBookId;
     if (activeBookId.isNotEmpty) {
       requestSync(activeBookId, reason: 'app_start');
-      requestMetaSync(activeBookId, reason: 'app_start');
     }
+    _startPeriodicPullTimer();
+  }
+
+  void _startPeriodicPullTimer() {
+    _periodicPullTimer?.cancel();
+    _periodicPullTimer = Timer.periodic(
+      const Duration(milliseconds: _periodicPullIntervalMs),
+      (_) {
+        final ctx = _context;
+        if (ctx == null) return;
+        final bookId = ctx.read<BookProvider>().activeBookId;
+        if (bookId.isEmpty) return;
+
+        requestSync(bookId, reason: 'periodic_pull');
+
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (now - _lastMetaSyncMs > _metaPeriodicIntervalMs) {
+          requestMetaSync(bookId, reason: 'meta_periodic');
+        }
+      },
+    );
   }
 
   void stop() {
@@ -73,6 +96,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _debounce = null;
     _metaDebounce?.cancel();
     _metaDebounce = null;
+    _periodicPullTimer?.cancel();
+    _periodicPullTimer = null;
     _pendingBooks.clear();
     _pendingReasonsByBook.clear();
     _outboxSub?.cancel();
@@ -167,6 +192,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _lastPausedAtMs = DateTime.now().millisecondsSinceEpoch;
+      _periodicPullTimer?.cancel();
+      _periodicPullTimer = null;
     }
     if (state == AppLifecycleState.resumed) {
       // 前台唤醒时对当前账本做一次静默同步（拉取多设备变更）
@@ -181,8 +208,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
           final backgroundFor = pausedAt == 0 ? 0 : now - pausedAt;
           if (backgroundFor >= _resumeMinBackgroundMs) {
             requestSync(activeBookId, reason: 'app_resumed');
-            requestMetaSync(activeBookId, reason: 'app_resumed');
+            if (now - _lastMetaSyncMs > _metaPeriodicIntervalMs) {
+              requestMetaSync(activeBookId, reason: 'app_resumed');
+            }
           }
+          _startPeriodicPullTimer();
         }
       }
     }

@@ -75,29 +75,24 @@ public class SyncV2Service {
             ? billInfoMapper.countNonDeletedByBookId(bookId)
             : billInfoMapper.countNonDeletedByUserIdAndBookId(userId, bookId);
 
-    long sumIds =
+    Long sumIdsRaw =
         isServerBook(bookId)
-            ? (billInfoMapper.sumIdsNonDeletedByBookId(bookId) != null
-                ? billInfoMapper.sumIdsNonDeletedByBookId(bookId)
-                : 0L)
-            : (billInfoMapper.sumIdsNonDeletedByUserIdAndBookId(userId, bookId) != null
-                ? billInfoMapper.sumIdsNonDeletedByUserIdAndBookId(userId, bookId)
-                : 0L);
+            ? billInfoMapper.sumIdsNonDeletedByBookId(bookId)
+            : billInfoMapper.sumIdsNonDeletedByUserIdAndBookId(userId, bookId);
+    long sumIds = sumIdsRaw != null ? sumIdsRaw : 0L;
 
-    long sumVersions =
+    Long sumVersionsRaw =
         isServerBook(bookId)
-            ? (billInfoMapper.sumVersionsNonDeletedByBookId(bookId) != null
-                ? billInfoMapper.sumVersionsNonDeletedByBookId(bookId)
-                : 0L)
-            : (billInfoMapper.sumVersionsNonDeletedByUserIdAndBookId(userId, bookId) != null
-                ? billInfoMapper.sumVersionsNonDeletedByUserIdAndBookId(userId, bookId)
-                : 0L);
+            ? billInfoMapper.sumVersionsNonDeletedByBookId(bookId)
+            : billInfoMapper.sumVersionsNonDeletedByUserIdAndBookId(userId, bookId);
+    long sumVersions = sumVersionsRaw != null ? sumVersionsRaw : 0L;
 
     Long maxChangeId = billChangeLogMapper.findMaxChangeId(bookId, scopeUserId);
     if (maxChangeId == null) maxChangeId = 0L;
 
     LocalDateTime cutoff = LocalDateTime.now().minusDays(RETENTION_DAYS);
     Long minKeptChangeId = billChangeLogMapper.findMinChangeIdSince(bookId, scopeUserId, cutoff);
+    if (minKeptChangeId == null) minKeptChangeId = 0L;
 
     Map<String, Object> summary = new HashMap<>();
     summary.put("billCount", billCount);

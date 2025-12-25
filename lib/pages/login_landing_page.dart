@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/auth_service.dart';
+import '../services/sync_engine.dart';
 import 'root_shell.dart';
 import 'terms_privacy_page.dart';
 import 'register_page.dart';
@@ -15,11 +15,22 @@ class LoginLandingPage extends StatefulWidget {
 
 class _LoginLandingPageState extends State<LoginLandingPage> {
   bool _agreed = true;
-  final _auth = const AuthService();
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
+    );
+  }
+
+  Future<void> _afterLoginNavigateToRootShell() async {
+    // Ensure the token is fully persisted before triggering sync/navigation.
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+    // Push any outbox ops created while logged out (e.g. first record before register/login).
+    await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'login');
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const RootShell()),
+      (route) => false,
     );
   }
 
@@ -28,17 +39,22 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
       _showSnack('请先阅读并同意《用户协议》和《隐私协议》');
       return;
     }
-    // 跳转到注册页面
-    final result = await Navigator.push<bool>(
+
+    final registered = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const RegisterPage()),
     );
-    if (result == true && mounted) {
-      // 注册成功后，跳转到登录页面
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const account_login.LoginPage()),
-      );
+    if (registered != true || !mounted) return;
+
+    // DO NOT pushReplacement(LoginPage): if LoginPage later pops, the route stack may become empty
+    // and the app will show a blank screen. Keep the landing page in the stack and navigate
+    // to RootShell only after login success.
+    final loginOk = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const account_login.LoginPage()),
+    );
+    if (loginOk == true && mounted) {
+      await _afterLoginNavigateToRootShell();
     }
   }
 
@@ -47,22 +63,14 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
       _showSnack('请先阅读并同意《用户协议》和《隐私协议》');
       return;
     }
-    // 跳转到登录页面
+
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const account_login.LoginPage()),
     );
-    if (result == true && mounted) {
-      // 登录成功，等待一下确保token已保存，然后导航
-      // 增加延迟，确保token已完全保存到SharedPreferences
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      // 使用pushAndRemoveUntil清除所有路由并导航到RootShell
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const RootShell()),
-        (route) => false,
-      );
-    }
+    if (result != true || !mounted) return;
+
+    await _afterLoginNavigateToRootShell();
   }
 
   @override
@@ -75,7 +83,6 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
         child: Column(
           children: [
             const Spacer(),
-            // Logo + App 名称
             Column(
               children: [
                 Container(
@@ -108,7 +115,6 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 注册按钮（主按钮）
                   SizedBox(
                     height: 48,
                     child: FilledButton(
@@ -118,7 +124,7 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
-                    ),
+                      ),
                       onPressed: _agreed ? _onRegister : null,
                       child: Text(
                         '注册',
@@ -127,7 +133,6 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // 登录按钮
                   SizedBox(
                     height: 48,
                     child: OutlinedButton(
@@ -144,17 +149,14 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // 协议勾选
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Checkbox(
                         value: _agreed,
-                        onChanged: (v) =>
-                            setState(() => _agreed = v ?? false),
+                        onChanged: (v) => setState(() => _agreed = v ?? false),
                         shape: const CircleBorder(),
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       Expanded(
                         child: Wrap(

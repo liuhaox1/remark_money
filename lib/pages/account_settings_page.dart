@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
+import '../services/sync_engine.dart';
+import '../providers/book_provider.dart';
 import '../theme/ios_tokens.dart';
 import '../widgets/app_scaffold.dart';
 import 'login_landing_page.dart';
@@ -37,6 +40,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     if (!mounted) return;
     if (result == true) {
       await _refreshToken();
+      if (!mounted) return;
+      // If user created records while logged out, push queued outbox ops immediately after login.
+      final bookId = context.read<BookProvider>().activeBookId;
+      if (bookId.isNotEmpty) {
+        await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'login');
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
     }
@@ -213,4 +222,3 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     );
   }
 }
-

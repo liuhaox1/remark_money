@@ -46,6 +46,29 @@ class SyncEngine {
     await syncBookV2(context, bookId);
   }
 
+  /// After a user logs in, retry pushing any locally queued outbox operations that were created
+  /// while unauthenticated. This fixes the case where an outbox sync was attempted earlier
+  /// (token invalid) and no new outbox events are emitted after login.
+  Future<void> pushAllOutboxAfterLogin(
+    BuildContext context, {
+    String reason = 'login',
+  }) async {
+    final tokenValid = await _authService.isTokenValid();
+    if (!tokenValid) return;
+
+    final bookProvider = context.read<BookProvider>();
+    final bookIds = <String>{};
+    final active = bookProvider.activeBookId;
+    if (active.isNotEmpty) bookIds.add(active);
+    for (final b in bookProvider.books) {
+      if (b.id.isNotEmpty) bookIds.add(b.id);
+    }
+
+    for (final bid in bookIds) {
+      await _uploadOutboxV2(context, bid, reason: reason);
+    }
+  }
+
   Future<void> syncBook(BuildContext context, String bookId) async {
     await syncBookV2(context, bookId);
   }
@@ -62,11 +85,22 @@ class SyncEngine {
     // 立即 pull 会额外产生一轮 bill_change_log + bill_info 查询（服务端/客户端都浪费）。
     // 多设备变更的拉取由 app_start / app_resumed（以及未来可选的轮询/SSE）来覆盖。
     if (reason == 'local_outbox_changed') return;
-    // Ensure meta (categories/tags) is available before applying bills that reference them.
-    await _syncCategories(context, reason: reason);
-    await _syncTags(context, bookId, reason: reason);
+
+    // Keep sync transparent but light-weight:
+    // - Pull on app_start / app_resumed / periodic timers.
+    // - Sync meta only on app_start / app_resumed (and separately via MetaSyncNotifier / periodic meta sync).
+    final shouldSyncMetaForPull = reason == 'app_start' || reason == 'app_resumed';
+    if (shouldSyncMetaForPull) {
+      await _syncCategories(context, reason: reason);
+      await _syncTags(context, bookId, reason: reason);
+    }
+
     await _pullV2(context, bookId, reason: reason);
-    await _maybeBootstrapFromSummary(context, bookId, reason: reason);
+
+    final shouldSummaryCheck = reason == 'app_start' || reason == 'app_resumed';
+    if (shouldSummaryCheck) {
+      await _maybeBootstrapFromSummary(context, bookId, reason: reason);
+    }
   }
 
   Future<void> forceBootstrapV2(

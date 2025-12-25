@@ -488,6 +488,9 @@ class _ProfilePageState extends State<ProfilePage> {
     final result = await Navigator.pushNamed(context, '/login');
     if (result == true) {
       await _loadToken();
+      if (!mounted) return;
+      // Push any outbox ops created while logged out (no token), so they don't get stuck indefinitely.
+      await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'login');
     }
   }
 
