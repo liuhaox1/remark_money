@@ -16,6 +16,9 @@ public interface BookMapper {
   @Select("SELECT id, owner_id, name, invite_code, is_multi, status, created_at, updated_at FROM book WHERE invite_code = #{inviteCode}")
   Book findByInviteCode(@Param("inviteCode") String inviteCode);
 
+  @Select("SELECT id, owner_id, name, invite_code, is_multi, status, created_at, updated_at FROM book WHERE id = #{id}")
+  Book findById(@Param("id") Long id);
+
   @Update("UPDATE book SET invite_code = #{inviteCode}, updated_at = NOW() WHERE id = #{id}")
   int updateInviteCode(@Param("id") Long id, @Param("inviteCode") String inviteCode);
 

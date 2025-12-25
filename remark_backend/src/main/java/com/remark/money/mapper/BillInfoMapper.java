@@ -62,8 +62,6 @@ public interface BillInfoMapper {
 
   Long sumVersionsNonDeletedByBookId(@Param("bookId") String bookId);
 
-  List<BillInfo> findBillsNeedingTagRelBackfill(@Param("limit") int limit);
-
   // purge: find old soft-deleted bills in batches
   List<BillInfo> findDeletedBillsBefore(@Param("cutoff") LocalDateTime cutoff, @Param("limit") int limit);
 

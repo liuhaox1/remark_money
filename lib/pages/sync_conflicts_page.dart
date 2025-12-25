@@ -53,6 +53,7 @@ class _SyncConflictsPageState extends State<SyncConflictsPage> {
   double _amountFromBill(Map<String, dynamic>? bill) {
     final v = bill?['amount'];
     if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0;
     return 0;
   }
 

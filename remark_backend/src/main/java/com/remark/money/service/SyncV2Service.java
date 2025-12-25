@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -42,6 +43,7 @@ public class SyncV2Service {
   private final SyncOpDedupMapper syncOpDedupMapper;
   private final SyncScopeStateMapper syncScopeStateMapper;
   private final BookMemberMapper bookMemberMapper;
+  private final com.remark.money.mapper.BookMapper bookMapper;
   private final IdSequenceMapper idSequenceMapper;
 
   public SyncV2Service(BillInfoMapper billInfoMapper,
@@ -51,6 +53,7 @@ public class SyncV2Service {
                        SyncOpDedupMapper syncOpDedupMapper,
                        SyncScopeStateMapper syncScopeStateMapper,
                        BookMemberMapper bookMemberMapper,
+                       com.remark.money.mapper.BookMapper bookMapper,
                        IdSequenceMapper idSequenceMapper) {
     this.billInfoMapper = billInfoMapper;
     this.billChangeLogMapper = billChangeLogMapper;
@@ -59,6 +62,7 @@ public class SyncV2Service {
     this.syncOpDedupMapper = syncOpDedupMapper;
     this.syncScopeStateMapper = syncScopeStateMapper;
     this.bookMemberMapper = bookMemberMapper;
+    this.bookMapper = bookMapper;
     this.idSequenceMapper = idSequenceMapper;
   }
 
@@ -128,8 +132,8 @@ public class SyncV2Service {
   private boolean isServerBook(String bookId) {
     if (bookId == null) return false;
     try {
-      Long.parseLong(bookId);
-      return true;
+      Long bid = Long.parseLong(bookId);
+      return bookMapper.findById(bid) != null;
     } catch (NumberFormatException e) {
       return false;
     }
@@ -188,12 +192,19 @@ public class SyncV2Service {
 
     Object amountObj = map.get("amount");
     if (amountObj instanceof Number) {
-      bill.setAmount(BigDecimal.valueOf(((Number) amountObj).doubleValue()));
+      try {
+        bill.setAmount(new BigDecimal(amountObj.toString()));
+      } catch (Exception ignored) {
+        bill.setAmount(BigDecimal.valueOf(((Number) amountObj).doubleValue()));
+      }
     } else if (amountObj instanceof String) {
       try {
         bill.setAmount(new BigDecimal((String) amountObj));
       } catch (Exception ignored) {
       }
+    }
+    if (bill.getAmount() != null) {
+      bill.setAmount(bill.getAmount().setScale(2, RoundingMode.HALF_UP));
     }
 
     bill.setDirection(asInt(map.get("direction")));
@@ -211,8 +222,6 @@ public class SyncV2Service {
 
     bill.setIncludeInStats(asInt(map.get("includeInStats")));
     bill.setPairId((String) map.get("pairId"));
-    // v2 tagIds are persisted in bill_tag_rel (relation table); keep bill_info.tag_ids only for legacy backfill.
-    bill.setTagIds(null);
     bill.setIsDelete(asInt(map.get("isDelete")));
     return bill;
   }
@@ -234,31 +243,6 @@ public class SyncV2Service {
     } catch (Exception ignored) {
     }
     return null;
-  }
-
-  private String encodeTagIds(Object value) {
-    if (value == null) return null;
-    if (value instanceof String) {
-      String s = ((String) value).trim();
-      return s.isEmpty() ? null : s;
-    }
-    if (!(value instanceof List)) return null;
-    @SuppressWarnings("unchecked")
-    List<Object> list = (List<Object>) value;
-    StringBuilder sb = new StringBuilder();
-    sb.append('[');
-    boolean first = true;
-    for (Object o : list) {
-      if (o == null) continue;
-      String raw = o.toString();
-      if (raw.trim().isEmpty()) continue;
-      String escaped = raw.replace("\\", "\\\\").replace("\"", "\\\"");
-      if (!first) sb.append(',');
-      sb.append('\"').append(escaped).append('\"');
-      first = false;
-    }
-    sb.append(']');
-    return sb.toString();
   }
 
   private List<String> normalizeTagIds(Object value) {
@@ -323,7 +307,13 @@ public class SyncV2Service {
     map.put("bookId", bill.getBookId());
     map.put("accountId", bill.getAccountId());
     map.put("categoryKey", bill.getCategoryKey());
-    map.put("amount", bill.getAmount());
+    // Serialize amount as string to avoid JSON number precision/scientific-notation issues.
+    BigDecimal amt = bill.getAmount();
+    if (amt != null) {
+      map.put("amount", amt.setScale(2, RoundingMode.HALF_UP).toPlainString());
+    } else {
+      map.put("amount", "0.00");
+    }
     map.put("direction", bill.getDirection());
     map.put("remark", bill.getRemark());
     map.put("attachmentUrl", bill.getAttachmentUrl());
@@ -483,7 +473,6 @@ public class SyncV2Service {
             List<String> tagIds =
                 loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(serverBill.getId()))
                     .get(serverBill.getId());
-            if (tagIds == null) tagIds = decodeTagIds(serverBill.getTagIds());
             if (tagIds == null) tagIds = new ArrayList<>();
             item.put("serverBill", toBillMap(serverBill, tagIds));
           }
@@ -676,7 +665,6 @@ public class SyncV2Service {
         List<String> tagIds =
             loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
-        if (tagIds == null) tagIds = decodeTagIds(latest.getTagIds());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
         item.put("retryable", false);
@@ -704,7 +692,6 @@ public class SyncV2Service {
         List<String> tagIds =
             loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
-        if (tagIds == null) tagIds = decodeTagIds(latest.getTagIds());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
         item.put("retryable", false);
@@ -762,7 +749,6 @@ public class SyncV2Service {
         List<String> tagIds =
             loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
-        if (tagIds == null) tagIds = decodeTagIds(latest.getTagIds());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
         item.put("retryable", false);
@@ -790,7 +776,6 @@ public class SyncV2Service {
         List<String> tagIds =
             loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
-        if (tagIds == null) tagIds = decodeTagIds(latest.getTagIds());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
         item.put("retryable", false);
@@ -875,9 +860,6 @@ public class SyncV2Service {
         BillInfo bill = billMap.get(log.getBillId());
         if (bill != null) {
           List<String> tagIds = tagIdsByBillId.get(log.getBillId());
-          if (tagIds == null) {
-            tagIds = decodeTagIds(bill.getTagIds());
-          }
           if (tagIds == null) tagIds = new ArrayList<>();
           c.put("bill", toBillMap(bill, tagIds));
         } else {

@@ -111,9 +111,25 @@ class SyncEngine {
     try {
       final repo = RepositoryFactory.createCategoryRepository();
       final categories = (await repo.loadCategories()).cast<Category>();
-      final payload =
-          categories.map((c) => c.toMap()).toList(growable: false);
       final deletedKeys = await CategoryDeleteQueue.instance.load();
+
+      // Download first to obtain server syncVersion baselines, without overwriting local edits.
+      final download = await _syncService.downloadCategories();
+      if (!download.success) return;
+      final remote = (download.categories ?? const [])
+          .map((m) => (m as Map).cast<String, dynamic>())
+          .toList(growable: false);
+      final remoteCats = remote.map(Category.fromMap).toList(growable: false);
+      final remoteByKey = <String, Category>{};
+      for (final c in remoteCats) {
+        remoteByKey[c.key] = c;
+      }
+      final merged = categories
+          .map((c) => c.copyWith(syncVersion: c.syncVersion ?? remoteByKey[c.key]?.syncVersion))
+          .toList(growable: false);
+      await repo.saveCategories(merged);
+
+      final payload = merged.map((c) => c.toMap()).toList(growable: false);
       final upload = await _syncService.uploadCategories(
         categories: payload,
         deletedKeys: deletedKeys,
@@ -121,13 +137,15 @@ class SyncEngine {
       if (upload.success) {
         await CategoryDeleteQueue.instance.clear();
       }
-      final download = await _syncService.downloadCategories();
-      if (!download.success) return;
-      final remote = (download.categories ?? const [])
+
+      // Apply server authoritative view.
+      final download2 = await _syncService.downloadCategories();
+      if (!download2.success) return;
+      final remote2 = (download2.categories ?? const [])
           .map((m) => (m as Map).cast<String, dynamic>())
           .toList(growable: false);
-      final remoteCats = remote.map(Category.fromMap).toList(growable: false);
-      await repo.saveCategories(remoteCats);
+      final remoteCats2 = remote2.map(Category.fromMap).toList(growable: false);
+      await repo.saveCategories(remoteCats2);
       try {
         await context.read<CategoryProvider>().reload();
       } catch (_) {}
@@ -142,7 +160,26 @@ class SyncEngine {
     try {
       final repo = RepositoryFactory.createTagRepository();
       final tags = (await repo.loadTags(bookId: bookId)).cast<Tag>();
-      final payload = tags
+      final deletedByBook = await TagDeleteQueue.instance.load();
+      final deleted = deletedByBook[bookId] ?? const <String>[];
+
+      // Download first to obtain server syncVersion baselines, without overwriting local edits.
+      final download = await _syncService.downloadTags(bookId: bookId);
+      if (!download.success) return;
+      final remote = (download.tags ?? const [])
+          .map((m) => (m as Map).cast<String, dynamic>())
+          .toList(growable: false);
+      final remoteTags = remote.map(Tag.fromMap).toList(growable: false);
+      final remoteById = <String, Tag>{};
+      for (final t in remoteTags) {
+        remoteById[t.id] = t;
+      }
+      final merged = tags
+          .map((t) => t.copyWith(syncVersion: t.syncVersion ?? remoteById[t.id]?.syncVersion))
+          .toList(growable: false);
+      await repo.saveTagsForBook(bookId, merged);
+
+      final payload = merged
           .map(
             (t) => <String, dynamic>{
               'id': t.id,
@@ -157,8 +194,6 @@ class SyncEngine {
           )
           .toList(growable: false);
 
-      final deletedByBook = await TagDeleteQueue.instance.load();
-      final deleted = deletedByBook[bookId] ?? const <String>[];
       final upload = await _syncService.uploadTags(
         bookId: bookId,
         tags: payload,
@@ -168,13 +203,14 @@ class SyncEngine {
         await TagDeleteQueue.instance.clearBook(bookId);
       }
 
-      final download = await _syncService.downloadTags(bookId: bookId);
-      if (!download.success) return;
-      final remote = (download.tags ?? const [])
+      // Apply server authoritative view.
+      final download2 = await _syncService.downloadTags(bookId: bookId);
+      if (!download2.success) return;
+      final remote2 = (download2.tags ?? const [])
           .map((m) => (m as Map).cast<String, dynamic>())
           .toList(growable: false);
-      final remoteTags = remote.map(Tag.fromMap).toList(growable: false);
-      await repo.saveTagsForBook(bookId, remoteTags);
+      final remoteTags2 = remote2.map(Tag.fromMap).toList(growable: false);
+      await repo.saveTagsForBook(bookId, remoteTags2);
       try {
         await context.read<TagProvider>().loadForBook(bookId, force: true);
       } catch (_) {}
@@ -670,8 +706,14 @@ class SyncEngine {
     int sumIds = 0;
     int sumVersions = 0;
     if (RepositoryFactory.isUsingDatabase) {
-      // DB mode: record ids are strings; server_id/server_version exist but no cheap aggregate query right now.
-      // Fall back to in-memory calculation.
+      try {
+        final repo = RepositoryFactory.createRecordRepository();
+        if (repo is RecordRepositoryDb) {
+          return await repo.sumSyncedAgg(bookId: bookId);
+        }
+      } catch (_) {
+        // Fall back to in-memory calculation.
+      }
     }
     final recordProvider = context.read<RecordProvider>();
     for (final r in recordProvider.recordsForBook(bookId)) {
@@ -703,11 +745,17 @@ class SyncEngine {
   Record _mapToRecord(Map<String, dynamic> map) {
     final serverId = map['id'] as int? ?? map['serverId'] as int?;
     final serverVersion = map['version'] as int? ?? map['serverVersion'] as int?;
+
+    double parseAmount(dynamic v) {
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v) ?? 0.0;
+      return 0.0;
+    }
     return Record(
       id: serverId != null ? 'server_$serverId' : _generateTempId(),
       serverId: serverId,
       serverVersion: serverVersion,
-      amount: (map['amount'] as num).toDouble(),
+      amount: parseAmount(map['amount']),
       remark: map['remark'] as String? ?? '',
       date: DateTime.parse(map['billDate'] as String),
       categoryKey: map['categoryKey'] as String,
@@ -1005,6 +1053,18 @@ class SyncEngine {
         final deletedAccounts = await AccountDeleteQueue.instance.load();
         final localAccounts = accountProvider.accounts;
         if (localAccounts.isNotEmpty || deletedAccounts.isNotEmpty) {
+          // Download first to obtain serverId/syncVersion baselines to satisfy optimistic concurrency.
+          try {
+            final down = await _syncService.downloadAccounts();
+            if (down.success && down.accounts != null) {
+              await _outbox.runSuppressed(() async {
+                await DataVersionService.runWithoutIncrement(() async {
+                  await accountProvider.mergeSyncStateFromCloud(down.accounts!);
+                });
+              });
+            }
+          } catch (_) {}
+
           final payload = localAccounts
               .map(
                 (a) => {
@@ -1041,6 +1101,19 @@ class SyncEngine {
           if (!uploadResult.success) {
             debugPrint('[SyncEngine] account upload error: ${uploadResult.error}');
           }
+
+          // Self-heal: download latest serverId/syncVersion and merge into local state without overwriting edits.
+          // This helps recover quickly from optimistic-concurrency errors (e.g. missing/stale syncVersion).
+          try {
+            final down = await _syncService.downloadAccounts();
+            if (down.success && down.accounts != null) {
+              await _outbox.runSuppressed(() async {
+                await DataVersionService.runWithoutIncrement(() async {
+                  await accountProvider.mergeSyncStateFromCloud(down.accounts!);
+                });
+              });
+            }
+          } catch (_) {}
           return;
         }
 

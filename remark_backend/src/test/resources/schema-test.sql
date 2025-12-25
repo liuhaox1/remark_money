@@ -4,11 +4,23 @@ DROP TABLE IF EXISTS bill_change_log;
 DROP TABLE IF EXISTS bill_delete_tombstone;
 DROP TABLE IF EXISTS bill_tag_rel;
 DROP TABLE IF EXISTS bill_info;
+DROP TABLE IF EXISTS book;
 DROP TABLE IF EXISTS book_member;
 DROP TABLE IF EXISTS budget_info;
 DROP TABLE IF EXISTS account_info;
 DROP TABLE IF EXISTS tag_info;
 DROP TABLE IF EXISTS category_info;
+
+CREATE TABLE book (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  owner_id BIGINT NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  invite_code VARCHAR(64),
+  is_multi BOOLEAN DEFAULT FALSE,
+  status INT DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE book_member (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -33,11 +45,14 @@ CREATE TABLE bill_info (
   bill_date TIMESTAMP,
   include_in_stats INT NOT NULL DEFAULT 1,
   pair_id VARCHAR(128),
-  tag_ids CLOB,
   is_delete INT NOT NULL DEFAULT 0,
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_bill_user_book_delete ON bill_info(user_id, book_id, is_delete);
+CREATE INDEX idx_bill_book_delete ON bill_info(book_id, is_delete);
+CREATE INDEX idx_bill_delete_update ON bill_info(is_delete, update_time, id);
 
 CREATE TABLE budget_info (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

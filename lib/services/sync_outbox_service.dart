@@ -90,13 +90,15 @@ class SyncOutboxService {
     required int updateAtMs,
     required List<String> tagIds,
   }) {
+    // Amount is serialized as a string to avoid floating-point / scientific-notation issues across platforms.
+    final amountStr = record.amount.toStringAsFixed(2);
     return {
       'localId': record.id,
       'serverId': record.serverId,
       'bookId': record.bookId,
       'accountId': record.accountId,
       'categoryKey': record.categoryKey,
-      'amount': record.amount,
+      'amount': amountStr,
       'direction': record.direction == TransactionDirection.income ? 1 : 0,
       'remark': record.remark,
       'billDate': record.date.toIso8601String(),

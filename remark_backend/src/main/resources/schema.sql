@@ -80,15 +80,17 @@ CREATE TABLE IF NOT EXISTS bill_info (
   bill_date DATETIME NOT NULL COMMENT '账单日期',
   include_in_stats TINYINT NOT NULL DEFAULT 1,
   pair_id VARCHAR(64) DEFAULT NULL COMMENT '转账配对ID',
-  tag_ids TEXT DEFAULT NULL COMMENT '标签ID列表(JSON)',
   is_delete TINYINT NOT NULL DEFAULT 0 COMMENT '0=有效,1=已删除',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   version BIGINT NOT NULL DEFAULT 1 COMMENT 'optimistic lock version (server-managed)',
   INDEX idx_user_book (user_id, book_id),
+  INDEX idx_user_book_delete (user_id, book_id, is_delete),
   INDEX idx_user_update (user_id, update_time),
   INDEX idx_book (book_id),
-  INDEX idx_delete (is_delete)
+  INDEX idx_book_delete (book_id, is_delete),
+  INDEX idx_delete (is_delete),
+  INDEX idx_delete_update (is_delete, update_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 预算表（云端同步）
@@ -194,7 +196,7 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- 账单-标签关系表（v2：用关系表替代 bill_info.tag_ids JSON）
+-- 账单-标签关系表（v2）
 CREATE TABLE IF NOT EXISTS bill_tag_rel (
   book_id VARCHAR(64) NOT NULL,
   bill_id BIGINT NOT NULL,
@@ -478,6 +480,48 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- bill_info add idx_book_delete for summary/pull queries
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_info'
+      AND INDEX_NAME = 'idx_book_delete'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_book_delete ON bill_info(book_id, is_delete)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- bill_info add idx_user_book_delete for per-user book summary queries
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_info'
+      AND INDEX_NAME = 'idx_user_book_delete'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_user_book_delete ON bill_info(user_id, book_id, is_delete)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- bill_info add idx_delete_update for purge/backfill scanning
+SET @index_exists = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_info'
+      AND INDEX_NAME = 'idx_delete_update'
+);
+SET @sql = IF(@index_exists = 0,
+    'CREATE INDEX idx_delete_update ON bill_info(is_delete, update_time, id)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 2. 删除 bill_info 表的 bill_id 字段（如果存在）
 SET @column_exists = (
     SELECT COUNT(*) FROM information_schema.COLUMNS 
@@ -486,6 +530,18 @@ SET @column_exists = (
       AND COLUMN_NAME = 'bill_id'
 );
 SET @sql = IF(@column_exists > 0, 'ALTER TABLE bill_info DROP COLUMN bill_id', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- bill_info: drop legacy tag_ids column (tag relations are stored in bill_tag_rel)
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_info'
+      AND COLUMN_NAME = 'tag_ids'
+);
+SET @sql = IF(@column_exists > 0, 'ALTER TABLE bill_info DROP COLUMN tag_ids', 'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

@@ -483,6 +483,12 @@ class RecordRepositoryDb {
       // 3) upsert
       final batch = txn.batch();
       final tagIdsByLocalId = <String, List<String>>{};
+
+      double parseAmount(dynamic v) {
+        if (v is num) return v.toDouble();
+        if (v is String) return double.tryParse(v) ?? 0.0;
+        return 0.0;
+      }
       for (final bill in bills) {
         final serverId = (bill['id'] as int?) ?? (bill['serverId'] as int?);
         if (serverId == null) continue;
@@ -508,7 +514,7 @@ class RecordRepositoryDb {
           'book_id': bookId,
           'category_key': bill['categoryKey']?.toString() ?? '',
           'account_id': bill['accountId']?.toString() ?? '',
-          'amount': (bill['amount'] as num?)?.toDouble() ?? 0.0,
+          'amount': parseAmount(bill['amount']),
           'is_expense': direction == TransactionDirection.out ? 1 : 0,
           'date': date.millisecondsSinceEpoch,
           'remark': bill['remark']?.toString() ?? '',
@@ -750,6 +756,26 @@ class RecordRepositoryDb {
       return (result.first['count'] as int?) ?? 0;
     } catch (e, stackTrace) {
       debugPrint('[RecordRepositoryDb] countSyncedRecords failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// Aggregate synced records for v2 summary cross-check.
+  Future<({int sumIds, int sumVersions})> sumSyncedAgg({required String bookId}) async {
+    try {
+      final db = await _dbHelper.database;
+      final result = await db.rawQuery(
+        'SELECT COALESCE(SUM(server_id), 0) as sumIds, COALESCE(SUM(server_version), 0) as sumVersions '
+        'FROM ${Tables.records} WHERE book_id = ? AND server_id IS NOT NULL',
+        <Object?>[bookId],
+      );
+      final row = result.isNotEmpty ? result.first : const <String, Object?>{};
+      final sumIds = (row['sumIds'] as int?) ?? int.tryParse('${row['sumIds']}') ?? 0;
+      final sumVersions = (row['sumVersions'] as int?) ?? int.tryParse('${row['sumVersions']}') ?? 0;
+      return (sumIds: sumIds, sumVersions: sumVersions);
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] sumSyncedAgg failed: $e');
       debugPrint('Stack trace: $stackTrace');
       rethrow;
     }

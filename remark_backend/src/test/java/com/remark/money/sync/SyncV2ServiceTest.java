@@ -1,11 +1,13 @@
 package com.remark.money.sync;
 
 import com.remark.money.entity.BillInfo;
+import com.remark.money.entity.Book;
 import com.remark.money.entity.BookMember;
 import com.remark.money.entity.SyncOpDedup;
 import com.remark.money.mapper.BillChangeLogMapper;
 import com.remark.money.mapper.BillInfoMapper;
 import com.remark.money.mapper.BillTagRelMapper;
+import com.remark.money.mapper.BookMapper;
 import com.remark.money.mapper.BookMemberMapper;
 import com.remark.money.mapper.SyncOpDedupMapper;
 import com.remark.money.mapper.SyncScopeStateMapper;
@@ -50,6 +52,9 @@ public class SyncV2ServiceTest {
 
   @Autowired
   private BookMemberMapper bookMemberMapper;
+
+  @Autowired
+  private BookMapper bookMapper;
 
   private Map<String, Object> buildUpsertOp(String opId, Long expectedVersion, Map<String, Object> bill) {
     Map<String, Object> op = new HashMap<>();
@@ -337,6 +342,14 @@ public class SyncV2ServiceTest {
     Long userA = 201L;
     Long userB = 202L;
     String sharedBookId = "1"; // numeric => shared book
+
+    Book book = new Book();
+    book.setOwnerId(userA);
+    book.setName("shared");
+    book.setInviteCode("inv-1");
+    book.setIsMulti(true);
+    book.setStatus(1);
+    bookMapper.insert(book);
 
     BookMember ma = new BookMember();
     ma.setBookId(1L);

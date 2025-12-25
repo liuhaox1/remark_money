@@ -126,17 +126,21 @@ public class SyncService {
       }
 
       if (existing != null) {
+        // Hard requirement: once server has sync_version, client must provide syncVersion to update.
+        if (existing.getSyncVersion() != null && account.getSyncVersion() == null) {
+          return AccountSyncResult.error("missing syncVersion");
+        }
+
         // Prefer server monotonic sync_version when available (avoid client clock drift).
         if (account.getSyncVersion() != null && existing.getSyncVersion() != null) {
           if (!existing.getSyncVersion().equals(account.getSyncVersion())) {
-            processed.add(existing);
-            continue;
+            return AccountSyncResult.error("account conflict");
           }
           account.setId(existing.getId());
           int updated =
               accountInfoMapper.updateWithExpectedSyncVersion(account, account.getSyncVersion());
           if (updated <= 0) {
-            processed.add(existing);
+            return AccountSyncResult.error("account conflict");
           }
           continue;
         }
@@ -301,11 +305,14 @@ public class SyncService {
       CategoryInfo existing = c.getCategoryKey() == null ? null : existingByKey.get(c.getCategoryKey());
       if (existing != null) {
         c.setId(existing.getId());
+        if (existing.getSyncVersion() != null && c.getSyncVersion() == null) {
+          return CategorySyncResult.error("missing syncVersion");
+        }
         if (existing.getSyncVersion() != null) {
           Long expected = existing.getSyncVersion();
           if (c.getSyncVersion() != null) {
             if (!existing.getSyncVersion().equals(c.getSyncVersion())) {
-              continue;
+              return CategorySyncResult.error("category conflict");
             }
             expected = c.getSyncVersion();
           } else {
@@ -316,7 +323,7 @@ public class SyncService {
           }
           int updated = categoryInfoMapper.updateWithExpectedSyncVersion(c, expected);
           if (updated <= 0) {
-            continue;
+            return CategorySyncResult.error("category conflict");
           }
         }
       } else {
@@ -375,11 +382,14 @@ public class SyncService {
       TagInfo existing = t.getTagId() == null ? null : existingByTagId.get(t.getTagId());
       if (existing != null) {
         t.setId(existing.getId());
+        if (existing.getSyncVersion() != null && t.getSyncVersion() == null) {
+          return TagSyncResult.error("missing syncVersion");
+        }
         if (existing.getSyncVersion() != null) {
           Long expected = existing.getSyncVersion();
           if (t.getSyncVersion() != null) {
             if (!existing.getSyncVersion().equals(t.getSyncVersion())) {
-              continue;
+              return TagSyncResult.error("tag conflict");
             }
             expected = t.getSyncVersion();
           } else {
@@ -389,7 +399,7 @@ public class SyncService {
           }
           int updated = tagInfoMapper.updateWithExpectedSyncVersion(t, expected);
           if (updated <= 0) {
-            continue;
+            return TagSyncResult.error("tag conflict");
           }
         }
       } else {

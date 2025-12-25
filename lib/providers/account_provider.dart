@@ -428,6 +428,41 @@ class AccountProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Merge server sync state (serverId/syncVersion) into local accounts without overwriting user edits.
+  /// Used when the server starts enforcing optimistic concurrency for meta sync.
+  Future<void> mergeSyncStateFromCloud(List<Map<String, dynamic>> cloudAccounts) async {
+    final byId = <String, Map<String, dynamic>>{};
+    for (final raw in cloudAccounts) {
+      final id = raw['id']?.toString();
+      if (id == null || id.trim().isEmpty) continue;
+      byId[id] = raw;
+    }
+
+    var changed = false;
+    for (var i = 0; i < _accounts.length; i++) {
+      final local = _accounts[i];
+      final cloud = byId[local.id];
+      if (cloud == null) continue;
+
+      final cloudServerId = (cloud['serverId'] as num?)?.toInt();
+      final cloudSyncVersion = (cloud['syncVersion'] as num?)?.toInt();
+
+      final next = local.copyWith(
+        serverId: cloudServerId ?? local.serverId,
+        syncVersion: cloudSyncVersion ?? local.syncVersion,
+      );
+      if (next.serverId != local.serverId || next.syncVersion != local.syncVersion) {
+        _accounts[i] = next;
+        changed = true;
+      }
+    }
+
+    if (!changed) return;
+    await _repository.saveAccounts(_accounts);
+    _rebuildDefaultWalletAliases();
+    notifyListeners();
+  }
+
   void _rebuildDefaultWalletAliases() {
     _idAliases.clear();
 

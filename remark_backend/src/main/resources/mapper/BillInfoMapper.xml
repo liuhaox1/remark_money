@@ -15,7 +15,6 @@
     <result property="billDate" column="bill_date"/>
     <result property="includeInStats" column="include_in_stats"/>
     <result property="pairId" column="pair_id"/>
-    <result property="tagIds" column="tag_ids"/>
     <result property="isDelete" column="is_delete"/>
     <result property="version" column="version"/>
     <result property="updateTime" column="update_time"/>
@@ -57,29 +56,29 @@
 
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO bill_info (user_id, book_id, account_id, category_key, amount, direction,
-                          remark, attachment_url, bill_date, include_in_stats, pair_id, tag_ids, is_delete, update_time, created_at)
+                          remark, attachment_url, bill_date, include_in_stats, pair_id, is_delete, update_time, created_at)
     VALUES (#{userId}, #{bookId}, #{accountId}, #{categoryKey}, #{amount}, #{direction},
-            #{remark}, #{attachmentUrl}, #{billDate}, #{includeInStats}, #{pairId}, #{tagIds}, #{isDelete}, NOW(), NOW())
+            #{remark}, #{attachmentUrl}, #{billDate}, #{includeInStats}, #{pairId}, #{isDelete}, NOW(), NOW())
   </insert>
 
   <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO bill_info (user_id, book_id, account_id, category_key, amount, direction,
-                          remark, attachment_url, bill_date, include_in_stats, pair_id, tag_ids, is_delete, update_time, created_at)
+                          remark, attachment_url, bill_date, include_in_stats, pair_id, is_delete, update_time, created_at)
     VALUES
     <foreach collection="list" item="item" separator=",">
       (#{item.userId}, #{item.bookId}, #{item.accountId}, #{item.categoryKey}, #{item.amount}, #{item.direction},
-       #{item.remark}, #{item.attachmentUrl}, #{item.billDate}, #{item.includeInStats}, #{item.pairId}, #{item.tagIds}, #{item.isDelete}, NOW(), NOW())
+       #{item.remark}, #{item.attachmentUrl}, #{item.billDate}, #{item.includeInStats}, #{item.pairId}, #{item.isDelete}, NOW(), NOW())
     </foreach>
   </insert>
 
   <!-- v2: batch insert with explicit auto-increment ids (client-allocated) -->
   <insert id="batchInsertWithId">
     INSERT INTO bill_info (id, user_id, book_id, account_id, category_key, amount, direction,
-                          remark, attachment_url, bill_date, include_in_stats, pair_id, tag_ids, is_delete, update_time, created_at)
+                          remark, attachment_url, bill_date, include_in_stats, pair_id, is_delete, update_time, created_at)
     VALUES
     <foreach collection="list" item="item" separator=",">
       (#{item.id}, #{item.userId}, #{item.bookId}, #{item.accountId}, #{item.categoryKey}, #{item.amount}, #{item.direction},
-       #{item.remark}, #{item.attachmentUrl}, #{item.billDate}, #{item.includeInStats}, #{item.pairId}, #{item.tagIds}, #{item.isDelete}, NOW(), NOW())
+       #{item.remark}, #{item.attachmentUrl}, #{item.billDate}, #{item.includeInStats}, #{item.pairId}, #{item.isDelete}, NOW(), NOW())
     </foreach>
   </insert>
 
@@ -95,7 +94,6 @@
       bill_date = #{billDate},
       include_in_stats = #{includeInStats},
       pair_id = #{pairId},
-      tag_ids = #{tagIds},
       is_delete = #{isDelete},
       update_time = NOW()
     WHERE id = #{id} AND user_id = #{userId}
@@ -113,7 +111,6 @@
         bill_date = #{item.billDate},
         include_in_stats = #{item.includeInStats},
         pair_id = #{item.pairId},
-        tag_ids = #{item.tagIds},
         is_delete = #{item.isDelete},
         update_time = NOW()
       WHERE id = #{item.id} AND user_id = #{item.userId}
@@ -162,21 +159,6 @@
     SELECT COALESCE(SUM(version), 0)
     FROM bill_info
     WHERE book_id = #{bookId} AND is_delete = 0
-  </select>
-
-  <select id="findBillsNeedingTagRelBackfill" resultMap="BillInfoResultMap">
-    SELECT id, user_id, book_id, account_id, category_key, amount, direction, remark, attachment_url,
-           bill_date, include_in_stats, pair_id, tag_ids, is_delete, update_time, created_at, version
-    FROM bill_info bi
-    WHERE bi.tag_ids IS NOT NULL
-      AND bi.tag_ids != ''
-      AND bi.tag_ids != '[]'
-      AND NOT EXISTS (
-        SELECT 1 FROM bill_tag_rel r
-        WHERE r.book_id = bi.book_id AND r.bill_id = bi.id
-      )
-    ORDER BY bi.update_time ASC, bi.id ASC
-    LIMIT #{limit}
   </select>
 
   <select id="findDeletedBillsBefore" resultMap="BillInfoResultMap">
@@ -248,7 +230,6 @@
       bill_date = #{bill.billDate},
       include_in_stats = #{bill.includeInStats},
       pair_id = #{bill.pairId},
-      tag_ids = #{bill.tagIds},
       is_delete = #{bill.isDelete},
       version = version + 1,
       update_time = NOW()
@@ -267,7 +248,6 @@
       bill_date = #{bill.billDate},
       include_in_stats = #{bill.includeInStats},
       pair_id = #{bill.pairId},
-      tag_ids = #{bill.tagIds},
       is_delete = #{bill.isDelete},
       version = version + 1,
       update_time = NOW()

@@ -57,6 +57,17 @@ public class AccountSyncServiceTest {
         syncService.uploadAccounts(userId, Arrays.asList(a1, a2));
     assertTrue(up1.isSuccess());
 
+    // SyncService now requires syncVersion for updating existing rows.
+    SyncService.AccountSyncResult baseline = syncService.downloadAccounts(userId);
+    assertTrue(baseline.isSuccess());
+    AccountInfo serverA1 =
+        baseline.getAccounts().stream()
+            .filter(a -> "a1".equals(a.getAccountId()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("missing server account a1"));
+    assertNotNull(serverA1.getSyncVersion());
+    a1.setSyncVersion(serverA1.getSyncVersion());
+
     // Uploading a partial list must NOT delete server-side accounts that are missing from the list.
     SyncService.AccountSyncResult up2 =
         syncService.uploadAccounts(userId, Collections.singletonList(a1));
@@ -92,4 +103,3 @@ public class AccountSyncServiceTest {
     assertEquals("b1", got.get(0).getAccountId());
   }
 }
-
