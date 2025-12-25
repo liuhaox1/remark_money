@@ -2070,7 +2070,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
         );
 
         try {
-          await tagProvider.setTagsForRecord(updated.id, _selectedTagIds);
+          await tagProvider.setTagsForRecord(
+            updated.id,
+            _selectedTagIds,
+            record: updated,
+          );
         } catch (_) {}
 
         if (!mounted) return;
@@ -2090,7 +2094,11 @@ class _AddRecordPageState extends State<AddRecordPage> {
         );
 
         try {
-          await tagProvider.setTagsForRecord(created.id, _selectedTagIds);
+          await tagProvider.setTagsForRecord(
+            created.id,
+            _selectedTagIds,
+            record: created,
+          );
         } catch (_) {}
 
         if (_saveAsTemplate) {

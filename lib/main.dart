@@ -20,7 +20,6 @@ import 'providers/category_provider.dart';
 import 'providers/budget_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/account_provider.dart';
-import 'providers/reminder_provider.dart';
 import 'providers/tag_provider.dart';
 import 'providers/recurring_record_provider.dart';
 import 'repository/repository_factory.dart';
@@ -70,7 +69,6 @@ Future<void> main() async {
   final budgetProvider = BudgetProvider();
   final themeProvider = ThemeProvider();
   final accountProvider = AccountProvider();
-  final reminderProvider = ReminderProvider();
   final tagProvider = TagProvider();
   final recurringRecordProvider = RecurringRecordProvider();
 
@@ -80,7 +78,6 @@ Future<void> main() async {
     categoryProvider.load(),
     budgetProvider.load(),
     accountProvider.load(),
-    reminderProvider.load(),
     recurringRecordProvider.load(),
     themeProvider.load(),
   ]);
@@ -95,7 +92,6 @@ Future<void> main() async {
       budgetProvider: budgetProvider,
       accountProvider: accountProvider,
       themeProvider: themeProvider,
-      reminderProvider: reminderProvider,
       tagProvider: tagProvider,
       recurringRecordProvider: recurringRecordProvider,
     ),
@@ -111,7 +107,6 @@ class RemarkMoneyApp extends StatelessWidget {
     required this.budgetProvider,
     required this.accountProvider,
     required this.themeProvider,
-    required this.reminderProvider,
     required this.tagProvider,
     required this.recurringRecordProvider,
   });
@@ -122,7 +117,6 @@ class RemarkMoneyApp extends StatelessWidget {
   final BudgetProvider budgetProvider;
   final AccountProvider accountProvider;
   final ThemeProvider themeProvider;
-  final ReminderProvider reminderProvider;
   final TagProvider tagProvider;
   final RecurringRecordProvider recurringRecordProvider;
 
@@ -136,7 +130,6 @@ class RemarkMoneyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: budgetProvider),
         ChangeNotifierProvider.value(value: accountProvider),
         ChangeNotifierProvider.value(value: themeProvider),
-        ChangeNotifierProvider.value(value: reminderProvider),
         ChangeNotifierProvider.value(value: tagProvider),
         ChangeNotifierProvider.value(value: recurringRecordProvider),
       ],

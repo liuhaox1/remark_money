@@ -8,6 +8,8 @@ class Category {
   final bool isExpense;
   /// 一级分类 key；为 null 表示自己就是一级分类
   final String? parentKey;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   Category({
     required this.key,
@@ -15,6 +17,8 @@ class Category {
     required this.icon,
     required this.isExpense,
     this.parentKey,
+    this.createdAt,
+    this.updatedAt,
   });
 
   Category copyWith({
@@ -23,6 +27,8 @@ class Category {
     IconData? icon,
     bool? isExpense,
     String? parentKey,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return Category(
       key: key ?? this.key,
@@ -30,6 +36,8 @@ class Category {
       icon: icon ?? this.icon,
       isExpense: isExpense ?? this.isExpense,
       parentKey: parentKey ?? this.parentKey,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -42,10 +50,18 @@ class Category {
       'fontPackage': icon.fontPackage,
       'isExpense': isExpense,
       'parentKey': parentKey,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 
   factory Category.fromMap(Map<String, dynamic> map) {
+    DateTime? parse(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+      if (v is String && v.isNotEmpty) return DateTime.tryParse(v);
+      return null;
+    }
     return Category(
       key: map['key'],
       name: map['name'],
@@ -56,6 +72,8 @@ class Category {
       ),
       isExpense: map['isExpense'],
       parentKey: map['parentKey'] as String?,
+      createdAt: parse(map['createdAt']),
+      updatedAt: parse(map['updatedAt']),
     );
   }
 

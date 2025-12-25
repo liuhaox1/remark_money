@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 9;
+const int _databaseVersion = 10;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -27,7 +27,6 @@ class Tables {
   static const String budgets = 'budgets';
   static const String recordTemplates = 'record_templates';
   static const String recurringRecords = 'recurring_records';
-  static const String reminders = 'reminders';
   static const String appSettings = 'app_settings';
   static const String migrationLog = 'migration_log';
   static const String syncOutbox = 'sync_outbox';
@@ -256,6 +255,19 @@ class DatabaseHelper {
           await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN pair_id TEXT');
         } catch (_) {}
         break;
+      case 10:
+        // Remove reminders feature & drop table.
+        try {
+          await db.execute('DROP TABLE IF EXISTS reminders');
+        } catch (_) {}
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('reminder_settings_v1');
+          await prefs.remove('reminder_enabled');
+          await prefs.remove('reminder_time');
+          await prefs.remove('last_reminder_date');
+        } catch (_) {}
+        break;
       default:
         break;
     }
@@ -392,19 +404,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 提醒设置表
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS ${Tables.reminders} (
-        id TEXT PRIMARY KEY,
-        enabled INTEGER NOT NULL DEFAULT 0,
-        hour INTEGER NOT NULL DEFAULT 20,
-        minute INTEGER NOT NULL DEFAULT 0,
-        days TEXT NOT NULL DEFAULT '[]',
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-    ''');
-
     // 应用设置表
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${Tables.appSettings} (
@@ -516,7 +515,6 @@ class DatabaseHelper {
         await _migrateBudgets(txn);
         await _migrateRecordTemplates(txn);
         await _migrateRecurringRecords(txn);
-        await _migrateReminders(txn);
         await _migrateAppSettings(txn);
 
         // 记录迁移完成
@@ -795,29 +793,6 @@ class DatabaseHelper {
   }
 
   /// 迁移提醒设置数据
-  Future<void> _migrateReminders(sqflite.Transaction txn) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('reminder_settings_v1');
-    if (raw == null || raw.isEmpty) return;
-
-    try {
-      final map = Map<String, dynamic>.from(
-        (await _parseJson(raw)) as Map,
-      );
-      await txn.insert(Tables.reminders, {
-        'id': 'default',
-        'enabled': map['enabled'] == true ? 1 : 0,
-        'hour': map['hour'] ?? 20,
-        'minute': map['minute'] ?? 0,
-        'days': await _encodeJson(map['days'] ?? []),
-        'created_at': DateTime.now().millisecondsSinceEpoch,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
-    } catch (e) {
-      // 跳过错误
-    }
-  }
-
   /// 迁移应用设置数据
   Future<void> _migrateAppSettings(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();

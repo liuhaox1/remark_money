@@ -52,18 +52,20 @@ class Tag {
   }
 
   factory Tag.fromMap(Map<String, dynamic> map) {
+    DateTime? parse(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+      if (v is String && v.isNotEmpty) return DateTime.tryParse(v);
+      return null;
+    }
     return Tag(
       id: map['id'] as String,
       bookId: map['bookId'] as String? ?? 'default-book',
       name: map['name'] as String? ?? '',
       colorValue: map['colorValue'] as int?,
       sortOrder: (map['sortOrder'] as int?) ?? 0,
-      createdAt: map['createdAt'] == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int),
-      updatedAt: map['updatedAt'] == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int),
+      createdAt: parse(map['createdAt']),
+      updatedAt: parse(map['updatedAt']),
     );
   }
 
@@ -85,4 +87,3 @@ class TagPalette {
     0xFF607D8B, // blue grey
   ];
 }
-

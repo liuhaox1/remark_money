@@ -152,6 +152,7 @@ public class SyncV2Service {
 
     bill.setIncludeInStats(asInt(map.get("includeInStats")));
     bill.setPairId((String) map.get("pairId"));
+    bill.setTagIds(encodeTagIds(map.get("tagIds")));
     bill.setIsDelete(asInt(map.get("isDelete")));
     return bill;
   }
@@ -175,6 +176,65 @@ public class SyncV2Service {
     return null;
   }
 
+  private String encodeTagIds(Object value) {
+    if (value == null) return null;
+    if (value instanceof String) {
+      String s = ((String) value).trim();
+      return s.isEmpty() ? null : s;
+    }
+    if (!(value instanceof List)) return null;
+    @SuppressWarnings("unchecked")
+    List<Object> list = (List<Object>) value;
+    StringBuilder sb = new StringBuilder();
+    sb.append('[');
+    boolean first = true;
+    for (Object o : list) {
+      if (o == null) continue;
+      String raw = o.toString();
+      if (raw.trim().isEmpty()) continue;
+      String escaped = raw.replace("\\", "\\\\").replace("\"", "\\\"");
+      if (!first) sb.append(',');
+      sb.append('\"').append(escaped).append('\"');
+      first = false;
+    }
+    sb.append(']');
+    return sb.toString();
+  }
+
+  private List<String> decodeTagIds(String encoded) {
+    if (encoded == null) return null;
+    String s = encoded.trim();
+    if (s.isEmpty() || "[]".equals(s)) return new ArrayList<>();
+    List<String> out = new ArrayList<>();
+    int i = 0;
+    if (s.charAt(i) != '[') return out;
+    i++;
+    while (i < s.length()) {
+      while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++;
+      if (i >= s.length()) break;
+      char c = s.charAt(i);
+      if (c == ']') break;
+      if (c == ',') { i++; continue; }
+      if (c != '\"') { i++; continue; }
+      i++;
+      StringBuilder cur = new StringBuilder();
+      while (i < s.length()) {
+        char ch = s.charAt(i);
+        if (ch == '\\' && i + 1 < s.length()) {
+          char nxt = s.charAt(i + 1);
+          cur.append(nxt);
+          i += 2;
+          continue;
+        }
+        if (ch == '\"') { i++; break; }
+        cur.append(ch);
+        i++;
+      }
+      out.add(cur.toString());
+    }
+    return out;
+  }
+
   private Map<String, Object> toBillMap(BillInfo bill) {
     Map<String, Object> map = new HashMap<>();
     map.put("serverId", bill.getId());
@@ -188,6 +248,7 @@ public class SyncV2Service {
     map.put("billDate", bill.getBillDate() != null ? bill.getBillDate().toString() : null);
     map.put("includeInStats", bill.getIncludeInStats());
     map.put("pairId", bill.getPairId());
+    map.put("tagIds", decodeTagIds(bill.getTagIds()));
     map.put("isDelete", bill.getIsDelete());
     map.put("version", bill.getVersion());
     map.put("updateTime", bill.getUpdateTime() != null ? bill.getUpdateTime().toString() : null);

@@ -158,6 +158,128 @@ class SyncService {
     }
   }
 
+  Future<SyncResult> uploadCategories({
+    required List<Map<String, dynamic>> categories,
+    List<String>? deletedKeys,
+  }) async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('未登录');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await _client.post(
+      _uri('/api/sync/category/upload'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'categories': categories,
+        if (deletedKeys != null && deletedKeys.isNotEmpty) 'deletedKeys': deletedKeys,
+      }),
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success(
+        categories: (data['categories'] as List?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            const [],
+      );
+    } else {
+      return SyncResult.error(data['error'] as String? ?? '上传失败');
+    }
+  }
+
+  Future<SyncResult> downloadCategories() async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('未登录');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await _client.get(
+      _uri('/api/sync/category/download?deviceId=$deviceId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success(
+        categories: (data['categories'] as List?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            const [],
+      );
+    } else {
+      return SyncResult.error(data['error'] as String? ?? '下载失败');
+    }
+  }
+
+  Future<SyncResult> uploadTags({
+    required String bookId,
+    required List<Map<String, dynamic>> tags,
+    List<String>? deletedTagIds,
+  }) async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('未登录');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await _client.post(
+      _uri('/api/sync/tag/upload'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'bookId': bookId,
+        'tags': tags,
+        if (deletedTagIds != null && deletedTagIds.isNotEmpty) 'deletedTagIds': deletedTagIds,
+      }),
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success(
+        tags: (data['tags'] as List?)?.map((e) => e as Map<String, dynamic>).toList() ?? const [],
+      );
+    } else {
+      return SyncResult.error(data['error'] as String? ?? '上传失败');
+    }
+  }
+
+  Future<SyncResult> downloadTags({required String bookId}) async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('未登录');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await _client.get(
+      _uri('/api/sync/tag/download?deviceId=$deviceId&bookId=$bookId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success(
+        tags: (data['tags'] as List?)?.map((e) => e as Map<String, dynamic>).toList() ?? const [],
+      );
+    } else {
+      return SyncResult.error(data['error'] as String? ?? '下载失败');
+    }
+  }
+
   Future<Map<String, dynamic>> v2Push({
     required String bookId,
     required List<Map<String, dynamic>> ops,
@@ -253,22 +375,30 @@ class SyncResult {
   final String? error;
   final Map<String, dynamic>? budget;
   final List<Map<String, dynamic>>? accounts;
+  final List<Map<String, dynamic>>? categories;
+  final List<Map<String, dynamic>>? tags;
 
   SyncResult({
     required this.success,
     this.error,
     this.budget,
     this.accounts,
+    this.categories,
+    this.tags,
   });
 
   factory SyncResult.success({
     Map<String, dynamic>? budget,
     List<Map<String, dynamic>>? accounts,
+    List<Map<String, dynamic>>? categories,
+    List<Map<String, dynamic>>? tags,
   }) {
     return SyncResult(
       success: true,
       budget: budget,
       accounts: accounts,
+      categories: categories,
+      tags: tags,
     );
   }
 

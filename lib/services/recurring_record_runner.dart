@@ -110,7 +110,11 @@ class RecurringRecordRunner with WidgetsBindingObserver {
             accountProvider: accountProvider,
           );
           if (plan.tagIds.isNotEmpty) {
-            await tagProvider.setTagsForRecord(record.id, plan.tagIds);
+            await tagProvider.setTagsForRecord(
+              record.id,
+              plan.tagIds,
+              record: record,
+            );
           }
 
           next = _nextDate(next, plan);

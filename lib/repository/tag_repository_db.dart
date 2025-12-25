@@ -6,6 +6,44 @@ import '../models/tag.dart';
 class TagRepositoryDb {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
+  Future<void> saveTagsForBook(String bookId, List<Tag> tags) async {
+    try {
+      final db = await _dbHelper.database;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await db.transaction((txn) async {
+        await txn.delete(
+          Tables.tags,
+          where: 'book_id = ?',
+          whereArgs: [bookId],
+        );
+        for (final tag in tags) {
+          await txn.insert(
+            Tables.tags,
+            {
+              'id': tag.id,
+              'book_id': bookId,
+              'name': tag.name,
+              'color': tag.colorValue,
+              'sort_order': tag.sortOrder,
+              'created_at': tag.createdAt?.millisecondsSinceEpoch ?? now,
+              'updated_at': tag.updatedAt?.millisecondsSinceEpoch ?? now,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        // Prune dangling links (e.g., deleted tags).
+        await txn.delete(
+          Tables.recordTags,
+          where: 'tag_id NOT IN (SELECT id FROM ${Tables.tags})',
+        );
+      });
+    } catch (e, stackTrace) {
+      debugPrint('[TagRepositoryDb] saveTagsForBook failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   Future<List<Tag>> loadTags({required String bookId}) async {
     try {
       final db = await _dbHelper.database;
@@ -208,4 +246,3 @@ class TagRepositoryDb {
     );
   }
 }
-

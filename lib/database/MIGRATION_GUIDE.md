@@ -23,7 +23,6 @@
 - `budgets` - 预算
 - `record_templates` - 记录模板
 - `recurring_records` - 循环记账
-- `reminders` - 提醒设置
 - `app_settings` - 应用设置
 - `migration_log` - 迁移日志
 

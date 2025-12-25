@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/category.dart';
 import '../models/record.dart';
+import '../models/tag.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/budget_provider.dart';
+import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
+import '../providers/tag_provider.dart';
 import '../repository/repository_factory.dart';
 import '../repository/record_repository_db.dart';
 import 'account_delete_queue.dart';
 import 'auth_service.dart';
+import 'category_delete_queue.dart';
 import 'data_version_service.dart';
 import 'sync_outbox_service.dart';
 import 'sync_service.dart';
@@ -17,6 +22,7 @@ import 'sync_v2_conflict_store.dart';
 import 'sync_v2_cursor_store.dart';
 import 'sync_v2_pull_utils.dart';
 import 'sync_v2_push_retry.dart';
+import 'tag_delete_queue.dart';
 
 class SyncEngine {
   SyncEngine({
@@ -53,6 +59,9 @@ class SyncEngine {
     // 立即 pull 会额外产生一轮 bill_change_log + bill_info 查询（服务端/客户端都浪费）。
     // 多设备变更的拉取由 app_start / app_resumed（以及未来可选的轮询/SSE）来覆盖。
     if (reason == 'local_outbox_changed') return;
+    // Ensure meta (categories/tags) is available before applying bills that reference them.
+    await _syncCategories(context, reason: reason);
+    await _syncTags(context, bookId, reason: reason);
     await _pullV2(context, bookId, reason: reason);
   }
 
@@ -65,8 +74,86 @@ class SyncEngine {
   }) async {
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
+    await _syncCategories(context, reason: reason);
+    await _syncTags(context, bookId, reason: reason);
     await _syncBudget(context, bookId, reason: reason);
     await _syncAccounts(context, bookId, reason: reason);
+  }
+
+  Future<void> _syncCategories(
+    BuildContext context, {
+    required String reason,
+  }) async {
+    try {
+      final repo = RepositoryFactory.createCategoryRepository();
+      final categories = (await repo.loadCategories()).cast<Category>();
+      final payload =
+          categories.map((c) => c.toMap()).toList(growable: false);
+      final deletedKeys = await CategoryDeleteQueue.instance.load();
+      final upload = await _syncService.uploadCategories(
+        categories: payload,
+        deletedKeys: deletedKeys,
+      );
+      if (upload.success) {
+        await CategoryDeleteQueue.instance.clear();
+      }
+      final download = await _syncService.downloadCategories();
+      if (!download.success) return;
+      final remote = (download.categories ?? const [])
+          .map((m) => (m as Map).cast<String, dynamic>())
+          .toList(growable: false);
+      final remoteCats = remote.map(Category.fromMap).toList(growable: false);
+      await repo.saveCategories(remoteCats);
+      try {
+        await context.read<CategoryProvider>().reload();
+      } catch (_) {}
+    } catch (_) {}
+  }
+
+  Future<void> _syncTags(
+    BuildContext context,
+    String bookId, {
+    required String reason,
+  }) async {
+    try {
+      final repo = RepositoryFactory.createTagRepository();
+      final tags = (await repo.loadTags(bookId: bookId)).cast<Tag>();
+      final payload = tags
+          .map(
+            (t) => <String, dynamic>{
+              'id': t.id,
+              'bookId': bookId,
+              'name': t.name,
+              'colorValue': t.colorValue,
+              'sortOrder': t.sortOrder,
+              'createdAt': t.createdAt?.toIso8601String(),
+              'updatedAt': t.updatedAt?.toIso8601String(),
+            },
+          )
+          .toList(growable: false);
+
+      final deletedByBook = await TagDeleteQueue.instance.load();
+      final deleted = deletedByBook[bookId] ?? const <String>[];
+      final upload = await _syncService.uploadTags(
+        bookId: bookId,
+        tags: payload,
+        deletedTagIds: deleted,
+      );
+      if (upload.success) {
+        await TagDeleteQueue.instance.clearBook(bookId);
+      }
+
+      final download = await _syncService.downloadTags(bookId: bookId);
+      if (!download.success) return;
+      final remote = (download.tags ?? const [])
+          .map((m) => (m as Map).cast<String, dynamic>())
+          .toList(growable: false);
+      final remoteTags = remote.map(Tag.fromMap).toList(growable: false);
+      await repo.saveTagsForBook(bookId, remoteTags);
+      try {
+        await context.read<TagProvider>().loadForBook(bookId, force: true);
+      } catch (_) {}
+    } catch (_) {}
   }
 
   Future<void> _uploadOutboxV2(
@@ -211,6 +298,24 @@ class SyncEngine {
               return a?.toString() == b?.toString();
             }
 
+            bool listEq(dynamic a, dynamic b) {
+              List<String> norm(dynamic v) {
+                if (v is List) {
+                  return v.map((e) => e.toString()).toList()..sort();
+                }
+                if (v == null) return const <String>[];
+                return <String>[v.toString()]..sort();
+              }
+
+              final la = norm(a);
+              final lb = norm(b);
+              if (la.length != lb.length) return false;
+              for (var i = 0; i < la.length; i++) {
+                if (la[i] != lb[i]) return false;
+              }
+              return true;
+            }
+
             final same = bill != null &&
                 (bill['bookId']?.toString() == serverBill['bookId']?.toString()) &&
                 (bill['accountId']?.toString() == serverBill['accountId']?.toString()) &&
@@ -223,6 +328,7 @@ class SyncEngine {
                 (bill['includeInStats']?.toString() ==
                     serverBill['includeInStats']?.toString()) &&
                 (bill['pairId']?.toString() == serverBill['pairId']?.toString()) &&
+                listEq(bill['tagIds'], serverBill['tagIds']) &&
                 (bill['isDelete']?.toString() == serverBill['isDelete']?.toString());
 
             if (same && localId != null) {
@@ -560,11 +666,19 @@ class SyncEngine {
     if (isDelete) {
       if (existing != null) {
         await recordProvider.deleteRecord(existing.id, accountProvider: accountProvider);
+        try {
+          final tagRepo = RepositoryFactory.createTagRepository();
+          await tagRepo.deleteLinksForRecord(existing.id);
+        } catch (_) {}
       }
       return;
     }
 
     final cloudRecord = _mapToRecord(billMap);
+    final rawTagIds = billMap['tagIds'];
+    final tagIds = rawTagIds is List
+        ? rawTagIds.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+        : const <String>[];
     if (existing != null) {
       final updated = existing.copyWith(
         serverId: serverId,
@@ -580,6 +694,12 @@ class SyncEngine {
         pairId: cloudRecord.pairId,
       );
       await recordProvider.updateRecord(updated, accountProvider: accountProvider);
+      if (tagIds.isNotEmpty) {
+        try {
+          final tagRepo = RepositoryFactory.createTagRepository();
+          await tagRepo.setTagsForRecord(existing.id, tagIds);
+        } catch (_) {}
+      }
       return;
     }
 
@@ -600,6 +720,12 @@ class SyncEngine {
       serverId: serverId,
       serverVersion: serverVersion,
     );
+    if (tagIds.isNotEmpty) {
+      try {
+        final tagRepo = RepositoryFactory.createTagRepository();
+        await tagRepo.setTagsForRecord(created.id, tagIds);
+      } catch (_) {}
+    }
   }
 
   Future<void> _syncBudget(

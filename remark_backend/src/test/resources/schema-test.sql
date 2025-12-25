@@ -5,6 +5,8 @@ DROP TABLE IF EXISTS bill_info;
 DROP TABLE IF EXISTS book_member;
 DROP TABLE IF EXISTS budget_info;
 DROP TABLE IF EXISTS account_info;
+DROP TABLE IF EXISTS tag_info;
+DROP TABLE IF EXISTS category_info;
 
 CREATE TABLE book_member (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -29,6 +31,7 @@ CREATE TABLE bill_info (
   bill_date TIMESTAMP,
   include_in_stats INT NOT NULL DEFAULT 1,
   pair_id VARCHAR(128),
+  tag_ids CLOB,
   is_delete INT NOT NULL DEFAULT 0,
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -47,6 +50,42 @@ CREATE TABLE budget_info (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (user_id, book_id)
 );
+
+CREATE TABLE category_info (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  category_key VARCHAR(128) NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  icon_code_point INT NOT NULL,
+  icon_font_family VARCHAR(128),
+  icon_font_package VARCHAR(128),
+  is_expense INT NOT NULL DEFAULT 1,
+  parent_key VARCHAR(128),
+  is_delete INT NOT NULL DEFAULT 0,
+  update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, category_key)
+);
+
+CREATE INDEX idx_category_user_update ON category_info(user_id, update_time);
+CREATE INDEX idx_category_user_delete ON category_info(user_id, is_delete);
+
+CREATE TABLE tag_info (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  tag_id VARCHAR(64) NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  color INT,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_delete INT NOT NULL DEFAULT 0,
+  update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, book_id, tag_id)
+);
+
+CREATE INDEX idx_tag_user_book_sort ON tag_info(user_id, book_id, sort_order, created_at);
+CREATE INDEX idx_tag_user_book_delete ON tag_info(user_id, book_id, is_delete);
 
 CREATE TABLE account_info (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

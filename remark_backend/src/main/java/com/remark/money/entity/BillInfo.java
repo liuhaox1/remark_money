@@ -17,6 +17,7 @@ public class BillInfo {
   private LocalDateTime billDate;
   private Integer includeInStats;
   private String pairId;
+  private String tagIds; // encoded list of tag ids (json array)
   private Integer isDelete; // 0=有效,1=已删除
   private LocalDateTime updateTime;
   private LocalDateTime createdAt;
@@ -116,6 +117,14 @@ public class BillInfo {
 
   public void setPairId(String pairId) {
     this.pairId = pairId;
+  }
+
+  public String getTagIds() {
+    return tagIds;
+  }
+
+  public void setTagIds(String tagIds) {
+    this.tagIds = tagIds;
   }
 
   public Integer getIsDelete() {

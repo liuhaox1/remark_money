@@ -482,6 +482,7 @@ class RecordRepositoryDb {
 
       // 3) upsert
       final batch = txn.batch();
+      final tagIdsByLocalId = <String, List<String>>{};
       for (final bill in bills) {
         final serverId = (bill['id'] as int?) ?? (bill['serverId'] as int?);
         if (serverId == null) continue;
@@ -524,8 +525,14 @@ class RecordRepositoryDb {
             where: 'id = ? AND book_id = ?',
             whereArgs: [localId, bookId],
           );
+          final rawTagIds = bill['tagIds'];
+          if (rawTagIds is List) {
+            tagIdsByLocalId[localId] =
+                rawTagIds.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+          }
         } else {
           final id = 'server_$serverId';
+          localIdByServerId[serverId] = id;
           batch.insert(
             Tables.records,
             {
@@ -535,9 +542,68 @@ class RecordRepositoryDb {
             },
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
+          final rawTagIds = bill['tagIds'];
+          if (rawTagIds is List) {
+            tagIdsByLocalId[id] =
+                rawTagIds.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+          }
         }
       }
       await batch.commit(noResult: true);
+
+      if (tagIdsByLocalId.isNotEmpty) {
+        final allTagIds = tagIdsByLocalId.values
+            .expand((e) => e)
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList(growable: false);
+
+        final existingTagIds = <String>{};
+        for (var i = 0; i < allTagIds.length; i += maxSqlVars) {
+          final chunk = allTagIds.sublist(
+            i,
+            (i + maxSqlVars) > allTagIds.length ? allTagIds.length : (i + maxSqlVars),
+          );
+          if (chunk.isEmpty) continue;
+          final placeholders = List.filled(chunk.length, '?').join(',');
+          final rows = await txn.rawQuery(
+            'SELECT id FROM ${Tables.tags} WHERE id IN ($placeholders)',
+            chunk,
+          );
+          for (final r in rows) {
+            final id = r['id'];
+            if (id != null) existingTagIds.add(id.toString());
+          }
+        }
+
+        final tagBatch = txn.batch();
+        for (final entry in tagIdsByLocalId.entries) {
+          final rid = entry.key;
+          final filtered = entry.value
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty && existingTagIds.contains(e))
+              .toSet()
+              .toList();
+          tagBatch.delete(
+            Tables.recordTags,
+            where: 'record_id = ?',
+            whereArgs: [rid],
+          );
+          for (final tid in filtered) {
+            tagBatch.insert(
+              Tables.recordTags,
+              {
+                'record_id': rid,
+                'tag_id': tid,
+                'created_at': now,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+        await tagBatch.commit(noResult: true);
+      }
     });
   }
 

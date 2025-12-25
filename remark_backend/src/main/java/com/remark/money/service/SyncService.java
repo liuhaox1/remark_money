@@ -3,9 +3,13 @@ package com.remark.money.service;
 import com.remark.money.common.ErrorCode;
 import com.remark.money.entity.AccountInfo;
 import com.remark.money.entity.BudgetInfo;
+import com.remark.money.entity.CategoryInfo;
+import com.remark.money.entity.TagInfo;
 import com.remark.money.entity.User;
 import com.remark.money.mapper.AccountInfoMapper;
 import com.remark.money.mapper.BudgetInfoMapper;
+import com.remark.money.mapper.CategoryInfoMapper;
+import com.remark.money.mapper.TagInfoMapper;
 import com.remark.money.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,11 +33,19 @@ public class SyncService {
   private final UserMapper userMapper;
   private final AccountInfoMapper accountInfoMapper;
   private final BudgetInfoMapper budgetInfoMapper;
+  private final CategoryInfoMapper categoryInfoMapper;
+  private final TagInfoMapper tagInfoMapper;
 
-  public SyncService(UserMapper userMapper, AccountInfoMapper accountInfoMapper, BudgetInfoMapper budgetInfoMapper) {
+  public SyncService(UserMapper userMapper,
+                     AccountInfoMapper accountInfoMapper,
+                     BudgetInfoMapper budgetInfoMapper,
+                     CategoryInfoMapper categoryInfoMapper,
+                     TagInfoMapper tagInfoMapper) {
     this.userMapper = userMapper;
     this.accountInfoMapper = accountInfoMapper;
     this.budgetInfoMapper = budgetInfoMapper;
+    this.categoryInfoMapper = categoryInfoMapper;
+    this.tagInfoMapper = tagInfoMapper;
   }
 
   /**
@@ -217,6 +229,137 @@ public class SyncService {
     return BudgetSyncResult.success(budget);
   }
 
+  @Transactional
+  public CategorySyncResult uploadCategories(Long userId, List<CategoryInfo> categories, List<String> deletedKeys) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return CategorySyncResult.error(permissionError.getMessage());
+    }
+
+    if (deletedKeys != null) {
+      for (String k : deletedKeys) {
+        if (k == null || k.trim().isEmpty()) continue;
+        categoryInfoMapper.softDeleteByKey(userId, k.trim());
+      }
+    }
+
+    if (categories == null || categories.isEmpty()) {
+      return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(userId));
+    }
+
+    Set<String> keys =
+        categories.stream()
+            .map(CategoryInfo::getCategoryKey)
+            .filter(k -> k != null && !k.trim().isEmpty())
+            .collect(Collectors.toSet());
+    Map<String, CategoryInfo> existingByKey =
+        keys.isEmpty()
+            ? new HashMap<>()
+            : categoryInfoMapper.findByUserIdAndKeys(userId, keys).stream()
+                .collect(Collectors.toMap(CategoryInfo::getCategoryKey, c -> c));
+
+    List<CategoryInfo> toInsert = new ArrayList<>();
+    List<CategoryInfo> toUpdate = new ArrayList<>();
+
+    for (CategoryInfo c : categories) {
+      if (c == null) continue;
+      c.setUserId(userId);
+      if (c.getIsDelete() == null) c.setIsDelete(0);
+      CategoryInfo existing = c.getCategoryKey() == null ? null : existingByKey.get(c.getCategoryKey());
+      if (existing != null) {
+        // server prefers newer update_time
+        if (existing.getUpdateTime() != null && c.getUpdateTime() != null && existing.getUpdateTime().isAfter(c.getUpdateTime())) {
+          continue;
+        }
+        c.setId(existing.getId());
+        toUpdate.add(c);
+      } else {
+        toInsert.add(c);
+      }
+    }
+
+    if (!toUpdate.isEmpty()) categoryInfoMapper.batchUpdate(toUpdate);
+    if (!toInsert.isEmpty()) categoryInfoMapper.batchInsert(toInsert);
+
+    return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(userId));
+  }
+
+  public CategorySyncResult downloadCategories(Long userId) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return CategorySyncResult.error(permissionError.getMessage());
+    }
+    return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(userId));
+  }
+
+  @Transactional
+  public TagSyncResult uploadTags(Long userId, String bookId, List<TagInfo> tags, List<String> deletedTagIds) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return TagSyncResult.error(permissionError.getMessage());
+    }
+    if (bookId == null || bookId.trim().isEmpty()) {
+      return TagSyncResult.error("missing bookId");
+    }
+
+    if (deletedTagIds != null) {
+      for (String tid : deletedTagIds) {
+        if (tid == null || tid.trim().isEmpty()) continue;
+        tagInfoMapper.softDeleteByTagId(userId, bookId, tid.trim());
+      }
+    }
+
+    if (tags == null || tags.isEmpty()) {
+      return TagSyncResult.success(tagInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+    }
+
+    Set<String> incomingIds =
+        tags.stream()
+            .map(TagInfo::getTagId)
+            .filter(id -> id != null && !id.trim().isEmpty())
+            .collect(Collectors.toSet());
+    Map<String, TagInfo> existingByTagId =
+        incomingIds.isEmpty()
+            ? new HashMap<>()
+            : tagInfoMapper.findByUserIdBookIdAndTagIds(userId, bookId, incomingIds).stream()
+                .collect(Collectors.toMap(TagInfo::getTagId, t -> t));
+
+    List<TagInfo> toInsert = new ArrayList<>();
+    List<TagInfo> toUpdate = new ArrayList<>();
+    for (TagInfo t : tags) {
+      if (t == null) continue;
+      t.setUserId(userId);
+      t.setBookId(bookId);
+      if (t.getIsDelete() == null) t.setIsDelete(0);
+      TagInfo existing = t.getTagId() == null ? null : existingByTagId.get(t.getTagId());
+      if (existing != null) {
+        if (existing.getUpdateTime() != null && t.getUpdateTime() != null && existing.getUpdateTime().isAfter(t.getUpdateTime())) {
+          continue;
+        }
+        t.setId(existing.getId());
+        toUpdate.add(t);
+      } else {
+        toInsert.add(t);
+      }
+    }
+
+    if (!toUpdate.isEmpty()) tagInfoMapper.batchUpdate(toUpdate);
+    if (!toInsert.isEmpty()) tagInfoMapper.batchInsert(toInsert);
+
+    return TagSyncResult.success(tagInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+  }
+
+  public TagSyncResult downloadTags(Long userId, String bookId) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return TagSyncResult.error(permissionError.getMessage());
+    }
+    if (bookId == null || bookId.trim().isEmpty()) {
+      return TagSyncResult.error("missing bookId");
+    }
+    return TagSyncResult.success(tagInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+  }
+
   public static class AccountSyncResult {
     private boolean success;
     private String error;
@@ -284,6 +427,70 @@ public class SyncService {
 
     public BudgetInfo getBudget() {
       return budget;
+    }
+  }
+
+  public static class CategorySyncResult {
+    private boolean success;
+    private String error;
+    private List<CategoryInfo> categories;
+
+    public static CategorySyncResult error(String error) {
+      CategorySyncResult result = new CategorySyncResult();
+      result.success = false;
+      result.error = error;
+      return result;
+    }
+
+    public static CategorySyncResult success(List<CategoryInfo> categories) {
+      CategorySyncResult result = new CategorySyncResult();
+      result.success = true;
+      result.categories = categories;
+      return result;
+    }
+
+    public boolean isSuccess() {
+      return success;
+    }
+
+    public String getError() {
+      return error;
+    }
+
+    public List<CategoryInfo> getCategories() {
+      return categories;
+    }
+  }
+
+  public static class TagSyncResult {
+    private boolean success;
+    private String error;
+    private List<TagInfo> tags;
+
+    public static TagSyncResult error(String error) {
+      TagSyncResult result = new TagSyncResult();
+      result.success = false;
+      result.error = error;
+      return result;
+    }
+
+    public static TagSyncResult success(List<TagInfo> tags) {
+      TagSyncResult result = new TagSyncResult();
+      result.success = true;
+      result.tags = tags;
+      return result;
+    }
+
+    public boolean isSuccess() {
+      return success;
+    }
+
+    public String getError() {
+      return error;
+    }
+
+    public List<TagInfo> getTags() {
+      return tags;
     }
   }
 }

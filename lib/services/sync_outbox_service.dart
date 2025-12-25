@@ -85,7 +85,11 @@ class SyncOutboxService {
     return '$ts-$r';
   }
 
-  Map<String, dynamic> _recordToBillPayload(Record record, {required int updateAtMs}) {
+  Map<String, dynamic> _recordToBillPayload(
+    Record record, {
+    required int updateAtMs,
+    required List<String> tagIds,
+  }) {
     return {
       'localId': record.id,
       'serverId': record.serverId,
@@ -98,6 +102,7 @@ class SyncOutboxService {
       'billDate': record.date.toIso8601String(),
       'includeInStats': record.includeInStats ? 1 : 0,
       'pairId': record.pairId,
+      'tagIds': tagIds,
       'isDelete': 0,
       // 使用本地修改时间作为 updateTime，避免“改了历史数据不同步”
       'updateTime': DateTime.fromMillisecondsSinceEpoch(updateAtMs)
@@ -109,6 +114,9 @@ class SyncOutboxService {
     if (_suppressed) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
+    final tagRepo = RepositoryFactory.createTagRepository();
+    final List<String> tagIds =
+        (await tagRepo.getTagIdsForRecord(record.id)).cast<String>();
     // v2 语义：
     // - 新建（serverId 为空）：expectedVersion = null
     // - 已同步（serverId+serverVersion）：expectedVersion = serverVersion
@@ -119,7 +127,7 @@ class SyncOutboxService {
       'opId': _newOpId(),
       'type': 'upsert',
       'expectedVersion': expectedVersion,
-      'bill': _recordToBillPayload(record, updateAtMs: now),
+      'bill': _recordToBillPayload(record, updateAtMs: now, tagIds: tagIds),
     };
     await _enqueue(
       bookId: record.bookId,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../repository/category_repository.dart';
 import '../repository/repository_factory.dart';
+import '../services/category_delete_queue.dart';
+import '../services/meta_sync_notifier.dart';
 import '../utils/error_handler.dart';
 
 class CategoryProvider extends ChangeNotifier {
@@ -60,6 +62,7 @@ class CategoryProvider extends ChangeNotifier {
       _categories
         ..clear()
         ..addAll(list.map(_sanitize));
+      MetaSyncNotifier.instance.notifyCategoriesChanged();
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('CategoryProvider.addCategory', e, stackTrace);
@@ -71,9 +74,11 @@ class CategoryProvider extends ChangeNotifier {
   Future<void> deleteCategory(String key) async {
     try {
       final List<Category> list = (await _repo.delete(key)).cast<Category>();
+      await CategoryDeleteQueue.instance.enqueue(key);
       _categories
         ..clear()
         ..addAll(list.map(_sanitize));
+      MetaSyncNotifier.instance.notifyCategoriesChanged();
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('CategoryProvider.deleteCategory', e, stackTrace);
@@ -89,6 +94,7 @@ class CategoryProvider extends ChangeNotifier {
       _categories
         ..clear()
         ..addAll(list.map(_sanitize));
+      MetaSyncNotifier.instance.notifyCategoriesChanged();
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('CategoryProvider.updateCategory', e, stackTrace);

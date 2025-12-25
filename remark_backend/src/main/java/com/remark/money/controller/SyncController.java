@@ -2,6 +2,8 @@ package com.remark.money.controller;
 
 import com.remark.money.entity.AccountInfo;
 import com.remark.money.entity.BudgetInfo;
+import com.remark.money.entity.CategoryInfo;
+import com.remark.money.entity.TagInfo;
 import com.remark.money.service.SyncService;
 import com.remark.money.util.JwtUtil;
 import org.slf4j.Logger;
@@ -11,9 +13,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -328,6 +334,153 @@ public class SyncController {
     }
   }
 
+  /**
+   * 上传分类数据（按用户）
+   */
+  @PostMapping("/category/upload")
+  public ResponseEntity<Map<String, Object>> uploadCategories(
+      @RequestHeader("Authorization") String token,
+      @RequestBody Map<String, Object> request) {
+    try {
+      Long userId = getUserIdFromToken(token);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> categoriesData =
+          (List<Map<String, Object>>) request.get("categories");
+      @SuppressWarnings("unchecked")
+      List<String> deletedKeys = (List<String>) request.get("deletedKeys");
+
+      List<CategoryInfo> categories = new ArrayList<>();
+      if (categoriesData != null) {
+        categories = categoriesData.stream().map(this::mapToCategoryInfo).collect(Collectors.toList());
+      }
+
+      SyncService.CategorySyncResult result = syncService.uploadCategories(userId, categories, deletedKeys);
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put(
+            "categories",
+            result.getCategories().stream().map(this::convertCategoryInfo).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("Category upload error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
+  /**
+   * 下载分类数据（按用户）
+   */
+  @GetMapping("/category/download")
+  public ResponseEntity<Map<String, Object>> downloadCategories(
+      @RequestHeader("Authorization") String token) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      SyncService.CategorySyncResult result = syncService.downloadCategories(userId);
+
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put(
+            "categories",
+            result.getCategories().stream().map(this::convertCategoryInfo).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("Category download error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
+  /**
+   * 上传标签数据（按用户+账本）
+   */
+  @PostMapping("/tag/upload")
+  public ResponseEntity<Map<String, Object>> uploadTags(
+      @RequestHeader("Authorization") String token,
+      @RequestBody Map<String, Object> request) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      String bookId = (String) request.get("bookId");
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> tagsData = (List<Map<String, Object>>) request.get("tags");
+      @SuppressWarnings("unchecked")
+      List<String> deletedTagIds = (List<String>) request.get("deletedTagIds");
+
+      List<TagInfo> tags = new ArrayList<>();
+      if (tagsData != null) {
+        tags = tagsData.stream().map(m -> mapToTagInfo(m, bookId)).collect(Collectors.toList());
+      }
+
+      SyncService.TagSyncResult result = syncService.uploadTags(userId, bookId, tags, deletedTagIds);
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put(
+            "tags",
+            result.getTags().stream().map(this::convertTagInfo).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("Tag upload error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
+  /**
+   * 下载标签数据（按用户+账本）
+   */
+  @GetMapping("/tag/download")
+  public ResponseEntity<Map<String, Object>> downloadTags(
+      @RequestHeader("Authorization") String token,
+      @RequestParam("bookId") String bookId) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      SyncService.TagSyncResult result = syncService.downloadTags(userId, bookId);
+
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put("tags", result.getTags().stream().map(this::convertTagInfo).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("Tag download error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
   private BudgetInfo mapToBudgetInfo(Map<String, Object> map) {
     BudgetInfo budget = new BudgetInfo();
     budget.setTotal(asBigDecimal(map.get("total"), BigDecimal.ZERO));
@@ -377,5 +530,96 @@ public class SyncController {
     } catch (Exception ignored) {
       return defaultValue;
     }
+  }
+
+  private LocalDateTime parseClientDateTime(String raw) {
+    if (raw == null) return null;
+    String trimmed = raw.trim();
+    if (trimmed.isEmpty()) return null;
+    try {
+      return LocalDateTime.parse(trimmed);
+    } catch (Exception ignored) {
+    }
+    try {
+      return OffsetDateTime.parse(trimmed).toLocalDateTime();
+    } catch (Exception ignored) {
+    }
+    try {
+      return Instant.parse(trimmed).atZone(ZoneOffset.UTC).toLocalDateTime();
+    } catch (Exception ignored) {
+    }
+    return null;
+  }
+
+  private CategoryInfo mapToCategoryInfo(Map<String, Object> map) {
+    CategoryInfo c = new CategoryInfo();
+    c.setCategoryKey(map.get("key") != null ? map.get("key").toString() : null);
+    c.setName(map.get("name") != null ? map.get("name").toString() : null);
+    Object icon = map.get("icon");
+    if (icon instanceof Number) c.setIconCodePoint(((Number) icon).intValue());
+    c.setIconFontFamily(map.get("fontFamily") != null ? map.get("fontFamily").toString() : null);
+    c.setIconFontPackage(map.get("fontPackage") != null ? map.get("fontPackage").toString() : null);
+    Object isExp = map.get("isExpense");
+    if (isExp instanceof Boolean) c.setIsExpense(((Boolean) isExp) ? 1 : 0);
+    if (isExp instanceof Number) c.setIsExpense(((Number) isExp).intValue());
+    c.setParentKey(map.get("parentKey") != null ? map.get("parentKey").toString() : null);
+    c.setIsDelete(0);
+
+    if (map.get("updatedAt") instanceof String) {
+      c.setUpdateTime(parseClientDateTime((String) map.get("updatedAt")));
+    }
+    if (map.get("createdAt") instanceof String) {
+      c.setCreatedAt(parseClientDateTime((String) map.get("createdAt")));
+    }
+    if (c.getUpdateTime() == null) c.setUpdateTime(LocalDateTime.now());
+    if (c.getCreatedAt() == null) c.setCreatedAt(c.getUpdateTime());
+    return c;
+  }
+
+  private Map<String, Object> convertCategoryInfo(CategoryInfo c) {
+    Map<String, Object> map = new HashMap<>();
+    map.put("key", c.getCategoryKey());
+    map.put("name", c.getName());
+    map.put("icon", c.getIconCodePoint());
+    map.put("fontFamily", c.getIconFontFamily());
+    map.put("fontPackage", c.getIconFontPackage());
+    map.put("isExpense", c.getIsExpense() != null && c.getIsExpense() == 1);
+    map.put("parentKey", c.getParentKey());
+    if (c.getUpdateTime() != null) map.put("updatedAt", c.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    if (c.getCreatedAt() != null) map.put("createdAt", c.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    return map;
+  }
+
+  private TagInfo mapToTagInfo(Map<String, Object> map, String bookId) {
+    TagInfo t = new TagInfo();
+    t.setBookId(bookId);
+    t.setTagId(map.get("id") != null ? map.get("id").toString() : null);
+    t.setName(map.get("name") != null ? map.get("name").toString() : null);
+    Object color = map.get("colorValue");
+    if (color instanceof Number) t.setColor(((Number) color).intValue());
+    Object sortOrder = map.get("sortOrder");
+    if (sortOrder instanceof Number) t.setSortOrder(((Number) sortOrder).intValue());
+    t.setIsDelete(0);
+    if (map.get("updatedAt") instanceof String) {
+      t.setUpdateTime(parseClientDateTime((String) map.get("updatedAt")));
+    }
+    if (map.get("createdAt") instanceof String) {
+      t.setCreatedAt(parseClientDateTime((String) map.get("createdAt")));
+    }
+    if (t.getUpdateTime() == null) t.setUpdateTime(LocalDateTime.now());
+    if (t.getCreatedAt() == null) t.setCreatedAt(t.getUpdateTime());
+    return t;
+  }
+
+  private Map<String, Object> convertTagInfo(TagInfo t) {
+    Map<String, Object> map = new HashMap<>();
+    map.put("id", t.getTagId());
+    map.put("bookId", t.getBookId());
+    map.put("name", t.getName());
+    map.put("colorValue", t.getColor());
+    map.put("sortOrder", t.getSortOrder());
+    if (t.getUpdateTime() != null) map.put("updatedAt", t.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    if (t.getCreatedAt() != null) map.put("createdAt", t.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    return map;
   }
 }

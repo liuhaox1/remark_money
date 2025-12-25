@@ -817,6 +817,8 @@ class CategoryRepository {
         icon: category.icon,
         isExpense: category.isExpense,
         parentKey: category.parentKey,
+        createdAt: category.createdAt,
+        updatedAt: category.updatedAt,
       );
       migrated.add(migratedCategory);
     }
@@ -890,13 +892,24 @@ class CategoryRepository {
 
   Future<void> saveCategories(List<Category> categories) async {
     final prefs = await SharedPreferences.getInstance();
-    final payload = categories.map((c) => c.toJson()).toList();
+    final now = DateTime.now();
+    final payload = categories
+        .map(
+          (c) => c
+              .copyWith(
+                createdAt: c.createdAt ?? now,
+                updatedAt: c.updatedAt ?? now,
+              )
+              .toJson(),
+        )
+        .toList();
     await prefs.setStringList(_key, payload);
   }
 
   Future<List<Category>> add(Category category) async {
     final list = await loadCategories();
-    list.add(category);
+    final now = DateTime.now();
+    list.add(category.copyWith(createdAt: now, updatedAt: now));
     await saveCategories(list);
     return list;
   }
@@ -912,7 +925,10 @@ class CategoryRepository {
     final list = await loadCategories();
     final index = list.indexWhere((c) => c.key == category.key);
     if (index != -1) {
-      list[index] = category;
+      list[index] = category.copyWith(
+        createdAt: list[index].createdAt,
+        updatedAt: DateTime.now(),
+      );
       await saveCategories(list);
     }
     return list;

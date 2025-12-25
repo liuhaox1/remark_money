@@ -17,7 +17,6 @@ import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/recurring_record_provider.dart';
 import '../providers/record_provider.dart';
-import '../providers/reminder_provider.dart';
 import '../providers/tag_provider.dart';
 import '../providers/theme_provider.dart';
 import '../theme/brand_theme.dart';
@@ -157,7 +156,6 @@ class _ProfilePageState extends State<ProfilePage> {
       final categoryProvider = context.read<CategoryProvider>();
       final budgetProvider = context.read<BudgetProvider>();
       final accountProvider = context.read<AccountProvider>();
-      final reminderProvider = context.read<ReminderProvider>();
       final recurringProvider = context.read<RecurringRecordProvider>();
       final themeProvider = context.read<ThemeProvider>();
       final tagProvider = context.read<TagProvider>();
@@ -168,7 +166,6 @@ class _ProfilePageState extends State<ProfilePage> {
         categoryProvider.load(),
         budgetProvider.load(),
         accountProvider.load(),
-        reminderProvider.load(),
         recurringProvider.load(),
         themeProvider.load(),
       ]);

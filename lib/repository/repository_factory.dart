@@ -10,8 +10,6 @@ import 'book_repository.dart';
 import 'book_repository_db.dart';
 import 'budget_repository.dart';
 import 'budget_repository_db.dart';
-import 'reminder_repository.dart';
-import 'reminder_repository_db.dart';
 import 'record_template_repository.dart';
 import 'record_template_repository_db.dart';
 import 'recurring_record_repository.dart';
@@ -142,14 +140,7 @@ class RepositoryFactory {
     return BudgetRepository();
   }
 
-  /// 创建提醒仓库
-  static dynamic createReminderRepository() {
-    if (_useDatabase) {
-      return ReminderRepositoryDb();
-    }
-    return ReminderRepository();
-  }
-
+  // Reminder feature removed.
   /// 创建记录模板仓库
   static dynamic createRecordTemplateRepository() {
     if (_useDatabase) {
@@ -184,7 +175,8 @@ class RepositoryFactory {
   static Future<Map<String, dynamic>> getStorageBackendInfo() async {
     final prefs = await SharedPreferences.getInstance();
     final useSharedPrefs = prefs.getBool('use_shared_preferences') ?? false;
-    final migrationCompleted = prefs.getBool('db_migration_completed_v1') ?? false;
+    final migrationCompleted = prefs.getBool('db_migration_completed') ??
+        (prefs.getBool('db_migration_completed_v1') ?? false);
     
     bool dbReady = false;
     try {
@@ -208,7 +200,8 @@ class RepositoryFactory {
   /// 返回迁移相关的详细信息
   static Future<Map<String, dynamic>> checkMigrationStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    final migrationCompleted = prefs.getBool('db_migration_completed_v1') ?? false;
+    final migrationCompleted = prefs.getBool('db_migration_completed') ??
+        (prefs.getBool('db_migration_completed_v1') ?? false);
     final useSharedPrefs = prefs.getBool('use_shared_preferences') ?? false;
     
     bool dbReady = false;

@@ -2,8 +2,12 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../models/record.dart';
 import '../models/tag.dart';
 import '../repository/repository_factory.dart';
+import '../services/tag_delete_queue.dart';
+import '../services/sync_outbox_service.dart';
+import '../services/meta_sync_notifier.dart';
 import '../utils/error_handler.dart';
 
 class TagProvider extends ChangeNotifier {
@@ -83,6 +87,7 @@ class TagProvider extends ChangeNotifier {
       _tags
         ..clear()
         ..addAll(list);
+      MetaSyncNotifier.instance.notifyTagsChanged(bookId);
       notifyListeners();
       return tag;
     } catch (e, stackTrace) {
@@ -108,6 +113,7 @@ class TagProvider extends ChangeNotifier {
       _tags
         ..clear()
         ..addAll(list);
+      MetaSyncNotifier.instance.notifyTagsChanged(tag.bookId);
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('TagProvider.renameTag', e, stackTrace);
@@ -119,10 +125,12 @@ class TagProvider extends ChangeNotifier {
     try {
       final List<Tag> list =
           (await _repo.deleteTag(tag.id, bookId: tag.bookId)).cast<Tag>();
+      await TagDeleteQueue.instance.enqueue(bookId: tag.bookId, tagId: tag.id);
       _tags
         ..clear()
         ..addAll(list);
       _recordTagIdsCache.removeWhere((_, ids) => ids.contains(tag.id));
+      MetaSyncNotifier.instance.notifyTagsChanged(tag.bookId);
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('TagProvider.deleteTag', e, stackTrace);
@@ -144,10 +152,20 @@ class TagProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> setTagsForRecord(String recordId, List<String> tagIds) async {
+  Future<void> setTagsForRecord(
+    String recordId,
+    List<String> tagIds, {
+    Record? record,
+  }) async {
     try {
       await _repo.setTagsForRecord(recordId, tagIds);
       _recordTagIdsCache[recordId] = List<String>.from(tagIds.toSet());
+      if (record != null && record.serverId != null) {
+        await SyncOutboxService.instance.enqueueUpsert(record);
+      }
+      if (record != null) {
+        MetaSyncNotifier.instance.notifyTagsChanged(record.bookId);
+      }
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('TagProvider.setTagsForRecord', e, stackTrace);
@@ -155,10 +173,19 @@ class TagProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteLinksForRecord(String recordId) async {
+  Future<void> deleteLinksForRecord(
+    String recordId, {
+    Record? record,
+  }) async {
     try {
       await _repo.deleteLinksForRecord(recordId);
       _recordTagIdsCache.remove(recordId);
+      if (record != null && record.serverId != null) {
+        await SyncOutboxService.instance.enqueueUpsert(record);
+      }
+      if (record != null) {
+        MetaSyncNotifier.instance.notifyTagsChanged(record.bookId);
+      }
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('TagProvider.deleteLinksForRecord', e, stackTrace);

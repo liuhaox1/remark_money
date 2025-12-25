@@ -30,19 +30,15 @@
    - 服务端：`remark_backend/src/main/java/com/remark/money/controller/SyncController.java`
    - 服务器表：`account_info`
 
-### 1.2 目前“没有云端同步”的数据（潜在遗漏）
+### 1.2 元数据（分类/标签）跨设备一致
 
-以下数据在客户端存在持久化（DB/SharedPreferences），但服务端无对应表/接口（需确认产品需求是否要求跨设备一致）：
+你确认“分类/标签必须跨设备同步”后，已补齐两条链路：
 
-- **分类（categories）**：`lib/providers/category_provider.dart` + `lib/repository/category_repository_db.dart`（可新增/删除/改名/图标）  
-  影响：账单同步只传 `categoryKey`；另一设备若没有该分类，会出现“分类缺失/显示异常”。
+- **分类（categories）**：新增服务端表 `category_info` + `/api/sync/category/upload|download`；客户端用 `CategoryDeleteQueue` 上报删除 tombstone，并在 meta sync 中下载覆盖本地分类列表。
+- **标签（tags）**：新增服务端表 `tag_info` + `/api/sync/tag/upload|download`；客户端用 `TagDeleteQueue` 上报删除 tombstone，并在 meta sync 中下载覆盖本地标签列表。
+- **标签关系（record_tags）**：不直接同步本地 `record_id` 映射；改为随账单 v2 同步，在 `bill_info` 增加 `tag_ids` 字段，push/pull 通过 `tagIds` 传输并落本地 `record_tags`。
 
-- **标签（tags / record_tags）**：`lib/database/database_helper.dart` 已有 `tags` 与 `record_tags` 表  
-  影响：如果业务上支持给账单打标签，那跨设备会丢标签关系。
-
-- **模板、循环记账、提醒、设置等**：本地有 DB 表，但无云端同步。
-
-> 结论：就“收入/支出账单金额与明细”而言 v2 已覆盖主链路，但若产品强调“分类/标签/模板跨设备一致”，目前属于明确同步缺口。
+仍未覆盖（若将来需要跨设备一致）：模板、循环记账、提醒、设置等。
 
 ---
 
@@ -389,4 +385,3 @@
 3) 线上观测：埋点/日志
    - push/pull 每次记录：bookId、cursor、changesCount、hasMore、cursorExpired、耗时、错误码
    - 结合 `request_id/device_id/sync_reason` 快速定位“一次同步链路”的全栈日志
-

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.remark.money.mapper.CategoryInfoMapper">
+
+  <resultMap id="CategoryInfoResultMap" type="com.remark.money.entity.CategoryInfo">
+    <id property="id" column="id"/>
+    <result property="userId" column="user_id"/>
+    <result property="categoryKey" column="category_key"/>
+    <result property="name" column="name"/>
+    <result property="iconCodePoint" column="icon_code_point"/>
+    <result property="iconFontFamily" column="icon_font_family"/>
+    <result property="iconFontPackage" column="icon_font_package"/>
+    <result property="isExpense" column="is_expense"/>
+    <result property="parentKey" column="parent_key"/>
+    <result property="isDelete" column="is_delete"/>
+    <result property="updateTime" column="update_time"/>
+    <result property="createdAt" column="created_at"/>
+  </resultMap>
+
+  <select id="findAllByUserId" resultMap="CategoryInfoResultMap">
+    SELECT *
+    FROM category_info
+    WHERE user_id = #{userId}
+      AND is_delete = 0
+    ORDER BY update_time DESC, id DESC
+  </select>
+
+  <select id="findByUserIdAndKeys" resultMap="CategoryInfoResultMap">
+    SELECT *
+    FROM category_info
+    WHERE user_id = #{userId}
+      AND category_key IN
+      <foreach collection="keys" item="k" open="(" separator="," close=")">
+        #{k}
+      </foreach>
+  </select>
+
+  <insert id="batchInsert">
+    INSERT INTO category_info (user_id, category_key, name, icon_code_point, icon_font_family, icon_font_package, is_expense, parent_key, is_delete, update_time, created_at)
+    VALUES
+    <foreach collection="list" item="c" separator=",">
+      (#{c.userId}, #{c.categoryKey}, #{c.name}, #{c.iconCodePoint}, #{c.iconFontFamily}, #{c.iconFontPackage}, #{c.isExpense}, #{c.parentKey}, #{c.isDelete}, #{c.updateTime}, #{c.createdAt})
+    </foreach>
+  </insert>
+
+  <update id="batchUpdate">
+    <foreach collection="list" item="c" separator=";">
+      UPDATE category_info
+      SET name = #{c.name},
+          icon_code_point = #{c.iconCodePoint},
+          icon_font_family = #{c.iconFontFamily},
+          icon_font_package = #{c.iconFontPackage},
+          is_expense = #{c.isExpense},
+          parent_key = #{c.parentKey},
+          is_delete = #{c.isDelete},
+          update_time = #{c.updateTime}
+      WHERE id = #{c.id}
+        AND user_id = #{c.userId}
+    </foreach>
+  </update>
+
+  <update id="softDeleteByKey">
+    UPDATE category_info
+    SET is_delete = 1,
+        update_time = NOW()
+    WHERE user_id = #{userId}
+      AND category_key = #{key}
+  </update>
+
+</mapper>
+

@@ -270,7 +270,11 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
         );
 
         if (draft.tagIds.isNotEmpty) {
-          await tagProvider.setTagsForRecord(created.id, draft.tagIds.toList());
+          await tagProvider.setTagsForRecord(
+            created.id,
+            draft.tagIds.toList(),
+            record: created,
+          );
         }
 
         saved += 1;

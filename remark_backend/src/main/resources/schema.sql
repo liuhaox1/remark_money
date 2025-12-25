@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS bill_info (
   bill_date DATETIME NOT NULL COMMENT '账单日期',
   include_in_stats TINYINT NOT NULL DEFAULT 1,
   pair_id VARCHAR(64) DEFAULT NULL COMMENT '转账配对ID',
+  tag_ids TEXT DEFAULT NULL COMMENT '标签ID列表(JSON)',
   is_delete TINYINT NOT NULL DEFAULT 0 COMMENT '0=有效,1=已删除',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -104,6 +105,42 @@ CREATE TABLE IF NOT EXISTS budget_info (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_book (user_id, book_id),
   INDEX idx_user_book (user_id, book_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 分类表（云端同步，按用户）
+CREATE TABLE IF NOT EXISTS category_info (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  category_key VARCHAR(128) NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  icon_code_point INT NOT NULL,
+  icon_font_family VARCHAR(128) DEFAULT NULL,
+  icon_font_package VARCHAR(128) DEFAULT NULL,
+  is_expense TINYINT NOT NULL DEFAULT 1,
+  parent_key VARCHAR(128) DEFAULT NULL,
+  is_delete TINYINT NOT NULL DEFAULT 0,
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_key (user_id, category_key),
+  INDEX idx_user_update (user_id, update_time),
+  INDEX idx_user_delete (user_id, is_delete)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 标签表（云端同步，按用户+账本）
+CREATE TABLE IF NOT EXISTS tag_info (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  tag_id VARCHAR(64) NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  color INT DEFAULT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_delete TINYINT NOT NULL DEFAULT 0,
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_book_tag (user_id, book_id, tag_id),
+  INDEX idx_user_book_sort (user_id, book_id, sort_order, created_at),
+  INDEX idx_user_book_delete (user_id, book_id, is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 账户表（云端同步）

@@ -16,6 +16,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   BuildContext? _context;
   StreamSubscription<String>? _outboxSub;
   StreamSubscription<String>? _accountsSub;
+  StreamSubscription<void>? _categoriesSub;
+  StreamSubscription<String>? _tagsSub;
   Timer? _debounce;
   Timer? _metaDebounce;
   final Set<String> _pendingBooks = <String>{};
@@ -46,6 +48,18 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       requestMetaSync(bookId, reason: 'accounts_changed');
     });
 
+    _categoriesSub = MetaSyncNotifier.instance.onCategoriesChanged.listen((_) {
+      final ctx = _context;
+      if (ctx == null) return;
+      final activeBookId = ctx.read<BookProvider>().activeBookId;
+      if (activeBookId.isEmpty) return;
+      requestMetaSync(activeBookId, reason: 'categories_changed');
+    });
+
+    _tagsSub = MetaSyncNotifier.instance.onTagsChanged.listen((bookId) {
+      requestMetaSync(bookId, reason: 'tags_changed');
+    });
+
     // 启动后先对当前账本做一次静默同步（拉取多设备变更）
     final activeBookId = context.read<BookProvider>().activeBookId;
     if (activeBookId.isNotEmpty) {
@@ -65,6 +79,10 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _outboxSub = null;
     _accountsSub?.cancel();
     _accountsSub = null;
+    _categoriesSub?.cancel();
+    _categoriesSub = null;
+    _tagsSub?.cancel();
+    _tagsSub = null;
     WidgetsBinding.instance.removeObserver(this);
     _context = null;
     _started = false;

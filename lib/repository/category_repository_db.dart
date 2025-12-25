@@ -70,6 +70,8 @@ class CategoryRepositoryDb {
 
       // 插入新分类
       for (final category in categories) {
+        final createdAt = category.createdAt?.millisecondsSinceEpoch ?? now;
+        final updatedAt = category.updatedAt?.millisecondsSinceEpoch ?? now;
         batch.insert(
           Tables.categories,
           {
@@ -80,8 +82,8 @@ class CategoryRepositoryDb {
             'icon_font_package': category.icon.fontPackage,
             'is_expense': category.isExpense ? 1 : 0,
             'parent_key': category.parentKey,
-            'created_at': now,
-            'updated_at': now,
+            'created_at': createdAt,
+            'updated_at': updatedAt,
           },
         );
       }
@@ -110,8 +112,8 @@ class CategoryRepositoryDb {
           'icon_font_package': category.icon.fontPackage,
           'is_expense': category.isExpense ? 1 : 0,
           'parent_key': category.parentKey,
-          'created_at': now,
-          'updated_at': now,
+          'created_at': category.createdAt?.millisecondsSinceEpoch ?? now,
+          'updated_at': category.updatedAt?.millisecondsSinceEpoch ?? now,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
@@ -209,8 +211,13 @@ class CategoryRepositoryDb {
       ),
       isExpense: (map['is_expense'] as int) == 1,
       parentKey: map['parent_key'] as String?,
+      createdAt: map['created_at'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
+      updatedAt: map['updated_at'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(map['updated_at'] as int),
     );
   }
 
 }
-

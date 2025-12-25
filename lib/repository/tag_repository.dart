@@ -23,6 +23,26 @@ class TagRepository {
     return tags;
   }
 
+  Future<void> saveTagsForBook(String bookId, List<Tag> tags) async {
+    final all = await _loadAllTags();
+    all.removeWhere((t) => t.bookId == bookId);
+    all.addAll(tags.map((t) {
+      final now = DateTime.now();
+      return t.copyWith(
+        bookId: bookId,
+        createdAt: t.createdAt ?? now,
+        updatedAt: t.updatedAt ?? now,
+      );
+    }));
+    await _saveAllTags(all);
+
+    // Prune record->tag links that refer to missing tags.
+    final keep = tags.map((t) => t.id).toSet();
+    final mapping = await _loadRecordTagsMapping();
+    mapping.forEach((rid, ids) => ids.removeWhere((tid) => !keep.contains(tid)));
+    await _saveRecordTagsMapping(mapping);
+  }
+
   Future<void> _saveAllTags(List<Tag> allTags) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_tagsKey, allTags.map((t) => t.toJson()).toList());
@@ -96,4 +116,3 @@ class TagRepository {
     await _saveRecordTagsMapping(mapping);
   }
 }
-
