@@ -65,6 +65,7 @@ CREATE TABLE category_info (
   is_expense INT NOT NULL DEFAULT 1,
   parent_key VARCHAR(128),
   is_delete INT NOT NULL DEFAULT 0,
+  sync_version BIGINT NOT NULL DEFAULT 1,
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (user_id, category_key)
@@ -82,6 +83,7 @@ CREATE TABLE tag_info (
   color INT,
   sort_order INT NOT NULL DEFAULT 0,
   is_delete INT NOT NULL DEFAULT 0,
+  sync_version BIGINT NOT NULL DEFAULT 1,
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (user_id, book_id, tag_id)
@@ -136,6 +138,7 @@ CREATE TABLE account_info (
   note VARCHAR(512),
   brand_key VARCHAR(64),
   is_delete INT NOT NULL DEFAULT 0,
+  sync_version BIGINT NOT NULL DEFAULT 1,
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

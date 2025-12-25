@@ -13,6 +13,7 @@ public class CategoryInfo {
   private Integer isExpense;
   private String parentKey;
   private Integer isDelete;
+  private Long syncVersion; // server monotonic sync version
   private LocalDateTime updateTime;
   private LocalDateTime createdAt;
 
@@ -96,6 +97,14 @@ public class CategoryInfo {
     this.isDelete = isDelete;
   }
 
+  public Long getSyncVersion() {
+    return syncVersion;
+  }
+
+  public void setSyncVersion(Long syncVersion) {
+    this.syncVersion = syncVersion;
+  }
+
   public LocalDateTime getUpdateTime() {
     return updateTime;
   }
@@ -112,4 +121,3 @@ public class CategoryInfo {
     this.createdAt = createdAt;
   }
 }
-

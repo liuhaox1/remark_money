@@ -41,6 +41,7 @@ class Account {
   const Account({
     required this.id,
     this.serverId,
+    this.syncVersion,
     required this.name,
     required this.kind,
     this.subtype = 'cash',
@@ -63,6 +64,7 @@ class Account {
 
   final String id;
   final int? serverId; // 服务器自增ID
+  final int? syncVersion; // server monotonic sync version
   final String name;
   final AccountKind kind;
   final String subtype;
@@ -89,6 +91,7 @@ class Account {
   Account copyWith({
     String? id,
     int? serverId,
+    int? syncVersion,
     String? name,
     AccountKind? kind,
     String? subtype,
@@ -111,6 +114,7 @@ class Account {
     return Account(
       id: id ?? this.id,
       serverId: serverId ?? this.serverId,
+      syncVersion: syncVersion ?? this.syncVersion,
       name: name ?? this.name,
       kind: kind ?? this.kind,
       subtype: subtype ?? this.subtype,
@@ -136,6 +140,7 @@ class Account {
     return {
       'id': id, // 客户端临时ID（首次上传时使用）
       'serverId': serverId, // 服务器ID（如果已同步）
+      'syncVersion': syncVersion,
       'name': name,
       'category': kind.name,
       'kind': kind.name,
@@ -196,9 +201,14 @@ class Account {
     // 客户端上传时，id是临时ID（String），serverId是已同步的服务器ID
     final serverId = map['id'] is int ? map['id'] as int? : map['serverId'] as int?;
     final clientId = map['id'] is String ? map['id'] as String? : null;
+    final syncVersionRaw = map['syncVersion'] ?? map['sync_version'];
+    final syncVersion = syncVersionRaw is num
+        ? syncVersionRaw.toInt()
+        : (syncVersionRaw is String ? int.tryParse(syncVersionRaw) : null);
     return Account(
       id: clientId ?? (serverId != null ? 'server_$serverId' : _generateTempId()),
       serverId: serverId,
+      syncVersion: syncVersion,
       name: map['name'] as String,
       kind: parsedKind,
       subtype: map['subtype'] as String? ?? _mapLegacySubtype(rawType),

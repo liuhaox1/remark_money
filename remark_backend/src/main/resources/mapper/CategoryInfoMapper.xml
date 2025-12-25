@@ -14,6 +14,7 @@
     <result property="isExpense" column="is_expense"/>
     <result property="parentKey" column="parent_key"/>
     <result property="isDelete" column="is_delete"/>
+    <result property="syncVersion" column="sync_version"/>
     <result property="updateTime" column="update_time"/>
     <result property="createdAt" column="created_at"/>
   </resultMap>
@@ -36,37 +37,34 @@
       </foreach>
   </select>
 
-  <insert id="batchInsert">
-    INSERT INTO category_info (user_id, category_key, name, icon_code_point, icon_font_family, icon_font_package, is_expense, parent_key, is_delete, update_time, created_at)
-    VALUES
-    <foreach collection="list" item="c" separator=",">
-      (#{c.userId}, #{c.categoryKey}, #{c.name}, #{c.iconCodePoint}, #{c.iconFontFamily}, #{c.iconFontPackage}, #{c.isExpense}, #{c.parentKey}, #{c.isDelete}, #{c.updateTime}, #{c.createdAt})
-    </foreach>
+  <insert id="insertOne" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO category_info (user_id, category_key, name, icon_code_point, icon_font_family, icon_font_package, is_expense, parent_key, is_delete, sync_version, update_time, created_at)
+    VALUES (#{userId}, #{categoryKey}, #{name}, #{iconCodePoint}, #{iconFontFamily}, #{iconFontPackage}, #{isExpense}, #{parentKey}, #{isDelete}, 1, NOW(), NOW())
   </insert>
 
-  <update id="batchUpdate">
-    <foreach collection="list" item="c" separator=";">
-      UPDATE category_info
-      SET name = #{c.name},
-          icon_code_point = #{c.iconCodePoint},
-          icon_font_family = #{c.iconFontFamily},
-          icon_font_package = #{c.iconFontPackage},
-          is_expense = #{c.isExpense},
-          parent_key = #{c.parentKey},
-          is_delete = #{c.isDelete},
-          update_time = #{c.updateTime}
-      WHERE id = #{c.id}
-        AND user_id = #{c.userId}
-    </foreach>
+  <update id="updateWithExpectedSyncVersion">
+    UPDATE category_info
+    SET name = #{category.name},
+        icon_code_point = #{category.iconCodePoint},
+        icon_font_family = #{category.iconFontFamily},
+        icon_font_package = #{category.iconFontPackage},
+        is_expense = #{category.isExpense},
+        parent_key = #{category.parentKey},
+        is_delete = #{category.isDelete},
+        sync_version = sync_version + 1,
+        update_time = NOW()
+    WHERE id = #{category.id}
+      AND user_id = #{category.userId}
+      AND sync_version = #{expectedSyncVersion}
   </update>
 
   <update id="softDeleteByKey">
     UPDATE category_info
     SET is_delete = 1,
+        sync_version = sync_version + 1,
         update_time = NOW()
     WHERE user_id = #{userId}
       AND category_key = #{key}
   </update>
 
 </mapper>
-

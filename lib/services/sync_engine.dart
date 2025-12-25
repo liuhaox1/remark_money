@@ -148,6 +148,7 @@ class SyncEngine {
               'id': t.id,
               'bookId': bookId,
               'name': t.name,
+              'syncVersion': t.syncVersion,
               'colorValue': t.colorValue,
               'sortOrder': t.sortOrder,
               'createdAt': t.createdAt?.toIso8601String(),

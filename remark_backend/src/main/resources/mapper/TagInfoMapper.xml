@@ -12,6 +12,7 @@
     <result property="color" column="color"/>
     <result property="sortOrder" column="sort_order"/>
     <result property="isDelete" column="is_delete"/>
+    <result property="syncVersion" column="sync_version"/>
     <result property="updateTime" column="update_time"/>
     <result property="createdAt" column="created_at"/>
   </resultMap>
@@ -36,30 +37,28 @@
       </foreach>
   </select>
 
-  <insert id="batchInsert">
-    INSERT INTO tag_info (user_id, book_id, tag_id, name, color, sort_order, is_delete, update_time, created_at)
-    VALUES
-    <foreach collection="list" item="t" separator=",">
-      (#{t.userId}, #{t.bookId}, #{t.tagId}, #{t.name}, #{t.color}, #{t.sortOrder}, #{t.isDelete}, #{t.updateTime}, #{t.createdAt})
-    </foreach>
+  <insert id="insertOne" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO tag_info (user_id, book_id, tag_id, name, color, sort_order, is_delete, sync_version, update_time, created_at)
+    VALUES (#{userId}, #{bookId}, #{tagId}, #{name}, #{color}, #{sortOrder}, #{isDelete}, 1, NOW(), NOW())
   </insert>
 
-  <update id="batchUpdate">
-    <foreach collection="list" item="t" separator=";">
-      UPDATE tag_info
-      SET name = #{t.name},
-          color = #{t.color},
-          sort_order = #{t.sortOrder},
-          is_delete = #{t.isDelete},
-          update_time = #{t.updateTime}
-      WHERE id = #{t.id}
-        AND user_id = #{t.userId}
-    </foreach>
+  <update id="updateWithExpectedSyncVersion">
+    UPDATE tag_info
+    SET name = #{tag.name},
+        color = #{tag.color},
+        sort_order = #{tag.sortOrder},
+        is_delete = #{tag.isDelete},
+        sync_version = sync_version + 1,
+        update_time = NOW()
+    WHERE id = #{tag.id}
+      AND user_id = #{tag.userId}
+      AND sync_version = #{expectedSyncVersion}
   </update>
 
   <update id="softDeleteByTagId">
     UPDATE tag_info
     SET is_delete = 1,
+        sync_version = sync_version + 1,
         update_time = NOW()
     WHERE user_id = #{userId}
       AND book_id = #{bookId}
@@ -67,4 +66,3 @@
   </update>
 
 </mapper>
-

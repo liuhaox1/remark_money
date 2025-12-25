@@ -13,10 +13,9 @@ public interface TagInfoMapper {
 
   List<TagInfo> findByUserIdBookIdAndTagIds(@Param("userId") Long userId, @Param("bookId") String bookId, @Param("tagIds") Set<String> tagIds);
 
-  int batchInsert(@Param("list") List<TagInfo> list);
+  int insertOne(TagInfo tagInfo);
 
-  int batchUpdate(@Param("list") List<TagInfo> list);
+  int updateWithExpectedSyncVersion(@Param("tag") TagInfo tagInfo, @Param("expectedSyncVersion") Long expectedSyncVersion);
 
   int softDeleteByTagId(@Param("userId") Long userId, @Param("bookId") String bookId, @Param("tagId") String tagId);
 }
-

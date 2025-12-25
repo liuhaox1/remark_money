@@ -23,6 +23,7 @@
     <result property="note" column="note"/>
     <result property="brandKey" column="brand_key"/>
     <result property="isDelete" column="is_delete"/>
+    <result property="syncVersion" column="sync_version"/>
     <result property="updateTime" column="update_time"/>
     <result property="createdAt" column="created_at"/>
   </resultMap>
@@ -74,13 +75,13 @@
 
   <update id="softDeleteById">
     UPDATE account_info
-    SET is_delete = 1, update_time = NOW()
+    SET is_delete = 1, sync_version = sync_version + 1, update_time = NOW()
     WHERE user_id = #{userId} AND id = #{id}
   </update>
 
   <update id="softDeleteByAccountId">
     UPDATE account_info
-    SET is_delete = 1, update_time = NOW()
+    SET is_delete = 1, sync_version = sync_version + 1, update_time = NOW()
     WHERE user_id = #{userId} AND account_id = #{accountId}
   </update>
 
@@ -88,24 +89,24 @@
     INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
                             include_in_total, include_in_overview, currency, sort_order,
                             initial_balance, current_balance, counterparty, interest_rate,
-                            due_date, note, brand_key, is_delete, update_time, created_at)
+                            due_date, note, brand_key, is_delete, sync_version, update_time, created_at)
     VALUES (#{userId}, #{accountId}, #{name}, #{kind}, #{subtype}, #{type}, #{icon},
             #{includeInTotal}, #{includeInOverview}, #{currency}, #{sortOrder},
             #{initialBalance}, #{currentBalance}, #{counterparty}, #{interestRate},
-            #{dueDate}, #{note}, #{brandKey}, #{isDelete}, NOW(), NOW())
+            #{dueDate}, #{note}, #{brandKey}, #{isDelete}, 1, NOW(), NOW())
   </insert>
 
   <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
                             include_in_total, include_in_overview, currency, sort_order,
                             initial_balance, current_balance, counterparty, interest_rate,
-                            due_date, note, brand_key, is_delete, update_time, created_at)
+                            due_date, note, brand_key, is_delete, sync_version, update_time, created_at)
     VALUES
     <foreach collection="list" item="item" separator=",">
       (#{item.userId}, #{item.accountId}, #{item.name}, #{item.kind}, #{item.subtype}, #{item.type}, #{item.icon},
        #{item.includeInTotal}, #{item.includeInOverview}, #{item.currency}, #{item.sortOrder},
        #{item.initialBalance}, #{item.currentBalance}, #{item.counterparty}, #{item.interestRate},
-       #{item.dueDate}, #{item.note}, #{item.brandKey}, #{item.isDelete}, NOW(), NOW())
+       #{item.dueDate}, #{item.note}, #{item.brandKey}, #{item.isDelete}, 1, NOW(), NOW())
     </foreach>
   </insert>
 
@@ -128,8 +129,35 @@
       note = #{note},
       brand_key = #{brandKey},
       is_delete = #{isDelete},
+      sync_version = sync_version + 1,
       update_time = NOW()
     WHERE id = #{id} AND user_id = #{userId}
+  </update>
+
+  <update id="updateWithExpectedSyncVersion">
+    UPDATE account_info SET
+      name = #{account.name},
+      kind = #{account.kind},
+      subtype = #{account.subtype},
+      type = #{account.type},
+      icon = #{account.icon},
+      include_in_total = #{account.includeInTotal},
+      include_in_overview = #{account.includeInOverview},
+      currency = #{account.currency},
+      sort_order = #{account.sortOrder},
+      initial_balance = #{account.initialBalance},
+      current_balance = #{account.currentBalance},
+      counterparty = #{account.counterparty},
+      interest_rate = #{account.interestRate},
+      due_date = #{account.dueDate},
+      note = #{account.note},
+      brand_key = #{account.brandKey},
+      is_delete = #{account.isDelete},
+      sync_version = sync_version + 1,
+      update_time = NOW()
+    WHERE id = #{account.id}
+      AND user_id = #{account.userId}
+      AND sync_version = #{expectedSyncVersion}
   </update>
 
   <update id="batchUpdate">
@@ -238,6 +266,7 @@
         </foreach>
         ELSE is_delete
       END,
+      sync_version = sync_version + 1,
       update_time = NOW()
     WHERE user_id = #{userId}
       AND id IN

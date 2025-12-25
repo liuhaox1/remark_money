@@ -5,6 +5,7 @@ class Tag {
     required this.id,
     required this.bookId,
     required this.name,
+    this.syncVersion,
     this.colorValue,
     this.sortOrder = 0,
     this.createdAt,
@@ -14,6 +15,7 @@ class Tag {
   final String id;
   final String bookId;
   final String name;
+  final int? syncVersion;
   final int? colorValue;
   final int sortOrder;
   final DateTime? createdAt;
@@ -23,6 +25,7 @@ class Tag {
     String? id,
     String? bookId,
     String? name,
+    int? syncVersion,
     int? colorValue,
     int? sortOrder,
     DateTime? createdAt,
@@ -32,6 +35,7 @@ class Tag {
       id: id ?? this.id,
       bookId: bookId ?? this.bookId,
       name: name ?? this.name,
+      syncVersion: syncVersion ?? this.syncVersion,
       colorValue: colorValue ?? this.colorValue,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
@@ -44,6 +48,7 @@ class Tag {
       'id': id,
       'bookId': bookId,
       'name': name,
+      'syncVersion': syncVersion,
       'colorValue': colorValue,
       'sortOrder': sortOrder,
       'createdAt': createdAt?.millisecondsSinceEpoch,
@@ -62,6 +67,11 @@ class Tag {
       id: map['id'] as String,
       bookId: map['bookId'] as String? ?? 'default-book',
       name: map['name'] as String? ?? '',
+      syncVersion: map['syncVersion'] is num
+          ? (map['syncVersion'] as num).toInt()
+          : (map['syncVersion'] is String
+              ? int.tryParse(map['syncVersion'])
+              : null),
       colorValue: map['colorValue'] as int?,
       sortOrder: (map['sortOrder'] as int?) ?? 0,
       createdAt: parse(map['createdAt']),

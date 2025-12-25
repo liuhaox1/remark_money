@@ -174,6 +174,15 @@ public class SyncController {
     if (serverIdObj instanceof Number) {
       account.setId(((Number) serverIdObj).longValue());
     }
+    Object syncVersionObj = map.get("syncVersion");
+    if (syncVersionObj instanceof Number) {
+      account.setSyncVersion(((Number) syncVersionObj).longValue());
+    } else if (syncVersionObj instanceof String) {
+      try {
+        account.setSyncVersion(Long.parseLong(((String) syncVersionObj).trim()));
+      } catch (Exception ignored) {
+      }
+    }
     account.setAccountId((String) map.get("id"));
     account.setName((String) map.get("name"));
     account.setKind((String) map.get("kind"));
@@ -235,6 +244,9 @@ public class SyncController {
     map.put("id", account.getAccountId());
     // 服务器自增ID（用于客户端去重/更新）
     map.put("serverId", account.getId());
+    if (account.getSyncVersion() != null) {
+      map.put("syncVersion", account.getSyncVersion());
+    }
     map.put("name", account.getName());
     map.put("kind", account.getKind());
     map.put("subtype", account.getSubtype());
@@ -566,6 +578,15 @@ public class SyncController {
     CategoryInfo c = new CategoryInfo();
     c.setCategoryKey(map.get("key") != null ? map.get("key").toString() : null);
     c.setName(map.get("name") != null ? map.get("name").toString() : null);
+    Object syncVersionObj = map.get("syncVersion");
+    if (syncVersionObj instanceof Number) {
+      c.setSyncVersion(((Number) syncVersionObj).longValue());
+    } else if (syncVersionObj instanceof String) {
+      try {
+        c.setSyncVersion(Long.parseLong(((String) syncVersionObj).trim()));
+      } catch (Exception ignored) {
+      }
+    }
     Object icon = map.get("icon");
     if (icon instanceof Number) c.setIconCodePoint(((Number) icon).intValue());
     c.setIconFontFamily(map.get("fontFamily") != null ? map.get("fontFamily").toString() : null);
@@ -596,6 +617,7 @@ public class SyncController {
     map.put("fontPackage", c.getIconFontPackage());
     map.put("isExpense", c.getIsExpense() != null && c.getIsExpense() == 1);
     map.put("parentKey", c.getParentKey());
+    if (c.getSyncVersion() != null) map.put("syncVersion", c.getSyncVersion());
     if (c.getUpdateTime() != null) map.put("updatedAt", c.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     if (c.getCreatedAt() != null) map.put("createdAt", c.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     return map;
@@ -606,6 +628,15 @@ public class SyncController {
     t.setBookId(bookId);
     t.setTagId(map.get("id") != null ? map.get("id").toString() : null);
     t.setName(map.get("name") != null ? map.get("name").toString() : null);
+    Object syncVersionObj = map.get("syncVersion");
+    if (syncVersionObj instanceof Number) {
+      t.setSyncVersion(((Number) syncVersionObj).longValue());
+    } else if (syncVersionObj instanceof String) {
+      try {
+        t.setSyncVersion(Long.parseLong(((String) syncVersionObj).trim()));
+      } catch (Exception ignored) {
+      }
+    }
     Object color = map.get("colorValue");
     if (color instanceof Number) t.setColor(((Number) color).intValue());
     Object sortOrder = map.get("sortOrder");
@@ -629,6 +660,7 @@ public class SyncController {
     map.put("name", t.getName());
     map.put("colorValue", t.getColor());
     map.put("sortOrder", t.getSortOrder());
+    if (t.getSyncVersion() != null) map.put("syncVersion", t.getSyncVersion());
     if (t.getUpdateTime() != null) map.put("updatedAt", t.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     if (t.getCreatedAt() != null) map.put("createdAt", t.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     return map;

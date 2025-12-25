@@ -25,6 +25,7 @@ class TagRepositoryDb {
               'name': tag.name,
               'color': tag.colorValue,
               'sort_order': tag.sortOrder,
+              'sync_version': tag.syncVersion ?? 0,
               'created_at': tag.createdAt?.millisecondsSinceEpoch ?? now,
               'updated_at': tag.updatedAt?.millisecondsSinceEpoch ?? now,
             },
@@ -73,6 +74,7 @@ class TagRepositoryDb {
           'name': tag.name,
           'color': tag.colorValue,
           'sort_order': tag.sortOrder,
+          'sync_version': tag.syncVersion ?? 0,
           'created_at': tag.createdAt?.millisecondsSinceEpoch ?? now,
           'updated_at': tag.updatedAt?.millisecondsSinceEpoch ?? now,
         },
@@ -96,6 +98,7 @@ class TagRepositoryDb {
           'name': tag.name,
           'color': tag.colorValue,
           'sort_order': tag.sortOrder,
+          'sync_version': tag.syncVersion ?? 0,
           'updated_at': tag.updatedAt?.millisecondsSinceEpoch ?? now,
         },
         where: 'id = ?',
@@ -208,6 +211,7 @@ class TagRepositoryDb {
                t.name as name,
                t.color as color,
                t.sort_order as sort_order,
+               t.sync_version as sync_version,
                t.created_at as created_at,
                t.updated_at as updated_at
         FROM ${Tables.recordTags} rt
@@ -235,6 +239,7 @@ class TagRepositoryDb {
       id: map['id'] as String,
       bookId: map['book_id'] as String? ?? 'default-book',
       name: map['name'] as String? ?? '',
+      syncVersion: (map['sync_version'] as int?) ?? 0,
       colorValue: map['color'] as int?,
       sortOrder: (map['sort_order'] as int?) ?? 0,
       createdAt: map['created_at'] == null

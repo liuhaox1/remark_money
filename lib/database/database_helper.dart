@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 10;
+const int _databaseVersion = 11;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -268,6 +268,61 @@ class DatabaseHelper {
           await prefs.remove('last_reminder_date');
         } catch (_) {}
         break;
+      case 11:
+        // v1 meta sync: add server sync_version support (accounts/categories/tags)
+        try {
+          await db.execute('ALTER TABLE ${Tables.categories} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.tags} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN subtype TEXT NOT NULL DEFAULT \"cash\"');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN account_type TEXT NOT NULL DEFAULT \"cash\"');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN icon TEXT NOT NULL DEFAULT \"wallet\"');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN server_id INTEGER');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN include_in_overview INTEGER NOT NULL DEFAULT 1');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN currency TEXT NOT NULL DEFAULT \"CNY\"');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN initial_balance REAL NOT NULL DEFAULT 0');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN counterparty TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN interest_rate REAL');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN due_date INTEGER');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN note TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN brand_key TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN is_delete INTEGER NOT NULL DEFAULT 0');
+        } catch (_) {}
+        // Ensure idx remains available.
+        try {
+          await db.execute('CREATE INDEX IF NOT EXISTS idx_accounts_type ON ${Tables.accounts}(type)');
+        } catch (_) {}
+        break;
       default:
         break;
     }
@@ -321,6 +376,7 @@ class DatabaseHelper {
         icon_font_package TEXT,
         is_expense INTEGER NOT NULL,
         parent_key TEXT,
+        sync_version INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         FOREIGN KEY (parent_key) REFERENCES ${Tables.categories}(key)
@@ -333,10 +389,24 @@ class DatabaseHelper {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         type TEXT NOT NULL,
+        subtype TEXT NOT NULL DEFAULT 'cash',
+        account_type TEXT NOT NULL DEFAULT 'cash',
+        icon TEXT NOT NULL DEFAULT 'wallet',
+        server_id INTEGER,
+        sync_version INTEGER NOT NULL DEFAULT 0,
         current_balance REAL NOT NULL DEFAULT 0,
         is_debt INTEGER NOT NULL DEFAULT 0,
         include_in_total INTEGER NOT NULL DEFAULT 1,
+        include_in_overview INTEGER NOT NULL DEFAULT 1,
+        currency TEXT NOT NULL DEFAULT 'CNY',
         sort_order INTEGER NOT NULL DEFAULT 0,
+        initial_balance REAL NOT NULL DEFAULT 0,
+        counterparty TEXT,
+        interest_rate REAL,
+        due_date INTEGER,
+        note TEXT,
+        brand_key TEXT,
+        is_delete INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
@@ -433,6 +503,7 @@ class DatabaseHelper {
         name TEXT NOT NULL,
         color INTEGER,
         sort_order INTEGER NOT NULL DEFAULT 0,
+        sync_version INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         UNIQUE(book_id, name)

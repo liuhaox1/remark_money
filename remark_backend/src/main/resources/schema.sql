@@ -136,12 +136,29 @@ CREATE TABLE IF NOT EXISTS category_info (
   is_expense TINYINT NOT NULL DEFAULT 1,
   parent_key VARCHAR(128) DEFAULT NULL,
   is_delete TINYINT NOT NULL DEFAULT 0,
+  sync_version BIGINT NOT NULL DEFAULT 1 COMMENT 'server monotonic sync version',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_key (user_id, category_key),
   INDEX idx_user_update (user_id, update_time),
   INDEX idx_user_delete (user_id, is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- category_info add sync_version if missing
+SET @column_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'category_info'
+    AND COLUMN_NAME = 'sync_version'
+);
+SET @sql = IF(@column_exists > 0,
+  'SELECT 1',
+  'ALTER TABLE category_info ADD COLUMN sync_version BIGINT NOT NULL DEFAULT 1 COMMENT ''server monotonic sync version'' AFTER is_delete'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 标签表（云端同步，按用户+账本）
 CREATE TABLE IF NOT EXISTS tag_info (
@@ -153,12 +170,29 @@ CREATE TABLE IF NOT EXISTS tag_info (
   color INT DEFAULT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   is_delete TINYINT NOT NULL DEFAULT 0,
+  sync_version BIGINT NOT NULL DEFAULT 1 COMMENT 'server monotonic sync version',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_book_tag (user_id, book_id, tag_id),
   INDEX idx_user_book_sort (user_id, book_id, sort_order, created_at),
   INDEX idx_user_book_delete (user_id, book_id, is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- tag_info add sync_version if missing
+SET @column_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'tag_info'
+    AND COLUMN_NAME = 'sync_version'
+);
+SET @sql = IF(@column_exists > 0,
+  'SELECT 1',
+  'ALTER TABLE tag_info ADD COLUMN sync_version BIGINT NOT NULL DEFAULT 1 COMMENT ''server monotonic sync version'' AFTER is_delete'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 账单-标签关系表（v2：用关系表替代 bill_info.tag_ids JSON）
 CREATE TABLE IF NOT EXISTS bill_tag_rel (
@@ -207,12 +241,29 @@ CREATE TABLE IF NOT EXISTS account_info (
   note VARCHAR(512) DEFAULT NULL COMMENT '备注',
   brand_key VARCHAR(64) DEFAULT NULL COMMENT '品牌标识',
   is_delete TINYINT NOT NULL DEFAULT 0 COMMENT '0=active,1=deleted',
+  sync_version BIGINT NOT NULL DEFAULT 1 COMMENT 'server monotonic sync version',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_user_account_id (user_id, account_id),
   INDEX idx_user_delete (user_id, is_delete),
   INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- account_info add sync_version if missing
+SET @column_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'account_info'
+    AND COLUMN_NAME = 'sync_version'
+);
+SET @sql = IF(@column_exists > 0,
+  'SELECT 1',
+  'ALTER TABLE account_info ADD COLUMN sync_version BIGINT NOT NULL DEFAULT 1 COMMENT ''server monotonic sync version'' AFTER is_delete'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- è´¦å•å˜æ›´æµï¼ˆv2 åŒæ­¥ç”¨ï¼‰
 CREATE TABLE IF NOT EXISTS bill_change_log (

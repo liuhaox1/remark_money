@@ -45,6 +45,9 @@ public interface AccountInfoMapper {
   // 更新账户（按id）
   void updateById(AccountInfo accountInfo);
 
+  int updateWithExpectedSyncVersion(
+      @Param("account") AccountInfo accountInfo, @Param("expectedSyncVersion") Long expectedSyncVersion);
+
   // 批量更新
   void batchUpdate(@Param("list") List<AccountInfo> list);
 }

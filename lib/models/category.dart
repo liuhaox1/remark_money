@@ -6,6 +6,7 @@ class Category {
   final String name;
   final IconData icon;
   final bool isExpense;
+  final int? syncVersion;
   /// 一级分类 key；为 null 表示自己就是一级分类
   final String? parentKey;
   final DateTime? createdAt;
@@ -16,6 +17,7 @@ class Category {
     required this.name,
     required this.icon,
     required this.isExpense,
+    this.syncVersion,
     this.parentKey,
     this.createdAt,
     this.updatedAt,
@@ -26,6 +28,7 @@ class Category {
     String? name,
     IconData? icon,
     bool? isExpense,
+    int? syncVersion,
     String? parentKey,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -35,6 +38,7 @@ class Category {
       name: name ?? this.name,
       icon: icon ?? this.icon,
       isExpense: isExpense ?? this.isExpense,
+      syncVersion: syncVersion ?? this.syncVersion,
       parentKey: parentKey ?? this.parentKey,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -49,6 +53,7 @@ class Category {
       'fontFamily': icon.fontFamily,
       'fontPackage': icon.fontPackage,
       'isExpense': isExpense,
+      'syncVersion': syncVersion,
       'parentKey': parentKey,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
@@ -71,6 +76,11 @@ class Category {
         fontPackage: map['fontPackage'],
       ),
       isExpense: map['isExpense'],
+      syncVersion: map['syncVersion'] is num
+          ? (map['syncVersion'] as num).toInt()
+          : (map['syncVersion'] is String
+              ? int.tryParse(map['syncVersion'])
+              : null),
       parentKey: map['parentKey'] as String?,
       createdAt: parse(map['createdAt']),
       updatedAt: parse(map['updatedAt']),

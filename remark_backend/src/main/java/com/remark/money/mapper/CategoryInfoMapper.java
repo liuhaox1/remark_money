@@ -13,10 +13,10 @@ public interface CategoryInfoMapper {
 
   List<CategoryInfo> findByUserIdAndKeys(@Param("userId") Long userId, @Param("keys") Set<String> keys);
 
-  int batchInsert(@Param("list") List<CategoryInfo> list);
+  int insertOne(CategoryInfo categoryInfo);
 
-  int batchUpdate(@Param("list") List<CategoryInfo> list);
+  int updateWithExpectedSyncVersion(
+      @Param("category") CategoryInfo categoryInfo, @Param("expectedSyncVersion") Long expectedSyncVersion);
 
   int softDeleteByKey(@Param("userId") Long userId, @Param("key") String key);
 }
-

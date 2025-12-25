@@ -107,12 +107,26 @@ class AccountRepositoryDb {
     final now = DateTime.now().millisecondsSinceEpoch;
     return {
       'id': account.id,
+      'server_id': account.serverId,
+      'sync_version': account.syncVersion ?? 0,
       'name': account.name,
       'type': account.kind.name, // 使用 kind 作为 type
+      'subtype': account.subtype,
+      'account_type': account.type.name,
+      'icon': account.icon,
+      'currency': account.currency,
+      'initial_balance': account.initialBalance,
       'current_balance': account.currentBalance,
       'is_debt': account.isDebt ? 1 : 0,
       'include_in_total': account.includeInTotal ? 1 : 0,
+      'include_in_overview': account.includeInOverview ? 1 : 0,
       'sort_order': account.sortOrder,
+      'counterparty': account.counterparty,
+      'interest_rate': account.interestRate,
+      'due_date': account.dueDate?.millisecondsSinceEpoch,
+      'note': account.note,
+      'brand_key': account.brandKey,
+      'is_delete': 0,
       'created_at': account.createdAt?.millisecondsSinceEpoch ?? now,
       'updated_at': account.updatedAt?.millisecondsSinceEpoch ?? now,
     };
@@ -135,11 +149,29 @@ class AccountRepositoryDb {
 
     return Account(
       id: map['id'] as String,
+      serverId: map['server_id'] as int?,
+      syncVersion: map['sync_version'] as int?,
       name: map['name'] as String,
       kind: kind,
-      currentBalance: (map['current_balance'] as num).toDouble(),
-      includeInTotal: (map['include_in_total'] as int) == 1,
+      subtype: map['subtype'] as String? ?? 'cash',
+      type: AccountType.values.firstWhere(
+        (t) => t.name == (map['account_type'] as String? ?? 'cash'),
+        orElse: () => AccountType.cash,
+      ),
+      icon: map['icon'] as String? ?? 'wallet',
+      includeInTotal: (map['include_in_total'] as int? ?? 1) == 1,
+      includeInOverview: (map['include_in_overview'] as int? ?? 1) == 1,
+      currency: map['currency'] as String? ?? 'CNY',
       sortOrder: map['sort_order'] as int? ?? 0,
+      initialBalance: (map['initial_balance'] as num?)?.toDouble() ?? 0,
+      currentBalance: (map['current_balance'] as num?)?.toDouble() ?? 0,
+      counterparty: map['counterparty'] as String?,
+      interestRate: (map['interest_rate'] as num?)?.toDouble(),
+      dueDate: map['due_date'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['due_date'] as int)
+          : null,
+      note: map['note'] as String?,
+      brandKey: map['brand_key'] as String?,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

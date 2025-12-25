@@ -24,6 +24,7 @@ public class AccountInfo {
   private String note;
   private String brandKey;
   private Integer isDelete; // 0=active,1=deleted
+  private Long syncVersion; // server monotonic sync version
   private LocalDateTime updateTime;
   private LocalDateTime createdAt;
 
@@ -186,6 +187,14 @@ public class AccountInfo {
 
   public void setIsDelete(Integer isDelete) {
     this.isDelete = isDelete;
+  }
+
+  public Long getSyncVersion() {
+    return syncVersion;
+  }
+
+  public void setSyncVersion(Long syncVersion) {
+    this.syncVersion = syncVersion;
   }
 
   public LocalDateTime getUpdateTime() {

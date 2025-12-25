@@ -126,6 +126,20 @@ public class SyncService {
       }
 
       if (existing != null) {
+        // Prefer server monotonic sync_version when available (avoid client clock drift).
+        if (account.getSyncVersion() != null && existing.getSyncVersion() != null) {
+          if (!existing.getSyncVersion().equals(account.getSyncVersion())) {
+            processed.add(existing);
+            continue;
+          }
+          account.setId(existing.getId());
+          int updated =
+              accountInfoMapper.updateWithExpectedSyncVersion(account, account.getSyncVersion());
+          if (updated <= 0) {
+            processed.add(existing);
+          }
+          continue;
+        }
         // 冲突处理：服务端 update_time 更新的优先
         if (existing.getUpdateTime() != null
             && account.getUpdateTime() != null
@@ -154,7 +168,7 @@ public class SyncService {
     // IMPORTANT: do NOT hard-delete "missing" accounts based on a potentially partial client list.
     // Deletions must be explicit (tombstone) to avoid irreversible data loss.
 
-    return AccountSyncResult.success(processed);
+    return AccountSyncResult.success(accountInfoMapper.findAllByUserId(userId));
   }
 
   /**
@@ -280,28 +294,35 @@ public class SyncService {
             : categoryInfoMapper.findByUserIdAndKeys(userId, keys).stream()
                 .collect(Collectors.toMap(CategoryInfo::getCategoryKey, c -> c));
 
-    List<CategoryInfo> toInsert = new ArrayList<>();
-    List<CategoryInfo> toUpdate = new ArrayList<>();
-
     for (CategoryInfo c : categories) {
       if (c == null) continue;
       c.setUserId(userId);
       if (c.getIsDelete() == null) c.setIsDelete(0);
       CategoryInfo existing = c.getCategoryKey() == null ? null : existingByKey.get(c.getCategoryKey());
       if (existing != null) {
-        // server prefers newer update_time
-        if (existing.getUpdateTime() != null && c.getUpdateTime() != null && existing.getUpdateTime().isAfter(c.getUpdateTime())) {
-          continue;
-        }
         c.setId(existing.getId());
-        toUpdate.add(c);
+        if (existing.getSyncVersion() != null) {
+          Long expected = existing.getSyncVersion();
+          if (c.getSyncVersion() != null) {
+            if (!existing.getSyncVersion().equals(c.getSyncVersion())) {
+              continue;
+            }
+            expected = c.getSyncVersion();
+          } else {
+            // Backward-compat: fall back to update_time
+            if (existing.getUpdateTime() != null && c.getUpdateTime() != null && existing.getUpdateTime().isAfter(c.getUpdateTime())) {
+              continue;
+            }
+          }
+          int updated = categoryInfoMapper.updateWithExpectedSyncVersion(c, expected);
+          if (updated <= 0) {
+            continue;
+          }
+        }
       } else {
-        toInsert.add(c);
+        categoryInfoMapper.insertOne(c);
       }
     }
-
-    if (!toUpdate.isEmpty()) categoryInfoMapper.batchUpdate(toUpdate);
-    if (!toInsert.isEmpty()) categoryInfoMapper.batchInsert(toInsert);
 
     return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(userId));
   }
@@ -346,8 +367,6 @@ public class SyncService {
             : tagInfoMapper.findByUserIdBookIdAndTagIds(userId, bookId, incomingIds).stream()
                 .collect(Collectors.toMap(TagInfo::getTagId, t -> t));
 
-    List<TagInfo> toInsert = new ArrayList<>();
-    List<TagInfo> toUpdate = new ArrayList<>();
     for (TagInfo t : tags) {
       if (t == null) continue;
       t.setUserId(userId);
@@ -355,18 +374,28 @@ public class SyncService {
       if (t.getIsDelete() == null) t.setIsDelete(0);
       TagInfo existing = t.getTagId() == null ? null : existingByTagId.get(t.getTagId());
       if (existing != null) {
-        if (existing.getUpdateTime() != null && t.getUpdateTime() != null && existing.getUpdateTime().isAfter(t.getUpdateTime())) {
-          continue;
-        }
         t.setId(existing.getId());
-        toUpdate.add(t);
+        if (existing.getSyncVersion() != null) {
+          Long expected = existing.getSyncVersion();
+          if (t.getSyncVersion() != null) {
+            if (!existing.getSyncVersion().equals(t.getSyncVersion())) {
+              continue;
+            }
+            expected = t.getSyncVersion();
+          } else {
+            if (existing.getUpdateTime() != null && t.getUpdateTime() != null && existing.getUpdateTime().isAfter(t.getUpdateTime())) {
+              continue;
+            }
+          }
+          int updated = tagInfoMapper.updateWithExpectedSyncVersion(t, expected);
+          if (updated <= 0) {
+            continue;
+          }
+        }
       } else {
-        toInsert.add(t);
+        tagInfoMapper.insertOne(t);
       }
     }
-
-    if (!toUpdate.isEmpty()) tagInfoMapper.batchUpdate(toUpdate);
-    if (!toInsert.isEmpty()) tagInfoMapper.batchInsert(toInsert);
 
     return TagSyncResult.success(tagInfoMapper.findAllByUserIdAndBookId(userId, bookId));
   }
