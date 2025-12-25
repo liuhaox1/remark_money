@@ -10,7 +10,7 @@
     INSERT INTO id_sequence (name, next_id)
     SELECT 'bill_info', IFNULL(MAX(id), 0) + 1 FROM bill_info
     ON DUPLICATE KEY UPDATE
-      next_id = GREATEST(next_id, (SELECT IFNULL(MAX(id), 0) + 1 FROM bill_info))
+      next_id = GREATEST(next_id, VALUES(next_id))
   </insert>
 
   <select id="lockNextId" resultType="long">
@@ -22,4 +22,3 @@
   </update>
 
 </mapper>
-
