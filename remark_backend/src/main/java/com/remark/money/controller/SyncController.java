@@ -488,11 +488,19 @@ public class SyncController {
     budget.setCategoryBudgets(map.get("categoryBudgets") != null ? map.get("categoryBudgets").toString() : null);
     budget.setAnnualCategoryBudgets(map.get("annualCategoryBudgets") != null ? map.get("annualCategoryBudgets").toString() : null);
     budget.setPeriodStartDay(asInt(map.get("periodStartDay"), 1));
-    // updateTime is optional; server will overwrite to NOW() on upsert.
-    if (map.get("updateTime") instanceof String) {
+    if (map.get("syncVersion") instanceof Number) {
+      budget.setSyncVersion(((Number) map.get("syncVersion")).longValue());
+    } else if (map.get("syncVersion") instanceof String) {
       try {
-        budget.setUpdateTime(LocalDateTime.parse((String) map.get("updateTime"), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        budget.setSyncVersion(Long.parseLong(((String) map.get("syncVersion")).trim()));
       } catch (Exception ignored) {
+      }
+    }
+    // updateTime is optional; server will overwrite to NOW() on update.
+    if (map.get("updateTime") instanceof String) {
+      LocalDateTime parsed = parseClientDateTime((String) map.get("updateTime"));
+      if (parsed != null) {
+        budget.setUpdateTime(parsed);
       }
     }
     return budget;
@@ -513,6 +521,9 @@ public class SyncController {
     map.put("periodStartDay", budget.getPeriodStartDay());
     map.put("annualTotal", budget.getAnnualTotal());
     map.put("annualCategoryBudgets", budget.getAnnualCategoryBudgets());
+    if (budget.getSyncVersion() != null) {
+      map.put("syncVersion", budget.getSyncVersion());
+    }
     if (budget.getUpdateTime() != null) {
       map.put("updateTime", budget.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     }

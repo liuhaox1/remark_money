@@ -14,6 +14,8 @@ import '../repository/repository_factory.dart';
 import '../repository/record_repository_db.dart';
 import 'account_delete_queue.dart';
 import 'auth_service.dart';
+import 'budget_conflict_backup_store.dart';
+import 'budget_sync_state_store.dart';
 import 'category_delete_queue.dart';
 import 'data_version_service.dart';
 import 'sync_outbox_service.dart';
@@ -22,6 +24,7 @@ import 'sync_v2_conflict_store.dart';
 import 'sync_v2_cursor_store.dart';
 import 'sync_v2_pull_utils.dart';
 import 'sync_v2_push_retry.dart';
+import 'sync_v2_summary_store.dart';
 import 'tag_delete_queue.dart';
 
 class SyncEngine {
@@ -63,6 +66,27 @@ class SyncEngine {
     await _syncCategories(context, reason: reason);
     await _syncTags(context, bookId, reason: reason);
     await _pullV2(context, bookId, reason: reason);
+    await _maybeBootstrapFromSummary(context, bookId, reason: reason);
+  }
+
+  Future<void> forceBootstrapV2(
+    BuildContext context,
+    String bookId, {
+    bool pushBeforePull = true,
+  }) async {
+    final tokenValid = await _authService.isTokenValid();
+    if (!tokenValid) return;
+
+    await SyncV2CursorStore.setLastChangeId(bookId, 0);
+    await SyncV2ConflictStore.clear(bookId);
+    await SyncV2SummaryStore.clear(bookId);
+
+    if (pushBeforePull) {
+      await _uploadOutboxV2(context, bookId, reason: 'force_bootstrap');
+    }
+    await _syncCategories(context, reason: 'force_bootstrap');
+    await _syncTags(context, bookId, reason: 'force_bootstrap');
+    await _pullV2(context, bookId, reason: 'force_bootstrap');
   }
 
   /// 同步“元数据”（预算/账户等低频数据）。
@@ -590,6 +614,91 @@ class SyncEngine {
     }
   }
 
+  Future<void> _maybeBootstrapFromSummary(
+    BuildContext context,
+    String bookId, {
+    required String reason,
+  }) async {
+    try {
+      if (!await SyncV2SummaryStore.shouldCheck(bookId)) return;
+
+      final pending = await _outbox.loadPending(bookId, limit: 1);
+      if (pending.isNotEmpty) return;
+
+      final resp = await _syncService.v2Summary(
+        bookId: bookId,
+        reason: reason.isNotEmpty ? '$reason:summary_check' : 'summary_check',
+      );
+      if (resp['success'] != true) return;
+      await SyncV2SummaryStore.markChecked(bookId);
+
+      final summary = (resp['summary'] as Map?)?.cast<String, dynamic>();
+      if (summary == null) return;
+
+      final serverMaxChangeId = (summary['maxChangeId'] as num?)?.toInt() ?? 0;
+      final serverBillCount = (summary['billCount'] as num?)?.toInt() ?? 0;
+      final serverSumIds = (summary['sumIds'] as num?)?.toInt() ?? 0;
+      final serverSumVersions = (summary['sumVersions'] as num?)?.toInt() ?? 0;
+      if (serverBillCount <= 0 || serverMaxChangeId <= 0) return;
+
+      final localCursor = await SyncV2CursorStore.getLastChangeId(bookId);
+      if (localCursor != serverMaxChangeId) return;
+
+      final localSyncedCount = await _countLocalSyncedRecords(context, bookId);
+      final localAgg = await _localSyncedAgg(context, bookId);
+      final bool ok =
+          localSyncedCount == serverBillCount &&
+          localAgg.sumIds == serverSumIds &&
+          localAgg.sumVersions == serverSumVersions;
+      if (ok) return;
+
+      // Likely local data loss / reset with a stale cursor. Bootstrap by resetting cursor.
+      debugPrint(
+          '[SyncEngine] v2 summary mismatch; bootstrap pull book=$bookId localSynced=$localSyncedCount serverBillCount=$serverBillCount cursor=$localCursor');
+      await SyncV2CursorStore.setLastChangeId(bookId, 0);
+      await _pullV2(context, bookId, reason: 'bootstrap_summary_mismatch');
+    } catch (e) {
+      debugPrint('[SyncEngine] v2 summary check failed: $e');
+    }
+  }
+
+  Future<({int sumIds, int sumVersions})> _localSyncedAgg(
+    BuildContext context,
+    String bookId,
+  ) async {
+    int sumIds = 0;
+    int sumVersions = 0;
+    if (RepositoryFactory.isUsingDatabase) {
+      // DB mode: record ids are strings; server_id/server_version exist but no cheap aggregate query right now.
+      // Fall back to in-memory calculation.
+    }
+    final recordProvider = context.read<RecordProvider>();
+    for (final r in recordProvider.recordsForBook(bookId)) {
+      final sid = r.serverId;
+      if (sid == null) continue;
+      sumIds += sid;
+      sumVersions += r.serverVersion ?? 0;
+    }
+    return (sumIds: sumIds, sumVersions: sumVersions);
+  }
+
+  Future<int> _countLocalSyncedRecords(BuildContext context, String bookId) async {
+    if (RepositoryFactory.isUsingDatabase) {
+      try {
+        final repo = RepositoryFactory.createRecordRepository();
+        if (repo is RecordRepositoryDb) {
+          return await repo.countSyncedRecords(bookId: bookId);
+        }
+      } catch (_) {}
+    }
+
+    final recordProvider = context.read<RecordProvider>();
+    return recordProvider
+        .recordsForBook(bookId)
+        .where((r) => r.serverId != null)
+        .length;
+  }
+
   Record _mapToRecord(Map<String, dynamic> map) {
     final serverId = map['id'] as int? ?? map['serverId'] as int?;
     final serverVersion = map['version'] as int? ?? map['serverVersion'] as int?;
@@ -737,24 +846,110 @@ class SyncEngine {
       debugPrint('[SyncEngine] budget sync book=$bookId reason=$reason');
       final budgetProvider = context.read<BudgetProvider>();
       final budgetEntry = budgetProvider.budgetForBook(bookId);
-      final budgetData = {
-        'total': budgetEntry.total,
-        'categoryBudgets': budgetEntry.categoryBudgets,
-        'periodStartDay': budgetEntry.periodStartDay,
-        'annualTotal': budgetEntry.annualTotal,
-        'annualCategoryBudgets': budgetEntry.annualCategoryBudgets,
-      };
-
-      final uploadResult = await _syncService.uploadBudget(
-        bookId: bookId,
-        budgetData: budgetData,
-      );
-      if (!uploadResult.success) return;
+      final localEditMs = await BudgetSyncStateStore.getLocalEditMs(bookId);
+      final localBaseSyncVersion =
+          await BudgetSyncStateStore.getLocalBaseSyncVersion(bookId);
 
       final downloadResult = await _syncService.downloadBudget(bookId: bookId);
       if (!downloadResult.success || downloadResult.budget == null) return;
 
       final cloudBudget = downloadResult.budget!;
+      final cloudSyncVersion = (() {
+        final raw = cloudBudget['syncVersion'];
+        if (raw is num) return raw.toInt();
+        if (raw is String) return int.tryParse(raw.trim()) ?? 0;
+        return 0;
+      })();
+      final cloudUpdateTimeRaw = cloudBudget['updateTime'] as String?;
+      final cloudMs = (() {
+        if (cloudUpdateTimeRaw == null || cloudUpdateTimeRaw.isEmpty) return 0;
+        final dt = DateTime.tryParse(cloudUpdateTimeRaw);
+        return dt?.millisecondsSinceEpoch ?? 0;
+      })();
+      if (cloudMs > 0) {
+        await BudgetSyncStateStore.setServerUpdateMs(bookId, cloudMs);
+      }
+      if (cloudSyncVersion > 0) {
+        await BudgetSyncStateStore.setServerSyncVersion(bookId, cloudSyncVersion);
+      }
+
+      // If local has unsynced edits, try uploading using syncVersion (optimistic concurrency).
+      var keepLocalDueToUploadFailure = false;
+      if (localEditMs > 0) {
+        final localBudgetData = <String, dynamic>{
+          'total': budgetEntry.total,
+          'categoryBudgets': budgetEntry.categoryBudgets,
+          'periodStartDay': budgetEntry.periodStartDay,
+          'annualTotal': budgetEntry.annualTotal,
+          'annualCategoryBudgets': budgetEntry.annualCategoryBudgets,
+          'updateTime':
+              DateTime.fromMillisecondsSinceEpoch(localEditMs).toIso8601String(),
+          'syncVersion': localBaseSyncVersion,
+        };
+
+        final localBaseUnknown = localBaseSyncVersion <= 0;
+        final versionMismatch =
+            cloudSyncVersion > 0 && localBaseSyncVersion != cloudSyncVersion;
+        if (localBaseUnknown || versionMismatch) {
+          await BudgetConflictBackupStore.save(bookId, localBudgetData);
+          await BudgetSyncStateStore.setLocalEditMs(bookId, 0);
+          await BudgetSyncStateStore.setLocalBaseSyncVersion(
+            bookId,
+            cloudSyncVersion,
+          );
+        } else {
+          final uploadResult = await _syncService.uploadBudget(
+            bookId: bookId,
+            budgetData: localBudgetData,
+          );
+          if (!uploadResult.success) {
+            final err = (uploadResult.error ?? '').toLowerCase();
+            final isConflict = err.contains('conflict') ||
+                err.contains('syncversion') ||
+                err.contains('version');
+            debugPrint('[SyncEngine] budget upload failed: ${uploadResult.error}');
+            if (isConflict) {
+              await BudgetConflictBackupStore.save(bookId, localBudgetData);
+              await BudgetSyncStateStore.setLocalEditMs(bookId, 0);
+              await BudgetSyncStateStore.setLocalBaseSyncVersion(
+                bookId,
+                cloudSyncVersion,
+              );
+            } else {
+              keepLocalDueToUploadFailure = true;
+            }
+          } else {
+            final refreshed = await _syncService.downloadBudget(bookId: bookId);
+            if (refreshed.success && refreshed.budget != null) {
+              cloudBudget
+                ..clear()
+                ..addAll(refreshed.budget!);
+              final refreshedSyncVersion = (() {
+                final raw = cloudBudget['syncVersion'];
+                if (raw is num) return raw.toInt();
+                if (raw is String) return int.tryParse(raw.trim()) ?? 0;
+                return 0;
+              })();
+              if (refreshedSyncVersion > 0) {
+                await BudgetSyncStateStore.setServerSyncVersion(
+                  bookId,
+                  refreshedSyncVersion,
+                );
+                await BudgetSyncStateStore.setLocalBaseSyncVersion(
+                  bookId,
+                  refreshedSyncVersion,
+                );
+              }
+            }
+          }
+        }
+      }
+
+      if (keepLocalDueToUploadFailure) {
+        // Keep local state; retry on next meta sync.
+        return;
+      }
+
       await _outbox.runSuppressed(() async {
         await DataVersionService.runWithoutIncrement(() async {
           await budgetProvider.updateBudgetForBook(
@@ -771,9 +966,23 @@ class SyncEngine {
                   {},
             ),
             periodStartDay: (cloudBudget['periodStartDay'] as int?) ?? 1,
+            markUserEdited: false,
           );
         });
       });
+
+      // After applying server budget, clear local dirty flag.
+      await BudgetSyncStateStore.setLocalEditMs(bookId, 0);
+      final appliedSyncVersion = (() {
+        final raw = cloudBudget['syncVersion'];
+        if (raw is num) return raw.toInt();
+        if (raw is String) return int.tryParse(raw.trim()) ?? 0;
+        return 0;
+      })();
+      await BudgetSyncStateStore.setLocalBaseSyncVersion(
+        bookId,
+        appliedSyncVersion,
+      );
     } catch (e) {
       debugPrint('[SyncEngine] budget sync failed: $e');
     }

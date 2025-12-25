@@ -27,10 +27,16 @@ public interface BillChangeLogMapper {
                         @Param("bookId") String bookId,
                         @Param("scopeUserId") Long scopeUserId);
 
+  int bootstrapTombstones(@Param("bookId") String bookId,
+                          @Param("scopeUserId") Long scopeUserId);
+
   List<BillChangeLog> findAfter(@Param("bookId") String bookId,
                                 @Param("scopeUserId") Long scopeUserId,
                                 @Param("afterChangeId") Long afterChangeId,
                                 @Param("limit") int limit);
+
+  Long findMaxChangeId(@Param("bookId") String bookId,
+                       @Param("scopeUserId") Long scopeUserId);
 
   Long findMinChangeIdSince(@Param("bookId") String bookId,
                             @Param("scopeUserId") Long scopeUserId,

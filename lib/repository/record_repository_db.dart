@@ -739,6 +739,22 @@ class RecordRepositoryDb {
     }
   }
 
+  /// Count records that have been synced to server (server_id is not null).
+  Future<int> countSyncedRecords({required String bookId}) async {
+    try {
+      final db = await _dbHelper.database;
+      final result = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM ${Tables.records} WHERE book_id = ? AND server_id IS NOT NULL',
+        <Object?>[bookId],
+      );
+      return (result.first['count'] as int?) ?? 0;
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] countSyncedRecords failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   /// 查询指定日期范围的记录（用于按需查询）
   Future<List<Record>> queryRecordsForPeriod({
     required String bookId,

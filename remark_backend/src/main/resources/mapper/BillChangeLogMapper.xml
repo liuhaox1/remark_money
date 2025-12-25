@@ -64,6 +64,24 @@
       )
   </insert>
 
+  <insert id="bootstrapTombstones">
+    INSERT INTO bill_change_log (book_id, scope_user_id, bill_id, op, bill_version, created_at)
+    SELECT
+      t.book_id,
+      t.scope_user_id,
+      t.bill_id,
+      1,
+      t.bill_version,
+      NOW()
+    FROM bill_delete_tombstone t
+    WHERE t.book_id = #{bookId}
+      AND t.scope_user_id = #{scopeUserId}
+      AND NOT EXISTS (
+        SELECT 1 FROM bill_change_log bcl
+        WHERE bcl.book_id = t.book_id AND bcl.scope_user_id = t.scope_user_id AND bcl.bill_id = t.bill_id
+      )
+  </insert>
+
   <select id="findAfter" resultMap="BillChangeLogResultMap">
     SELECT change_id, book_id, scope_user_id, bill_id, op, bill_version, created_at
     FROM bill_change_log
@@ -72,7 +90,14 @@
     LIMIT #{limit}
   </select>
 
-  <select id="findMinChangeIdSince" resultType="long">
+  <select id="findMaxChangeId" resultType="Long">
+    SELECT MAX(change_id)
+    FROM bill_change_log
+    WHERE book_id = #{bookId}
+      AND scope_user_id = #{scopeUserId}
+  </select>
+
+  <select id="findMinChangeIdSince" resultType="Long">
     SELECT MIN(change_id)
     FROM bill_change_log
     WHERE book_id = #{bookId}

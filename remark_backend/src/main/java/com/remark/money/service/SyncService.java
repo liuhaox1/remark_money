@@ -213,7 +213,29 @@ public class SyncService {
     if (budget.getTotal() == null) budget.setTotal(BigDecimal.ZERO);
     if (budget.getAnnualTotal() == null) budget.setAnnualTotal(BigDecimal.ZERO);
     if (budget.getPeriodStartDay() == null) budget.setPeriodStartDay(1);
-    budgetInfoMapper.upsert(budget);
+
+    BudgetInfo existing = budgetInfoMapper.findByUserIdAndBookId(userId, bookId);
+    if (existing == null) {
+      budgetInfoMapper.insertNew(budget);
+      return BudgetSyncResult.success();
+    }
+
+    // Use server monotonic sync_version to avoid client clock drift (optimistic concurrency).
+    if (budget.getSyncVersion() == null) {
+      return BudgetSyncResult.error("missing syncVersion");
+    }
+    if (existing.getSyncVersion() == null) {
+      log.warn("budget_info missing sync_version for userId={} bookId={}", userId, bookId);
+      return BudgetSyncResult.error("server budget missing syncVersion");
+    }
+    if (!existing.getSyncVersion().equals(budget.getSyncVersion())) {
+      return BudgetSyncResult.error("budget conflict");
+    }
+
+    int updated = budgetInfoMapper.updateWithExpectedSyncVersion(budget, budget.getSyncVersion());
+    if (updated == 0) {
+      return BudgetSyncResult.error("budget conflict");
+    }
     return BudgetSyncResult.success();
   }
 

@@ -49,6 +49,26 @@ public interface BillInfoMapper {
 
   int countByBookId(@Param("bookId") String bookId);
 
+  // v2 summary: count all non-deleted bills for sync scope (do NOT filter include_in_stats)
+  int countNonDeletedByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
+
+  int countNonDeletedByBookId(@Param("bookId") String bookId);
+
+  Long sumIdsNonDeletedByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
+
+  Long sumVersionsNonDeletedByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
+
+  Long sumIdsNonDeletedByBookId(@Param("bookId") String bookId);
+
+  Long sumVersionsNonDeletedByBookId(@Param("bookId") String bookId);
+
+  List<BillInfo> findBillsNeedingTagRelBackfill(@Param("limit") int limit);
+
+  // purge: find old soft-deleted bills in batches
+  List<BillInfo> findDeletedBillsBefore(@Param("cutoff") LocalDateTime cutoff, @Param("limit") int limit);
+
+  int deleteByIds(@Param("ids") List<Long> ids);
+
   // 全量拉取：查询用户所有有效账单，按update_time排序
   List<BillInfo> findAllByUserIdAndBookId(
       @Param("userId") Long userId,

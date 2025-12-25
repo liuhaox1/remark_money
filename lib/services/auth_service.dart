@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../database/database_helper.dart';
+
 const String kApiBaseUrl = 'http://localhost:8080';
 
 /// 注册异常，用于提供友好的错误提示
@@ -35,10 +37,26 @@ class AuthService {
   Future<void> _clearSyncV2LocalState(SharedPreferences prefs) async {
     final keys = prefs.getKeys().toList(growable: false);
     for (final k in keys) {
-      if (k.startsWith('sync_v2_last_change_id_') || k.startsWith('sync_v2_conflicts_')) {
+      if (k.startsWith('sync_v2_last_change_id_') ||
+          k.startsWith('sync_v2_conflicts_') ||
+          k.startsWith('sync_v2_summary_checked_at_') ||
+          k.startsWith('sync_outbox_') ||
+          k.startsWith('data_version_') ||
+          k.startsWith('budget_update_time_') ||
+          k.startsWith('budget_local_edit_ms_') ||
+          k.startsWith('budget_server_update_ms_') ||
+          k.startsWith('budget_server_sync_version_') ||
+          k.startsWith('budget_local_base_sync_version_') ||
+          k.startsWith('budget_conflict_backup_')) {
         await prefs.remove(k);
       }
     }
+
+    // Best-effort: clear DB outbox to avoid cross-account pushes.
+    try {
+      final db = await DatabaseHelper().database;
+      await db.delete(Tables.syncOutbox);
+    } catch (_) {}
   }
 
   Future<void> _saveAuth({required String token, int? userId}) async {

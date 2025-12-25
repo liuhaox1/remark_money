@@ -32,6 +32,7 @@ import '../services/local_data_reset_service.dart';
 import '../services/records_export_service.dart';
 import '../services/recurring_record_runner.dart';
 import '../services/sync_outbox_service.dart';
+import '../services/sync_engine.dart';
 import '../services/sync_v2_conflict_store.dart';
 import 'account_settings_page.dart';
 import 'vip_purchase_page.dart';
@@ -55,6 +56,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _token;
   bool _loadingToken = true;
   bool _wiping = false;
+  bool _bootstrapping = false;
 
   Future<int> _conflictCountForDisplay(String bookId) async {
     final recordProvider = context.read<RecordProvider>();
@@ -190,6 +192,84 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         setState(() => _wiping = false);
+      }
+    }
+  }
+
+  Future<void> _confirmForceBootstrap(String bookId) async {
+    if (_bootstrapping) return;
+
+    final choice = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('一键修复同步？'),
+          content: const Text(
+            '会强制把云端账单全量拉取一遍（不会删除本地未同步的新记录）。\n\n如果你正在离线编辑且有大量待上传数据，建议先等待同步完成再执行。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(0),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(1),
+              child: const Text('仅拉取'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(2),
+              child: const Text('推后再拉'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (choice == null || choice == 0 || !mounted) return;
+
+    setState(() => _bootstrapping = true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return const AlertDialog(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Expanded(child: Text('正在修复同步...')),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      await SyncEngine().forceBootstrapV2(
+        context,
+        bookId,
+        pushBeforePull: choice == 2,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('同步修复完成')),
+        );
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.logError('ProfilePage.forceBootstrap', e, stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('同步修复失败：$e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        setState(() => _bootstrapping = false);
       }
     }
   }
@@ -779,6 +859,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildSettingsList(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final bookId = context.read<BookProvider>().activeBookId;
+    final isLoggedIn = _token != null && _token!.isNotEmpty;
     return Card(
       color: cs.surface,
       elevation: 2,
@@ -818,6 +900,34 @@ class _ProfilePageState extends State<ProfilePage> {
                 Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(0.6)),
             onTap: () => _showPlaceholder(context, '关于指尖记账 1.0.0'),
           ),
+          if (isLoggedIn && bookId.isNotEmpty) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading:
+                  Icon(Icons.sync_outlined, color: cs.onSurface.withOpacity(0.8)),
+              title: Text(
+                '一键修复同步',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              subtitle: Text(
+                '强制全量拉取云端账单，修复极端漏拉/游标异常',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface.withOpacity(0.6),
+                    ),
+              ),
+              trailing: _bootstrapping
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: () => _confirmForceBootstrap(bookId),
+            ),
+          ],
           if (kDebugMode) ...[
             const Divider(height: 1),
             ListTile(

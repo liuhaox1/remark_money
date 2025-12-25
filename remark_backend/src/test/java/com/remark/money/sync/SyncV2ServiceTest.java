@@ -5,6 +5,7 @@ import com.remark.money.entity.BookMember;
 import com.remark.money.entity.SyncOpDedup;
 import com.remark.money.mapper.BillChangeLogMapper;
 import com.remark.money.mapper.BillInfoMapper;
+import com.remark.money.mapper.BillTagRelMapper;
 import com.remark.money.mapper.BookMemberMapper;
 import com.remark.money.mapper.SyncOpDedupMapper;
 import com.remark.money.mapper.SyncScopeStateMapper;
@@ -37,6 +38,9 @@ public class SyncV2ServiceTest {
 
   @Autowired
   private BillChangeLogMapper billChangeLogMapper;
+
+  @Autowired
+  private BillTagRelMapper billTagRelMapper;
 
   @Autowired
   private SyncOpDedupMapper syncOpDedupMapper;
@@ -118,6 +122,106 @@ public class SyncV2ServiceTest {
     assertEquals("upsert", change.get("op"));
     assertNotNull(change.get("changeId"));
     assertNotNull(change.get("bill"));
+  }
+
+  @Test
+  public void personalBook_pushWithTags_persistsRelations_andPullReturnsTagIds() {
+    Long userId = 102L;
+    String bookId = "local-book";
+
+    Map<String, Object> bill = newBillPayload(bookId, "withTags", new BigDecimal("9.99"));
+    bill.put("tagIds", Arrays.asList("t1", "t2"));
+
+    Map<String, Object> resp = syncV2Service.push(userId, bookId, Collections.singletonList(
+        buildUpsertOp("op-tags-1", null, bill)
+    ));
+
+    List<Map<String, Object>> results = resultsOf(resp);
+    assertEquals(1, results.size());
+    assertEquals("applied", results.get(0).get("status"));
+    Long serverId = ((Number) results.get(0).get("serverId")).longValue();
+
+    List<com.remark.money.entity.BillTagRel> rels =
+        billTagRelMapper.findByBillIds(bookId, Collections.singletonList(serverId));
+    assertEquals(2, rels.size());
+    assertEquals("t1", rels.get(0).getTagId());
+    assertEquals(Integer.valueOf(0), rels.get(0).getSortOrder());
+    assertEquals("t2", rels.get(1).getTagId());
+    assertEquals(Integer.valueOf(1), rels.get(1).getSortOrder());
+
+    Map<String, Object> pull = syncV2Service.pull(userId, bookId, null, 200);
+    List<Map<String, Object>> changes = changesOf(pull);
+    assertEquals(1, changes.size());
+    Map<String, Object> change = changes.get(0);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> gotBill = (Map<String, Object>) change.get("bill");
+    assertNotNull(gotBill);
+    @SuppressWarnings("unchecked")
+    List<String> tagIds = (List<String>) gotBill.get("tagIds");
+    assertEquals(Arrays.asList("t1", "t2"), tagIds);
+  }
+
+  @Test
+  public void pull_bootstrapIncludesTombstones_whenBillInfoHardDeleted() {
+    Long userId = 103L;
+    String bookId = "local-book";
+
+    Map<String, Object> bill = newBillPayload(bookId, "toDelete", new BigDecimal("3.33"));
+    Map<String, Object> resp = syncV2Service.push(userId, bookId, Collections.singletonList(
+        buildUpsertOp("op-del-1", null, bill)
+    ));
+    Long serverId = ((Number) resultsOf(resp).get(0).get("serverId")).longValue();
+
+    // Delete it via v2 delete op (writes tombstone on server).
+    BillInfo created = billInfoMapper.findById(serverId);
+    assertNotNull(created);
+    Long expectedVersion = created.getVersion();
+    syncV2Service.push(userId, bookId, Collections.singletonList(
+        buildDeleteOp("op-del-2", serverId, expectedVersion)
+    ));
+
+    // Simulate hard delete of bill_info row + pruned change log for a new device bootstrap.
+    billInfoMapper.deleteByIds(Collections.singletonList(serverId));
+    billChangeLogMapper.deleteBefore(LocalDateTime.now().plusDays(1)); // delete all logs
+    syncScopeStateMapper.resetInitialized(bookId, userId);
+
+    Map<String, Object> pull = syncV2Service.pull(userId, bookId, null, 200);
+    List<Map<String, Object>> changes = changesOf(pull);
+    assertEquals(1, changes.size());
+    Map<String, Object> change = changes.get(0);
+    assertEquals("delete", change.get("op"));
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> stub = (Map<String, Object>) change.get("bill");
+    assertNotNull(stub);
+    assertEquals(serverId.longValue(), ((Number) stub.get("serverId")).longValue());
+    assertEquals(1, ((Number) stub.get("isDelete")).intValue());
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void summary_returnsBillCountAndMaxChangeId() {
+    Long userId = 101L;
+    String bookId = "local-book";
+
+    Map<String, Object> bill1 = newBillPayload(bookId, "a", new BigDecimal("1.00"));
+    Map<String, Object> bill2 = newBillPayload(bookId, "b", new BigDecimal("2.00"));
+    syncV2Service.push(userId, bookId, Collections.singletonList(buildUpsertOp("op-sum-1", null, bill1)));
+    syncV2Service.push(userId, bookId, Collections.singletonList(buildUpsertOp("op-sum-2", null, bill2)));
+
+    Map<String, Object> resp = syncV2Service.summary(userId, bookId);
+    assertEquals(true, resp.get("success"));
+    Object summaryObj = resp.get("summary");
+    assertTrue(summaryObj instanceof Map);
+    Map<String, Object> summary = (Map<String, Object>) summaryObj;
+
+    assertEquals(2, ((Number) summary.get("billCount")).intValue());
+    assertTrue(((Number) summary.get("sumIds")).longValue() > 0L);
+    assertTrue(((Number) summary.get("sumVersions")).longValue() > 0L);
+    Long max = billChangeLogMapper.findMaxChangeId(bookId, userId);
+    assertNotNull(max);
+    assertEquals(max.longValue(), ((Number) summary.get("maxChangeId")).longValue());
+    assertEquals(30, ((Number) summary.get("retentionDays")).intValue());
   }
 
   @Test

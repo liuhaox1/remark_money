@@ -36,7 +36,7 @@
 
 - **分类（categories）**：新增服务端表 `category_info` + `/api/sync/category/upload|download`；客户端用 `CategoryDeleteQueue` 上报删除 tombstone，并在 meta sync 中下载覆盖本地分类列表。
 - **标签（tags）**：新增服务端表 `tag_info` + `/api/sync/tag/upload|download`；客户端用 `TagDeleteQueue` 上报删除 tombstone，并在 meta sync 中下载覆盖本地标签列表。
-- **标签关系（record_tags）**：不直接同步本地 `record_id` 映射；改为随账单 v2 同步，在 `bill_info` 增加 `tag_ids` 字段，push/pull 通过 `tagIds` 传输并落本地 `record_tags`。
+- **标签关系（record_tags）**：不直接同步本地 `record_id` 映射；随账单 v2 同步，通过 `tagIds` 传输；服务端用关系表 `bill_tag_rel` 存储（替代 `bill_info.tag_ids` JSON），客户端落本地 `record_tags`。
 
 仍未覆盖（若将来需要跨设备一致）：模板、循环记账、提醒、设置等。
 

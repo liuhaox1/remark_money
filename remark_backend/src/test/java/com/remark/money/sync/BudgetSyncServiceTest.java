@@ -47,6 +47,55 @@ public class BudgetSyncServiceTest {
     assertEquals(Integer.valueOf(5), got.getPeriodStartDay());
     assertEquals("{\"food\":100}", got.getCategoryBudgets());
     assertEquals("{\"food\":900}", got.getAnnualCategoryBudgets());
+    assertEquals(Long.valueOf(1L), got.getSyncVersion());
+  }
+
+  @Test
+  public void uploadBudget_conflictsOnStaleSyncVersion() {
+    Long userId = 401L;
+    String bookId = "local-book";
+
+    BudgetInfo initial = new BudgetInfo();
+    initial.setTotal(new BigDecimal("10"));
+    initial.setAnnualTotal(new BigDecimal("20"));
+    initial.setPeriodStartDay(2);
+    initial.setCategoryBudgets("{\"a\":1}");
+    initial.setAnnualCategoryBudgets("{\"a\":2}");
+    assertTrue(syncService.uploadBudget(userId, bookId, initial).isSuccess());
+
+    BudgetInfo got = syncService.downloadBudget(userId, bookId).getBudget();
+    assertNotNull(got);
+    assertEquals(0, new BigDecimal("10").compareTo(got.getTotal()));
+    assertEquals(Integer.valueOf(2), got.getPeriodStartDay());
+    assertEquals("{\"a\":1}", got.getCategoryBudgets());
+    assertEquals(Long.valueOf(1L), got.getSyncVersion());
+
+    BudgetInfo updateOk = new BudgetInfo();
+    updateOk.setSyncVersion(got.getSyncVersion());
+    updateOk.setTotal(new BigDecimal("11"));
+    updateOk.setAnnualTotal(new BigDecimal("21"));
+    updateOk.setPeriodStartDay(3);
+    updateOk.setCategoryBudgets("{\"a\":2}");
+    updateOk.setAnnualCategoryBudgets("{\"a\":3}");
+    assertTrue(syncService.uploadBudget(userId, bookId, updateOk).isSuccess());
+
+    BudgetInfo after = syncService.downloadBudget(userId, bookId).getBudget();
+    assertNotNull(after);
+    assertEquals(0, new BigDecimal("11").compareTo(after.getTotal()));
+    assertEquals(Long.valueOf(2L), after.getSyncVersion());
+
+    BudgetInfo stale = new BudgetInfo();
+    stale.setSyncVersion(1L);
+    stale.setTotal(new BigDecimal("999"));
+    stale.setAnnualTotal(new BigDecimal("999"));
+    stale.setPeriodStartDay(10);
+    stale.setCategoryBudgets("{\"b\":9}");
+    stale.setAnnualCategoryBudgets("{\"b\":9}");
+    assertFalse(syncService.uploadBudget(userId, bookId, stale).isSuccess());
+
+    BudgetInfo unchanged = syncService.downloadBudget(userId, bookId).getBudget();
+    assertNotNull(unchanged);
+    assertEquals(0, new BigDecimal("11").compareTo(unchanged.getTotal()));
+    assertEquals(Long.valueOf(2L), unchanged.getSyncVersion());
   }
 }
-

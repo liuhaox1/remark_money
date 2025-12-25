@@ -130,6 +130,72 @@
     WHERE book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
   </select>
 
+  <select id="countNonDeletedByUserIdAndBookId" resultType="int">
+    SELECT COUNT(*) FROM bill_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
+  </select>
+
+  <select id="countNonDeletedByBookId" resultType="int">
+    SELECT COUNT(*) FROM bill_info
+    WHERE book_id = #{bookId} AND is_delete = 0
+  </select>
+
+  <select id="sumIdsNonDeletedByUserIdAndBookId" resultType="Long">
+    SELECT COALESCE(SUM(id), 0)
+    FROM bill_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
+  </select>
+
+  <select id="sumVersionsNonDeletedByUserIdAndBookId" resultType="Long">
+    SELECT COALESCE(SUM(version), 0)
+    FROM bill_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
+  </select>
+
+  <select id="sumIdsNonDeletedByBookId" resultType="Long">
+    SELECT COALESCE(SUM(id), 0)
+    FROM bill_info
+    WHERE book_id = #{bookId} AND is_delete = 0
+  </select>
+
+  <select id="sumVersionsNonDeletedByBookId" resultType="Long">
+    SELECT COALESCE(SUM(version), 0)
+    FROM bill_info
+    WHERE book_id = #{bookId} AND is_delete = 0
+  </select>
+
+  <select id="findBillsNeedingTagRelBackfill" resultMap="BillInfoResultMap">
+    SELECT id, user_id, book_id, account_id, category_key, amount, direction, remark, attachment_url,
+           bill_date, include_in_stats, pair_id, tag_ids, is_delete, update_time, created_at, version
+    FROM bill_info bi
+    WHERE bi.tag_ids IS NOT NULL
+      AND bi.tag_ids != ''
+      AND bi.tag_ids != '[]'
+      AND NOT EXISTS (
+        SELECT 1 FROM bill_tag_rel r
+        WHERE r.book_id = bi.book_id AND r.bill_id = bi.id
+      )
+    ORDER BY bi.update_time ASC, bi.id ASC
+    LIMIT #{limit}
+  </select>
+
+  <select id="findDeletedBillsBefore" resultMap="BillInfoResultMap">
+    SELECT *
+    FROM bill_info
+    WHERE is_delete = 1
+      AND update_time &lt; #{cutoff}
+    ORDER BY update_time ASC, id ASC
+    LIMIT #{limit}
+  </select>
+
+  <delete id="deleteByIds">
+    DELETE FROM bill_info
+    WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </delete>
+
   <select id="findAllByUserIdAndBookId" resultMap="BillInfoResultMap">
     SELECT * FROM bill_info
     WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1

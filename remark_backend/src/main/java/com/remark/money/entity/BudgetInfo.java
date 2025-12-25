@@ -12,6 +12,7 @@ public class BudgetInfo {
   private Integer periodStartDay;
   private BigDecimal annualTotal;
   private String annualCategoryBudgets; // JSON text
+  private Long syncVersion;
   private LocalDateTime updateTime;
   private LocalDateTime createdAt;
 
@@ -79,6 +80,14 @@ public class BudgetInfo {
     this.annualCategoryBudgets = annualCategoryBudgets;
   }
 
+  public Long getSyncVersion() {
+    return syncVersion;
+  }
+
+  public void setSyncVersion(Long syncVersion) {
+    this.syncVersion = syncVersion;
+  }
+
   public LocalDateTime getUpdateTime() {
     return updateTime;
   }
@@ -95,4 +104,3 @@ public class BudgetInfo {
     this.createdAt = createdAt;
   }
 }
-

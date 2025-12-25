@@ -11,6 +11,7 @@
     <result property="periodStartDay" column="period_start_day"/>
     <result property="annualTotal" column="annual_total"/>
     <result property="annualCategoryBudgets" column="annual_category_budgets"/>
+    <result property="syncVersion" column="sync_version"/>
     <result property="updateTime" column="update_time"/>
     <result property="createdAt" column="created_at"/>
   </resultMap>
@@ -22,7 +23,7 @@
     LIMIT 1
   </select>
 
-  <insert id="upsert" useGeneratedKeys="true" keyProperty="id">
+  <insert id="insertNew" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO budget_info (
       user_id,
       book_id,
@@ -31,6 +32,7 @@
       period_start_day,
       annual_total,
       annual_category_budgets,
+      sync_version,
       update_time,
       created_at
     ) VALUES (
@@ -41,17 +43,25 @@
       #{periodStartDay},
       #{annualTotal},
       #{annualCategoryBudgets},
+      1,
       NOW(),
       NOW()
     )
-    ON DUPLICATE KEY UPDATE
-      total = VALUES(total),
-      category_budgets = VALUES(category_budgets),
-      period_start_day = VALUES(period_start_day),
-      annual_total = VALUES(annual_total),
-      annual_category_budgets = VALUES(annual_category_budgets),
-      update_time = NOW()
   </insert>
 
-</mapper>
+  <update id="updateWithExpectedSyncVersion">
+    UPDATE budget_info
+    SET
+      total = #{budget.total},
+      category_budgets = #{budget.categoryBudgets},
+      period_start_day = #{budget.periodStartDay},
+      annual_total = #{budget.annualTotal},
+      annual_category_budgets = #{budget.annualCategoryBudgets},
+      sync_version = sync_version + 1,
+      update_time = NOW()
+    WHERE user_id = #{budget.userId}
+      AND book_id = #{budget.bookId}
+      AND sync_version = #{expectedSyncVersion}
+  </update>
 
+</mapper>

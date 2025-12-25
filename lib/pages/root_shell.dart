@@ -204,7 +204,7 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
   Future<void> _loadHideAmounts() async {
     final value = await AppSettingsService.instance.getBool(
       AppSettingsService.keyHideAmountsAssets,
-      defaultValue: false,
+      defaultValue: true,
     );
     if (!mounted) return;
     setState(() {

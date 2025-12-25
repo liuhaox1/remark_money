@@ -1,6 +1,8 @@
 DROP TABLE IF EXISTS sync_op_dedup;
 DROP TABLE IF EXISTS sync_scope_state;
 DROP TABLE IF EXISTS bill_change_log;
+DROP TABLE IF EXISTS bill_delete_tombstone;
+DROP TABLE IF EXISTS bill_tag_rel;
 DROP TABLE IF EXISTS bill_info;
 DROP TABLE IF EXISTS book_member;
 DROP TABLE IF EXISTS budget_info;
@@ -46,6 +48,7 @@ CREATE TABLE budget_info (
   period_start_day INT NOT NULL DEFAULT 1,
   annual_total DECIMAL(15,2) NOT NULL DEFAULT 0,
   annual_category_budgets CLOB,
+  sync_version BIGINT NOT NULL DEFAULT 1,
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (user_id, book_id)
@@ -86,6 +89,31 @@ CREATE TABLE tag_info (
 
 CREATE INDEX idx_tag_user_book_sort ON tag_info(user_id, book_id, sort_order, created_at);
 CREATE INDEX idx_tag_user_book_delete ON tag_info(user_id, book_id, is_delete);
+
+CREATE TABLE bill_tag_rel (
+  book_id VARCHAR(64) NOT NULL,
+  bill_id BIGINT NOT NULL,
+  tag_id VARCHAR(64) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (book_id, bill_id, tag_id)
+);
+
+CREATE INDEX idx_bill_tag_bill ON bill_tag_rel(book_id, bill_id);
+CREATE INDEX idx_bill_tag_tag ON bill_tag_rel(book_id, tag_id);
+
+CREATE TABLE bill_delete_tombstone (
+  book_id VARCHAR(64) NOT NULL,
+  scope_user_id BIGINT NOT NULL,
+  bill_id BIGINT NOT NULL,
+  bill_version BIGINT NOT NULL DEFAULT 1,
+  deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (book_id, scope_user_id, bill_id)
+);
+
+CREATE INDEX idx_tombstone_deleted ON bill_delete_tombstone(deleted_at);
+CREATE INDEX idx_tombstone_scope ON bill_delete_tombstone(book_id, scope_user_id, deleted_at);
 
 CREATE TABLE account_info (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

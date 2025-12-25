@@ -101,11 +101,28 @@ CREATE TABLE IF NOT EXISTS budget_info (
   period_start_day TINYINT NOT NULL DEFAULT 1 COMMENT '预算周期起始日1-28',
   annual_total DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT '年度总预算',
   annual_category_budgets TEXT DEFAULT NULL COMMENT '年度分类预算JSON',
+  sync_version BIGINT NOT NULL DEFAULT 1 COMMENT 'server monotonic sync version',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_book (user_id, book_id),
   INDEX idx_user_book (user_id, book_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- budget_info add sync_version if missing
+SET @column_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'budget_info'
+    AND COLUMN_NAME = 'sync_version'
+);
+SET @sql = IF(@column_exists > 0,
+  'SELECT 1',
+  'ALTER TABLE budget_info ADD COLUMN sync_version BIGINT NOT NULL DEFAULT 1 COMMENT ''server monotonic sync version'' AFTER annual_category_budgets'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 分类表（云端同步，按用户）
 CREATE TABLE IF NOT EXISTS category_info (
@@ -141,6 +158,31 @@ CREATE TABLE IF NOT EXISTS tag_info (
   UNIQUE KEY uk_user_book_tag (user_id, book_id, tag_id),
   INDEX idx_user_book_sort (user_id, book_id, sort_order, created_at),
   INDEX idx_user_book_delete (user_id, book_id, is_delete)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 账单-标签关系表（v2：用关系表替代 bill_info.tag_ids JSON）
+CREATE TABLE IF NOT EXISTS bill_tag_rel (
+  book_id VARCHAR(64) NOT NULL,
+  bill_id BIGINT NOT NULL,
+  tag_id VARCHAR(64) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (book_id, bill_id, tag_id),
+  INDEX idx_bill_tag_bill (book_id, bill_id),
+  INDEX idx_bill_tag_tag (book_id, tag_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 账单删除墓碑（用于 bill_info 物理删除后仍能同步“删除”给长期离线设备）
+CREATE TABLE IF NOT EXISTS bill_delete_tombstone (
+  book_id VARCHAR(64) NOT NULL,
+  scope_user_id BIGINT NOT NULL COMMENT '0=shared book, otherwise user_id for personal books',
+  bill_id BIGINT NOT NULL,
+  bill_version BIGINT NOT NULL DEFAULT 1,
+  deleted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (book_id, scope_user_id, bill_id),
+  INDEX idx_tombstone_deleted (deleted_at),
+  INDEX idx_tombstone_scope (book_id, scope_user_id, deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 账户表（云端同步）

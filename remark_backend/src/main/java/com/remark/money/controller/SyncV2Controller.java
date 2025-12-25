@@ -100,6 +100,35 @@ public class SyncV2Controller {
     }
   }
 
+  @GetMapping("/summary")
+  public ResponseEntity<Map<String, Object>> summary(
+      @RequestHeader("Authorization") String token,
+      @RequestHeader(value = "X-Sync-Reason", required = false) String reason,
+      @RequestHeader(value = "X-Client-Request-Id", required = false) String requestId,
+      @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
+      @RequestParam("bookId") String bookId) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      if (log.isDebugEnabled()) {
+        log.debug(
+            "SyncV2 summary userId={} bookId={} reason={} reqId={} deviceId={}",
+            userId,
+            bookId,
+            reason,
+            requestId,
+            deviceId);
+      }
+      Map<String, Object> resp = syncV2Service.summary(userId, bookId);
+      return ResponseEntity.ok(resp);
+    } catch (Exception e) {
+      log.error("Sync v2 summary error", e);
+      Map<String, Object> resp = new HashMap<>();
+      resp.put("success", false);
+      resp.put("error", e.getMessage());
+      return ResponseEntity.status(500).body(resp);
+    }
+  }
+
   @PostMapping("/ids/allocate")
   public ResponseEntity<Map<String, Object>> allocateIds(
       @RequestHeader("Authorization") String token,

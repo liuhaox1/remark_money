@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.remark.money.mapper.BillDeleteTombstoneMapper">
+
+  <resultMap id="BillDeleteTombstoneResultMap" type="com.remark.money.entity.BillDeleteTombstone">
+    <result property="bookId" column="book_id"/>
+    <result property="scopeUserId" column="scope_user_id"/>
+    <result property="billId" column="bill_id"/>
+    <result property="billVersion" column="bill_version"/>
+    <result property="deletedAt" column="deleted_at"/>
+    <result property="createdAt" column="created_at"/>
+  </resultMap>
+
+  <insert id="upsert">
+    INSERT INTO bill_delete_tombstone (
+      book_id,
+      scope_user_id,
+      bill_id,
+      bill_version,
+      deleted_at,
+      created_at
+    ) VALUES (
+      #{bookId},
+      #{scopeUserId},
+      #{billId},
+      #{billVersion},
+      NOW(),
+      NOW()
+    )
+    ON DUPLICATE KEY UPDATE
+      bill_version = VALUES(bill_version),
+      deleted_at = NOW()
+  </insert>
+
+  <delete id="deleteOne">
+    DELETE FROM bill_delete_tombstone
+    WHERE book_id = #{bookId}
+      AND scope_user_id = #{scopeUserId}
+      AND bill_id = #{billId}
+  </delete>
+
+  <select id="findKeysBefore" resultMap="BillDeleteTombstoneResultMap">
+    SELECT book_id, scope_user_id, bill_id, bill_version, deleted_at, created_at
+    FROM bill_delete_tombstone
+    WHERE deleted_at &lt; #{cutoff}
+    ORDER BY deleted_at ASC, book_id ASC, scope_user_id ASC, bill_id ASC
+    LIMIT #{limit}
+  </select>
+
+  <delete id="deleteByKeys">
+    DELETE FROM bill_delete_tombstone
+    WHERE (book_id, scope_user_id, bill_id) IN
+    <foreach collection="list" item="it" open="(" separator="," close=")">
+      (#{it.bookId}, #{it.scopeUserId}, #{it.billId})
+    </foreach>
+  </delete>
+
+</mapper>
+

@@ -341,6 +341,30 @@ class SyncService {
     return (jsonDecode(resp.body) as Map).cast<String, dynamic>();
   }
 
+  Future<Map<String, dynamic>> v2Summary({
+    required String bookId,
+    String? reason,
+  }) async {
+    final token = await _getToken();
+    if (token == null) {
+      return {'success': false, 'error': 'not logged in'};
+    }
+
+    final requestId = DateTime.now().microsecondsSinceEpoch.toString();
+    final deviceId = await _getDeviceId();
+    final resp = await _client.get(
+      _uri('/api/sync/v2/summary?bookId=$bookId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'X-Client-Request-Id': requestId,
+        'X-Device-Id': deviceId,
+        if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
+      },
+    );
+
+    return (jsonDecode(resp.body) as Map).cast<String, dynamic>();
+  }
+
   Future<Map<String, dynamic>> v2AllocateBillIds({
     required int count,
     String? reason,

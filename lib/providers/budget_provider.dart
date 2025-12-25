@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/budget.dart';
 import '../repository/repository_factory.dart';
 import '../utils/error_handler.dart';
+import '../services/budget_sync_state_store.dart';
 import '../services/data_version_service.dart';
 
 class BudgetProvider extends ChangeNotifier {
@@ -49,6 +50,7 @@ class BudgetProvider extends ChangeNotifier {
     double? annualBudget,
     Map<String, double>? annualCategoryBudgets,
     int? periodStartDay,
+    bool markUserEdited = true,
   }) async {
     try {
       final current = _budgetStore.entries[bookId];
@@ -65,6 +67,18 @@ class BudgetProvider extends ChangeNotifier {
       await _repository.saveBudget(_budgetStore);
       // 数据修改时版本号+1
       await DataVersionService.incrementVersion(bookId);
+      if (markUserEdited) {
+        final baseVersion =
+            await BudgetSyncStateStore.getServerSyncVersion(bookId);
+        await BudgetSyncStateStore.setLocalBaseSyncVersion(
+          bookId,
+          baseVersion,
+        );
+        await BudgetSyncStateStore.setLocalEditMs(
+          bookId,
+          DateTime.now().millisecondsSinceEpoch,
+        );
+      }
       _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.updateBudgetForBook', e, stackTrace);

@@ -8,6 +8,8 @@ import org.apache.ibatis.annotations.Param;
 public interface BudgetInfoMapper {
   BudgetInfo findByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
 
-  void upsert(BudgetInfo budgetInfo);
-}
+  int insertNew(BudgetInfo budgetInfo);
 
+  int updateWithExpectedSyncVersion(
+      @Param("budget") BudgetInfo budgetInfo, @Param("expectedSyncVersion") Long expectedSyncVersion);
+}

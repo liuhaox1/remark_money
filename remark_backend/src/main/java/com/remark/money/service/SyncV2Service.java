@@ -1,12 +1,16 @@
 package com.remark.money.service;
 
 import com.remark.money.entity.BillChangeLog;
+import com.remark.money.entity.BillDeleteTombstone;
 import com.remark.money.entity.BillInfo;
+import com.remark.money.entity.BillTagRel;
 import com.remark.money.entity.BookMember;
 import com.remark.money.entity.SyncOpDedup;
 import com.remark.money.entity.SyncScopeState;
 import com.remark.money.mapper.BillChangeLogMapper;
+import com.remark.money.mapper.BillDeleteTombstoneMapper;
 import com.remark.money.mapper.BillInfoMapper;
+import com.remark.money.mapper.BillTagRelMapper;
 import com.remark.money.mapper.BookMemberMapper;
 import com.remark.money.mapper.IdSequenceMapper;
 import com.remark.money.mapper.SyncOpDedupMapper;
@@ -29,8 +33,12 @@ import java.util.stream.Collectors;
 @Service
 public class SyncV2Service {
 
+  private static final int RETENTION_DAYS = 30;
+
   private final BillInfoMapper billInfoMapper;
   private final BillChangeLogMapper billChangeLogMapper;
+  private final BillTagRelMapper billTagRelMapper;
+  private final BillDeleteTombstoneMapper billDeleteTombstoneMapper;
   private final SyncOpDedupMapper syncOpDedupMapper;
   private final SyncScopeStateMapper syncScopeStateMapper;
   private final BookMemberMapper bookMemberMapper;
@@ -38,16 +46,67 @@ public class SyncV2Service {
 
   public SyncV2Service(BillInfoMapper billInfoMapper,
                        BillChangeLogMapper billChangeLogMapper,
+                       BillTagRelMapper billTagRelMapper,
+                       BillDeleteTombstoneMapper billDeleteTombstoneMapper,
                        SyncOpDedupMapper syncOpDedupMapper,
                        SyncScopeStateMapper syncScopeStateMapper,
                        BookMemberMapper bookMemberMapper,
                        IdSequenceMapper idSequenceMapper) {
     this.billInfoMapper = billInfoMapper;
     this.billChangeLogMapper = billChangeLogMapper;
+    this.billTagRelMapper = billTagRelMapper;
+    this.billDeleteTombstoneMapper = billDeleteTombstoneMapper;
     this.syncOpDedupMapper = syncOpDedupMapper;
     this.syncScopeStateMapper = syncScopeStateMapper;
     this.bookMemberMapper = bookMemberMapper;
     this.idSequenceMapper = idSequenceMapper;
+  }
+
+  public Map<String, Object> summary(Long userId, String bookId) {
+    assertBookMember(userId, bookId);
+    Long scopeUserId = isServerBook(bookId) ? 0L : userId;
+
+    int billCount =
+        isServerBook(bookId)
+            ? billInfoMapper.countNonDeletedByBookId(bookId)
+            : billInfoMapper.countNonDeletedByUserIdAndBookId(userId, bookId);
+
+    long sumIds =
+        isServerBook(bookId)
+            ? (billInfoMapper.sumIdsNonDeletedByBookId(bookId) != null
+                ? billInfoMapper.sumIdsNonDeletedByBookId(bookId)
+                : 0L)
+            : (billInfoMapper.sumIdsNonDeletedByUserIdAndBookId(userId, bookId) != null
+                ? billInfoMapper.sumIdsNonDeletedByUserIdAndBookId(userId, bookId)
+                : 0L);
+
+    long sumVersions =
+        isServerBook(bookId)
+            ? (billInfoMapper.sumVersionsNonDeletedByBookId(bookId) != null
+                ? billInfoMapper.sumVersionsNonDeletedByBookId(bookId)
+                : 0L)
+            : (billInfoMapper.sumVersionsNonDeletedByUserIdAndBookId(userId, bookId) != null
+                ? billInfoMapper.sumVersionsNonDeletedByUserIdAndBookId(userId, bookId)
+                : 0L);
+
+    Long maxChangeId = billChangeLogMapper.findMaxChangeId(bookId, scopeUserId);
+    if (maxChangeId == null) maxChangeId = 0L;
+
+    LocalDateTime cutoff = LocalDateTime.now().minusDays(RETENTION_DAYS);
+    Long minKeptChangeId = billChangeLogMapper.findMinChangeIdSince(bookId, scopeUserId, cutoff);
+
+    Map<String, Object> summary = new HashMap<>();
+    summary.put("billCount", billCount);
+    summary.put("sumIds", sumIds);
+    summary.put("sumVersions", sumVersions);
+    summary.put("maxChangeId", maxChangeId);
+    summary.put("minKeptChangeId", minKeptChangeId);
+    summary.put("retentionDays", RETENTION_DAYS);
+
+    Map<String, Object> resp = new HashMap<>();
+    resp.put("success", true);
+    resp.put("summary", summary);
+    return resp;
   }
 
   @Transactional
@@ -152,7 +211,8 @@ public class SyncV2Service {
 
     bill.setIncludeInStats(asInt(map.get("includeInStats")));
     bill.setPairId((String) map.get("pairId"));
-    bill.setTagIds(encodeTagIds(map.get("tagIds")));
+    // v2 tagIds are persisted in bill_tag_rel (relation table); keep bill_info.tag_ids only for legacy backfill.
+    bill.setTagIds(null);
     bill.setIsDelete(asInt(map.get("isDelete")));
     return bill;
   }
@@ -201,6 +261,28 @@ public class SyncV2Service {
     return sb.toString();
   }
 
+  private List<String> normalizeTagIds(Object value) {
+    if (value == null) return new ArrayList<>();
+    if (value instanceof List) {
+      @SuppressWarnings("unchecked")
+      List<Object> list = (List<Object>) value;
+      List<String> out = new ArrayList<>();
+      for (Object o : list) {
+        if (o == null) continue;
+        String s = o.toString().trim();
+        if (s.isEmpty()) continue;
+        out.add(s);
+      }
+      return out;
+    }
+    if (value instanceof String) {
+      // Backward compatible: accept JSON-string form like ["a","b"]
+      List<String> decoded = decodeTagIds((String) value);
+      return decoded != null ? decoded : new ArrayList<>();
+    }
+    return new ArrayList<>();
+  }
+
   private List<String> decodeTagIds(String encoded) {
     if (encoded == null) return null;
     String s = encoded.trim();
@@ -235,7 +317,7 @@ public class SyncV2Service {
     return out;
   }
 
-  private Map<String, Object> toBillMap(BillInfo bill) {
+  private Map<String, Object> toBillMap(BillInfo bill, List<String> tagIds) {
     Map<String, Object> map = new HashMap<>();
     map.put("serverId", bill.getId());
     map.put("bookId", bill.getBookId());
@@ -248,11 +330,36 @@ public class SyncV2Service {
     map.put("billDate", bill.getBillDate() != null ? bill.getBillDate().toString() : null);
     map.put("includeInStats", bill.getIncludeInStats());
     map.put("pairId", bill.getPairId());
-    map.put("tagIds", decodeTagIds(bill.getTagIds()));
+    map.put("tagIds", tagIds);
     map.put("isDelete", bill.getIsDelete());
     map.put("version", bill.getVersion());
     map.put("updateTime", bill.getUpdateTime() != null ? bill.getUpdateTime().toString() : null);
     return map;
+  }
+
+  private Map<Long, List<String>> loadTagIdsByBillIds(String bookId, List<Long> billIds) {
+    Map<Long, List<String>> out = new HashMap<>();
+    if (billIds == null || billIds.isEmpty()) return out;
+
+    List<BillTagRel> rels = billTagRelMapper.findByBillIds(bookId, billIds);
+    if (rels == null || rels.isEmpty()) return out;
+    for (BillTagRel r : rels) {
+      if (r == null || r.getBillId() == null) continue;
+      String tid = r.getTagId();
+      if (tid == null || tid.trim().isEmpty()) continue;
+      out.computeIfAbsent(r.getBillId(), k -> new ArrayList<>()).add(tid);
+    }
+    return out;
+  }
+
+  private void upsertDeleteTombstone(String bookId, Long scopeUserId, Long billId, Long billVersion) {
+    if (bookId == null || scopeUserId == null || billId == null || billVersion == null) return;
+    billDeleteTombstoneMapper.upsert(new BillDeleteTombstone(bookId, scopeUserId, billId, billVersion));
+  }
+
+  private void clearDeleteTombstone(String bookId, Long scopeUserId, Long billId) {
+    if (bookId == null || scopeUserId == null || billId == null) return;
+    billDeleteTombstoneMapper.deleteOne(bookId, scopeUserId, billId);
   }
 
   private SyncOpDedup buildDedup(Long userId, String bookId, String opId, int status, Long billId, Long billVersion, String error) {
@@ -319,16 +426,20 @@ public class SyncV2Service {
     List<BillChangeLog> pendingLogs = new ArrayList<>();
     List<SyncOpDedup> pendingDedups = new ArrayList<>();
     Map<String, Map<String, Object>> resultsByOpId = new HashMap<>();
+    Map<Long, List<String>> pendingTagUpdates = new HashMap<>();
+    Set<Long> pendingTagDeletes = new java.util.HashSet<>();
 
     // v2: 批量新增（显式 serverId + expectedVersion=0）
     class PendingCreate {
       final String opId;
       final BillInfo bill;
+      final List<String> tagIds;
       final Map<String, Object> item;
 
-      PendingCreate(String opId, BillInfo bill, Map<String, Object> item) {
+      PendingCreate(String opId, BillInfo bill, List<String> tagIds, Map<String, Object> item) {
         this.opId = opId;
         this.bill = bill;
+        this.tagIds = tagIds;
         this.item = item;
       }
     }
@@ -368,7 +479,14 @@ public class SyncV2Service {
           BillInfo serverBill = sharedBook
               ? billInfoMapper.findByIdForBook(bookId, dedup.getBillId())
               : billInfoMapper.findByIdForUserAndBook(userId, bookId, dedup.getBillId());
-          if (serverBill != null) item.put("serverBill", toBillMap(serverBill));
+          if (serverBill != null) {
+            List<String> tagIds =
+                loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(serverBill.getId()))
+                    .get(serverBill.getId());
+            if (tagIds == null) tagIds = decodeTagIds(serverBill.getTagIds());
+            if (tagIds == null) tagIds = new ArrayList<>();
+            item.put("serverBill", toBillMap(serverBill, tagIds));
+          }
         }
         if (dedup.getError() != null) item.put("error", dedup.getError());
         results.add(item);
@@ -379,6 +497,9 @@ public class SyncV2Service {
       try {
         if ("delete".equalsIgnoreCase(type)) {
           handleDelete(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups, requestId, deviceId, syncReason);
+          if ("applied".equals(item.get("status")) && item.get("serverId") instanceof Number) {
+            pendingTagDeletes.add(((Number) item.get("serverId")).longValue());
+          }
         } else {
           if (expectedVersion != null && expectedVersion == 0L) {
             Object billObj = op.get("bill");
@@ -386,7 +507,9 @@ public class SyncV2Service {
               throw new IllegalArgumentException("missing bill");
             }
             @SuppressWarnings("unchecked")
-            BillInfo bill = mapToBillInfo((Map<String, Object>) billObj);
+            Map<String, Object> billMap = (Map<String, Object>) billObj;
+            List<String> tagIds = normalizeTagIds(billMap.get("tagIds"));
+            BillInfo bill = mapToBillInfo(billMap);
             bill.setUserId(userId);
             bill.setBookId(bookId);
             if (bill.getIncludeInStats() == null) bill.setIncludeInStats(1);
@@ -394,9 +517,19 @@ public class SyncV2Service {
             if (bill.getId() == null) {
               throw new IllegalArgumentException("missing serverId for batch create");
             }
-            pendingCreates.add(new PendingCreate(opId, bill, item));
+            pendingCreates.add(new PendingCreate(opId, bill, tagIds, item));
           } else {
             handleUpsert(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups, requestId, deviceId, syncReason);
+            if ("applied".equals(item.get("status")) && item.get("serverId") instanceof Number) {
+              Object billObj = op.get("bill");
+              if (billObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> billMap = (Map<String, Object>) billObj;
+                pendingTagUpdates.put(
+                    ((Number) item.get("serverId")).longValue(),
+                    normalizeTagIds(billMap.get("tagIds")));
+              }
+            }
           }
         }
       } catch (Exception e) {
@@ -425,6 +558,7 @@ public class SyncV2Service {
         p.item.put("status", "applied");
         p.item.put("serverId", p.bill.getId());
         p.item.put("version", newVersion);
+        pendingTagUpdates.put(p.bill.getId(), p.tagIds);
       }
     }
 
@@ -434,6 +568,34 @@ public class SyncV2Service {
     }
     if (!pendingDedups.isEmpty()) {
       syncOpDedupMapper.batchInsert(pendingDedups);
+    }
+
+    // v2: update bill-tag relations (replace semantics)
+    if (!pendingTagUpdates.isEmpty() || !pendingTagDeletes.isEmpty()) {
+      List<Long> clearBillIds = new ArrayList<>();
+      clearBillIds.addAll(pendingTagUpdates.keySet());
+      clearBillIds.addAll(pendingTagDeletes);
+      clearBillIds = clearBillIds.stream().distinct().collect(Collectors.toList());
+      if (!clearBillIds.isEmpty()) {
+        billTagRelMapper.deleteByBillIds(bookId, clearBillIds);
+      }
+
+      List<BillTagRel> rels = new ArrayList<>();
+      for (Map.Entry<Long, List<String>> e : pendingTagUpdates.entrySet()) {
+        Long billId = e.getKey();
+        List<String> tagIds = e.getValue();
+        if (billId == null || tagIds == null || tagIds.isEmpty()) continue;
+        int idx = 0;
+        for (String tid : tagIds) {
+          if (tid == null || tid.trim().isEmpty()) continue;
+          BillTagRel r = new BillTagRel(bookId, billId, tid.trim());
+          r.setSortOrder(idx++);
+          rels.add(r);
+        }
+      }
+      if (!rels.isEmpty()) {
+        billTagRelMapper.batchInsert(rels);
+      }
     }
 
     Map<String, Object> resp = new HashMap<>();
@@ -489,6 +651,11 @@ public class SyncV2Service {
       item.put("status", "applied");
       item.put("serverId", bill.getId());
       item.put("version", newVersion);
+      if (bill.getIsDelete() != null && bill.getIsDelete() == 1) {
+        upsertDeleteTombstone(bookId, scopeUserId, bill.getId(), newVersion);
+      } else {
+        clearDeleteTombstone(bookId, scopeUserId, bill.getId());
+      }
       return;
     }
 
@@ -506,7 +673,12 @@ public class SyncV2Service {
         item.put("status", "conflict");
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
-        item.put("serverBill", toBillMap(latest));
+        List<String> tagIds =
+            loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
+                .get(latest.getId());
+        if (tagIds == null) tagIds = decodeTagIds(latest.getTagIds());
+        if (tagIds == null) tagIds = new ArrayList<>();
+        item.put("serverBill", toBillMap(latest, tagIds));
         item.put("retryable", false);
       }
       return;
@@ -529,7 +701,12 @@ public class SyncV2Service {
         item.put("status", "conflict");
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
-        item.put("serverBill", toBillMap(latest));
+        List<String> tagIds =
+            loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
+                .get(latest.getId());
+        if (tagIds == null) tagIds = decodeTagIds(latest.getTagIds());
+        if (tagIds == null) tagIds = new ArrayList<>();
+        item.put("serverBill", toBillMap(latest, tagIds));
         item.put("retryable", false);
       }
       return;
@@ -541,6 +718,11 @@ public class SyncV2Service {
     item.put("status", "applied");
     item.put("serverId", bill.getId());
     item.put("version", newVersion);
+    if (bill.getIsDelete() != null && bill.getIsDelete() == 1) {
+      upsertDeleteTombstone(bookId, scopeUserId, bill.getId(), newVersion);
+    } else {
+      clearDeleteTombstone(bookId, scopeUserId, bill.getId());
+    }
   }
 
   private void handleDelete(Long userId,
@@ -577,7 +759,12 @@ public class SyncV2Service {
         item.put("status", "conflict");
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
-        item.put("serverBill", toBillMap(latest));
+        List<String> tagIds =
+            loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
+                .get(latest.getId());
+        if (tagIds == null) tagIds = decodeTagIds(latest.getTagIds());
+        if (tagIds == null) tagIds = new ArrayList<>();
+        item.put("serverBill", toBillMap(latest, tagIds));
         item.put("retryable", false);
       }
       return;
@@ -600,7 +787,12 @@ public class SyncV2Service {
         item.put("status", "conflict");
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
-        item.put("serverBill", toBillMap(latest));
+        List<String> tagIds =
+            loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
+                .get(latest.getId());
+        if (tagIds == null) tagIds = decodeTagIds(latest.getTagIds());
+        if (tagIds == null) tagIds = new ArrayList<>();
+        item.put("serverBill", toBillMap(latest, tagIds));
         item.put("retryable", false);
       }
       return;
@@ -612,6 +804,7 @@ public class SyncV2Service {
     item.put("status", "applied");
     item.put("serverId", billId);
     item.put("version", newVersion);
+    upsertDeleteTombstone(bookId, scopeUserId, billId, newVersion);
   }
 
   public Map<String, Object> pull(Long userId, String bookId, Long afterChangeId, int limit) {
@@ -636,6 +829,7 @@ public class SyncV2Service {
         } else {
           billChangeLogMapper.bootstrapPersonal(userId, bookId, scopeUserId);
         }
+        billChangeLogMapper.bootstrapTombstones(bookId, scopeUserId);
         syncScopeStateMapper.markInitialized(bookId, scopeUserId);
       }
     } else {
@@ -671,6 +865,7 @@ public class SyncV2Service {
           : billInfoMapper.findByIdsForUserAndBook(userId, bookId, billIds);
       Map<Long, BillInfo> billMap = scopedBills.stream()
           .collect(Collectors.toMap(BillInfo::getId, b -> b));
+      Map<Long, List<String>> tagIdsByBillId = loadTagIdsByBillIds(bookId, billIds);
 
       for (BillChangeLog log : logs) {
         Map<String, Object> c = new HashMap<>();
@@ -679,7 +874,12 @@ public class SyncV2Service {
         c.put("version", log.getBillVersion());
         BillInfo bill = billMap.get(log.getBillId());
         if (bill != null) {
-          c.put("bill", toBillMap(bill));
+          List<String> tagIds = tagIdsByBillId.get(log.getBillId());
+          if (tagIds == null) {
+            tagIds = decodeTagIds(bill.getTagIds());
+          }
+          if (tagIds == null) tagIds = new ArrayList<>();
+          c.put("bill", toBillMap(bill, tagIds));
         } else {
           Map<String, Object> stub = new HashMap<>();
           stub.put("serverId", log.getBillId());
