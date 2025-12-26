@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
 
-const String kApiBaseUrl = 'http://localhost:8080';
+import '../config/api_config.dart';
 
 class SyncService {
   SyncService._();
@@ -16,7 +16,7 @@ class SyncService {
   final http.Client _client = http.Client();
   String? _deviceId;
 
-  Uri _uri(String path) => Uri.parse('$kApiBaseUrl$path');
+  Uri _uri(String path) => Uri.parse('${ApiConfig.baseUrl}$path');
 
   Future<String?> _getToken() async {
     return await _authService.loadToken();

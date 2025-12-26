@@ -26,7 +26,7 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS IPA (no codesign)
-        run: flutter build ipa --release --no-codesign --no-tree-shake-icons
+        run: flutter build ipa --release --no-codesign --no-tree-shake-icons --dart-define=API_BASE_URL=http://115.190.162.10:8080
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4

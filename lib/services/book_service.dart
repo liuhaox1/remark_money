@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
-const String kApiBaseUrl = 'http://localhost:8080';
+import '../config/api_config.dart';
 
 class BookService {
   final AuthService _authService = const AuthService();
 
-  Uri _uri(String path) => Uri.parse('$kApiBaseUrl$path');
+  Uri _uri(String path) => Uri.parse('${ApiConfig.baseUrl}$path');
 
   Future<String?> _getToken() async {
     return await _authService.loadToken();

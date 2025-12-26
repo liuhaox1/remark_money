@@ -3,9 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/api_config.dart';
 import '../database/database_helper.dart';
-
-const String kApiBaseUrl = 'http://localhost:8080';
 
 /// 注册异常，用于提供友好的错误提示
 class RegisterException implements Exception {
@@ -32,7 +31,7 @@ class AuthResult {
 class AuthService {
   const AuthService();
 
-  Uri _uri(String path) => Uri.parse('$kApiBaseUrl$path');
+  Uri _uri(String path) => Uri.parse('${ApiConfig.baseUrl}$path');
 
   Future<void> _clearSyncV2LocalState(SharedPreferences prefs) async {
     final keys = prefs.getKeys().toList(growable: false);
