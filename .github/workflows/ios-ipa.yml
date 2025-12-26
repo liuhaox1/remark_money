@@ -25,8 +25,23 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build iOS IPA (no codesign)
-        run: flutter build ipa --release --no-codesign --no-tree-shake-icons --dart-define=API_BASE_URL=http://115.190.162.10:8080
+      - name: Build iOS app (no codesign)
+        run: flutter build ios --release --no-codesign --no-tree-shake-icons --dart-define=API_BASE_URL=http://115.190.162.10:8080
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Runner.app not found at $APP_PATH"
+            find build/ios -maxdepth 4 -type d -name "*.app" -print
+            exit 1
+          fi
+          mkdir -p build/ios/ipa/Payload
+          rm -rf build/ios/ipa/Payload/*.app
+          cp -R "$APP_PATH" build/ios/ipa/Payload/
+          (cd build/ios/ipa && /usr/bin/zip -qry "Runner-unsigned.ipa" Payload)
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
