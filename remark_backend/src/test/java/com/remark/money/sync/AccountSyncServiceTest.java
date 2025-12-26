@@ -77,7 +77,10 @@ public class AccountSyncServiceTest {
     assertTrue(down.isSuccess());
     List<AccountInfo> got = down.getAccounts();
     assertNotNull(got);
-    assertEquals(2, got.size());
+    assertEquals(3, got.size());
+    assertTrue(got.stream().anyMatch(a -> "default_wallet".equals(a.getAccountId())));
+    assertTrue(got.stream().anyMatch(a -> "a1".equals(a.getAccountId())));
+    assertTrue(got.stream().anyMatch(a -> "a2".equals(a.getAccountId())));
   }
 
   @Test
@@ -99,7 +102,9 @@ public class AccountSyncServiceTest {
     assertTrue(down.isSuccess());
     List<AccountInfo> got = down.getAccounts();
     assertNotNull(got);
-    assertEquals(1, got.size());
-    assertEquals("b1", got.get(0).getAccountId());
+    assertEquals(2, got.size());
+    assertTrue(got.stream().anyMatch(a -> "default_wallet".equals(a.getAccountId())));
+    assertTrue(got.stream().anyMatch(a -> "b1".equals(a.getAccountId())));
+    assertFalse(got.stream().anyMatch(a -> "b2".equals(a.getAccountId())));
   }
 }

@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,9 @@ import java.util.stream.Collectors;
 public class SyncService {
 
   private static final Logger log = LoggerFactory.getLogger(SyncService.class);
+
+  private static final String DEFAULT_WALLET_ACCOUNT_ID = "default_wallet";
+  private static final String DEFAULT_WALLET_NAME = "默认钱包";
 
   private final UserMapper userMapper;
   private final AccountInfoMapper accountInfoMapper;
@@ -79,6 +83,89 @@ public class SyncService {
 
   private boolean isSyncAlwaysEnabled() {
     return true;
+  }
+
+  private boolean isDefaultWallet(AccountInfo a) {
+    if (a == null) return false;
+    if (DEFAULT_WALLET_ACCOUNT_ID.equals(a.getAccountId())) return true;
+    if (DEFAULT_WALLET_ACCOUNT_ID.equals(a.getBrandKey())) return true;
+    String name = a.getName();
+    return name != null && DEFAULT_WALLET_NAME.equals(name.trim());
+  }
+
+  private AccountInfo buildDefaultWallet(Long userId) {
+    AccountInfo a = new AccountInfo();
+    a.setUserId(userId);
+    a.setAccountId(DEFAULT_WALLET_ACCOUNT_ID);
+    a.setName(DEFAULT_WALLET_NAME);
+    a.setKind("asset");
+    a.setSubtype("cash");
+    a.setType("cash");
+    a.setIcon("wallet");
+    a.setIncludeInTotal(1);
+    a.setIncludeInOverview(1);
+    a.setCurrency("CNY");
+    a.setSortOrder(-100);
+    a.setInitialBalance(BigDecimal.ZERO);
+    a.setCurrentBalance(BigDecimal.ZERO);
+    a.setBrandKey(DEFAULT_WALLET_ACCOUNT_ID);
+    a.setIsDelete(0);
+    return a;
+  }
+
+  private void ensureDefaultWalletExists(Long userId, List<AccountInfo> activeAccounts) {
+    if (activeAccounts != null && activeAccounts.stream().anyMatch(this::isDefaultWallet)) {
+      return;
+    }
+
+    AccountInfo existing =
+        accountInfoMapper.findByUserIdAndAccountId(userId, DEFAULT_WALLET_ACCOUNT_ID);
+    if (existing == null) {
+      AccountInfo created = buildDefaultWallet(userId);
+      accountInfoMapper.insert(created);
+      if (activeAccounts != null) {
+        activeAccounts.add(created);
+      }
+      return;
+    }
+
+    if (existing.getIsDelete() != null && existing.getIsDelete() == 1) {
+      existing.setIsDelete(0);
+      if (existing.getName() == null || existing.getName().trim().isEmpty()) {
+        existing.setName(DEFAULT_WALLET_NAME);
+      }
+      if (existing.getKind() == null || existing.getKind().trim().isEmpty()) {
+        existing.setKind("asset");
+      }
+      if (existing.getSubtype() == null || existing.getSubtype().trim().isEmpty()) {
+        existing.setSubtype("cash");
+      }
+      if (existing.getType() == null || existing.getType().trim().isEmpty()) {
+        existing.setType("cash");
+      }
+      if (existing.getIcon() == null || existing.getIcon().trim().isEmpty()) {
+        existing.setIcon("wallet");
+      }
+      if (existing.getIncludeInTotal() == null) existing.setIncludeInTotal(1);
+      if (existing.getIncludeInOverview() == null) existing.setIncludeInOverview(1);
+      if (existing.getCurrency() == null || existing.getCurrency().trim().isEmpty()) {
+        existing.setCurrency("CNY");
+      }
+      if (existing.getSortOrder() == null) existing.setSortOrder(-100);
+      if (existing.getInitialBalance() == null) existing.setInitialBalance(BigDecimal.ZERO);
+      if (existing.getCurrentBalance() == null) existing.setCurrentBalance(BigDecimal.ZERO);
+      if (existing.getBrandKey() == null || existing.getBrandKey().trim().isEmpty()) {
+        existing.setBrandKey(DEFAULT_WALLET_ACCOUNT_ID);
+      }
+      accountInfoMapper.updateById(existing);
+    }
+
+    if (activeAccounts != null && activeAccounts.stream().noneMatch(this::isDefaultWallet)) {
+      activeAccounts.add(existing);
+      activeAccounts.sort(
+          Comparator.comparing(AccountInfo::getSortOrder, Comparator.nullsLast(Integer::compareTo))
+              .thenComparing(AccountInfo::getId, Comparator.nullsLast(Long::compareTo)));
+    }
   }
 
   /**
@@ -178,7 +265,9 @@ public class SyncService {
     // IMPORTANT: do NOT hard-delete "missing" accounts based on a potentially partial client list.
     // Deletions must be explicit (tombstone) to avoid irreversible data loss.
 
-    return AccountSyncResult.success(accountInfoMapper.findAllByUserId(userId));
+    List<AccountInfo> accountsFromDb = accountInfoMapper.findAllByUserId(userId);
+    ensureDefaultWalletExists(userId, accountsFromDb);
+    return AccountSyncResult.success(accountsFromDb);
   }
 
   /**
@@ -191,6 +280,7 @@ public class SyncService {
     }
 
     List<AccountInfo> accounts = accountInfoMapper.findAllByUserId(userId);
+    ensureDefaultWalletExists(userId, accounts);
     return AccountSyncResult.success(accounts);
   }
 
@@ -217,6 +307,7 @@ public class SyncService {
 
     // return latest server view (non-deleted) for client reconciliation if needed
     List<AccountInfo> accounts = accountInfoMapper.findAllByUserId(userId);
+    ensureDefaultWalletExists(userId, accounts);
     return AccountSyncResult.success(accounts);
   }
 
