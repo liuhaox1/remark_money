@@ -29,7 +29,10 @@ class _BudgetPageState extends State<BudgetPage>
   int _initialTabIndex = 0;
   bool _tabIndexInitialized = false;
 
-  final TextEditingController _totalCtrl = TextEditingController();
+  final TextEditingController _monthTotalCtrl = TextEditingController();
+  final TextEditingController _yearTotalCtrl = TextEditingController();
+  final FocusNode _monthTotalFocusNode = FocusNode();
+  final FocusNode _yearTotalFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
 
   TabController? _tabController;
@@ -58,7 +61,10 @@ class _BudgetPageState extends State<BudgetPage>
 
   @override
   void dispose() {
-    _totalCtrl.dispose();
+    _monthTotalCtrl.dispose();
+    _yearTotalCtrl.dispose();
+    _monthTotalFocusNode.dispose();
+    _yearTotalFocusNode.dispose();
     _scrollController.dispose();
     _tabController?.dispose();
     super.dispose();
@@ -86,7 +92,7 @@ class _BudgetPageState extends State<BudgetPage>
   Future<void> _saveTotalBudget(String bookId) async {
     try {
       final provider = context.read<BudgetProvider>();
-      final parsed = _parseAmount(_totalCtrl.text);
+      final parsed = _parseAmount(_monthTotalCtrl.text);
       final total = parsed ?? 0;
 
       // 验证金额
@@ -110,7 +116,7 @@ class _BudgetPageState extends State<BudgetPage>
   Future<void> _saveAnnualBudget(String bookId) async {
     try {
       final provider = context.read<BudgetProvider>();
-      final parsed = _parseAmount(_totalCtrl.text);
+      final parsed = _parseAmount(_yearTotalCtrl.text);
       final total = parsed ?? 0;
 
       // 验证金额
@@ -817,7 +823,8 @@ class _BudgetPageState extends State<BudgetPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildTotalBudgetEditor(cs, bookId, isYear: !showPeriodPicker),
+                _buildTotalBudgetEditor(cs, bookId, budgetEntry,
+                    isYear: isYearView),
                 const SizedBox(height: 16),
                 _buildBudgetAlertCard(context, cs, data, isYearView),
                 const SizedBox(height: 16),
@@ -982,8 +989,23 @@ class _BudgetPageState extends State<BudgetPage>
 
   String _formatDate(DateTime d) =>
       '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
-  Widget _buildTotalBudgetEditor(ColorScheme cs, String bookId,
-      {bool isYear = false}) {
+  Widget _buildTotalBudgetEditor(
+    ColorScheme cs,
+    String bookId,
+    BudgetEntry budgetEntry, {
+    bool isYear = false,
+  }) {
+    final controller = isYear ? _yearTotalCtrl : _monthTotalCtrl;
+    final focusNode = isYear ? _yearTotalFocusNode : _monthTotalFocusNode;
+    final currentTotal = isYear ? budgetEntry.annualTotal : budgetEntry.total;
+    final expectedText = currentTotal > 0 ? _formatAmount(currentTotal) : '';
+    if (!focusNode.hasFocus && controller.text != expectedText) {
+      controller.text = expectedText;
+      controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: controller.text.length),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       decoration: BoxDecoration(
@@ -1016,7 +1038,8 @@ class _BudgetPageState extends State<BudgetPage>
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: _totalCtrl,
+            controller: controller,
+            focusNode: focusNode,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [_digitsAndDotFormatter],
             decoration: InputDecoration(

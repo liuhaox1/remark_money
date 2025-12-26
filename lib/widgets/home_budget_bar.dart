@@ -356,7 +356,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         Text(
           '剩余 ¥${remaining.toStringAsFixed(0)}',
           style: tt.headlineSmall?.copyWith(
-            fontSize: 22,
+            fontSize: 20,
             fontWeight: FontWeight.w400,
             color: primaryTextColor,
           ),
