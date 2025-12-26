@@ -9,18 +9,31 @@ class MetaSyncNotifier {
 
   final StreamController<String> _accountsChanged =
       StreamController<String>.broadcast();
+  final StreamController<String> _budgetChanged =
+      StreamController<String>.broadcast();
   final StreamController<void> _categoriesChanged =
       StreamController<void>.broadcast();
   final StreamController<String> _tagsChanged =
       StreamController<String>.broadcast();
+  final StreamController<String> _savingsPlansChanged =
+      StreamController<String>.broadcast();
 
   Stream<String> get onAccountsChanged => _accountsChanged.stream;
+  Stream<String> get onBudgetChanged => _budgetChanged.stream;
   Stream<void> get onCategoriesChanged => _categoriesChanged.stream;
   Stream<String> get onTagsChanged => _tagsChanged.stream;
+  Stream<String> get onSavingsPlansChanged => _savingsPlansChanged.stream;
 
   void notifyAccountsChanged(String bookId) {
     if (_accountsChanged.hasListener) {
       _accountsChanged.add(bookId);
+    }
+  }
+
+  void notifyBudgetChanged(String bookId) {
+    if (bookId.isEmpty) return;
+    if (_budgetChanged.hasListener) {
+      _budgetChanged.add(bookId);
     }
   }
 
@@ -34,6 +47,13 @@ class MetaSyncNotifier {
     if (bookId.isEmpty) return;
     if (_tagsChanged.hasListener) {
       _tagsChanged.add(bookId);
+    }
+  }
+
+  void notifySavingsPlansChanged(String bookId) {
+    if (bookId.isEmpty) return;
+    if (_savingsPlansChanged.hasListener) {
+      _savingsPlansChanged.add(bookId);
     }
   }
 }

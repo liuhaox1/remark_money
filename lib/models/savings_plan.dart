@@ -28,6 +28,7 @@ class SavingsPlan {
     required this.includeInStats,
     required this.createdAt,
     required this.updatedAt,
+    this.syncVersion,
     this.savedAmount = 0,
     this.archived = false,
     this.startDate,
@@ -52,6 +53,7 @@ class SavingsPlan {
   final bool archived;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int? syncVersion;
 
   final DateTime? startDate;
   final DateTime? endDate;
@@ -80,6 +82,7 @@ class SavingsPlan {
     bool? archived,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? syncVersion,
     DateTime? startDate,
     DateTime? endDate,
     int? monthlyDay,
@@ -102,6 +105,7 @@ class SavingsPlan {
       archived: archived ?? this.archived,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      syncVersion: syncVersion ?? this.syncVersion,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       monthlyDay: monthlyDay ?? this.monthlyDay,
@@ -127,6 +131,7 @@ class SavingsPlan {
       'archived': archived,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      if (syncVersion != null) 'syncVersion': syncVersion,
       'startDate': startDate?.toIso8601String(),
       'endDate': endDate?.toIso8601String(),
       'monthlyDay': monthlyDay,
@@ -159,6 +164,9 @@ class SavingsPlan {
       archived: (map['archived'] as bool?) ?? false,
       createdAt: parseDate(map['createdAt'] as String?) ?? DateTime.now(),
       updatedAt: parseDate(map['updatedAt'] as String?) ?? DateTime.now(),
+      syncVersion: (map['syncVersion'] is num)
+          ? (map['syncVersion'] as num).toInt()
+          : int.tryParse((map['syncVersion'] ?? '').toString()),
       startDate: parseDate(map['startDate'] as String?),
       endDate: parseDate(map['endDate'] as String?),
       monthlyDay: map['monthlyDay'] as int?,

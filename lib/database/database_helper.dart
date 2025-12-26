@@ -330,17 +330,6 @@ class DatabaseHelper {
             'ALTER TABLE ${Tables.syncOutbox} ADD COLUMN owner_user_id INTEGER NOT NULL DEFAULT 0',
           );
         } catch (_) {}
-        // Best-effort: attribute existing outbox rows to the last known owner, if any.
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          final uid = prefs.getInt('sync_owner_user_id') ?? prefs.getInt('auth_user_id');
-          if (uid != null) {
-            await db.execute(
-              'UPDATE ${Tables.syncOutbox} SET owner_user_id = ? WHERE owner_user_id = 0',
-              [uid],
-            );
-          }
-        } catch (_) {}
         await db.execute(
           'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_created ON ${Tables.syncOutbox}(owner_user_id, book_id, created_at)',
         );

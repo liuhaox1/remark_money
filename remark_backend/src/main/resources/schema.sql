@@ -126,6 +126,23 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- savings_plan_info (cloud sync, per user+book)
+CREATE TABLE IF NOT EXISTS savings_plan_info (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  plan_id VARCHAR(64) NOT NULL,
+  payload_json MEDIUMTEXT NOT NULL COMMENT 'plan payload JSON',
+  is_delete TINYINT NOT NULL DEFAULT 0,
+  sync_version BIGINT NOT NULL DEFAULT 1 COMMENT 'server monotonic sync version',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_book_plan (user_id, book_id, plan_id),
+  INDEX idx_user_book (user_id, book_id),
+  INDEX idx_user_book_update (user_id, book_id, update_time),
+  INDEX idx_user_book_delete (user_id, book_id, is_delete)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 分类表（云端同步，按用户）
 CREATE TABLE IF NOT EXISTS category_info (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,

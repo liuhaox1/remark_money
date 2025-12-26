@@ -16,17 +16,22 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   BuildContext? _context;
   StreamSubscription<String>? _outboxSub;
   StreamSubscription<String>? _accountsSub;
+  StreamSubscription<String>? _budgetSub;
   StreamSubscription<void>? _categoriesSub;
   StreamSubscription<String>? _tagsSub;
+  StreamSubscription<String>? _savingsPlansSub;
   Timer? _debounce;
   Timer? _metaDebounce;
   Timer? _periodicPullTimer;
   final Set<String> _pendingBooks = <String>{};
   final Map<String, String> _pendingReasonsByBook = <String, String>{};
+  final Set<String> _pendingMetaBooks = <String>{};
+  final Map<String, String> _pendingMetaReasonsByBook = <String, String>{};
   bool _syncing = false;
   bool _started = false;
   int _lastMetaSyncMs = 0;
   final Map<String, int> _lastAccountsSyncMsByBook = <String, int>{};
+  final Map<String, int> _lastUserMetaSyncMsByBook = <String, int>{};
   final Map<String, int> _lastSyncMsByBook = <String, int>{};
   int _lastPausedAtMs = 0;
 
@@ -51,6 +56,10 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       requestMetaSync(bookId, reason: 'accounts_changed');
     });
 
+    _budgetSub = MetaSyncNotifier.instance.onBudgetChanged.listen((bookId) {
+      requestMetaSync(bookId, reason: 'budget_changed');
+    });
+
     _categoriesSub = MetaSyncNotifier.instance.onCategoriesChanged.listen((_) {
       final ctx = _context;
       if (ctx == null) return;
@@ -63,10 +72,17 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       requestMetaSync(bookId, reason: 'tags_changed');
     });
 
+    _savingsPlansSub =
+        MetaSyncNotifier.instance.onSavingsPlansChanged.listen((bookId) {
+      requestMetaSync(bookId, reason: 'savings_plans_changed');
+    });
+
     // 启动后先对当前账本做一次静默同步（拉取多设备变更）
     final activeBookId = context.read<BookProvider>().activeBookId;
     if (activeBookId.isNotEmpty) {
       requestSync(activeBookId, reason: 'app_start');
+      // Also sync meta (budget/accounts/categories/tags/etc.) so pages won't show empty data after login.
+      requestMetaSync(activeBookId, reason: 'app_start');
     }
     _startPeriodicPullTimer();
   }
@@ -100,14 +116,20 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _periodicPullTimer = null;
     _pendingBooks.clear();
     _pendingReasonsByBook.clear();
+    _pendingMetaBooks.clear();
+    _pendingMetaReasonsByBook.clear();
     _outboxSub?.cancel();
     _outboxSub = null;
     _accountsSub?.cancel();
     _accountsSub = null;
+    _budgetSub?.cancel();
+    _budgetSub = null;
     _categoriesSub?.cancel();
     _categoriesSub = null;
     _tagsSub?.cancel();
     _tagsSub = null;
+    _savingsPlansSub?.cancel();
+    _savingsPlansSub = null;
     WidgetsBinding.instance.removeObserver(this);
     _context = null;
     _started = false;
@@ -140,28 +162,67 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     if (reason == 'accounts_changed') {
       final last = _lastAccountsSyncMsByBook[bookId] ?? 0;
       if (now - last < 8 * 1000) return;
+    } else if (reason == 'budget_changed' ||
+        reason == 'categories_changed' ||
+        reason == 'tags_changed' ||
+        reason == 'savings_plans_changed') {
+      final last = _lastUserMetaSyncMsByBook[bookId] ?? 0;
+      if (now - last < 8 * 1000) return;
     } else {
       if (now - _lastMetaSyncMs < 10 * 60 * 1000) return;
     }
+    _pendingMetaBooks.add(bookId);
+    _pendingMetaReasonsByBook[bookId] = reason;
+    _scheduleMetaFlush();
+  }
+
+  void _scheduleMetaFlush() {
     _metaDebounce?.cancel();
-    _metaDebounce = Timer(const Duration(seconds: 2), () async {
-      final ctx = _context;
-      if (ctx == null || _syncing) return;
-      _syncing = true;
-      try {
+    _metaDebounce = Timer(const Duration(seconds: 2), _flushMeta);
+  }
+
+  Future<void> _flushMeta() async {
+    final ctx = _context;
+    if (ctx == null) return;
+    if (_pendingMetaBooks.isEmpty) return;
+    if (_syncing) {
+      // A normal sync is running; don't drop meta requests, retry shortly.
+      _scheduleMetaFlush();
+      return;
+    }
+
+    _syncing = true;
+    try {
+      final engine = SyncEngine();
+      final books = _pendingMetaBooks.toList(growable: false);
+      _pendingMetaBooks.clear();
+      for (final bookId in books) {
+        final reason = _pendingMetaReasonsByBook.remove(bookId) ?? 'unknown';
         debugPrint('[BackgroundSyncManager] meta sync book=$bookId reason=$reason');
-        await SyncEngine().syncMeta(ctx, bookId, reason: reason);
+        final ok = await engine.syncMeta(ctx, bookId, reason: reason);
+        if (!ok) {
+          // Likely not logged in yet; re-queue and retry later.
+          _pendingMetaBooks.add(bookId);
+          _pendingMetaReasonsByBook[bookId] = reason;
+          _scheduleMetaFlush();
+          continue;
+        }
         final doneAt = DateTime.now().millisecondsSinceEpoch;
         _lastMetaSyncMs = doneAt;
         if (reason == 'accounts_changed') {
           _lastAccountsSyncMsByBook[bookId] = doneAt;
+        } else if (reason == 'budget_changed' ||
+            reason == 'categories_changed' ||
+            reason == 'tags_changed' ||
+            reason == 'savings_plans_changed') {
+          _lastUserMetaSyncMsByBook[bookId] = doneAt;
         }
-      } catch (e) {
-        debugPrint('[BackgroundSyncManager] meta sync failed: $e');
-      } finally {
-        _syncing = false;
       }
-    });
+    } catch (e) {
+      debugPrint('[BackgroundSyncManager] meta sync failed: $e');
+    } finally {
+      _syncing = false;
+    }
   }
 
   Future<void> _flush() async {

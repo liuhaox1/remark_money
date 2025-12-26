@@ -195,4 +195,33 @@ void main() {
     expect(pending.single.payload['type'], 'delete');
     expect(pending.single.payload['serverId'], 9);
   });
+
+  test('guest delete is not adopted to current user', () async {
+    final outbox = SyncOutboxService.instance;
+    final prefs = await SharedPreferences.getInstance();
+    // No sync_owner_user_id => delete will be queued under guest owner (0).
+    await prefs.remove('sync_owner_user_id');
+
+    final record = Record(
+      id: 'server_10',
+      serverId: 10,
+      serverVersion: 1,
+      amount: 1,
+      remark: 'x',
+      date: DateTime.parse('2025-01-01T00:00:00Z'),
+      categoryKey: 'food',
+      bookId: 'book_guest_delete',
+      accountId: 'acc_1',
+      direction: TransactionDirection.out,
+    );
+    await outbox.enqueueDelete(record);
+
+    await prefs.setString('auth_token', 'token_z');
+    await prefs.setInt('auth_user_id', 77);
+    await prefs.setInt('sync_owner_user_id', 77);
+
+    await outbox.adoptGuestOutboxToCurrentUser();
+    final pending = await outbox.loadPending('book_guest_delete');
+    expect(pending, isEmpty);
+  });
 }

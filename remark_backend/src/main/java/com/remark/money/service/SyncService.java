@@ -4,11 +4,13 @@ import com.remark.money.common.ErrorCode;
 import com.remark.money.entity.AccountInfo;
 import com.remark.money.entity.BudgetInfo;
 import com.remark.money.entity.CategoryInfo;
+import com.remark.money.entity.SavingsPlanInfo;
 import com.remark.money.entity.TagInfo;
 import com.remark.money.entity.User;
 import com.remark.money.mapper.AccountInfoMapper;
 import com.remark.money.mapper.BudgetInfoMapper;
 import com.remark.money.mapper.CategoryInfoMapper;
+import com.remark.money.mapper.SavingsPlanInfoMapper;
 import com.remark.money.mapper.TagInfoMapper;
 import com.remark.money.mapper.UserMapper;
 import org.slf4j.Logger;
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -35,17 +38,20 @@ public class SyncService {
   private final BudgetInfoMapper budgetInfoMapper;
   private final CategoryInfoMapper categoryInfoMapper;
   private final TagInfoMapper tagInfoMapper;
+  private final SavingsPlanInfoMapper savingsPlanInfoMapper;
 
   public SyncService(UserMapper userMapper,
                      AccountInfoMapper accountInfoMapper,
                      BudgetInfoMapper budgetInfoMapper,
                      CategoryInfoMapper categoryInfoMapper,
-                     TagInfoMapper tagInfoMapper) {
+                     TagInfoMapper tagInfoMapper,
+                     SavingsPlanInfoMapper savingsPlanInfoMapper) {
     this.userMapper = userMapper;
     this.accountInfoMapper = accountInfoMapper;
     this.budgetInfoMapper = budgetInfoMapper;
     this.categoryInfoMapper = categoryInfoMapper;
     this.tagInfoMapper = tagInfoMapper;
+    this.savingsPlanInfoMapper = savingsPlanInfoMapper;
   }
 
   /**
@@ -270,6 +276,78 @@ public class SyncService {
   }
 
   @Transactional
+  public SavingsPlanSyncResult uploadSavingsPlans(
+      Long userId, String bookId, List<SavingsPlanInfo> plans, List<String> deletedPlanIds) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return SavingsPlanSyncResult.error(permissionError.getMessage());
+    }
+    if (bookId == null || bookId.trim().isEmpty()) {
+      return SavingsPlanSyncResult.error("missing bookId");
+    }
+
+    if (deletedPlanIds != null) {
+      for (String pid : deletedPlanIds) {
+        if (pid == null || pid.trim().isEmpty()) continue;
+        savingsPlanInfoMapper.softDeleteByPlanId(userId, bookId, pid.trim());
+      }
+    }
+
+    if (plans != null) {
+      for (SavingsPlanInfo p : plans) {
+        if (p == null) continue;
+        if (p.getPlanId() == null || p.getPlanId().trim().isEmpty()) {
+          return SavingsPlanSyncResult.error("missing planId");
+        }
+        p.setUserId(userId);
+        p.setBookId(bookId);
+        if (p.getIsDelete() == null) p.setIsDelete(0);
+        if (p.getPayloadJson() == null) {
+          return SavingsPlanSyncResult.error("missing payload");
+        }
+
+        SavingsPlanInfo existing =
+            savingsPlanInfoMapper.findByUserIdBookIdAndPlanId(userId, bookId, p.getPlanId());
+        if (existing == null) {
+          savingsPlanInfoMapper.insertOne(p);
+          continue;
+        }
+
+        if (existing.getSyncVersion() != null && p.getSyncVersion() == null) {
+          return SavingsPlanSyncResult.error("missing syncVersion");
+        }
+        if (existing.getSyncVersion() != null) {
+          if (!existing.getSyncVersion().equals(p.getSyncVersion())) {
+            return SavingsPlanSyncResult.error("savings_plan conflict");
+          }
+          int updated =
+              savingsPlanInfoMapper.updateWithExpectedSyncVersion(p, p.getSyncVersion());
+          if (updated <= 0) {
+            return SavingsPlanSyncResult.error("savings_plan conflict");
+          }
+        } else {
+          return SavingsPlanSyncResult.error("server savings_plan missing syncVersion");
+        }
+      }
+    }
+
+    return SavingsPlanSyncResult.success(
+        savingsPlanInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+  }
+
+  public SavingsPlanSyncResult downloadSavingsPlans(Long userId, String bookId) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return SavingsPlanSyncResult.error(permissionError.getMessage());
+    }
+    if (bookId == null || bookId.trim().isEmpty()) {
+      return SavingsPlanSyncResult.error("missing bookId");
+    }
+    return SavingsPlanSyncResult.success(
+        savingsPlanInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+  }
+
+  @Transactional
   public CategorySyncResult uploadCategories(Long userId, List<CategoryInfo> categories, List<String> deletedKeys) {
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError.isError()) {
@@ -309,6 +387,19 @@ public class SyncService {
           return CategorySyncResult.error("missing syncVersion");
         }
         if (existing.getSyncVersion() != null) {
+          // No-op optimization: avoid touching rows when nothing changed.
+          boolean unchanged =
+              Objects.equals(existing.getName(), c.getName())
+                  && Objects.equals(existing.getIconCodePoint(), c.getIconCodePoint())
+                  && Objects.equals(existing.getIconFontFamily(), c.getIconFontFamily())
+                  && Objects.equals(existing.getIconFontPackage(), c.getIconFontPackage())
+                  && Objects.equals(existing.getIsExpense(), c.getIsExpense())
+                  && Objects.equals(existing.getParentKey(), c.getParentKey())
+                  && Objects.equals(existing.getIsDelete(), c.getIsDelete());
+          if (unchanged) {
+            continue;
+          }
+
           Long expected = existing.getSyncVersion();
           if (c.getSyncVersion() != null) {
             if (!existing.getSyncVersion().equals(c.getSyncVersion())) {
@@ -386,6 +477,16 @@ public class SyncService {
           return TagSyncResult.error("missing syncVersion");
         }
         if (existing.getSyncVersion() != null) {
+          // No-op optimization: avoid touching rows when nothing changed.
+          boolean unchanged =
+              Objects.equals(existing.getName(), t.getName())
+                  && Objects.equals(existing.getColor(), t.getColor())
+                  && Objects.equals(existing.getSortOrder(), t.getSortOrder())
+                  && Objects.equals(existing.getIsDelete(), t.getIsDelete());
+          if (unchanged) {
+            continue;
+          }
+
           Long expected = existing.getSyncVersion();
           if (t.getSyncVersion() != null) {
             if (!existing.getSyncVersion().equals(t.getSyncVersion())) {
@@ -488,6 +589,38 @@ public class SyncService {
 
     public BudgetInfo getBudget() {
       return budget;
+    }
+  }
+
+  public static class SavingsPlanSyncResult {
+    private boolean success;
+    private String error;
+    private List<SavingsPlanInfo> plans;
+
+    public static SavingsPlanSyncResult error(String error) {
+      SavingsPlanSyncResult result = new SavingsPlanSyncResult();
+      result.success = false;
+      result.error = error;
+      return result;
+    }
+
+    public static SavingsPlanSyncResult success(List<SavingsPlanInfo> plans) {
+      SavingsPlanSyncResult result = new SavingsPlanSyncResult();
+      result.success = true;
+      result.plans = plans;
+      return result;
+    }
+
+    public boolean isSuccess() {
+      return success;
+    }
+
+    public String getError() {
+      return error;
+    }
+
+    public List<SavingsPlanInfo> getPlans() {
+      return plans;
     }
   }
 

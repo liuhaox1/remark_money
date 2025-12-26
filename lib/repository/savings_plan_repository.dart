@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/savings_plan.dart';
+import '../services/meta_sync_notifier.dart';
+import '../services/savings_plan_delete_queue.dart';
 
 class SavingsPlanRepository {
   static const _key = 'savings_plans_v1';
@@ -34,14 +36,26 @@ class SavingsPlanRepository {
       all.insert(0, plan);
     }
     await savePlans(all);
+    MetaSyncNotifier.instance.notifySavingsPlansChanged(plan.bookId);
     return all.where((p) => p.bookId == plan.bookId).toList();
   }
 
-  Future<List<SavingsPlan>> deletePlan(String id) async {
+  Future<void> deletePlan({
+    required String bookId,
+    required String planId,
+  }) async {
     final all = await _loadAll();
-    all.removeWhere((p) => p.id == id);
+    all.removeWhere((p) => p.id == planId);
     await savePlans(all);
-    return all;
+    await SavingsPlanDeleteQueue.instance.enqueue(bookId, planId);
+    MetaSyncNotifier.instance.notifySavingsPlansChanged(bookId);
+  }
+
+  Future<void> replacePlansForBook(String bookId, List<SavingsPlan> plans) async {
+    final all = await _loadAll();
+    all.removeWhere((p) => p.bookId == bookId);
+    all.addAll(plans);
+    await savePlans(all);
   }
 
   Future<List<SavingsPlan>> _loadAll() async {
@@ -52,4 +66,3 @@ class SavingsPlanRepository {
         .toList();
   }
 }
-

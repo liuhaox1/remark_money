@@ -164,7 +164,7 @@ class _SavingsPlansPageState extends State<SavingsPlansPage>
   }
 
   Future<void> _deletePlan(SavingsPlan plan) async {
-    await _repo.deletePlan(plan.id);
+    await _repo.deletePlan(bookId: plan.bookId, planId: plan.id);
   }
 
   Widget _buildEmpty() {

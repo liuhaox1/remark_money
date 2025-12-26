@@ -123,11 +123,18 @@ class SyncOutboxService {
     if (RepositoryFactory.isUsingDatabase) {
       try {
         final db = await DatabaseHelper().database;
+        // Only adopt safe guest "creates": upsert rows without any server id.
+        // Guest deletes or server-id-bound ops may belong to another account and must NOT be adopted.
+        await db.delete(
+          Tables.syncOutbox,
+          where: 'owner_user_id = ? AND (op = ? OR server_id IS NOT NULL)',
+          whereArgs: [0, SyncOutboxOp.delete.name],
+        );
         await db.update(
           Tables.syncOutbox,
           {'owner_user_id': authUid},
-          where: 'owner_user_id = ?',
-          whereArgs: [0],
+          where: 'owner_user_id = ? AND op = ? AND server_id IS NULL',
+          whereArgs: [0, SyncOutboxOp.upsert.name],
         );
       } catch (_) {}
       return;
@@ -144,7 +151,21 @@ class SyncOutboxService {
       if (legacy.isEmpty) continue;
       final userKey = _prefsKey(bookId, ownerUserId: authUid);
       final existing = prefs.getStringList(userKey) ?? <String>[];
-      await prefs.setStringList(userKey, <String>[...existing, ...legacy]);
+      final adopted = <String>[];
+      for (final s in legacy) {
+        try {
+          final map = jsonDecode(s) as Map<String, dynamic>;
+          final item = SyncOutboxItem.fromJson(map);
+          if (item.op != SyncOutboxOp.upsert) continue;
+          final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
+          final serverId = item.payload['serverId'] as int? ?? (bill?['serverId'] as int?);
+          if (serverId != null) continue;
+          adopted.add(s);
+        } catch (_) {}
+      }
+      if (adopted.isNotEmpty) {
+        await prefs.setStringList(userKey, <String>[...existing, ...adopted]);
+      }
       await prefs.remove(k);
     }
   }

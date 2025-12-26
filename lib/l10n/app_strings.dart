@@ -359,7 +359,7 @@ class AppStrings {
   static String homeBudgetUsageVsTime(double usedPercent, double timePercent) =>
       '用掉 ${usedPercent.toStringAsFixed(0)}% · 进度 ${timePercent.toStringAsFixed(0)}%';
   static String homeBudgetTodaySuggestion(int daysLeft, double allowance) =>
-      '??${daysLeft}????????? ?${allowance.toStringAsFixed(2)}';
+      '剩余${daysLeft}天，日均可用 ¥${allowance.toStringAsFixed(2)}';
 
   // 通用提示文案
   static const weekReport = '周报';
@@ -382,7 +382,9 @@ class AppStrings {
           ? '已超支 ¥${remaining.abs().toStringAsFixed(2)}'
           : '剩余额度 ¥${remaining.toStringAsFixed(2)}';
   static String budgetUsedLabel(double used, double? total) =>
-      total == null ? '?? ?${used.toStringAsFixed(2)}' : '?? ?${used.toStringAsFixed(2)} / ?? ?${total.toStringAsFixed(2)}';
+      total == null
+          ? '已用 ¥${used.toStringAsFixed(2)}'
+          : '已用 ¥${used.toStringAsFixed(2)} / 预算 ¥${total.toStringAsFixed(2)}';
   static const selectMonthLabelTitle = '选择月份';
   static const selectMonthLabelText = '选择月份';
 

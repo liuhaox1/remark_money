@@ -3,9 +3,12 @@ package com.remark.money.controller;
 import com.remark.money.entity.AccountInfo;
 import com.remark.money.entity.BudgetInfo;
 import com.remark.money.entity.CategoryInfo;
+import com.remark.money.entity.SavingsPlanInfo;
 import com.remark.money.entity.TagInfo;
 import com.remark.money.service.SyncService;
 import com.remark.money.util.JwtUtil;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +32,7 @@ import java.util.stream.Collectors;
 public class SyncController {
 
   private static final Logger log = LoggerFactory.getLogger(SyncController.class);
+  private static final ObjectMapper objectMapper = new ObjectMapper();
 
   private final SyncService syncService;
   private final JwtUtil jwtUtil;
@@ -349,6 +353,85 @@ public class SyncController {
   /**
    * 上传分类数据（按用户）
    */
+  /**
+   * 上传存钱计划（按账本）
+   */
+  @PostMapping("/savingsPlan/upload")
+  public ResponseEntity<Map<String, Object>> uploadSavingsPlans(
+      @RequestHeader("Authorization") String token,
+      @RequestBody Map<String, Object> request) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      String bookId = (String) request.get("bookId");
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> plansData = (List<Map<String, Object>>) request.get("plans");
+      @SuppressWarnings("unchecked")
+      List<String> deletedIds = (List<String>) request.get("deletedIds");
+
+      List<SavingsPlanInfo> plans = new ArrayList<>();
+      if (plansData != null) {
+        for (Map<String, Object> raw : plansData) {
+          if (raw == null) continue;
+          plans.add(mapToSavingsPlanInfo(raw, bookId));
+        }
+      }
+
+      SyncService.SavingsPlanSyncResult result =
+          syncService.uploadSavingsPlans(userId, bookId, plans, deletedIds);
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put(
+            "plans",
+            result.getPlans().stream().map(this::convertSavingsPlanInfo).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("SavingsPlan upload error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
+  /**
+   * 下载存钱计划（按账本）
+   */
+  @GetMapping("/savingsPlan/download")
+  public ResponseEntity<Map<String, Object>> downloadSavingsPlans(
+      @RequestHeader("Authorization") String token,
+      @RequestParam("bookId") String bookId) {
+    try {
+      Long userId = getUserIdFromToken(token);
+      SyncService.SavingsPlanSyncResult result = syncService.downloadSavingsPlans(userId, bookId);
+
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put(
+            "plans",
+            result.getPlans().stream().map(this::convertSavingsPlanInfo).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("SavingsPlan download error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error: " + e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
+  }
+
   @PostMapping("/category/upload")
   public ResponseEntity<Map<String, Object>> uploadCategories(
       @RequestHeader("Authorization") String token,
@@ -497,8 +580,8 @@ public class SyncController {
     BudgetInfo budget = new BudgetInfo();
     budget.setTotal(asBigDecimal(map.get("total"), BigDecimal.ZERO));
     budget.setAnnualTotal(asBigDecimal(map.get("annualTotal"), BigDecimal.ZERO));
-    budget.setCategoryBudgets(map.get("categoryBudgets") != null ? map.get("categoryBudgets").toString() : null);
-    budget.setAnnualCategoryBudgets(map.get("annualCategoryBudgets") != null ? map.get("annualCategoryBudgets").toString() : null);
+    budget.setCategoryBudgets(normalizeJsonText(map.get("categoryBudgets")));
+    budget.setAnnualCategoryBudgets(normalizeJsonText(map.get("annualCategoryBudgets")));
     budget.setPeriodStartDay(asInt(map.get("periodStartDay"), 1));
     if (map.get("syncVersion") instanceof Number) {
       budget.setSyncVersion(((Number) map.get("syncVersion")).longValue());
@@ -522,17 +605,17 @@ public class SyncController {
     Map<String, Object> map = new HashMap<>();
     if (budget == null) {
       map.put("total", 0);
-      map.put("categoryBudgets", "{}");
+      map.put("categoryBudgets", Collections.emptyMap());
       map.put("periodStartDay", 1);
       map.put("annualTotal", 0);
-      map.put("annualCategoryBudgets", "{}");
+      map.put("annualCategoryBudgets", Collections.emptyMap());
       return map;
     }
     map.put("total", budget.getTotal());
-    map.put("categoryBudgets", budget.getCategoryBudgets());
+    map.put("categoryBudgets", parseJsonObjectMap(budget.getCategoryBudgets()));
     map.put("periodStartDay", budget.getPeriodStartDay());
     map.put("annualTotal", budget.getAnnualTotal());
-    map.put("annualCategoryBudgets", budget.getAnnualCategoryBudgets());
+    map.put("annualCategoryBudgets", parseJsonObjectMap(budget.getAnnualCategoryBudgets()));
     if (budget.getSyncVersion() != null) {
       map.put("syncVersion", budget.getSyncVersion());
     }
@@ -543,6 +626,75 @@ public class SyncController {
       map.put("createdAt", budget.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     }
     return map;
+  }
+
+  private String normalizeJsonText(Object value) {
+    if (value == null) return null;
+    if (value instanceof String) {
+      String s = ((String) value).trim();
+      return s.isEmpty() ? null : s;
+    }
+    try {
+      return objectMapper.writeValueAsString(value);
+    } catch (Exception e) {
+      return value.toString();
+    }
+  }
+
+  private Map<String, Object> parseJsonObjectMap(String raw) {
+    if (raw == null) return Collections.emptyMap();
+    String s = raw.trim();
+    if (s.isEmpty()) return Collections.emptyMap();
+    try {
+      return objectMapper.readValue(s, new TypeReference<Map<String, Object>>() {});
+    } catch (Exception ignored) {
+      return Collections.emptyMap();
+    }
+  }
+
+  private SavingsPlanInfo mapToSavingsPlanInfo(Map<String, Object> map, String bookId) {
+    SavingsPlanInfo info = new SavingsPlanInfo();
+    info.setBookId(bookId);
+    Object id = map.get("id");
+    if (id == null) id = map.get("planId");
+    info.setPlanId(id == null ? null : id.toString());
+
+    Map<String, Object> payload = new HashMap<>(map);
+    payload.remove("syncVersion");
+    payload.remove("isDelete");
+    payload.put("bookId", bookId);
+    if (payload.get("id") == null && info.getPlanId() != null) {
+      payload.put("id", info.getPlanId());
+    }
+    info.setPayloadJson(normalizeJsonText(payload));
+
+    Object syncVersionObj = map.get("syncVersion");
+    if (syncVersionObj instanceof Number) {
+      info.setSyncVersion(((Number) syncVersionObj).longValue());
+    } else if (syncVersionObj instanceof String) {
+      try {
+        info.setSyncVersion(Long.parseLong(((String) syncVersionObj).trim()));
+      } catch (Exception ignored) {
+      }
+    }
+    info.setIsDelete(asInt(map.get("isDelete"), 0));
+    return info;
+  }
+
+  private Map<String, Object> convertSavingsPlanInfo(SavingsPlanInfo plan) {
+    Map<String, Object> payload = new HashMap<>(parseJsonObjectMap(plan.getPayloadJson()));
+    payload.putIfAbsent("id", plan.getPlanId());
+    payload.putIfAbsent("bookId", plan.getBookId());
+    payload.put("syncVersion", plan.getSyncVersion() == null ? 0 : plan.getSyncVersion());
+    payload.put("isDelete", plan.getIsDelete() != null && plan.getIsDelete() == 1);
+    if (plan.getUpdateTime() != null) {
+      payload.put("updatedAt", plan.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    if (plan.getCreatedAt() != null) {
+      payload.putIfAbsent(
+          "createdAt", plan.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    return payload;
   }
 
   private BigDecimal asBigDecimal(Object value, BigDecimal defaultValue) {

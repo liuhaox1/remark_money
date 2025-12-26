@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/budget.dart';
 import '../repository/repository_factory.dart';
+import '../services/meta_sync_notifier.dart';
 import '../utils/error_handler.dart';
 import '../services/budget_sync_state_store.dart';
 import '../services/data_version_service.dart';
@@ -79,6 +80,7 @@ class BudgetProvider extends ChangeNotifier {
           DateTime.now().millisecondsSinceEpoch,
         );
       }
+      MetaSyncNotifier.instance.notifyBudgetChanged(bookId);
       _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.updateBudgetForBook', e, stackTrace);
@@ -176,18 +178,15 @@ class BudgetProvider extends ChangeNotifier {
   Future<void> resetBudgetForBook(String bookId) async {
     try {
       final current = budgetForBook(bookId);
-      final entry = BudgetEntry(
-        total: 0,
+      await updateBudgetForBook(
+        bookId: bookId,
+        totalBudget: 0,
         categoryBudgets: const {},
-        periodStartDay: current.periodStartDay,
-        annualTotal: 0,
+        annualBudget: 0,
         annualCategoryBudgets: const {},
+        periodStartDay: current.periodStartDay,
+        markUserEdited: true,
       );
-      _budgetStore = _budgetStore.replaceEntry(bookId, entry);
-      await _repository.saveBudget(_budgetStore);
-      // 数据修改时版本号+1
-      await DataVersionService.incrementVersion(bookId);
-      _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.resetBudgetForBook', e, stackTrace);
       rethrow;

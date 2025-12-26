@@ -95,6 +95,71 @@ class SyncService {
   }
 
   /// 上传账户数据
+  Future<SyncResult> uploadSavingsPlans({
+    required String bookId,
+    required List<Map<String, dynamic>> plans,
+    List<String>? deletedIds,
+  }) async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('not logged in');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await _client.post(
+      _uri('/api/sync/savingsPlan/upload'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'bookId': bookId,
+        'plans': plans,
+        if (deletedIds != null && deletedIds.isNotEmpty) 'deletedIds': deletedIds,
+      }),
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success(
+        savingsPlans: (data['plans'] as List?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            const [],
+      );
+    } else {
+      return SyncResult.error(data['error'] as String? ?? 'ä¸Šä¼ å¤±è´¥');
+    }
+  }
+
+  Future<SyncResult> downloadSavingsPlans({required String bookId}) async {
+    final token = await _getToken();
+    if (token == null) {
+      return SyncResult.error('not logged in');
+    }
+
+    final deviceId = await _getDeviceId();
+    final resp = await _client.get(
+      _uri('/api/sync/savingsPlan/download?deviceId=$deviceId&bookId=$bookId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return SyncResult.success(
+        savingsPlans: (data['plans'] as List?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            const [],
+      );
+    } else {
+      return SyncResult.error(data['error'] as String? ?? 'ä¸‹è½½å¤±è´¥');
+    }
+  }
+
   Future<SyncResult> uploadAccounts({
     required List<Map<String, dynamic>> accounts,
     List<Map<String, dynamic>>? deletedAccounts,
@@ -401,6 +466,7 @@ class SyncResult {
   final List<Map<String, dynamic>>? accounts;
   final List<Map<String, dynamic>>? categories;
   final List<Map<String, dynamic>>? tags;
+  final List<Map<String, dynamic>>? savingsPlans;
 
   SyncResult({
     required this.success,
@@ -409,6 +475,7 @@ class SyncResult {
     this.accounts,
     this.categories,
     this.tags,
+    this.savingsPlans,
   });
 
   factory SyncResult.success({
@@ -416,6 +483,7 @@ class SyncResult {
     List<Map<String, dynamic>>? accounts,
     List<Map<String, dynamic>>? categories,
     List<Map<String, dynamic>>? tags,
+    List<Map<String, dynamic>>? savingsPlans,
   }) {
     return SyncResult(
       success: true,
@@ -423,6 +491,7 @@ class SyncResult {
       accounts: accounts,
       categories: categories,
       tags: tags,
+      savingsPlans: savingsPlans,
     );
   }
 
