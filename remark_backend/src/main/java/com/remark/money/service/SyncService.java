@@ -418,8 +418,23 @@ public class SyncService {
           }
         }
       } else {
-        categoryInfoMapper.insertOne(c);
+        // Batch insert after the loop to reduce SQL chatter on first sync.
+        // Keep logic in one transaction; final return will re-query to get authoritative list.
       }
+    }
+
+    List<CategoryInfo> toInsert =
+        categories.stream()
+            .filter(Objects::nonNull)
+            .filter(c -> c.getCategoryKey() != null && !c.getCategoryKey().trim().isEmpty())
+            .filter(c -> !existingByKey.containsKey(c.getCategoryKey()))
+            .peek(c -> {
+              c.setUserId(userId);
+              if (c.getIsDelete() == null) c.setIsDelete(0);
+            })
+            .collect(Collectors.toList());
+    if (!toInsert.isEmpty()) {
+      categoryInfoMapper.batchInsert(toInsert);
     }
 
     return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(userId));
@@ -504,8 +519,23 @@ public class SyncService {
           }
         }
       } else {
-        tagInfoMapper.insertOne(t);
+        // Batch insert after the loop to reduce SQL chatter on first sync.
       }
+    }
+
+    List<TagInfo> toInsert =
+        tags.stream()
+            .filter(Objects::nonNull)
+            .filter(t -> t.getTagId() != null && !t.getTagId().trim().isEmpty())
+            .filter(t -> !existingByTagId.containsKey(t.getTagId()))
+            .peek(t -> {
+              t.setUserId(userId);
+              t.setBookId(bookId);
+              if (t.getIsDelete() == null) t.setIsDelete(0);
+            })
+            .collect(Collectors.toList());
+    if (!toInsert.isEmpty()) {
+      tagInfoMapper.batchInsert(toInsert);
     }
 
     return TagSyncResult.success(tagInfoMapper.findAllByUserIdAndBookId(userId, bookId));

@@ -1265,6 +1265,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
       'predictionMethod': predictionMethod,
       'predictionLowConfidence': predictionLowConfidence,
       'predictionHistoryMonths': robustHistoryMonths,
+      'predictionDaysPassed': daysPassed,
+      'predictionTotalDays': totalDays,
+      'predictionCurrentExpenseDays': currentExpenseDays,
       'flowIsExpense': flowIsExpense,
       'insights': insights,
       'thisYearExpense': periodTotal,
@@ -1529,7 +1532,23 @@ class _AnalysisPageState extends State<AnalysisPage> {
         data['predictionLowConfidence'] as bool? ?? false;
     final predictionHistoryMonths =
         data['predictionHistoryMonths'] as int? ?? 0;
-    
+    final daysPassed = data['predictionDaysPassed'] as int? ?? 0;
+    final totalDays = data['predictionTotalDays'] as int? ?? 0;
+    final currentExpenseDays = data['predictionCurrentExpenseDays'] as int? ?? 0;
+
+    // If we don't have enough evidence, don't show the card to avoid misleading guesses.
+    // - Need at least a few days with records in this month.
+    // - Need minimum days passed to avoid early-month volatility.
+    const minRecordDaysForPrediction = 3;
+    const minDaysPassedForPrediction = 5;
+    final canShowPrediction = predictedMonthExpense > 0 &&
+        !predictionLowConfidence &&
+        currentExpenseDays >= minRecordDaysForPrediction &&
+        daysPassed >= minDaysPassedForPrediction &&
+        totalDays > 0;
+
+    if (!canShowPrediction) return const SizedBox.shrink();
+
     if (predictedMonthExpense == 0 &&
         avgMonthlyExpense == 0 &&
         currentMonthExpense == 0) {
@@ -1624,24 +1643,26 @@ class _AnalysisPageState extends State<AnalysisPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  predictionHistoryMonths >= 3 && predictionMethod.isNotEmpty
-                      ? '参考：$predictionMethod（近$monthsWithExpense个月月均 ¥${avgMonthlyExpense.toStringAsFixed(0)}）'
-                      : '参考：近$monthsWithExpense个月月均支出 ¥${avgMonthlyExpense.toStringAsFixed(0)}',
+                  () {
+                    final avgText =
+                        '参考：近$monthsWithExpense个月月均 ¥${avgMonthlyExpense.toStringAsFixed(0)}';
+                    if (predictionMethod == '按天线性外推' &&
+                        daysPassed > 0 &&
+                        totalDays > 0) {
+                      return '口径：日均外推（已过$daysPassed/$totalDays天） · $avgText';
+                    }
+                    if (predictionHistoryMonths >= 3 &&
+                        predictionMethod.isNotEmpty) {
+                      return '口径：$predictionMethod · $avgText';
+                    }
+                    return avgText;
+                  }(),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 12,
                     color: cs.onSurface.withOpacity(0.7),
                   ),
-                ),
-              ),
-            if (predictionLowConfidence && predictionHistoryMonths >= 3)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  '提示：本月数据较少，预测仅供参考',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 11,
-                        color: cs.onSurface.withOpacity(0.6),
-                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             if (monthsWithExpense >= 2 && diffPercent.abs() > 20)

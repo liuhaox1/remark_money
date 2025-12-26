@@ -304,8 +304,8 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
       );
     }
 
-    final remainingColor =
-        remaining >= 0 ? AppColors.success : AppColors.danger;
+    final primaryTextColor = cs.onSurface.withOpacity(0.9);
+    final secondaryTextColor = cs.onSurface.withOpacity(0.7);
     final usedPercent = total > 0 ? (used / total * 100) : 0.0;
     final isWarning = usedPercent >= 80;
     final isDanger = usedPercent >= 100;
@@ -357,8 +357,8 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
           '剩余 ¥${remaining.toStringAsFixed(0)}',
           style: tt.headlineSmall?.copyWith(
             fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: remainingColor,
+            fontWeight: FontWeight.w400,
+            color: primaryTextColor,
           ),
         ),
         const SizedBox(height: 4),
@@ -368,16 +368,13 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
             Text(
               AppStrings.homeBudgetUsedAndTotal(used, total),
               style: tt.bodySmall?.copyWith(
-                color: cs.onSurface.withOpacity(0.7),
+                color: secondaryTextColor,
               ),
             ),
             Text(
               '已用 ${usedPercent.toStringAsFixed(1)}%',
               style: tt.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: isWarning
-                    ? (isDanger ? AppColors.danger : cs.secondary)
-                    : cs.onSurface.withOpacity(0.7),
+                color: secondaryTextColor,
               ),
             ),
           ],
@@ -397,7 +394,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                       dailyAllowance,
                     ),
                     style: tt.bodySmall?.copyWith(
-                      color: cs.onSurface.withOpacity(0.7),
+                      color: secondaryTextColor,
                     ),
                   ),
                 ),
@@ -407,8 +404,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                         ? '建议控制支出'
                         : '建议合理规划',
                     style: tt.bodySmall?.copyWith(
-                      color: isDanger ? AppColors.danger : cs.secondary,
-                      fontWeight: FontWeight.w600,
+                      color: secondaryTextColor,
                     ),
                   ),
               ],
@@ -435,7 +431,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
                     child: Text(
                       '本月预算已超支，剩余${daysLeft}天建议控制支出',
                       style: tt.bodySmall?.copyWith(
-                        color: AppColors.danger,
+                        color: secondaryTextColor,
                       ),
                     ),
                   ),
@@ -497,8 +493,8 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
     final remainingLabel = remaining >= 0
         ? '年度剩余 ¥${remaining.toStringAsFixed(0)}'
         : '年度超支 ¥${remaining.abs().toStringAsFixed(0)}';
-    final remainingColor =
-        remaining >= 0 ? AppColors.success : AppColors.danger;
+    final primaryTextColor = cs.onSurface.withOpacity(0.9);
+    final secondaryTextColor = cs.onSurface.withOpacity(0.7);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,15 +509,15 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         Text(
           remainingLabel,
           style: tt.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: remainingColor,
+            fontWeight: FontWeight.w400,
+            color: primaryTextColor,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           AppStrings.homeBudgetUsedAndTotal(used, total),
           style: tt.bodySmall?.copyWith(
-            color: cs.onSurface.withOpacity(0.7),
+            color: secondaryTextColor,
           ),
         ),
         const SizedBox(height: 12),
@@ -534,9 +530,7 @@ class _HomeBudgetBarState extends State<HomeBudgetBar> {
         Text(
           AppStrings.homeBudgetUsageVsTime(usedPercent, timePercent),
           style: tt.bodySmall?.copyWith(
-            color: usageAheadOfTime
-                ? AppColors.danger
-                : cs.onSurface.withOpacity(0.7),
+            color: secondaryTextColor,
           ),
         ),
       ],

@@ -140,12 +140,8 @@ class SyncEngine {
 
     // Keep sync transparent but light-weight:
     // - Pull on app_start / app_resumed / periodic timers.
-    // - Sync meta only on app_start / app_resumed (and separately via MetaSyncNotifier / periodic meta sync).
-    final shouldSyncMetaForPull = reason == 'app_start' || reason == 'app_resumed';
-    if (shouldSyncMetaForPull) {
-      await _syncCategories(context, reason: reason);
-      await _syncTags(context, bookId, reason: reason);
-    }
+    // - Meta (categories/tags/budget/accounts/...) is scheduled separately by BackgroundSyncManager,
+    //   to avoid duplicate requests/SQL during login/app_start flows.
 
     await _pullV2(context, bookId, reason: reason);
 
@@ -265,12 +261,11 @@ class SyncEngine {
         }
 
         // Apply server authoritative view.
-        final download2 = await _syncService.downloadCategories();
-        if (!download2.success) {
-          debugPrint('[SyncEngine] categories download2 failed: ${download2.error}');
-          return false;
-        }
-        final remote2 = (download2.categories ?? const [])
+        // uploadCategories already returns categories; prefer it to avoid an extra download.
+        final authoritative = upload.success && upload.categories != null
+            ? upload.categories!
+            : (download.categories ?? const []);
+        final remote2 = (authoritative)
             .map((m) => (m as Map).cast<String, dynamic>())
             .toList(growable: false);
         final remoteCats2 = remote2.map(Category.fromMap).toList(growable: false);
@@ -353,12 +348,11 @@ class SyncEngine {
         }
 
         // Apply server authoritative view.
-        final download2 = await _syncService.downloadTags(bookId: bookId);
-        if (!download2.success) {
-          debugPrint('[SyncEngine] tags download2 failed: ${download2.error}');
-          return false;
-        }
-        final remote2 = (download2.tags ?? const [])
+        // uploadTags already returns tags; prefer it to avoid an extra download.
+        final authoritative = upload.success && upload.tags != null
+            ? upload.tags!
+            : (download.tags ?? const []);
+        final remote2 = (authoritative)
             .map((m) => (m as Map).cast<String, dynamic>())
             .toList(growable: false);
         final remoteTags2 = remote2.map(Tag.fromMap).toList(growable: false);

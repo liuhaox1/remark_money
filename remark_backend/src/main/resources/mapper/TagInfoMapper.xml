@@ -42,6 +42,14 @@
     VALUES (#{userId}, #{bookId}, #{tagId}, #{name}, #{color}, #{sortOrder}, #{isDelete}, 1, NOW(), NOW())
   </insert>
 
+  <insert id="batchInsert">
+    INSERT INTO tag_info (user_id, book_id, tag_id, name, color, sort_order, is_delete, sync_version, update_time, created_at)
+    VALUES
+    <foreach collection="items" item="t" separator=",">
+      (#{t.userId}, #{t.bookId}, #{t.tagId}, #{t.name}, #{t.color}, #{t.sortOrder}, #{t.isDelete}, 1, NOW(), NOW())
+    </foreach>
+  </insert>
+
   <update id="updateWithExpectedSyncVersion">
     UPDATE tag_info
     SET name = #{tag.name},

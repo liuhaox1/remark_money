@@ -22,6 +22,7 @@ class BudgetProgress extends StatelessWidget {
     final progress = total <= 0 ? 0.0 : (used / total).clamp(0.0, 1.0);
     final remaining = (total - used).clamp(0, double.infinity).toDouble();
     final labelColor = cs.onSurface.withOpacity(0.7);
+    final valueColor = cs.onSurface.withOpacity(0.9);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,12 +33,12 @@ class BudgetProgress extends StatelessWidget {
             _line(
               totalLabel ?? AppStrings.monthBudget,
               total,
-              AppColors.primary(context),
+              valueColor,
               labelColor,
               tt,
             ),
-            _line(AppStrings.spent, used, AppColors.danger, labelColor, tt),
-            _line(AppStrings.remain, remaining, AppColors.success, labelColor, tt),
+            _line(AppStrings.spent, used, valueColor, labelColor, tt),
+            _line(AppStrings.remain, remaining, valueColor, labelColor, tt),
           ],
         ),
         const SizedBox(height: 12),
@@ -75,7 +76,6 @@ class BudgetProgress extends StatelessWidget {
           '¥ ${value.toStringAsFixed(0)}',
           style: tt.bodyMedium?.copyWith(
             color: color,
-            fontWeight: FontWeight.w700,
           ),
         ),
       ],

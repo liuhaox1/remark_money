@@ -15,6 +15,8 @@ public interface CategoryInfoMapper {
 
   int insertOne(CategoryInfo categoryInfo);
 
+  int batchInsert(@Param("items") List<CategoryInfo> items);
+
   int updateWithExpectedSyncVersion(
       @Param("category") CategoryInfo categoryInfo, @Param("expectedSyncVersion") Long expectedSyncVersion);
 

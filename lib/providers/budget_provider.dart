@@ -79,8 +79,8 @@ class BudgetProvider extends ChangeNotifier {
           bookId,
           DateTime.now().millisecondsSinceEpoch,
         );
+        MetaSyncNotifier.instance.notifyBudgetChanged(bookId);
       }
-      MetaSyncNotifier.instance.notifyBudgetChanged(bookId);
       _notifyChanged();
     } catch (e, stackTrace) {
       ErrorHandler.logError('BudgetProvider.updateBudgetForBook', e, stackTrace);
