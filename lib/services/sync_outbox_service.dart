@@ -85,6 +85,70 @@ class SyncOutboxService {
     return '$ts-$r';
   }
 
+  Future<int?> _resolveAuthUserIdIfTokenPresent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    if (token == null || token.isEmpty || token == 'mock_token_for_development') {
+      return null;
+    }
+    return prefs.getInt('auth_user_id');
+  }
+
+  Future<int> _resolveSyncOwnerUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('sync_owner_user_id') ?? 0;
+  }
+
+  Future<int> _ownerUserIdForRecord({
+    required Record record,
+  }) async {
+    final authUid = await _resolveAuthUserIdIfTokenPresent();
+    if (authUid != null) return authUid;
+
+    if (record.serverId != null || record.serverVersion != null) {
+      return await _resolveSyncOwnerUserId();
+    }
+    return 0;
+  }
+
+  String _prefsKey(String bookId, {required int ownerUserId}) {
+    if (ownerUserId <= 0) return '$_prefsKeyPrefix$bookId';
+    return '${_prefsKeyPrefix}u${ownerUserId}_$bookId';
+  }
+
+  Future<void> adoptGuestOutboxToCurrentUser() async {
+    final authUid = await _resolveAuthUserIdIfTokenPresent();
+    if (authUid == null || authUid <= 0) return;
+
+    if (RepositoryFactory.isUsingDatabase) {
+      try {
+        final db = await DatabaseHelper().database;
+        await db.update(
+          Tables.syncOutbox,
+          {'owner_user_id': authUid},
+          where: 'owner_user_id = ?',
+          whereArgs: [0],
+        );
+      } catch (_) {}
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final legacyKeys = prefs
+        .getKeys()
+        .where((k) => k.startsWith(_prefsKeyPrefix) && !k.startsWith('${_prefsKeyPrefix}u'))
+        .toList(growable: false);
+    for (final k in legacyKeys) {
+      final bookId = k.substring(_prefsKeyPrefix.length);
+      final legacy = prefs.getStringList(k) ?? <String>[];
+      if (legacy.isEmpty) continue;
+      final userKey = _prefsKey(bookId, ownerUserId: authUid);
+      final existing = prefs.getStringList(userKey) ?? <String>[];
+      await prefs.setStringList(userKey, <String>[...existing, ...legacy]);
+      await prefs.remove(k);
+    }
+  }
+
   Map<String, dynamic> _recordToBillPayload(
     Record record, {
     required int updateAtMs,
@@ -116,6 +180,7 @@ class SyncOutboxService {
     if (_suppressed) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
+    final ownerUserId = await _ownerUserIdForRecord(record: record);
     final tagRepo = RepositoryFactory.createTagRepository();
     final List<String> tagIds =
         (await tagRepo.getTagIdsForRecord(record.id)).cast<String>();
@@ -132,6 +197,7 @@ class SyncOutboxService {
       'bill': _recordToBillPayload(record, updateAtMs: now, tagIds: tagIds),
     };
     await _enqueue(
+      ownerUserId: ownerUserId,
       bookId: record.bookId,
       op: SyncOutboxOp.upsert,
       recordId: record.id,
@@ -145,14 +211,20 @@ class SyncOutboxService {
   Future<void> enqueueDelete(Record record) async {
     if (_suppressed) return;
 
+    final ownerUserId = await _ownerUserIdForRecord(record: record);
     // Delete for unsynced local records should not be uploaded, but we must remove any pending upsert,
     // otherwise a previously-enqueued create/update could be pushed after the local deletion.
-    await _removePendingUpsertsForRecord(bookId: record.bookId, recordId: record.id);
+    await _removePendingUpsertsForRecord(
+      ownerUserId: ownerUserId,
+      bookId: record.bookId,
+      recordId: record.id,
+    );
     // 未同步过的本地记录，删除无需上报服务器
     if (record.serverId == null) return;
 
     // Keep only the latest delete for this serverId to reduce outbox bloat / conflicts.
     await _removePendingDeletesForServerId(
+      ownerUserId: ownerUserId,
       bookId: record.bookId,
       serverId: record.serverId!,
     );
@@ -165,6 +237,7 @@ class SyncOutboxService {
       'expectedVersion': record.serverVersion,
     };
     await _enqueue(
+      ownerUserId: ownerUserId,
       bookId: record.bookId,
       op: SyncOutboxOp.delete,
       recordId: record.id,
@@ -176,6 +249,7 @@ class SyncOutboxService {
   }
 
   Future<void> _enqueue({
+    required int ownerUserId,
     required String bookId,
     required SyncOutboxOp op,
     required String? recordId,
@@ -189,13 +263,14 @@ class SyncOutboxService {
       if (op == SyncOutboxOp.upsert && recordId != null && recordId.isNotEmpty) {
         await db.delete(
           Tables.syncOutbox,
-          where: 'book_id = ? AND op = ? AND record_id = ?',
-          whereArgs: [bookId, op.name, recordId],
+          where: 'owner_user_id = ? AND book_id = ? AND op = ? AND record_id = ?',
+          whereArgs: [ownerUserId, bookId, op.name, recordId],
         );
       }
       await db.insert(
         Tables.syncOutbox,
         {
+          'owner_user_id': ownerUserId,
           'book_id': bookId,
           'op': op.name,
           'record_id': recordId,
@@ -208,7 +283,7 @@ class SyncOutboxService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final key = '$_prefsKeyPrefix$bookId';
+    final key = _prefsKey(bookId, ownerUserId: ownerUserId);
     final list = prefs.getStringList(key) ?? <String>[];
     if (op == SyncOutboxOp.upsert && recordId != null && recordId.isNotEmpty) {
       list.removeWhere((s) {
@@ -235,6 +310,9 @@ class SyncOutboxService {
       ),
     );
     await prefs.setStringList(key, list);
+    if (ownerUserId > 0) {
+      await prefs.remove(_prefsKey(bookId, ownerUserId: 0));
+    }
   }
 
   Future<void> updateItems(String bookId, List<SyncOutboxItem> items) async {
@@ -272,7 +350,8 @@ class SyncOutboxService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final key = '$_prefsKeyPrefix$bookId';
+    final ownerUserId = await _resolveAuthUserIdIfTokenPresent() ?? 0;
+    final key = _prefsKey(bookId, ownerUserId: ownerUserId);
     final list = prefs.getStringList(key) ?? <String>[];
     final updated = <String>[];
     for (final s in list) {
@@ -295,11 +374,12 @@ class SyncOutboxService {
 
   Future<List<SyncOutboxItem>> loadPending(String bookId, {int limit = 200}) async {
     if (RepositoryFactory.isUsingDatabase) {
+      final ownerUserId = await _resolveAuthUserIdIfTokenPresent() ?? 0;
       final db = await DatabaseHelper().database;
       final maps = await db.query(
         Tables.syncOutbox,
-        where: 'book_id = ?',
-        whereArgs: [bookId],
+        where: 'owner_user_id = ? AND book_id = ?',
+        whereArgs: [ownerUserId, bookId],
         orderBy: 'created_at ASC',
         limit: limit,
       );
@@ -337,7 +417,8 @@ class SyncOutboxService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final key = '$_prefsKeyPrefix$bookId';
+    final ownerUserId = await _resolveAuthUserIdIfTokenPresent() ?? 0;
+    final key = _prefsKey(bookId, ownerUserId: ownerUserId);
     final list = prefs.getStringList(key) ?? <String>[];
     final items = <SyncOutboxItem>[];
     for (final s in list.take(limit)) {
@@ -384,7 +465,8 @@ class SyncOutboxService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final key = '$_prefsKeyPrefix$bookId';
+    final ownerUserId = await _resolveAuthUserIdIfTokenPresent() ?? 0;
+    final key = _prefsKey(bookId, ownerUserId: ownerUserId);
     final list = prefs.getStringList(key) ?? <String>[];
     if (list.isEmpty) return;
     final removeSet = items
@@ -396,6 +478,7 @@ class SyncOutboxService {
   }
 
   Future<void> _removePendingUpsertsForRecord({
+    required int ownerUserId,
     required String bookId,
     required String recordId,
   }) async {
@@ -405,14 +488,14 @@ class SyncOutboxService {
       final db = await DatabaseHelper().database;
       await db.delete(
         Tables.syncOutbox,
-        where: 'book_id = ? AND op = ? AND record_id = ?',
-        whereArgs: [bookId, SyncOutboxOp.upsert.name, recordId],
+        where: 'owner_user_id = ? AND book_id = ? AND op = ? AND record_id = ?',
+        whereArgs: [ownerUserId, bookId, SyncOutboxOp.upsert.name, recordId],
       );
       return;
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final key = '$_prefsKeyPrefix$bookId';
+    final key = _prefsKey(bookId, ownerUserId: ownerUserId);
     final list = prefs.getStringList(key) ?? <String>[];
     if (list.isEmpty) return;
 
@@ -432,6 +515,7 @@ class SyncOutboxService {
   }
 
   Future<void> _removePendingDeletesForServerId({
+    required int ownerUserId,
     required String bookId,
     required int serverId,
   }) async {
@@ -441,14 +525,14 @@ class SyncOutboxService {
       final db = await DatabaseHelper().database;
       await db.delete(
         Tables.syncOutbox,
-        where: 'book_id = ? AND op = ? AND server_id = ?',
-        whereArgs: [bookId, SyncOutboxOp.delete.name, serverId],
+        where: 'owner_user_id = ? AND book_id = ? AND op = ? AND server_id = ?',
+        whereArgs: [ownerUserId, bookId, SyncOutboxOp.delete.name, serverId],
       );
       return;
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final key = '$_prefsKeyPrefix$bookId';
+    final key = _prefsKey(bookId, ownerUserId: ownerUserId);
     final list = prefs.getStringList(key) ?? <String>[];
     if (list.isEmpty) return;
 

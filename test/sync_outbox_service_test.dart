@@ -136,4 +136,63 @@ void main() {
     expect(pending.single.payload['type'], 'delete');
     expect(pending.single.payload['serverId'], 101);
   });
+
+  test('guest outbox is adopted to current user after login', () async {
+    final outbox = SyncOutboxService.instance;
+    final record = Record(
+      id: 'local_guest_1',
+      serverId: null,
+      serverVersion: null,
+      amount: 3.21,
+      remark: 'guest',
+      date: DateTime.parse('2025-01-01T00:00:00Z'),
+      categoryKey: 'food',
+      bookId: 'book_adopt',
+      accountId: 'acc_1',
+      direction: TransactionDirection.out,
+    );
+
+    await outbox.enqueueUpsert(record);
+    expect((await outbox.loadPending('book_adopt')).length, 1);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', 'token_x');
+    await prefs.setInt('auth_user_id', 7);
+    await prefs.setInt('sync_owner_user_id', 7);
+
+    await outbox.adoptGuestOutboxToCurrentUser();
+    final pending = await outbox.loadPending('book_adopt');
+    expect(pending.length, 1);
+    expect(pending.single.payload['type'], 'upsert');
+  });
+
+  test('delete while logged out is scoped to last sync owner', () async {
+    final outbox = SyncOutboxService.instance;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('sync_owner_user_id', 42);
+
+    final record = Record(
+      id: 'server_9',
+      serverId: 9,
+      serverVersion: 1,
+      amount: 1,
+      remark: 'x',
+      date: DateTime.parse('2025-01-01T00:00:00Z'),
+      categoryKey: 'food',
+      bookId: 'book_owner',
+      accountId: 'acc_1',
+      direction: TransactionDirection.out,
+    );
+
+    // Logged out: enqueueDelete should still be stored, but under owner=42 (not guest).
+    await outbox.enqueueDelete(record);
+
+    // After login as that owner, the pending delete becomes visible.
+    await prefs.setString('auth_token', 'token_y');
+    await prefs.setInt('auth_user_id', 42);
+    final pending = await outbox.loadPending('book_owner');
+    expect(pending.length, 1);
+    expect(pending.single.payload['type'], 'delete');
+    expect(pending.single.payload['serverId'], 9);
+  });
 }

@@ -56,6 +56,10 @@ class SyncEngine {
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
 
+    // Migrate guest-created ops (owner=0) to the current user so records created before register/login
+    // can be uploaded, while keeping stale ops from other accounts isolated.
+    await _outbox.adoptGuestOutboxToCurrentUser();
+
     final bookProvider = context.read<BookProvider>();
     final bookIds = <String>{};
     final active = bookProvider.activeBookId;

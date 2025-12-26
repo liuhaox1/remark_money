@@ -1,6 +1,7 @@
 package com.remark.money.mapper;
 
 import com.remark.money.entity.BillInfo;
+import com.remark.money.entity.BillInfoSyncSummary;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -53,6 +54,10 @@ public interface BillInfoMapper {
   int countNonDeletedByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
 
   int countNonDeletedByBookId(@Param("bookId") String bookId);
+
+  BillInfoSyncSummary summaryNonDeletedByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
+
+  BillInfoSyncSummary summaryNonDeletedByBookId(@Param("bookId") String bookId);
 
   Long sumIdsNonDeletedByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
 

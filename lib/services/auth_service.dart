@@ -40,7 +40,6 @@ class AuthService {
       if (k.startsWith('sync_v2_last_change_id_') ||
           k.startsWith('sync_v2_conflicts_') ||
           k.startsWith('sync_v2_summary_checked_at_') ||
-          k.startsWith('sync_outbox_') ||
           k.startsWith('data_version_') ||
           k.startsWith('budget_update_time_') ||
           k.startsWith('budget_local_edit_ms_') ||
@@ -51,12 +50,6 @@ class AuthService {
         await prefs.remove(k);
       }
     }
-
-    // Best-effort: clear DB outbox to avoid cross-account pushes.
-    try {
-      final db = await DatabaseHelper().database;
-      await db.delete(Tables.syncOutbox);
-    } catch (_) {}
   }
 
   Future<void> _saveAuth({required String token, int? userId}) async {
@@ -71,6 +64,8 @@ class AuthService {
     await prefs.setString('auth_token', token);
     if (userId != null) {
       await prefs.setInt('auth_user_id', userId);
+      // Keep a durable owner id for local/outbox scoping even after logout.
+      await prefs.setInt('sync_owner_user_id', userId);
     }
   }
 

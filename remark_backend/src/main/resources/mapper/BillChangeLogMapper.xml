@@ -30,6 +30,14 @@
     WHERE book_id = #{bookId} AND scope_user_id = #{scopeUserId}
   </select>
 
+  <select id="existsAnyForScope" resultType="int">
+    SELECT 1
+    FROM bill_change_log
+    WHERE book_id = #{bookId}
+      AND scope_user_id = #{scopeUserId}
+    LIMIT 1
+  </select>
+
   <insert id="bootstrapShared">
     INSERT INTO bill_change_log (book_id, scope_user_id, bill_id, op, bill_version, created_at)
     SELECT
@@ -103,6 +111,20 @@
     WHERE book_id = #{bookId}
       AND scope_user_id = #{scopeUserId}
       AND created_at &gt;= #{cutoff}
+  </select>
+
+  <select id="findRangeForScopeSince" resultType="com.remark.money.entity.BillChangeLogRange">
+    SELECT
+      (
+        SELECT COALESCE(MAX(change_id), 0)
+        FROM bill_change_log
+        WHERE book_id = #{bookId} AND scope_user_id = #{scopeUserId}
+      ) AS maxChangeId,
+      (
+        SELECT COALESCE(MIN(change_id), 0)
+        FROM bill_change_log
+        WHERE book_id = #{bookId} AND scope_user_id = #{scopeUserId} AND created_at &gt;= #{cutoff}
+      ) AS minKeptChangeId
   </select>
 
   <delete id="deleteBefore">

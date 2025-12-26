@@ -1,9 +1,11 @@
 package com.remark.money.service;
 
 import com.remark.money.entity.BillChangeLog;
+import com.remark.money.entity.BillChangeLogRange;
 import com.remark.money.entity.BillDeleteTombstone;
 import com.remark.money.entity.BillInfo;
 import com.remark.money.entity.BillTagRel;
+import com.remark.money.entity.BillInfoSyncSummary;
 import com.remark.money.entity.BookMember;
 import com.remark.money.entity.SyncOpDedup;
 import com.remark.money.entity.SyncScopeState;
@@ -70,29 +72,18 @@ public class SyncV2Service {
     assertBookMember(userId, bookId);
     Long scopeUserId = isServerBook(bookId) ? 0L : userId;
 
-    int billCount =
-        isServerBook(bookId)
-            ? billInfoMapper.countNonDeletedByBookId(bookId)
-            : billInfoMapper.countNonDeletedByUserIdAndBookId(userId, bookId);
-
-    Long sumIdsRaw =
-        isServerBook(bookId)
-            ? billInfoMapper.sumIdsNonDeletedByBookId(bookId)
-            : billInfoMapper.sumIdsNonDeletedByUserIdAndBookId(userId, bookId);
-    long sumIds = sumIdsRaw != null ? sumIdsRaw : 0L;
-
-    Long sumVersionsRaw =
-        isServerBook(bookId)
-            ? billInfoMapper.sumVersionsNonDeletedByBookId(bookId)
-            : billInfoMapper.sumVersionsNonDeletedByUserIdAndBookId(userId, bookId);
-    long sumVersions = sumVersionsRaw != null ? sumVersionsRaw : 0L;
-
-    Long maxChangeId = billChangeLogMapper.findMaxChangeId(bookId, scopeUserId);
-    if (maxChangeId == null) maxChangeId = 0L;
-
     LocalDateTime cutoff = LocalDateTime.now().minusDays(RETENTION_DAYS);
-    Long minKeptChangeId = billChangeLogMapper.findMinChangeIdSince(bookId, scopeUserId, cutoff);
-    if (minKeptChangeId == null) minKeptChangeId = 0L;
+    BillInfoSyncSummary billSummary =
+        isServerBook(bookId)
+            ? billInfoMapper.summaryNonDeletedByBookId(bookId)
+            : billInfoMapper.summaryNonDeletedByUserIdAndBookId(userId, bookId);
+    int billCount = billSummary != null && billSummary.getBillCount() != null ? billSummary.getBillCount() : 0;
+    long sumIds = billSummary != null && billSummary.getSumIds() != null ? billSummary.getSumIds() : 0L;
+    long sumVersions = billSummary != null && billSummary.getSumVersions() != null ? billSummary.getSumVersions() : 0L;
+
+    BillChangeLogRange range = billChangeLogMapper.findRangeForScopeSince(bookId, scopeUserId, cutoff);
+    long maxChangeId = range != null && range.getMaxChangeId() != null ? range.getMaxChangeId() : 0L;
+    long minKeptChangeId = range != null && range.getMinKeptChangeId() != null ? range.getMinKeptChangeId() : 0L;
 
     Map<String, Object> summary = new HashMap<>();
     summary.put("billCount", billCount);
@@ -413,6 +404,7 @@ public class SyncV2Service {
     Map<String, Map<String, Object>> resultsByOpId = new HashMap<>();
     Map<Long, List<String>> pendingTagUpdates = new HashMap<>();
     Set<Long> pendingTagDeletes = new java.util.HashSet<>();
+    Set<Long> newlyInsertedBillIds = new java.util.HashSet<>();
 
     // v2: 批量新增（显式 serverId + expectedVersion=0）
     class PendingCreate {
@@ -503,7 +495,7 @@ public class SyncV2Service {
             }
             pendingCreates.add(new PendingCreate(opId, bill, tagIds, item));
           } else {
-            handleUpsert(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups, requestId, deviceId, syncReason);
+            handleUpsert(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups, newlyInsertedBillIds, requestId, deviceId, syncReason);
             if ("applied".equals(item.get("status")) && item.get("serverId") instanceof Number) {
               Object billObj = op.get("bill");
               if (billObj instanceof Map) {
@@ -537,6 +529,7 @@ public class SyncV2Service {
       billInfoMapper.batchInsertWithId(newBills);
       for (PendingCreate p : pendingCreates) {
         long newVersion = 1L;
+        newlyInsertedBillIds.add(p.bill.getId());
         pendingLogs.add(new BillChangeLog(bookId, scopeUserId, p.bill.getId(), 0, newVersion));
         pendingDedups.add(buildDedup(userId, bookId, p.opId, 0, p.bill.getId(), newVersion, null, requestId, deviceId, syncReason));
         p.item.put("status", "applied");
@@ -560,6 +553,11 @@ public class SyncV2Service {
       clearBillIds.addAll(pendingTagUpdates.keySet());
       clearBillIds.addAll(pendingTagDeletes);
       clearBillIds = clearBillIds.stream().distinct().collect(Collectors.toList());
+      if (!clearBillIds.isEmpty() && !newlyInsertedBillIds.isEmpty()) {
+        clearBillIds = clearBillIds.stream()
+            .filter(id -> !newlyInsertedBillIds.contains(id) || pendingTagDeletes.contains(id))
+            .collect(Collectors.toList());
+      }
       if (!clearBillIds.isEmpty()) {
         billTagRelMapper.deleteByBillIds(bookId, clearBillIds);
       }
@@ -608,6 +606,7 @@ public class SyncV2Service {
                             Map<String, Object> item,
                             List<BillChangeLog> pendingLogs,
                             List<SyncOpDedup> pendingDedups,
+                            Set<Long> newlyInsertedBillIds,
                             String requestId,
                             String deviceId,
                             String syncReason) {
@@ -629,6 +628,9 @@ public class SyncV2Service {
 
     if (bill.getId() == null) {
       billInfoMapper.insert(bill);
+      if (bill.getId() != null) {
+        newlyInsertedBillIds.add(bill.getId());
+      }
       long newVersion = 1L;
       pendingLogs.add(new BillChangeLog(bookId, scopeUserId, bill.getId(), 0, newVersion));
       pendingDedups.add(buildDedup(userId, bookId, opId, 0, bill.getId(), newVersion, null, requestId, deviceId, syncReason));
@@ -804,12 +806,16 @@ public class SyncV2Service {
       boolean initialized = state != null && state.getInitialized() != null && state.getInitialized() == 1;
       boolean bootstrapExpired = state == null || state.getUpdatedAt() == null || state.getUpdatedAt().isBefore(cutoff);
       if (!initialized || bootstrapExpired) {
-        if (sharedBook) {
-          billChangeLogMapper.bootstrapShared(bookId, scopeUserId);
-        } else {
-          billChangeLogMapper.bootstrapPersonal(userId, bookId, scopeUserId);
+        boolean skipBootstrap = !bootstrapExpired && !initialized
+            && billChangeLogMapper.existsAnyForScope(bookId, scopeUserId) != null;
+        if (!skipBootstrap) {
+          if (sharedBook) {
+            billChangeLogMapper.bootstrapShared(bookId, scopeUserId);
+          } else {
+            billChangeLogMapper.bootstrapPersonal(userId, bookId, scopeUserId);
+          }
+          billChangeLogMapper.bootstrapTombstones(bookId, scopeUserId);
         }
-        billChangeLogMapper.bootstrapTombstones(bookId, scopeUserId);
         syncScopeStateMapper.markInitialized(bookId, scopeUserId);
       }
     } else {

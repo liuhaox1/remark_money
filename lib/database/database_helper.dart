@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 11;
+const int _databaseVersion = 12;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -136,6 +136,7 @@ class DatabaseHelper {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS ${Tables.syncOutbox} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id INTEGER NOT NULL DEFAULT 0,
             book_id TEXT NOT NULL,
             op TEXT NOT NULL,
             record_id TEXT,
@@ -145,7 +146,7 @@ class DatabaseHelper {
           )
         ''');
         await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_created ON ${Tables.syncOutbox}(book_id, created_at)',
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_created ON ${Tables.syncOutbox}(owner_user_id, book_id, created_at)',
         );
         break;
       // 未来版本升级逻辑
@@ -243,10 +244,10 @@ class DatabaseHelper {
           'CREATE INDEX IF NOT EXISTS idx_records_book_server_id ON ${Tables.records}(book_id, server_id)',
         );
         await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_op_record ON ${Tables.syncOutbox}(book_id, op, record_id)',
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_op_record ON ${Tables.syncOutbox}(owner_user_id, book_id, op, record_id)',
         );
         await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_server ON ${Tables.syncOutbox}(book_id, server_id)',
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_server ON ${Tables.syncOutbox}(owner_user_id, book_id, server_id)',
         );
         break;
       case 9:
@@ -322,6 +323,33 @@ class DatabaseHelper {
         try {
           await db.execute('CREATE INDEX IF NOT EXISTS idx_accounts_type ON ${Tables.accounts}(type)');
         } catch (_) {}
+      case 12:
+        // sync_outbox: isolate queued ops by owner_user_id so cross-account login won't push stale deletes/updates.
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.syncOutbox} ADD COLUMN owner_user_id INTEGER NOT NULL DEFAULT 0',
+          );
+        } catch (_) {}
+        // Best-effort: attribute existing outbox rows to the last known owner, if any.
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final uid = prefs.getInt('sync_owner_user_id') ?? prefs.getInt('auth_user_id');
+          if (uid != null) {
+            await db.execute(
+              'UPDATE ${Tables.syncOutbox} SET owner_user_id = ? WHERE owner_user_id = 0',
+              [uid],
+            );
+          }
+        } catch (_) {}
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_created ON ${Tables.syncOutbox}(owner_user_id, book_id, created_at)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_op_record ON ${Tables.syncOutbox}(owner_user_id, book_id, op, record_id)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_server ON ${Tables.syncOutbox}(owner_user_id, book_id, server_id)',
+        );
         break;
       default:
         break;
@@ -357,6 +385,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${Tables.syncOutbox} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_user_id INTEGER NOT NULL DEFAULT 0,
         book_id TEXT NOT NULL,
         op TEXT NOT NULL,
         record_id TEXT,
@@ -546,13 +575,13 @@ class DatabaseHelper {
 
     // 同步发件箱索引
     await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_created ON ${Tables.syncOutbox}(book_id, created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_created ON ${Tables.syncOutbox}(owner_user_id, book_id, created_at)',
     );
     await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_op_record ON ${Tables.syncOutbox}(book_id, op, record_id)',
+      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_op_record ON ${Tables.syncOutbox}(owner_user_id, book_id, op, record_id)',
     );
     await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_book_server ON ${Tables.syncOutbox}(book_id, server_id)',
+      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_server ON ${Tables.syncOutbox}(owner_user_id, book_id, server_id)',
     );
 
     // 标签索引

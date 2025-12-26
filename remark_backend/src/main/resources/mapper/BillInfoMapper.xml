@@ -137,6 +137,24 @@
     WHERE book_id = #{bookId} AND is_delete = 0
   </select>
 
+  <select id="summaryNonDeletedByUserIdAndBookId" resultType="com.remark.money.entity.BillInfoSyncSummary">
+    SELECT
+      COUNT(*) AS billCount,
+      COALESCE(SUM(id), 0) AS sumIds,
+      COALESCE(SUM(version), 0) AS sumVersions
+    FROM bill_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
+  </select>
+
+  <select id="summaryNonDeletedByBookId" resultType="com.remark.money.entity.BillInfoSyncSummary">
+    SELECT
+      COUNT(*) AS billCount,
+      COALESCE(SUM(id), 0) AS sumIds,
+      COALESCE(SUM(version), 0) AS sumVersions
+    FROM bill_info
+    WHERE book_id = #{bookId} AND is_delete = 0
+  </select>
+
   <select id="sumIdsNonDeletedByUserIdAndBookId" resultType="Long">
     SELECT COALESCE(SUM(id), 0)
     FROM bill_info

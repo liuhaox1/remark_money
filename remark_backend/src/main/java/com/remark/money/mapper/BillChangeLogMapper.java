@@ -1,5 +1,6 @@
 package com.remark.money.mapper;
 
+import com.remark.money.entity.BillChangeLogRange;
 import com.remark.money.entity.BillChangeLog;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -19,6 +20,9 @@ public interface BillChangeLogMapper {
 
   int countForScope(@Param("bookId") String bookId,
                     @Param("scopeUserId") Long scopeUserId);
+
+  Integer existsAnyForScope(@Param("bookId") String bookId,
+                            @Param("scopeUserId") Long scopeUserId);
 
   int bootstrapShared(@Param("bookId") String bookId,
                       @Param("scopeUserId") Long scopeUserId);
@@ -41,6 +45,10 @@ public interface BillChangeLogMapper {
   Long findMinChangeIdSince(@Param("bookId") String bookId,
                             @Param("scopeUserId") Long scopeUserId,
                             @Param("cutoff") LocalDateTime cutoff);
+
+  BillChangeLogRange findRangeForScopeSince(@Param("bookId") String bookId,
+                                            @Param("scopeUserId") Long scopeUserId,
+                                            @Param("cutoff") LocalDateTime cutoff);
 
   int deleteBefore(@Param("cutoff") LocalDateTime cutoff);
 
