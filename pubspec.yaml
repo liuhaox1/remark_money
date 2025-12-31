@@ -46,6 +46,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
+  image: ^4.3.0
 
 dependency_overrides:
   # 涓存椂瑕嗙洊 win32 浠ヤ慨澶?UnmodifiableUint8ListView 鍏煎鎬ч棶棰?
@@ -57,9 +58,8 @@ flutter:
 
   # 闈欐€佽祫婧愮洰褰?
   assets:
-    - assets/brands/
-    - assets/brands/banks_png/
+    - assets/brands/alipay.svg
+    - assets/brands/wechat.svg
     - assets/brands/banks_icon_trim/
-    - assets/
 
 

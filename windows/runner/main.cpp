@@ -27,7 +27,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"remark_money", origin, size)) {
+  // Use unicode escapes to avoid source encoding issues on Windows toolchains.
+  if (!window.Create(L"\u6307\u5c16\u8bb0\u8d26", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
