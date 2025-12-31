@@ -66,6 +66,7 @@ class _BillPageState extends State<BillPage> {
   late int _selectedYear;
   late DateTime _selectedMonth;
   late DateTimeRange _selectedWeek;
+  int _weekAutoJumpSeq = 0;
 
   String? _yearStatsKey;
   Future<List<Map<String, double>>>? _yearStatsFuture;
@@ -94,6 +95,100 @@ class _BillPageState extends State<BillPage> {
   Set<String> _filterAccountIds = <String>{};
   DateTime? _startDate;
   DateTime? _endDate;
+
+  Future<DateTime?> _latestRecordDateInRange(
+    RecordProvider recordProvider,
+    String bookId, {
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final records = await recordProvider.recordsForPeriodPaginated(
+      bookId,
+      start: start,
+      end: end,
+      limit: 1,
+      offset: 0,
+    );
+    if (records.isEmpty) return null;
+    return records.first.date;
+  }
+
+  Future<void> _autoSelectWeekWithData({
+    required String bookId,
+    required RecordProvider recordProvider,
+    bool keepMonthContext = true,
+  }) async {
+    if (_periodType != PeriodType.week) return;
+    if (widget.initialRange != null) return;
+
+    final now = DateTime.now();
+    final token = ++_weekAutoJumpSeq;
+
+    final monthStart = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
+    final monthEnd = DateTime(
+      _selectedMonth.year,
+      _selectedMonth.month + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+    final targetYear = monthStart.year;
+    final yearStart = DateTime(targetYear, 1, 1);
+    final yearEnd = DateTime(targetYear, 12, 31, 23, 59, 59, 999);
+
+    DateTime? latestInMonth;
+    DateTime? latestInYear;
+
+    try {
+      latestInMonth = await _latestRecordDateInRange(
+        recordProvider,
+        bookId,
+        start: monthStart,
+        end: monthEnd,
+      );
+    } catch (_) {}
+
+    if (latestInMonth == null) {
+      try {
+        latestInYear = await _latestRecordDateInRange(
+          recordProvider,
+          bookId,
+          start: yearStart,
+          end: yearEnd,
+        );
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    if (_periodType != PeriodType.week) return;
+    if (token != _weekAutoJumpSeq) return;
+
+    final baseDate = latestInMonth ??
+        latestInYear ??
+        (monthStart.year == now.year && monthStart.month == now.month
+            ? now
+            : monthStart);
+    final targetWeek = DateUtilsX.weekRange(baseDate);
+    final contextYear = keepMonthContext ? monthStart.year : baseDate.year;
+
+    if (_selectedWeek.start == targetWeek.start &&
+        _selectedWeek.end == targetWeek.end) {
+      return;
+    }
+
+    setState(() {
+      _selectedWeek = targetWeek;
+      _selectedYear = contextYear;
+      if (keepMonthContext) {
+        _selectedMonth = DateTime(monthStart.year, monthStart.month, 1);
+      } else {
+        _selectedMonth =
+            DateTime(_selectedWeek.start.year, _selectedWeek.start.month, 1);
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -159,6 +254,20 @@ class _BillPageState extends State<BillPage> {
         _endDate = widget.dayModeDate;
       }
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_periodType != PeriodType.week) return;
+      if (widget.initialRange != null) return;
+
+      final recordProvider = context.read<RecordProvider>();
+      final bookId = context.read<BookProvider>().activeBookId;
+      _autoSelectWeekWithData(
+        bookId: bookId,
+        recordProvider: recordProvider,
+        keepMonthContext: false,
+      );
+    });
   }
 
   void _pickYear() async {
@@ -662,7 +771,7 @@ class _BillPageState extends State<BillPage> {
       return Expanded(
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: () {
+          onTap: () async {
             if (_periodType == type) return;
             setState(() {
               _periodType = type;
@@ -672,6 +781,15 @@ class _BillPageState extends State<BillPage> {
                 _selectedYear = _selectedMonth.year;
               }
             });
+            if (type == PeriodType.week && mounted) {
+              final recordProvider = context.read<RecordProvider>();
+              final bookId = context.read<BookProvider>().activeBookId;
+              await _autoSelectWeekWithData(
+                bookId: bookId,
+                recordProvider: recordProvider,
+                keepMonthContext: true,
+              );
+            }
           },
           child: Container(
             height: 40,
@@ -1104,51 +1222,22 @@ class _BillPageState extends State<BillPage> {
     return Scaffold(
       appBar: AppBar(
         // 顶部不显示文字标题，避免与中间的周/月/年切换重复
-        title: const SizedBox.shrink(),
+        centerTitle: true,
+        title: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: const BookSelectorButton(compact: true),
+          ),
+        ),
         actions: [
-          const BookSelectorButton(compact: true),
           IconButton(
-            tooltip: AppStrings.filter,
-            icon: const Icon(Icons.filter_alt_outlined),
-            onPressed: _openFilterSheet,
+            tooltip: AppStrings.report,
+            icon: const Icon(Icons.bar_chart_outlined),
+            onPressed: () => _openReportDetail(context, bookId),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
           ),
-          Builder(
-            builder: (context) {
-              final cs = Theme.of(context).colorScheme;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: OutlinedButton.icon(
-                  onPressed: () => _openReportDetail(context, bookId),
-                  icon: Icon(
-                    Icons.bar_chart_outlined,
-                    size: 18,
-                    color: cs.primary,
-                  ),
-                  label: Text(
-                    AppStrings.report,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: cs.primary,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    side: BorderSide(
-                      color: cs.primary.withOpacity(0.3),
-                      width: 1,
-                    ),
-                    backgroundColor: cs.primary.withOpacity(0.05),
-                  ),
-                ),
-              );
-            },
-          ),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: '导出数据',
             icon: const Icon(Icons.ios_share_outlined),
@@ -1243,6 +1332,8 @@ class _BillPageState extends State<BillPage> {
                 ),
               );
             },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
           ),
           const SizedBox(width: 8),
         ],
@@ -1250,7 +1341,7 @@ class _BillPageState extends State<BillPage> {
       body: Column(
         children: [
           if (!ready) const LinearProgressIndicator(minHeight: 2),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // 搜索栏
           _BillSearchBar(
@@ -3957,20 +4048,21 @@ class _BillSearchBar extends StatelessWidget {
     final hasKeyword = keyword.trim().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: cs.surface,
+          color: cs.surfaceContainerHighest.withOpacity(0.55),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: cs.outline.withOpacity(0.2),
-            width: 1,
-          ),
         ),
         child: Row(
           children: [
-            const Icon(Icons.search, size: 20),
+            Icon(
+              Icons.search,
+              size: 20,
+              color: cs.onSurface.withOpacity(0.7),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: TextField(
@@ -3987,23 +4079,23 @@ class _BillSearchBar extends StatelessWidget {
             ),
             if (hasKeyword)
               IconButton(
+                tooltip: AppStrings.clearHistory,
                 icon: const Icon(Icons.clear, size: 18),
                 onPressed: onClear,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              )
-            else
-              IconButton(
-                icon: Icon(
-                  hasActiveFilter
-                      ? Icons.filter_alt
-                      : Icons.filter_alt_outlined,
-                  size: 20,
-                ),
-                onPressed: onTapFilter,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               ),
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: AppStrings.filter,
+              icon: Icon(
+                hasActiveFilter ? Icons.filter_alt : Icons.filter_alt_outlined,
+                size: 20,
+              ),
+              onPressed: onTapFilter,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
           ],
         ),
       ),
