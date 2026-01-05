@@ -245,6 +245,7 @@ class _AuthWrapperState extends State<_AuthWrapper> {
     if (_isLoggedIn) {
       return const RootShell();
     } else {
+      // 产品策略：支持免登录（游客模式），用户可从 Profile 入口自行登录
       return const RootShell();
     }
   }

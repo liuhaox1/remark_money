@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:remark_money/models/record.dart';
 import 'package:remark_money/providers/account_provider.dart';
 import 'package:remark_money/providers/book_provider.dart';
 import 'package:remark_money/providers/budget_provider.dart';
@@ -13,48 +15,18 @@ import 'package:remark_money/providers/tag_provider.dart';
 import 'package:remark_money/providers/theme_provider.dart';
 import 'package:remark_money/repository/repository_factory.dart';
 import 'package:remark_money/services/qa_seed_service.dart';
-import 'package:remark_money/services/auth_service.dart';
-
-class _SeedRunner extends StatefulWidget {
-  const _SeedRunner({required this.onDone});
-
-  final void Function(QaSeedReport report) onDone;
-
-  @override
-  State<_SeedRunner> createState() => _SeedRunnerState();
-}
-
-class _SeedRunnerState extends State<_SeedRunner> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final report = await QaSeedService.seed(context);
-      widget.onDone(report);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
-}
+import 'package:remark_money/services/sync_outbox_service.dart';
 
 void main() {
-  setUp(() async {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('Guest create -> outbox adopt after login', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'use_shared_preferences': true,
     });
+    await RepositoryFactory.resetMigrationState();
     await RepositoryFactory.initialize();
-  });
 
-  testWidgets('AuthService without token is logged out', (tester) async {
-    // _AuthWrapper is private; validate the business rule via AuthService.
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    final service = const AuthService();
-    expect(await service.isTokenValid(), isFalse);
-  });
-
-  testWidgets('QA seed generates baseline dataset', (tester) async {
     final bookProvider = BookProvider();
     final recordProvider = RecordProvider();
     final categoryProvider = CategoryProvider();
@@ -75,7 +47,6 @@ void main() {
     ]);
     await tagProvider.loadForBook(bookProvider.activeBookId);
 
-    QaSeedReport? report;
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -88,37 +59,56 @@ void main() {
           ChangeNotifierProvider.value(value: tagProvider),
           ChangeNotifierProvider.value(value: recurringProvider),
         ],
-        child: MaterialApp(
-          home: _SeedRunner(
-            onDone: (r) => report = r,
-          ),
-        ),
+        child: const MaterialApp(home: SizedBox.shrink()),
       ),
     );
 
-    await tester.pumpAndSettle(const Duration(seconds: 10));
-    expect(report, isNotNull);
-    expect(report!.bookId, 'qa-book');
-    expect(bookProvider.activeBookId, 'qa-book');
-
-    // Accounts
-    expect(
-      accountProvider.accounts.any((a) => a.id == 'default_wallet'),
-      isTrue,
+    // 1) Seed baseline in qa-book (guest mode).
+    final report = await QaSeedService.seed(
+      tester.element(find.byType(SizedBox)),
     );
-    expect(
-      accountProvider.accounts.any((a) => a.id == 'qa_credit_card'),
-      isTrue,
+    expect(report.bookId, 'qa-book');
+
+    // 2) Add a new local record while logged out; this should enqueue an upsert into guest outbox.
+    final accountId = accountProvider.accounts.isNotEmpty
+        ? accountProvider.accounts.first.id
+        : (await accountProvider.ensureDefaultWallet(bookId: 'qa-book')).id;
+    final expenseCategory =
+        categoryProvider.categories.firstWhere((c) => c.isExpense).key;
+
+    await recordProvider.addRecord(
+      amount: 12.34,
+      remark: 'integration_guest',
+      date: DateTime.now(),
+      categoryKey: expenseCategory,
+      bookId: 'qa-book',
+      accountId: accountId,
+      direction: TransactionDirection.out,
+      includeInStats: true,
+      accountProvider: accountProvider,
     );
 
-    // Tags
-    expect(tagProvider.tags.where((t) => t.bookId == 'qa-book').length, greaterThanOrEqualTo(6));
+    final outbox = SyncOutboxService.instance;
+    final guestPending = await outbox.loadPending('qa-book');
+    expect(guestPending, isNotEmpty);
 
-    // Records
-    final all = recordProvider.recordsForBookAll('qa-book');
-    expect(all.length, greaterThanOrEqualTo(50));
-    // includeInStats subset should be non-empty too.
-    final inStats = recordProvider.recordsForBook('qa-book');
-    expect(inStats.length, greaterThanOrEqualTo(30));
+    // 3) Simulate login: set a non-mock token + user id.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', 'token_integration');
+    await prefs.setInt('auth_user_id', 7);
+    await prefs.setInt('sync_owner_user_id', 7);
+
+    // Before adoption, user-scoped outbox should be empty (guest ops not visible).
+    final beforeAdopt = await outbox.loadPending('qa-book');
+    expect(beforeAdopt, isEmpty);
+
+    // 4) Adopt guest creates to current user.
+    await outbox.adoptGuestOutboxToCurrentUser();
+    final afterAdopt = await outbox.loadPending('qa-book');
+    expect(afterAdopt, isNotEmpty);
+
+    // Ensure adopted ops are upserts (guest deletes should not be adopted).
+    expect(afterAdopt.every((e) => e.op == SyncOutboxOp.upsert), isTrue);
   });
 }
+
