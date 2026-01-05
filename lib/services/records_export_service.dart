@@ -114,7 +114,7 @@ class RecordsExportService {
         await tempFile.writeAsBytes(bytes, flush: true);
         break;
       case RecordsExportFormat.pdf:
-        final bytes = await _buildPdfBytes(
+        final bytes = await _buildPdfBytesSafe(
           exportRecords,
           bookName: bookName,
           range: range,
@@ -204,8 +204,8 @@ class RecordsExportService {
           );
           await tempFile.writeAsBytes(bytes, flush: true);
           break;
-        case RecordsExportFormat.pdf:
-          final bytes = await _buildPdfBytes(
+      case RecordsExportFormat.pdf:
+          final bytes = await _buildPdfBytesSafe(
             exportRecords,
             bookName: bookName,
             range: range,
@@ -429,5 +429,99 @@ class RecordsExportService {
 
     final bytes = await doc.save();
     return Uint8List.fromList(bytes);
+  }
+
+  static Future<Uint8List> _buildPdfBytesSafe(
+    List<Record> records, {
+    required String bookName,
+    required DateTimeRange range,
+    required Map<String, Category> categoriesByKey,
+    required Map<String, Book> booksById,
+    required Map<String, Account> accountsById,
+  }) async {
+    try {
+      return await _buildPdfBytes(
+        records,
+        bookName: bookName,
+        range: range,
+        categoriesByKey: categoriesByKey,
+        booksById: booksById,
+        accountsById: accountsById,
+      );
+    } catch (_) {
+      // Fallback: build without downloading fonts (works offline; glyph coverage depends on platform).
+      // To avoid unreadable PDFs when the platform font lacks CJK glyphs, use ASCII headers and ids/keys.
+      final headers = <String>[
+        'Date',
+        'Amount',
+        'Direction',
+        'CategoryKey',
+        'BookId',
+        'AccountId',
+        'Remark',
+        'InStats',
+      ];
+      final data = records.map((r) {
+        final directionStr = r.isIncome ? 'income' : 'expense';
+        final includeStr = r.includeInStats ? 'Y' : 'N';
+        return <String>[
+          _formatDate(r.date),
+          r.amount.toStringAsFixed(2),
+          directionStr,
+          r.categoryKey,
+          r.bookId,
+          r.accountId,
+          r.remark,
+          includeStr,
+        ];
+      }).toList(growable: false);
+      final doc = pw.Document();
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          theme: pw.ThemeData(),
+          build: (ctx) => [
+            pw.Text(
+              'Export Data',
+              style: pw.TextStyle(
+                fontSize: 16,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Text('Book: $bookName'),
+            pw.Text(
+              'Range: ${DateUtilsX.ymd(range.start)} ~ ${DateUtilsX.ymd(range.end)}',
+            ),
+            pw.Text('Count: ${records.length}'),
+            pw.SizedBox(height: 10),
+            pw.TableHelper.fromTextArray(
+              headers: headers,
+              data: data,
+              cellStyle: const pw.TextStyle(fontSize: 9),
+              headerStyle: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+              headerDecoration:
+                  const pw.BoxDecoration(color: PdfColors.grey300),
+              cellAlignment: pw.Alignment.centerLeft,
+              columnWidths: {
+                0: const pw.FlexColumnWidth(1.4),
+                1: const pw.FlexColumnWidth(0.8),
+                2: const pw.FlexColumnWidth(0.8),
+                3: const pw.FlexColumnWidth(1.0),
+                4: const pw.FlexColumnWidth(1.0),
+                5: const pw.FlexColumnWidth(1.0),
+                6: const pw.FlexColumnWidth(1.8),
+                7: const pw.FlexColumnWidth(0.8),
+              },
+            ),
+          ],
+        ),
+      );
+      final bytes = await doc.save();
+      return Uint8List.fromList(bytes);
+    }
   }
 }

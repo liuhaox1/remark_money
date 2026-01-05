@@ -723,7 +723,8 @@ class RecordProvider extends ChangeNotifier {
             !record.date.isBefore(start) &&
             !record.date.isAfter(end) &&
             record.isExpense &&
-            record.includeInStats) {
+            record.includeInStats &&
+            !record.categoryKey.startsWith('transfer')) {
           expense += record.expenseValue;
         }
       }
@@ -748,7 +749,8 @@ class RecordProvider extends ChangeNotifier {
             !record.date.isBefore(start) &&
             !record.date.isAfter(end) &&
             record.isExpense &&
-            record.includeInStats) {
+            record.includeInStats &&
+            !record.categoryKey.startsWith('transfer')) {
           result[record.categoryKey] =
               (result[record.categoryKey] ?? 0) + record.expenseValue;
         }
@@ -1207,6 +1209,8 @@ class RecordProvider extends ChangeNotifier {
           record.date.year == month.year &&
           record.date.month == month.month) {
         if (!record.includeInStats) continue;
+        // Keep behavior consistent with DB aggregates: transfer records are not part of income/expense stats.
+        if (record.categoryKey.startsWith('transfer')) continue;
         if (record.isIncome) {
           income += record.incomeValue;
         } else {
@@ -1286,6 +1290,7 @@ class RecordProvider extends ChangeNotifier {
     for (final record in _recentRecordsCache) {
       if (record.bookId == bookId && DateUtilsX.isSameDay(record.date, day)) {
         if (!record.includeInStats) continue;
+        if (record.categoryKey.startsWith('transfer')) continue;
         if (record.isIncome) {
           income += record.incomeValue;
         } else {
