@@ -905,7 +905,8 @@ class RecordRepositoryDb {
     try {
       final db = await _dbHelper.database;
       final start = DateTime(year, month, 1).millisecondsSinceEpoch;
-      final end = DateTime(year, month + 1, 0, 23, 59, 59).millisecondsSinceEpoch;
+      final end =
+          DateTime(year, month + 1, 0, 23, 59, 59, 999).millisecondsSinceEpoch;
 
       final result = await db.rawQuery('''
         SELECT 
@@ -940,7 +941,8 @@ class RecordRepositoryDb {
     try {
       final db = await _dbHelper.database;
       final start = DateTime(day.year, day.month, day.day).millisecondsSinceEpoch;
-      final end = DateTime(day.year, day.month, day.day, 23, 59, 59).millisecondsSinceEpoch;
+      final end =
+          DateTime(day.year, day.month, day.day, 23, 59, 59, 999).millisecondsSinceEpoch;
 
       final result = await db.rawQuery('''
         SELECT 

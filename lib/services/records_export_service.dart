@@ -42,6 +42,93 @@ extension RecordsExportFormatX on RecordsExportFormat {
 }
 
 class RecordsExportService {
+  /// Generate an export file in the temporary directory without invoking any platform UI
+  /// (FilePicker/Share) and without showing toasts/snackbars.
+  ///
+  /// Intended for automated tests and non-interactive flows.
+  static Future<File> generateTempExportFile(
+    BuildContext context, {
+    required String bookId,
+    required DateTimeRange range,
+    required RecordsExportFormat format,
+  }) async {
+    final recordProvider = context.read<RecordProvider>();
+    final bookProvider = context.read<BookProvider>();
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+
+    final records = await recordProvider.recordsForPeriodAsync(
+      bookId,
+      start: range.start,
+      end: range.end,
+    );
+    final exportRecords = records.where((r) => r.includeInStats).toList();
+    if (exportRecords.isEmpty) {
+      throw StateError('No records in range');
+    }
+
+    final categoryMap = {
+      for (final c in categoryProvider.categories) c.key: c,
+    };
+    final bookMap = {
+      for (final b in bookProvider.books) b.id: b,
+    };
+    final accountMap = {
+      for (final a in accountProvider.accounts) a.id: a,
+    };
+
+    Book? book;
+    for (final b in bookProvider.books) {
+      if (b.id == bookId) {
+        book = b;
+        break;
+      }
+    }
+    book ??= bookProvider.activeBook;
+    final bookName = book?.name ?? AppStrings.defaultBook;
+    final safeBookName = bookName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    final startStr = DateUtilsX.ymd(range.start).replaceAll('/', '-');
+    final endStr = DateUtilsX.ymd(range.end).replaceAll('/', '-');
+    final fileName = '${safeBookName}_${startStr}_$endStr.${format.extension}';
+
+    final dir = await getTemporaryDirectory();
+    final tempFile = File('${dir.path}/$fileName');
+
+    switch (format) {
+      case RecordsExportFormat.csv:
+        final csv = _buildCsvText(
+          exportRecords,
+          categoriesByKey: categoryMap,
+          booksById: bookMap,
+          accountsById: accountMap,
+        );
+        await tempFile.writeAsString(csv, encoding: utf8);
+        break;
+      case RecordsExportFormat.excel:
+        final bytes = _buildExcelBytes(
+          exportRecords,
+          categoriesByKey: categoryMap,
+          booksById: bookMap,
+          accountsById: accountMap,
+        );
+        await tempFile.writeAsBytes(bytes, flush: true);
+        break;
+      case RecordsExportFormat.pdf:
+        final bytes = await _buildPdfBytes(
+          exportRecords,
+          bookName: bookName,
+          range: range,
+          categoriesByKey: categoryMap,
+          booksById: bookMap,
+          accountsById: accountMap,
+        );
+        await tempFile.writeAsBytes(bytes, flush: true);
+        break;
+    }
+
+    return tempFile;
+  }
+
   static Future<void> exportRecords(
     BuildContext context, {
     required String bookId,
