@@ -24,7 +24,6 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'use_shared_preferences': true,
     });
-    await RepositoryFactory.resetMigrationState();
     await RepositoryFactory.initialize();
 
     final bookProvider = BookProvider();
@@ -111,4 +110,3 @@ void main() {
     expect(afterAdopt.every((e) => e.op == SyncOutboxOp.upsert), isTrue);
   });
 }
-
