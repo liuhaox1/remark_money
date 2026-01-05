@@ -101,6 +101,9 @@ class SyncEngine {
     BuildContext context, {
     String reason = 'login',
   }) async {
+    final bookProvider = context.read<BookProvider>();
+    final recordProvider = context.read<RecordProvider>();
+
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
 
@@ -108,7 +111,6 @@ class SyncEngine {
     // can be uploaded, while keeping stale ops from other accounts isolated.
     await _outbox.adoptGuestOutboxToCurrentUser();
 
-    final bookProvider = context.read<BookProvider>();
     final bookIds = <String>{};
     final active = bookProvider.activeBookId;
     if (active.isNotEmpty) bookIds.add(active);
@@ -117,7 +119,7 @@ class SyncEngine {
     }
 
     for (final bid in bookIds) {
-      await _uploadOutboxV2(context, bid, reason: reason);
+      await _uploadOutboxV2(recordProvider, bid, reason: reason);
     }
   }
 
@@ -130,9 +132,12 @@ class SyncEngine {
     String bookId, {
     String reason = 'unknown',
   }) async {
+    final recordProvider = context.read<RecordProvider>();
+    final accountProvider = context.read<AccountProvider>();
+
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
-    await _uploadOutboxV2(context, bookId, reason: reason);
+    await _uploadOutboxV2(recordProvider, bookId, reason: reason);
     // 性能关键点：本地记账触发 outbox 变化时，先只 push（把本地变更上云）。
     // 立即 pull 会额外产生一轮 bill_change_log + bill_info 查询（服务端/客户端都浪费）。
     // 多设备变更的拉取由 app_start / app_resumed（以及未来可选的轮询/SSE）来覆盖。
@@ -143,11 +148,21 @@ class SyncEngine {
     // - Meta (categories/tags/budget/accounts/...) is scheduled separately by BackgroundSyncManager,
     //   to avoid duplicate requests/SQL during login/app_start flows.
 
-    await _pullV2(context, bookId, reason: reason);
+    await _pullV2(
+      recordProvider,
+      accountProvider,
+      bookId,
+      reason: reason,
+    );
 
     final shouldSummaryCheck = reason == 'app_start' || reason == 'app_resumed';
     if (shouldSummaryCheck) {
-      await _maybeBootstrapFromSummary(context, bookId, reason: reason);
+      await _maybeBootstrapFromSummary(
+        recordProvider,
+        accountProvider,
+        bookId,
+        reason: reason,
+      );
     }
   }
 
@@ -156,6 +171,12 @@ class SyncEngine {
     String bookId, {
     bool pushBeforePull = true,
   }) async {
+    final recordProvider = context.read<RecordProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final categoryProvider = context.read<CategoryProvider>();
+    final tagProvider = context.read<TagProvider>();
+    final budgetProvider = context.read<BudgetProvider>();
+
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return;
 
@@ -164,11 +185,14 @@ class SyncEngine {
     await SyncV2SummaryStore.clear(bookId);
 
     if (pushBeforePull) {
-      await _uploadOutboxV2(context, bookId, reason: 'force_bootstrap');
+      await _uploadOutboxV2(recordProvider, bookId, reason: 'force_bootstrap');
     }
-    await _syncCategories(context, reason: 'force_bootstrap');
-    await _syncTags(context, bookId, reason: 'force_bootstrap');
-    await _pullV2(context, bookId, reason: 'force_bootstrap');
+    await _syncCategories(categoryProvider, reason: 'force_bootstrap');
+    await _syncTags(tagProvider, bookId, reason: 'force_bootstrap');
+    await _syncBudget(budgetProvider, bookId, reason: 'force_bootstrap');
+    await _syncAccounts(accountProvider, recordProvider, bookId, reason: 'force_bootstrap');
+    await _syncSavingsPlans(bookId, reason: 'force_bootstrap');
+    await _pullV2(recordProvider, accountProvider, bookId, reason: 'force_bootstrap');
   }
 
   /// 同步“元数据”（预算/账户等低频数据）。
@@ -178,41 +202,47 @@ class SyncEngine {
     String bookId, {
     String reason = 'unknown',
   }) async {
+    final categoryProvider = context.read<CategoryProvider>();
+    final tagProvider = context.read<TagProvider>();
+    final budgetProvider = context.read<BudgetProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final recordProvider = context.read<RecordProvider>();
+
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return false;
     // Avoid syncing unrelated meta on user-triggered changes to reduce backend load.
     // Full meta refresh still happens on app_start/app_resumed/meta_periodic/force_bootstrap.
     if (reason == 'categories_changed') {
-      await _syncCategories(context, reason: reason);
+      await _syncCategories(categoryProvider, reason: reason);
       return true;
     }
     if (reason == 'tags_changed') {
-      await _syncTags(context, bookId, reason: reason);
+      await _syncTags(tagProvider, bookId, reason: reason);
       return true;
     }
     if (reason == 'budget_changed') {
-      await _syncBudget(context, bookId, reason: reason);
+      await _syncBudget(budgetProvider, bookId, reason: reason);
       return true;
     }
     if (reason == 'accounts_changed') {
-      await _syncAccounts(context, bookId, reason: reason);
+      await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
       return true;
     }
     if (reason == 'savings_plans_changed') {
-      await _syncSavingsPlans(context, bookId, reason: reason);
+      await _syncSavingsPlans(bookId, reason: reason);
       return true;
     }
 
-    await _syncCategories(context, reason: reason);
-    await _syncTags(context, bookId, reason: reason);
-    await _syncBudget(context, bookId, reason: reason);
-    await _syncAccounts(context, bookId, reason: reason);
-    await _syncSavingsPlans(context, bookId, reason: reason);
+    await _syncCategories(categoryProvider, reason: reason);
+    await _syncTags(tagProvider, bookId, reason: reason);
+    await _syncBudget(budgetProvider, bookId, reason: reason);
+    await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
+    await _syncSavingsPlans(bookId, reason: reason);
     return true;
   }
 
   Future<void> _syncCategories(
-    BuildContext context, {
+    CategoryProvider? categoryProvider, {
     required String reason,
   }) async {
     final uid = await _authUserIdOrZero();
@@ -270,9 +300,11 @@ class SyncEngine {
             .toList(growable: false);
         final remoteCats2 = remote2.map(Category.fromMap).toList(growable: false);
         await repo.saveCategories(remoteCats2);
-        try {
-          await context.read<CategoryProvider>().reload();
-        } catch (_) {}
+        if (categoryProvider != null) {
+          try {
+            await categoryProvider.reload();
+          } catch (_) {}
+        }
         return true;
       } catch (e) {
         debugPrint('[SyncEngine] categories sync failed: $e');
@@ -284,7 +316,7 @@ class SyncEngine {
   }
 
   Future<void> _syncTags(
-    BuildContext context,
+    TagProvider? tagProvider,
     String bookId, {
     required String reason,
   }) async {
@@ -357,9 +389,11 @@ class SyncEngine {
             .toList(growable: false);
         final remoteTags2 = remote2.map(Tag.fromMap).toList(growable: false);
         await repo.saveTagsForBook(bookId, remoteTags2);
-        try {
-          await context.read<TagProvider>().loadForBook(bookId, force: true);
-        } catch (_) {}
+        if (tagProvider != null) {
+          try {
+            await tagProvider.loadForBook(bookId, force: true);
+          } catch (_) {}
+        }
         return true;
       } catch (e) {
         debugPrint('[SyncEngine] tags sync failed: $e');
@@ -371,23 +405,16 @@ class SyncEngine {
   }
 
   Future<void> _uploadOutboxV2(
-    BuildContext context,
+    RecordProvider recordProvider,
     String bookId, {
     required String reason,
   }) async {
-    final recordProvider = context.read<RecordProvider>();
-
     while (true) {
       // 批处理性能关键：尽量把同一本账本的 outbox 聚合到一次 push
       final pending = await _outbox.loadPending(bookId, limit: 1000);
       if (pending.isEmpty) return;
 
-      await _assignServerIdsForCreates(
-        context,
-        bookId,
-        pending,
-        reason: reason,
-      );
+      await _assignServerIdsForCreates(recordProvider, bookId, pending, reason: reason);
 
       final ops = pending.map((e) => e.payload).toList(growable: false);
       final resp = await _syncService.v2Push(
@@ -632,12 +659,11 @@ class SyncEngine {
   }
 
   Future<void> _assignServerIdsForCreates(
-    BuildContext context,
+    RecordProvider recordProvider,
     String bookId,
     List<SyncOutboxItem> pending, {
     required String reason,
   }) async {
-    final recordProvider = context.read<RecordProvider>();
     final creates = <SyncOutboxItem>[];
     for (final it in pending) {
       final type = it.payload['type'] as String?;
@@ -695,7 +721,8 @@ class SyncEngine {
   }
 
   Future<void> _pullV2(
-    BuildContext context,
+    RecordProvider recordProvider,
+    AccountProvider accountProvider,
     String bookId, {
     required String reason,
   }) async {
@@ -745,8 +772,6 @@ class SyncEngine {
             );
 
       if (changes.isNotEmpty) {
-        final recordProvider = context.read<RecordProvider>();
-        final accountProvider = context.read<AccountProvider>();
         await _outbox.runSuppressed(() async {
           await DataVersionService.runWithoutIncrement(() async {
             // 性能关键：DB 模式下批量应用变更，避免逐条 add/update/delete 触发大量 notify/落库。
@@ -805,7 +830,8 @@ class SyncEngine {
   }
 
   Future<void> _maybeBootstrapFromSummary(
-    BuildContext context,
+    RecordProvider recordProvider,
+    AccountProvider accountProvider,
     String bookId, {
     required String reason,
   }) async {
@@ -834,8 +860,8 @@ class SyncEngine {
       final localCursor = await SyncV2CursorStore.getLastChangeId(bookId);
       if (localCursor != serverMaxChangeId) return;
 
-      final localSyncedCount = await _countLocalSyncedRecords(context, bookId);
-      final localAgg = await _localSyncedAgg(context, bookId);
+      final localSyncedCount = await _countLocalSyncedRecords(recordProvider, bookId);
+      final localAgg = await _localSyncedAgg(recordProvider, bookId);
       final bool ok =
           localSyncedCount == serverBillCount &&
           localAgg.sumIds == serverSumIds &&
@@ -846,14 +872,19 @@ class SyncEngine {
       debugPrint(
           '[SyncEngine] v2 summary mismatch; bootstrap pull book=$bookId localSynced=$localSyncedCount serverBillCount=$serverBillCount cursor=$localCursor');
       await SyncV2CursorStore.setLastChangeId(bookId, 0);
-      await _pullV2(context, bookId, reason: 'bootstrap_summary_mismatch');
+      await _pullV2(
+        recordProvider,
+        accountProvider,
+        bookId,
+        reason: 'bootstrap_summary_mismatch',
+      );
     } catch (e) {
       debugPrint('[SyncEngine] v2 summary check failed: $e');
     }
   }
 
   Future<({int sumIds, int sumVersions})> _localSyncedAgg(
-    BuildContext context,
+    RecordProvider recordProvider,
     String bookId,
   ) async {
     int sumIds = 0;
@@ -868,7 +899,6 @@ class SyncEngine {
         // Fall back to in-memory calculation.
       }
     }
-    final recordProvider = context.read<RecordProvider>();
     for (final r in recordProvider.recordsForBook(bookId)) {
       final sid = r.serverId;
       if (sid == null) continue;
@@ -878,7 +908,7 @@ class SyncEngine {
     return (sumIds: sumIds, sumVersions: sumVersions);
   }
 
-  Future<int> _countLocalSyncedRecords(BuildContext context, String bookId) async {
+  Future<int> _countLocalSyncedRecords(RecordProvider recordProvider, String bookId) async {
     if (RepositoryFactory.isUsingDatabase) {
       try {
         final repo = RepositoryFactory.createRecordRepository();
@@ -887,8 +917,6 @@ class SyncEngine {
         }
       } catch (_) {}
     }
-
-    final recordProvider = context.read<RecordProvider>();
     return recordProvider
         .recordsForBook(bookId)
         .where((r) => r.serverId != null)
@@ -1040,7 +1068,6 @@ class SyncEngine {
   }
 
   Future<void> _syncSavingsPlans(
-    BuildContext context,
     String bookId, {
     required String reason,
   }) async {
@@ -1149,13 +1176,12 @@ class SyncEngine {
   }
 
   Future<void> _syncBudget(
-    BuildContext context,
+    BudgetProvider budgetProvider,
     String bookId, {
     required String reason,
   }) async {
     try {
       debugPrint('[SyncEngine] budget sync book=$bookId reason=$reason');
-      final budgetProvider = context.read<BudgetProvider>();
       final budgetEntry = budgetProvider.budgetForBook(bookId);
       final localEditMs = await BudgetSyncStateStore.getLocalEditMs(bookId);
       final localBaseSyncVersion =
@@ -1371,13 +1397,13 @@ class SyncEngine {
   }
 
   Future<void> _syncAccounts(
-    BuildContext context,
+    AccountProvider accountProvider,
+    RecordProvider recordProvider,
     String bookId, {
     required String reason,
   }) async {
     try {
       debugPrint('[SyncEngine] account sync book=$bookId reason=$reason');
-      final accountProvider = context.read<AccountProvider>();
       // 元数据以服务器为准：不在后台做全量上传，避免频繁SQL与覆盖风险
       // 账户的新增/修改应走专用服务接口（成功后再刷新）。
 
@@ -1464,19 +1490,17 @@ class SyncEngine {
         });
       });
 
-      await _repairLegacyRecordAccountIds(context, bookId);
+      await _repairLegacyRecordAccountIds(accountProvider, recordProvider, bookId);
     } catch (e) {
       debugPrint('[SyncEngine] account sync failed: $e');
     }
   }
 
   Future<void> _repairLegacyRecordAccountIds(
-    BuildContext context,
+    AccountProvider accountProvider,
+    RecordProvider recordProvider,
     String bookId,
   ) async {
-    final accountProvider = context.read<AccountProvider>();
-    final recordProvider = context.read<RecordProvider>();
-
     final byLegacy = <String, String>{};
     for (final a in accountProvider.accounts) {
       final sid = a.serverId;

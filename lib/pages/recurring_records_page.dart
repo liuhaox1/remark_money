@@ -8,6 +8,7 @@ import '../models/record.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/recurring_record_provider.dart';
+import '../widgets/slidable_icon_label.dart';
 import '../utils/error_handler.dart';
 import 'recurring_record_form_page.dart';
 
@@ -203,12 +204,14 @@ class _RecurringRecordsPageState extends State<RecurringRecordsPage> {
                         icon: Icons.edit_rounded,
                         label: '编辑',
                       ),
-                      SlidableAction(
+                      CustomSlidableAction(
                         onPressed: (_) => _confirmDelete(plan),
                         backgroundColor: cs.error,
-                        foregroundColor: cs.onError,
-                        icon: Icons.delete_rounded,
-                        label: '删除',
+                        child: const SlidableIconLabel(
+                          icon: Icons.delete_rounded,
+                          label: '删除',
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),

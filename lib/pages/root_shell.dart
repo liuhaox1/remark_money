@@ -15,6 +15,7 @@ import '../services/recurring_record_runner.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
+import '../widgets/slidable_icon_label.dart';
 import '../utils/error_handler.dart';
 import '../utils/validators.dart';
 import 'dart:async';
@@ -859,14 +860,16 @@ class _AccountTile extends StatelessWidget {
       key: ValueKey(account.id),
       endActionPane: ActionPane(
         motion: const DrawerMotion(),
-        extentRatio: 0.22,
+        extentRatio: 0.26,
         children: [
-          SlidableAction(
+          CustomSlidableAction(
             onPressed: (_) => _handleDelete(context),
             backgroundColor: AppColors.danger,
-            foregroundColor: cs.onError,
-            label: '删除',
-            icon: Icons.delete_outline,
+            child: const SlidableIconLabel(
+              icon: Icons.delete_outline,
+              label: '删除',
+              color: Colors.white,
+            ),
           ),
         ],
       ),

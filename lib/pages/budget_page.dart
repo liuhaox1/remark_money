@@ -34,6 +34,8 @@ class _BudgetPageState extends State<BudgetPage>
   final FocusNode _monthTotalFocusNode = FocusNode();
   final FocusNode _yearTotalFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
+  bool _savingMonthTotal = false;
+  bool _savingYearTotal = false;
 
   TabController? _tabController;
 
@@ -89,7 +91,20 @@ class _BudgetPageState extends State<BudgetPage>
     return double.parse(clamped.toStringAsFixed(2));
   }
 
+  Future<void> _dismissKeyboard() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    FocusScope.of(context).unfocus();
+    try {
+      await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    } catch (_) {
+      // ignore
+    }
+  }
+
   Future<void> _saveTotalBudget(String bookId) async {
+    await _dismissKeyboard();
+    if (_savingMonthTotal) return;
+    setState(() => _savingMonthTotal = true);
     try {
       final provider = context.read<BudgetProvider>();
       final parsed = _parseAmount(_monthTotalCtrl.text);
@@ -110,10 +125,15 @@ class _BudgetPageState extends State<BudgetPage>
     } catch (e) {
       if (!mounted) return;
       ErrorHandler.handleAsyncError(context, e);
+    } finally {
+      if (mounted) setState(() => _savingMonthTotal = false);
     }
   }
 
   Future<void> _saveAnnualBudget(String bookId) async {
+    await _dismissKeyboard();
+    if (_savingYearTotal) return;
+    setState(() => _savingYearTotal = true);
     try {
       final provider = context.read<BudgetProvider>();
       final parsed = _parseAmount(_yearTotalCtrl.text);
@@ -134,6 +154,8 @@ class _BudgetPageState extends State<BudgetPage>
     } catch (e) {
       if (!mounted) return;
       ErrorHandler.handleAsyncError(context, e);
+    } finally {
+      if (mounted) setState(() => _savingYearTotal = false);
     }
   }
 
@@ -534,73 +556,254 @@ class _BudgetPageState extends State<BudgetPage>
       return sb.compareTo(sa);
     });
 
-    final selectedKey = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final tt = Theme.of(ctx).textTheme;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                AppStrings.addCategoryBudget,
-                style: tt.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
+    final expenseByKey = <String, Category>{
+      for (final cat in expenseCategories) cat.key: cat,
+    };
+    final searchController = TextEditingController();
+    final searchFocusNode = FocusNode();
+
+    String? selectedKey;
+    try {
+      selectedKey = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (ctx) {
+          final cs = Theme.of(ctx).colorScheme;
+          final tt = Theme.of(ctx).textTheme;
+          final expandedParents = <String>{};
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                16 + MediaQuery.of(ctx).viewInsets.bottom,
               ),
-              const SizedBox(height: 8),
-              Text(
-                '优先为本期花得多的分类设置预算，有助于更好地控制支出。',
-                style: tt.bodyMedium?.copyWith(
-                  color: cs.onSurface.withOpacity(0.75),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: candidates.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final cat = candidates[index];
-                    final spent = expenseSpent[cat.key] ?? 0;
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withOpacity(0.1),
-                        child: Icon(
-                          cat.icon,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.primary,
+              child: SizedBox(
+                height: MediaQuery.of(ctx).size.height * 0.85,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    double spentOf(Category cat) => expenseSpent[cat.key] ?? 0;
+
+                    final query = searchController.text.trim().toLowerCase();
+                    final matchedParentKeys = query.isEmpty
+                        ? const <String>{}
+                        : expenseCategories
+                            .where(
+                              (c) =>
+                                  c.parentKey == null &&
+                                  c.name.toLowerCase().contains(query),
+                            )
+                            .map((c) => c.key)
+                            .toSet();
+
+                    final filtered = query.isEmpty
+                        ? candidates
+                        : candidates
+                            .where((c) {
+                              final nameMatch =
+                                  c.name.toLowerCase().contains(query);
+                              final parentMatch = c.parentKey != null &&
+                                  matchedParentKeys.contains(c.parentKey);
+                              final selfIsMatchedParent =
+                                  matchedParentKeys.contains(c.key);
+                              return nameMatch ||
+                                  parentMatch ||
+                                  selfIsMatchedParent;
+                            })
+                            .toList(growable: false);
+
+                    final childrenByParent = <String, List<Category>>{};
+                    for (final cat in filtered) {
+                      final parentKey = cat.parentKey;
+                      if (parentKey == null) continue;
+                      (childrenByParent[parentKey] ??= []).add(cat);
+                    }
+
+                    for (final entry in childrenByParent.entries) {
+                      entry.value.sort((a, b) => spentOf(b).compareTo(spentOf(a)));
+                    }
+
+                    final parentKeys = childrenByParent.keys.toList()
+                      ..sort((a, b) {
+                        double sum(String key) => childrenByParent[key]!
+                            .fold<double>(0, (p, c) => p + spentOf(c));
+                        return sum(b).compareTo(sum(a));
+                      });
+
+                    final leafTop = filtered
+                        .where(
+                          (c) =>
+                              c.parentKey == null &&
+                              !childrenByParent.containsKey(c.key),
+                        )
+                        .toList(growable: false)
+                      ..sort((a, b) => spentOf(b).compareTo(spentOf(a)));
+
+                    final showAllExpanded = query.isNotEmpty;
+
+                    Widget buildCategoryTile(
+                      Category cat, {
+                      EdgeInsetsGeometry? contentPadding,
+                    }) {
+                      return ListTile(
+                        contentPadding: contentPadding,
+                        leading: CircleAvatar(
+                          backgroundColor: cs.primary.withOpacity(0.12),
+                          child: Icon(
+                            cat.icon,
+                            size: 18,
+                            color: cs.primary,
+                          ),
                         ),
-                      ),
-                      title: Text(
-                        cat.name,
-                        style: tt.bodyMedium?.copyWith(color: cs.onSurface),
-                      ),
-                      subtitle: Text(
-                        '${AppStrings.expenseThisPeriodPrefix}¥${spent.toStringAsFixed(0)}',
-                        style: tt.bodySmall?.copyWith(
-                          color: cs.onSurface.withOpacity(0.7),
+                        title: Text(
+                          cat.name,
+                          style: tt.bodyMedium?.copyWith(color: cs.onSurface),
                         ),
-                      ),
-                      onTap: () => Navigator.of(ctx).pop(cat.key),
+                        subtitle: Text(
+                          '${AppStrings.expenseThisPeriodPrefix}\u00A5${spentOf(cat).toStringAsFixed(0)}',
+                          style: tt.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
+                        ),
+                        onTap: () => Navigator.of(ctx).pop(cat.key),
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppStrings.addCategoryBudget,
+                          style: tt.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '按一级分类折叠展示，支持搜索二级分类。',
+                          style: tt.bodyMedium?.copyWith(
+                            color: cs.onSurface.withOpacity(0.75),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: searchController,
+                          focusNode: searchFocusNode,
+                          decoration: InputDecoration(
+                            hintText: '搜索分类',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: query.isEmpty
+                                ? null
+                                : IconButton(
+                                    onPressed: () {
+                                      searchController.clear();
+                                      FocusScope.of(ctx).unfocus();
+                                      setState(() {});
+                                    },
+                                    icon: const Icon(Icons.clear),
+                                  ),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                          textInputAction: TextInputAction.search,
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: (leafTop.isEmpty && parentKeys.isEmpty)
+                              ? Center(
+                                  child: Text(
+                                    '没有匹配的分类',
+                                    style: tt.bodyMedium?.copyWith(
+                                      color: cs.onSurface.withOpacity(0.7),
+                                    ),
+                                  ),
+                                )
+                              : ListView(
+                                  children: [
+                                    ...leafTop.map(buildCategoryTile),
+                                    if (leafTop.isNotEmpty &&
+                                        parentKeys.isNotEmpty)
+                                      const Divider(height: 1),
+                                    ...parentKeys.map((parentKey) {
+                                      final parent = expenseByKey[parentKey];
+                                      final children = childrenByParent[parentKey]!;
+                                      final title = parent?.name ?? parentKey;
+                                      final iconData =
+                                          parent?.icon ?? Icons.folder_outlined;
+                                      final spentSum = children.fold<double>(
+                                        0,
+                                        (p, c) => p + spentOf(c),
+                                      );
+
+                                      return ExpansionTile(
+                                        key: PageStorageKey<String>(
+                                          'budget_cat_$parentKey',
+                                        ),
+                                        initiallyExpanded: showAllExpanded ||
+                                            expandedParents.contains(parentKey),
+                                        onExpansionChanged: (expanded) {
+                                          setState(() {
+                                            if (expanded) {
+                                              expandedParents.add(parentKey);
+                                            } else {
+                                              expandedParents.remove(parentKey);
+                                            }
+                                          });
+                                        },
+                                        leading: CircleAvatar(
+                                          backgroundColor:
+                                              cs.primary.withOpacity(0.12),
+                                          child: Icon(
+                                            iconData,
+                                            size: 18,
+                                            color: cs.primary,
+                                          ),
+                                        ),
+                                        title: Text(
+                                          title,
+                                          style: tt.bodyMedium?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: cs.onSurface,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          '${AppStrings.expenseThisPeriodPrefix}\u00A5${spentSum.toStringAsFixed(0)}',
+                                          style: tt.bodySmall?.copyWith(
+                                            color: cs.onSurface.withOpacity(0.7),
+                                          ),
+                                        ),
+                                        children: [
+                                          ...children.map(
+                                            (cat) => buildCategoryTile(
+                                              cat,
+                                              contentPadding:
+                                                  const EdgeInsets.only(
+                                                left: 32,
+                                                right: 16,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }),
+                                  ],
+                                ),
+                        ),
+                      ],
                     );
                   },
                 ),
               ),
-            ],
-          ),
-        );
-      },
-    );
+            ),
+          );
+        },
+      );
+    } finally {
+      searchController.dispose();
+      searchFocusNode.dispose();
+    }
 
     if (selectedKey == null) return;
 
@@ -1064,10 +1267,17 @@ class _BudgetPageState extends State<BudgetPage>
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              onPressed: () =>
-                  isYear ? _saveAnnualBudget(bookId) : _saveTotalBudget(bookId),
+              onPressed: (isYear ? _savingYearTotal : _savingMonthTotal)
+                  ? null
+                  : () => isYear
+                      ? _saveAnnualBudget(bookId)
+                      : _saveTotalBudget(bookId),
               icon: const Icon(Icons.save_outlined),
-              label: const Text(AppStrings.save),
+              label: Text(
+                (isYear ? _savingYearTotal : _savingMonthTotal)
+                    ? '保存中...'
+                    : AppStrings.save,
+              ),
             ),
           ),
         ],

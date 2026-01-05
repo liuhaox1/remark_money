@@ -343,6 +343,9 @@ class _HomePageState extends State<HomePage> {
 
         : DateUtilsX.ymd(_selectedDay);
 
+    final bottomScrollPadding =
+        MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight + 12;
+
 
 
     return Scaffold(
@@ -368,6 +371,7 @@ class _HomePageState extends State<HomePage> {
             constraints: const BoxConstraints(maxWidth: 430),
 
             child: SingleChildScrollView(
+              padding: EdgeInsets.only(bottom: bottomScrollPadding),
               child: Column(
                 children: [
                   _BalanceCard(
@@ -375,7 +379,6 @@ class _HomePageState extends State<HomePage> {
                     expense: monthExpense,
                     dateLabel: dateLabel,
                     onTapDate: _pickDate,
-                    onTapSearch: _openFilterSheet,
                   ),
                   const SizedBox(height: 8),
                   _HomeSearchBar(
@@ -3098,6 +3101,8 @@ class _HomePageState extends State<HomePage> {
                         Expanded(
                           child: FilledButton(
                             style: FilledButton.styleFrom(
+                              backgroundColor: cs.primary,
+                              foregroundColor: cs.onPrimary,
                               padding:
                                   const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
@@ -3564,6 +3569,8 @@ class _HomePageState extends State<HomePage> {
                             const Spacer(),
                             FilledButton(
                               style: FilledButton.styleFrom(
+                                backgroundColor: cs.primary,
+                                foregroundColor: cs.onPrimary,
                                 splashFactory: NoSplash.splashFactory,
                               ),
                               onPressed: () => Navigator.pop(ctx, selected),
@@ -3681,6 +3688,8 @@ Future<Set<String>?> _openAccountMultiSelector({
                           const Spacer(),
                           FilledButton(
                             style: FilledButton.styleFrom(
+                              backgroundColor: cs.primary,
+                              foregroundColor: cs.onPrimary,
                               splashFactory: NoSplash.splashFactory,
                             ),
                             onPressed: () => Navigator.pop(ctx, selected),
@@ -3781,8 +3790,10 @@ class _HomeSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
 
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final hasKeyword = keyword.trim().isNotEmpty;
+    final fillColor = cs.surfaceContainerHighest.withOpacity(isDark ? 0.5 : 0.95);
 
 
 
@@ -3790,119 +3801,91 @@ class _HomeSearchBar extends StatelessWidget {
 
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
 
-      child: Container(
- 
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
- 
-        decoration: BoxDecoration(
- 
-          color: cs.surface,
- 
-          borderRadius: BorderRadius.circular(12),
- 
-          border: Border.all(
- 
-            color: cs.outline.withOpacity(0.2),
- 
-            width: 1,
-
-          ),
-
-        ),
-
-        child: Row(
-
-          children: [
-
-            Icon(
-              Icons.search,
-              size: 20,
-              color: cs.onSurface.withOpacity(0.7),
-            ),
-
-            const SizedBox(width: 8),
-
-            Expanded(
-
-              child: TextField(
-
-                controller: controller,
-
-                focusNode: focusNode,
-
-                decoration: InputDecoration(
-
-                  isDense: true,
-
-                  border: InputBorder.none,
- 
-                  hintText: AppStrings.searchHint,
-                  hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                    color: cs.onSurface.withOpacity(0.5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: fillColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        hintText: AppStrings.searchHint,
+                        hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                              color: cs.onSurface.withOpacity(0.5),
+                            ),
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                            color: cs.onSurface,
+                          ),
+                      onChanged: onChanged,
+                      onSubmitted: onSubmitted,
+                    ),
                   ),
- 
-                ),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: cs.onSurface,
-                ),
-
-                onChanged: onChanged,
-
-                onSubmitted: onSubmitted,
-
+                  if (hasKeyword)
+                    IconButton(
+                      icon: Icon(
+                        Icons.clear,
+                        size: 18,
+                        color: cs.onSurface.withOpacity(0.7),
+                      ),
+                      onPressed: onClear,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.search,
+                      size: 20,
+                      color: cs.onSurface.withOpacity(0.75),
+                    ),
+                    onPressed: () {
+                      FocusScope.of(context).unfocus();
+                      onSubmitted(controller.text);
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
-
             ),
-
-            if (hasKeyword)
-
-              IconButton(
-
-                icon: Icon(Icons.clear, size: 18, color: cs.onSurface.withOpacity(0.7)),
-
-                onPressed: onClear,
-
-                padding: EdgeInsets.zero,
-
-                constraints: const BoxConstraints(),
-
-              )
-
-            else
-
-              IconButton(
-
-                icon: Icon(
-
-                  hasActiveFilter
-
-                      ? Icons.filter_alt
-
-                      : Icons.filter_alt_outlined,
-
-                  size: 20,
-                  color: hasActiveFilter
-                      ? cs.primary
-                      : cs.onSurface.withOpacity(0.7),
-
-                ),
-
-                onPressed: onTapFilter,
-
-                padding: EdgeInsets.zero,
-
-                constraints: const BoxConstraints(),
-
+          ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: IconButton(
+              icon: Icon(
+                hasActiveFilter ? Icons.filter_alt : Icons.filter_alt_outlined,
+                size: 22,
+                color: hasActiveFilter
+                    ? cs.primary
+                    : cs.onSurface.withOpacity(0.75),
               ),
-
-          ],
-
-        ),
-
+              onPressed: onTapFilter,
+            ),
+          )
+        ],
       ),
 
     );
@@ -5085,8 +5068,6 @@ class _BalanceCard extends StatelessWidget {
 
     required this.onTapDate,
 
-    required this.onTapSearch,
-
   });
 
 
@@ -5098,8 +5079,6 @@ class _BalanceCard extends StatelessWidget {
   final String dateLabel;
 
   final VoidCallback onTapDate;
-
-  final VoidCallback onTapSearch;
 
 
 
@@ -5160,26 +5139,6 @@ class _BalanceCard extends StatelessWidget {
                 ),
 
                 const BookSelectorButton(),
-
-                // 修复按钮抖动问题：使用 InkWell 替代 IconButton
-
-                InkWell(
-
-                  onTap: onTapSearch,
-
-                  borderRadius: BorderRadius.circular(20),
-
-                  child: Container(
-
-                    padding: const EdgeInsets.all(8),
-
-                    child: Icon(Icons.filter_alt_outlined,
-
-                        size: 20, color: cs.onSurface),
-
-                  ),
-
-                ),
 
               ],
 

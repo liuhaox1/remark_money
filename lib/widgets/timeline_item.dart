@@ -7,6 +7,7 @@ import '../models/record.dart';
 import '../models/tag.dart';
 import '../theme/app_tokens.dart';
 import '../utils/category_name_helper.dart';
+import 'slidable_icon_label.dart';
 
 class TimelineItem extends StatelessWidget {
   const TimelineItem({
@@ -183,13 +184,16 @@ class TimelineItem extends StatelessWidget {
         key: key ?? ValueKey(record.id),
         endActionPane: ActionPane(
           motion: const DrawerMotion(),
-          extentRatio: 0.22,
+          extentRatio: 0.26,
           children: [
-            SlidableAction(
+            CustomSlidableAction(
               onPressed: (_) => onDelete?.call(),
               backgroundColor: AppColors.danger,
-              foregroundColor: cs.onError,
-              label: AppStrings.delete,
+              child: const SlidableIconLabel(
+                icon: Icons.delete_outline,
+                label: AppStrings.delete,
+                color: Colors.white,
+              ),
             ),
           ],
         ),

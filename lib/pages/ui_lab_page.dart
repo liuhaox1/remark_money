@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 
 import '../theme/ios_tokens.dart';
+import '../providers/book_provider.dart';
+import '../services/qa_seed_service.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/glass.dart';
 
@@ -21,6 +25,13 @@ class UiLabPage extends StatelessWidget {
             bottom: AppSpacing.xxl,
           ),
           children: [
+            if (kDebugMode) ...[
+              _Section(
+                title: 'QA 工具（仅 Debug）',
+                child: _QaToolsCard(),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
             Text(
               'iOS 极简高级预览（不影响现有页面）',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -172,6 +183,111 @@ class _Section extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         child,
       ],
+    );
+  }
+}
+
+class _QaToolsCard extends StatefulWidget {
+  @override
+  State<_QaToolsCard> createState() => _QaToolsCardState();
+}
+
+class _QaToolsCardState extends State<_QaToolsCard> {
+  bool _running = false;
+  String? _last;
+
+  Future<void> _runSeed({required bool wipe}) async {
+    if (_running) return;
+    setState(() {
+      _running = true;
+      _last = null;
+    });
+    try {
+      final report = await QaSeedService.seed(
+        context,
+        options: QaSeedOptions(
+          wipeExistingRecordsInBook: wipe,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _last =
+            'book=${report.bookId}, accounts+${report.createdAccounts}, tags+${report.createdTags}, records+${report.createdRecords}';
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已完成造数：$_last')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('造数失败：$e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _running = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final activeBookId = context.watch<BookProvider>().activeBookId;
+
+    return Container(
+      padding: AppSpacing.card,
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.85)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '一键生成 QA 数据集（用于账单/统计/导出/同步回归）',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            '当前账本：$activeBookId（将创建/切换到 qa-book）',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+          ),
+          if (_last != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              '上次：$_last',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: _running ? null : () => _runSeed(wipe: false),
+                  child: Text(_running ? '处理中…' : '追加生成'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _running ? null : () => _runSeed(wipe: true),
+                  child: const Text('清空后重建'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

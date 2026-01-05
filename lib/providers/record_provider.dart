@@ -691,8 +691,16 @@ class RecordProvider extends ChangeNotifier {
       if (isExpense != null) {
         filtered = filtered.where((r) => r.isExpense == isExpense);
       }
-      
-      final list = filtered.toList();
+       
+      final list = filtered.toList()
+        ..sort((a, b) {
+          final byDate = b.date.compareTo(a.date);
+          if (byDate != 0) return byDate;
+          final byServerId =
+              (b.serverId ?? -1).compareTo(a.serverId ?? -1);
+          if (byServerId != 0) return byServerId;
+          return b.id.compareTo(a.id);
+        });
       final endIndex = (offset + limit).clamp(0, list.length);
       return list.sublist(offset.clamp(0, list.length), endIndex);
     }

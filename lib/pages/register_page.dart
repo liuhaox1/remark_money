@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/network_guard.dart';
 import '../theme/ios_tokens.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -67,18 +68,30 @@ class _RegisterPageState extends State<RegisterPage> {
       } else if (e.toString().contains('账号已存在') || 
                  e.toString().contains('用户名已存在')) {
         errorMessage = '该账号已被注册，请使用其他账号或直接登录';
-      } else if (e.toString().isNotEmpty) {
-        errorMessage = e.toString().replaceFirst('Exception: ', '');
+      } else {
+        errorMessage = formatNetworkError(e).replaceFirst('Exception: ', '');
       }
-      _showSnack(errorMessage);
+      _showSnack(errorMessage, isError: true);
     } finally {
       if (mounted) setState(() => _registering = false);
     }
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
+  void _showSnack(String msg, {bool isError = false}) {
+    final cs = Theme.of(context).colorScheme;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        backgroundColor: isError ? cs.error : null,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 

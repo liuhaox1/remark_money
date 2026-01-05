@@ -13,11 +13,14 @@ class ApiConfig {
   ///      localhost on desktop
   static String get baseUrl {
     final env = _envBaseUrl.trim();
-    if (env.isNotEmpty && !_isLocalhost(env)) {
+    if (env.isNotEmpty) {
+      // Allow localhost override on desktop/web dev, but prevent accidental
+      // localhost on real devices (where localhost points to the phone).
+      if (_isLocalhost(env) && _isMobile) {
+        return _defaultBaseUrl;
+      }
       return env;
     }
-    // If someone accidentally passes `localhost` via `--dart-define` on a
-    // phone build, ignore it to avoid "no response" UX.
     return _defaultBaseUrl;
   }
 
@@ -27,6 +30,7 @@ class ApiConfig {
   }
 
   static String get _defaultBaseUrl {
+    const devLocal = 'http://localhost:8080';
     const prod = 'http://115.190.162.10:8080';
 
     if (kReleaseMode) return prod;
@@ -38,7 +42,18 @@ class ApiConfig {
         // always fail unless you're running a server on-device. Default to prod.
         return prod;
       default:
-        return prod;
+        // Desktop dev defaults to localhost.
+        return devLocal;
+    }
+  }
+
+  static bool get _isMobile {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.android:
+        return true;
+      default:
+        return false;
     }
   }
 }

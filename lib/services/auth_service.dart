@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
-import '../database/database_helper.dart';
+import 'network_guard.dart';
 
 /// 注册异常，用于提供友好的错误提示
 class RegisterException implements Exception {
@@ -69,10 +69,12 @@ class AuthService {
   }
 
   Future<void> sendSmsCode(String phone) async {
-    final resp = await http.post(
-      _uri('/api/auth/send-sms-code'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone': phone}),
+    final resp = await runWithNetworkGuard(
+      () => http.post(
+        _uri('/api/auth/send-sms-code'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': phone}),
+      ),
     );
     if (resp.statusCode >= 400) {
       throw Exception('发送验证码失败: ${resp.body}');
@@ -83,10 +85,12 @@ class AuthService {
     required String phone,
     required String code,
   }) async {
-    final resp = await http.post(
-      _uri('/api/auth/login/sms'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone': phone, 'code': code}),
+    final resp = await runWithNetworkGuard(
+      () => http.post(
+        _uri('/api/auth/login/sms'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': phone, 'code': code}),
+      ),
     );
     if (resp.statusCode >= 400) {
       throw Exception(resp.body);
@@ -101,10 +105,12 @@ class AuthService {
   }
 
   Future<AuthResult> loginWithWeChat({required String code}) async {
-    final resp = await http.post(
-      _uri('/api/auth/login/wechat'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'code': code}),
+    final resp = await runWithNetworkGuard(
+      () => http.post(
+        _uri('/api/auth/login/wechat'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'code': code}),
+      ),
     );
     if (resp.statusCode >= 400) {
       throw Exception(resp.body);
@@ -154,13 +160,15 @@ class AuthService {
     required String username,
     required String password,
   }) async {
-    final resp = await http.post(
-      _uri('/api/auth/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'username': username,
-        'password': password,
-      }),
+    final resp = await runWithNetworkGuard(
+      () => http.post(
+        _uri('/api/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+        }),
+      ),
     );
     if (resp.statusCode >= 400) {
       final errorBody = resp.body.trim();
@@ -179,13 +187,15 @@ class AuthService {
     required String username,
     required String password,
   }) async {
-    final resp = await http.post(
-      _uri('/api/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'username': username,
-        'password': password,
-      }),
+    final resp = await runWithNetworkGuard(
+      () => http.post(
+        _uri('/api/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+        }),
+      ),
     );
     if (resp.statusCode >= 400) {
       final errorBody = resp.body;

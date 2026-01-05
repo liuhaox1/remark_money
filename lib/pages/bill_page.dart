@@ -3537,6 +3537,8 @@ class _BillPageState extends State<BillPage> {
                         Expanded(
                           child: FilledButton(
                             style: FilledButton.styleFrom(
+                              backgroundColor: cs.primary,
+                              foregroundColor: cs.onPrimary,
                               padding:
                                   const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
@@ -3759,6 +3761,8 @@ class _BillPageState extends State<BillPage> {
                             const Spacer(),
                             FilledButton(
                               style: FilledButton.styleFrom(
+                                backgroundColor: cs.primary,
+                                foregroundColor: cs.onPrimary,
                                 splashFactory: NoSplash.splashFactory,
                               ),
                               onPressed: () => Navigator.pop(ctx, selected),
@@ -3871,6 +3875,8 @@ class _BillPageState extends State<BillPage> {
                           const Spacer(),
                           FilledButton(
                             style: FilledButton.styleFrom(
+                              backgroundColor: cs.primary,
+                              foregroundColor: cs.onPrimary,
                               splashFactory: NoSplash.splashFactory,
                             ),
                             onPressed: () => Navigator.pop(ctx, selected),
@@ -4045,59 +4051,89 @@ class _BillSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasKeyword = keyword.trim().isNotEmpty;
+    final fillColor = cs.surfaceContainerHighest.withOpacity(isDark ? 0.5 : 0.95);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
-      child: Container(
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHighest.withOpacity(0.55),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.search,
-              size: 20,
-              color: cs.onSurface.withOpacity(0.7),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                decoration: InputDecoration(
-                  isDense: true,
-                  border: InputBorder.none,
-                  hintText: AppStrings.searchHint,
-                ),
-                onChanged: onChanged,
-                onSubmitted: onSubmitted,
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: fillColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        hintText: AppStrings.searchHint,
+                      ),
+                      onChanged: onChanged,
+                      onSubmitted: onSubmitted,
+                    ),
+                  ),
+                  if (hasKeyword)
+                    IconButton(
+                      tooltip: AppStrings.clearHistory,
+                      icon: Icon(
+                        Icons.clear,
+                        size: 18,
+                        color: cs.onSurface.withOpacity(0.7),
+                      ),
+                      onPressed: onClear,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.search,
+                      size: 20,
+                      color: cs.onSurface.withOpacity(0.75),
+                    ),
+                    onPressed: () {
+                      FocusScope.of(context).unfocus();
+                      onSubmitted(controller.text);
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
             ),
-            if (hasKeyword)
-              IconButton(
-                tooltip: AppStrings.clearHistory,
-                icon: const Icon(Icons.clear, size: 18),
-                onPressed: onClear,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-              ),
-            const SizedBox(width: 4),
-            IconButton(
+          ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: IconButton(
               tooltip: AppStrings.filter,
               icon: Icon(
                 hasActiveFilter ? Icons.filter_alt : Icons.filter_alt_outlined,
-                size: 20,
+                size: 22,
+                color: hasActiveFilter
+                    ? cs.primary
+                    : cs.onSurface.withOpacity(0.75),
               ),
               onPressed: onTapFilter,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

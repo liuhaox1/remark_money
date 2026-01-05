@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
 import '../config/api_config.dart';
+import 'network_guard.dart';
 
 class BookService {
   final AuthService _authService = const AuthService();
@@ -20,15 +21,17 @@ class BookService {
       throw Exception('未登录');
     }
 
-    final resp = await http.post(
-      _uri('/api/book/create-multi'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'name': name,
-      }),
+    final resp = await runWithNetworkGuard(
+      () => http.post(
+        _uri('/api/book/create-multi'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'name': name,
+        }),
+      ),
     );
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -46,15 +49,17 @@ class BookService {
       throw Exception('未登录');
     }
 
-    final resp = await http.post(
-      _uri('/api/book/refresh-invite'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'bookId': int.parse(bookId),
-      }),
+    final resp = await runWithNetworkGuard(
+      () => http.post(
+        _uri('/api/book/refresh-invite'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'bookId': int.parse(bookId),
+        }),
+      ),
     );
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -72,15 +77,17 @@ class BookService {
       throw Exception('未登录');
     }
 
-    final resp = await http.post(
-      _uri('/api/book/join'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'code': inviteCode,
-      }),
+    final resp = await runWithNetworkGuard(
+      () => http.post(
+        _uri('/api/book/join'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'code': inviteCode,
+        }),
+      ),
     );
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -98,11 +105,13 @@ class BookService {
       throw Exception('未登录');
     }
 
-    final resp = await http.get(
-      _uri('/api/book/list'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
+    final resp = await runWithNetworkGuard(
+      () => http.get(
+        _uri('/api/book/list'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      ),
     );
 
     final data = jsonDecode(resp.body);

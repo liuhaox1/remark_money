@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 
 import '../theme/app_tokens.dart';
+import '../widgets/slidable_icon_label.dart';
 import '../models/account.dart';
 import '../models/savings_plan.dart';
 import '../providers/account_provider.dart';
@@ -378,9 +379,9 @@ class _SavingsPlansPageState extends State<SavingsPlansPage>
                               key: ValueKey(p.id),
                               endActionPane: ActionPane(
                                 motion: const DrawerMotion(),
-                                extentRatio: 0.22,
+                                extentRatio: 0.26,
                                 children: [
-                                  SlidableAction(
+                                  CustomSlidableAction(
                                     onPressed: (_) async {
                                       final ok =
                                           await _confirmDeletePlan(p, balance: saved);
@@ -389,8 +390,11 @@ class _SavingsPlansPageState extends State<SavingsPlansPage>
                                       await _reload();
                                     },
                                     backgroundColor: AppColors.danger,
-                                    foregroundColor: cs.onError,
-                                    label: '删除',
+                                    child: const SlidableIconLabel(
+                                      icon: Icons.delete_outline,
+                                      label: '删除',
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ],
                               ),

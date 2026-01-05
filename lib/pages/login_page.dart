@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/network_guard.dart';
 import '../theme/ios_tokens.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -38,7 +39,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       await _auth.sendSmsCode(phone);
       _showSnack('验证码已发送');
     } catch (e) {
-      _showSnack(e.toString());
+      _showSnack(formatNetworkError(e), isError: true);
     } finally {
       if (mounted) setState(() => _sendingCode = false);
     }
@@ -58,7 +59,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       _showSnack('登录成功');
       Navigator.pop(context, true);
     } catch (e) {
-      _showSnack(e.toString());
+      _showSnack(formatNetworkError(e), isError: true);
     } finally {
       if (mounted) setState(() => _loggingIn = false);
     }
@@ -68,9 +69,21 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
     _showSnack('请在接入原生微信 SDK 后，调用 AuthService.loginWithWeChat(code) 完成登录。');
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
+  void _showSnack(String msg, {bool isError = false}) {
+    final cs = Theme.of(context).colorScheme;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        backgroundColor: isError ? cs.error : null,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
