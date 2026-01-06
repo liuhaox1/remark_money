@@ -343,8 +343,9 @@ class _HomePageState extends State<HomePage> {
 
         : DateUtilsX.ymd(_selectedDay);
 
-    final bottomScrollPadding =
-        MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight + 12;
+     final navBarHeight = NavigationBarTheme.of(context).height ?? 80.0;
+     final bottomScrollPadding =
+         MediaQuery.of(context).viewPadding.bottom + navBarHeight + 12;
 
 
 
@@ -370,10 +371,11 @@ class _HomePageState extends State<HomePage> {
 
             constraints: const BoxConstraints(maxWidth: 430),
 
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(bottom: bottomScrollPadding),
-              child: Column(
-                children: [
+             child: SingleChildScrollView(
+               controller: _monthScrollController,
+               padding: EdgeInsets.only(bottom: bottomScrollPadding),
+               child: Column(
+                 children: [
                   _BalanceCard(
                     income: monthIncome,
                     expense: monthExpense,
@@ -1909,16 +1911,16 @@ class _HomePageState extends State<HomePage> {
       padding: EdgeInsets.only(bottom: bottomPadding),
 
       child: ListView.separated(
-
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 16), // 增加底部 padding
-
-        controller: _monthScrollController,
-
-        shrinkWrap: true,
-
-        // 使用 AlwaysScrollableScrollPhysics 确保可以滚动到底部
-
-        physics: const AlwaysScrollableScrollPhysics(),
+ 
+         padding: const EdgeInsets.fromLTRB(12, 8, 12, 16), // 增加底部 padding
+ 
+        primary: false,
+ 
+         shrinkWrap: true,
+ 
+         // 使用 AlwaysScrollableScrollPhysics 确保可以滚动到底部
+ 
+        physics: const NeverScrollableScrollPhysics(),
 
         cacheExtent: 1000, // 缓存更多内容以减少重新构建
 

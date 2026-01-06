@@ -53,14 +53,11 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
   }
 
   Future<void> _initializeSpeech() async {
-    final hasPermission = await _speechService.checkPermission();
-    if (!hasPermission) {
-      final granted = await _speechService.requestPermission();
-      if (!granted && mounted) {
-        setState(() {
-          _statusText = '需要麦克风权限才能使用语音记账';
-        });
-      }
+    final initialized = await _speechService.initialize();
+    if (!initialized && mounted) {
+      setState(() {
+        _statusText = _speechService.lastError ?? '需要麦克风权限才能使用语音记账';
+      });
     }
   }
 
@@ -69,10 +66,13 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
 
     final hasPermission = await _speechService.checkPermission();
     if (!hasPermission) {
-      final granted = await _speechService.requestPermission();
-      if (!granted) {
+      final initialized = await _speechService.initialize();
+      if (!initialized) {
         if (mounted) {
-          ErrorHandler.showError(context, '需要麦克风权限才能使用语音记账');
+          ErrorHandler.showError(
+            context,
+            _speechService.lastError ?? '需要麦克风权限才能使用语音记账',
+          );
         }
         return;
       }

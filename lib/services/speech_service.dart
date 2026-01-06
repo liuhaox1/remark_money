@@ -40,12 +40,19 @@ class SpeechService {
       return false;
     }
 
-    // 检查并请求麦克风权限
+    // 检查并请求麦克风权限（以及 iOS 的语音识别权限）
     try {
       final status = await Permission.microphone.request();
       if (!status.isGranted) {
         _lastError = '麦克风权限未授予。请在系统设置中允许应用访问麦克风';
         return false;
+      }
+      if (Platform.isIOS) {
+        final speechStatus = await Permission.speech.request();
+        if (!speechStatus.isGranted) {
+          _lastError = '语音识别权限未授予。请在系统设置中允许应用使用语音识别';
+          return false;
+        }
       }
     } catch (e) {
       _lastError = '请求麦克风权限失败: $e';
@@ -53,13 +60,6 @@ class SpeechService {
     }
 
     try {
-      // 先检查是否有可用的识别器
-      final hasPermission = await _speech.hasPermission;
-      if (!hasPermission) {
-        _lastError = '语音识别权限未授予';
-        return false;
-      }
-
       final available = await _speech.initialize(
         onError: (error) {
           _lastError = '语音识别错误: $error';
@@ -68,6 +68,13 @@ class SpeechService {
           // 状态处理
         },
       );
+
+      final hasPermission = await _speech.hasPermission;
+      if (!hasPermission) {
+        _lastError = '语音识别权限未授予';
+        _isInitialized = false;
+        return false;
+      }
 
       if (!available) {
         _lastError = '语音识别服务不可用。请检查：\n1. Windows 设置 > 隐私 > 麦克风 > 允许桌面应用访问麦克风\n2. 确保已安装并启用了 Windows 语音识别服务';
