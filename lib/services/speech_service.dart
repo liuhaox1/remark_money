@@ -170,14 +170,24 @@ class SpeechService {
 
   /// 检查麦克风权限
   Future<bool> checkPermission() async {
-    final status = await Permission.microphone.status;
-    return status.isGranted;
+    final mic = await Permission.microphone.status;
+    if (!mic.isGranted) return false;
+    if (Platform.isIOS) {
+      final speech = await Permission.speech.status;
+      return speech.isGranted;
+    }
+    return true;
   }
 
-  /// 请求麦克风权限
+  /// 请求麦克风权限（以及 iOS 的语音识别权限）
   Future<bool> requestPermission() async {
-    final status = await Permission.microphone.request();
-    return status.isGranted;
+    final mic = await Permission.microphone.request();
+    if (!mic.isGranted) return false;
+    if (Platform.isIOS) {
+      final speech = await Permission.speech.request();
+      return speech.isGranted;
+    }
+    return true;
   }
 
   /// 释放资源
