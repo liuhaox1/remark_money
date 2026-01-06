@@ -2078,7 +2078,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
         } catch (_) {}
 
         if (!mounted) return;
-        ErrorHandler.showSuccess(context, '记录已更新');
       } else {
         // 新增记录
         final created = await recordProvider.addRecord(
@@ -2114,7 +2113,6 @@ class _AddRecordPageState extends State<AddRecordPage> {
         _lastIncludeInStats = _includeInStats;
 
         if (!mounted) return;
-        ErrorHandler.showSuccess(context, '记录已保存');
       }
 
       if (!mounted) return;

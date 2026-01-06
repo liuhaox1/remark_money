@@ -102,12 +102,15 @@ class _BudgetPageState extends State<BudgetPage>
   }
 
   Future<void> _saveTotalBudget(String bookId) async {
+    // Capture input before dismissing keyboard: blur may trigger a build that syncs
+    // the controller text back to the stored value, wiping the user's input.
+    final rawInput = _monthTotalCtrl.text;
     await _dismissKeyboard();
     if (_savingMonthTotal) return;
     setState(() => _savingMonthTotal = true);
     try {
       final provider = context.read<BudgetProvider>();
-      final parsed = _parseAmount(_monthTotalCtrl.text);
+      final parsed = _parseAmount(rawInput);
       final total = parsed ?? 0;
 
       // 验证金额
@@ -131,12 +134,13 @@ class _BudgetPageState extends State<BudgetPage>
   }
 
   Future<void> _saveAnnualBudget(String bookId) async {
+    final rawInput = _yearTotalCtrl.text;
     await _dismissKeyboard();
     if (_savingYearTotal) return;
     setState(() => _savingYearTotal = true);
     try {
       final provider = context.read<BudgetProvider>();
-      final parsed = _parseAmount(_yearTotalCtrl.text);
+      final parsed = _parseAmount(rawInput);
       final total = parsed ?? 0;
 
       // 验证金额
