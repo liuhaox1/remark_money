@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../providers/book_provider.dart';
+import '../services/background_sync_manager.dart';
 import '../services/sync_engine.dart';
 import 'root_shell.dart';
 import 'terms_privacy_page.dart';
@@ -28,6 +30,13 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
     if (!mounted) return;
     // Push any outbox ops created while logged out (e.g. first record before register/login).
     await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'login');
+    // Kick an immediate sync/meta sync after login so the UI won't show stale/empty data.
+    BackgroundSyncManager.instance.start(context);
+    final activeBookId = context.read<BookProvider>().activeBookId;
+    if (activeBookId.isNotEmpty) {
+      BackgroundSyncManager.instance.requestMetaSync(activeBookId, reason: 'login');
+      BackgroundSyncManager.instance.requestSync(activeBookId, reason: 'login');
+    }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const RootShell()),
       (route) => false,

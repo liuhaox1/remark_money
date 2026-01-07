@@ -7,6 +7,7 @@ import '../providers/book_provider.dart';
 import 'meta_sync_notifier.dart';
 import 'sync_engine.dart';
 import 'sync_outbox_service.dart';
+import 'auth_service.dart';
 
 class BackgroundSyncManager with WidgetsBindingObserver {
   BackgroundSyncManager._();
@@ -14,6 +15,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   static final BackgroundSyncManager instance = BackgroundSyncManager._();
 
   BuildContext? _context;
+  BookProvider? _bookProvider;
   StreamSubscription<String>? _outboxSub;
   StreamSubscription<String>? _accountsSub;
   StreamSubscription<String>? _budgetSub;
@@ -46,6 +48,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     if (_started) return;
     _started = true;
     _context = context;
+    _bookProvider = context.read<BookProvider>();
     WidgetsBinding.instance.addObserver(this);
 
     _outboxSub = SyncOutboxService.instance.onBookChanged.listen((bookId) {
@@ -61,9 +64,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     });
 
     _categoriesSub = MetaSyncNotifier.instance.onCategoriesChanged.listen((_) {
-      final ctx = _context;
-      if (ctx == null) return;
-      final activeBookId = ctx.read<BookProvider>().activeBookId;
+      final activeBookId = _bookProvider?.activeBookId ?? '';
       if (activeBookId.isEmpty) return;
       requestMetaSync(activeBookId, reason: 'categories_changed');
     });
@@ -80,9 +81,15 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     // 启动后先对当前账本做一次静默同步（拉取多设备变更）
     final activeBookId = context.read<BookProvider>().activeBookId;
     if (activeBookId.isNotEmpty) {
-      requestSync(activeBookId, reason: 'app_start');
-      // Also sync meta (budget/accounts/categories/tags/etc.) so pages won't show empty data after login.
-      requestMetaSync(activeBookId, reason: 'app_start');
+      // Guest mode (no token) should not keep retrying network sync on startup.
+      // Login flows will explicitly trigger a sync/meta sync once the token is persisted.
+      () async {
+        final ok = await const AuthService().isTokenValid();
+        if (!ok) return;
+        requestSync(activeBookId, reason: 'app_start');
+        // Also sync meta (budget/accounts/categories/tags/etc.) so pages won't show empty data after login.
+        requestMetaSync(activeBookId, reason: 'app_start');
+      }();
     }
     _startPeriodicPullTimer();
   }
@@ -118,6 +125,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _pendingReasonsByBook.clear();
     _pendingMetaBooks.clear();
     _pendingMetaReasonsByBook.clear();
+    _bookProvider = null;
     _outboxSub?.cancel();
     _outboxSub = null;
     _accountsSub?.cancel();
@@ -159,7 +167,9 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     // 元数据同步限频：
     // - accounts_changed：用户在资产页修改后希望尽快上云，但要做节流/防抖
     // - 其他原因：至少间隔 10 分钟，避免频繁 SQL
-    if (reason == 'accounts_changed') {
+    if (reason == 'login' || reason == 'force_bootstrap') {
+      // Always allow an immediate meta sync after login/bootstrap.
+    } else if (reason == 'accounts_changed') {
       final last = _lastAccountsSyncMsByBook[bookId] ?? 0;
       if (now - last < 8 * 1000) return;
     } else if (reason == 'budget_changed' ||
@@ -201,10 +211,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
         debugPrint('[BackgroundSyncManager] meta sync book=$bookId reason=$reason');
         final ok = await engine.syncMeta(ctx, bookId, reason: reason);
         if (!ok) {
-          // Likely not logged in yet; re-queue and retry later.
-          _pendingMetaBooks.add(bookId);
-          _pendingMetaReasonsByBook[bookId] = reason;
-          _scheduleMetaFlush();
+          // Not logged in yet: don't spin retry loops; login flow will trigger sync explicitly.
           continue;
         }
         final doneAt = DateTime.now().millisecondsSinceEpoch;

@@ -33,6 +33,8 @@ class _BudgetPageState extends State<BudgetPage>
   final TextEditingController _yearTotalCtrl = TextEditingController();
   final FocusNode _monthTotalFocusNode = FocusNode();
   final FocusNode _yearTotalFocusNode = FocusNode();
+  double? _lastSyncedMonthTotal;
+  double? _lastSyncedYearTotal;
   final ScrollController _scrollController = ScrollController();
   bool _savingMonthTotal = false;
   bool _savingYearTotal = false;
@@ -107,15 +109,25 @@ class _BudgetPageState extends State<BudgetPage>
     final rawInput = _monthTotalCtrl.text;
     await _dismissKeyboard();
     if (_savingMonthTotal) return;
+    final parsed = _parseAmount(rawInput);
+    if (rawInput.trim().isEmpty) {
+      if (!mounted) return;
+      ErrorHandler.showWarning(context, '请输入预算金额');
+      return;
+    }
+    if (parsed == null) {
+      if (!mounted) return;
+      ErrorHandler.showError(context, '请输入正确的预算金额');
+      return;
+    }
     setState(() => _savingMonthTotal = true);
     try {
       final provider = context.read<BudgetProvider>();
-      final parsed = _parseAmount(rawInput);
-      final total = parsed ?? 0;
+      final total = parsed;
 
       // 验证金额
       final amountError = Validators.validateAmount(total);
-      if (amountError != null && total > 0) {
+      if (amountError != null) {
         if (!mounted) return;
         ErrorHandler.showError(context, amountError);
         return;
@@ -137,15 +149,25 @@ class _BudgetPageState extends State<BudgetPage>
     final rawInput = _yearTotalCtrl.text;
     await _dismissKeyboard();
     if (_savingYearTotal) return;
+    final parsed = _parseAmount(rawInput);
+    if (rawInput.trim().isEmpty) {
+      if (!mounted) return;
+      ErrorHandler.showWarning(context, '请输入预算金额');
+      return;
+    }
+    if (parsed == null) {
+      if (!mounted) return;
+      ErrorHandler.showError(context, '请输入正确的预算金额');
+      return;
+    }
     setState(() => _savingYearTotal = true);
     try {
       final provider = context.read<BudgetProvider>();
-      final parsed = _parseAmount(rawInput);
-      final total = parsed ?? 0;
+      final total = parsed;
 
       // 验证金额
       final amountError = Validators.validateAmount(total);
-      if (amountError != null && total > 0) {
+      if (amountError != null) {
         if (!mounted) return;
         ErrorHandler.showError(context, amountError);
         return;
@@ -1206,11 +1228,21 @@ class _BudgetPageState extends State<BudgetPage>
     final focusNode = isYear ? _yearTotalFocusNode : _monthTotalFocusNode;
     final currentTotal = isYear ? budgetEntry.annualTotal : budgetEntry.total;
     final expectedText = currentTotal > 0 ? _formatAmount(currentTotal) : '';
-    if (!focusNode.hasFocus && controller.text != expectedText) {
+    final lastSynced = isYear ? _lastSyncedYearTotal : _lastSyncedMonthTotal;
+    final shouldSync =
+        lastSynced == null || (lastSynced - currentTotal).abs() > 0.0001;
+    if (!focusNode.hasFocus && shouldSync && controller.text != expectedText) {
       controller.text = expectedText;
       controller.selection = TextSelection.fromPosition(
         TextPosition(offset: controller.text.length),
       );
+    }
+    if (shouldSync) {
+      if (isYear) {
+        _lastSyncedYearTotal = currentTotal;
+      } else {
+        _lastSyncedMonthTotal = currentTotal;
+      }
     }
 
     return Container(

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -26,6 +27,7 @@ import '../repository/repository_factory.dart';
 import '../services/auth_service.dart';
 import '../services/book_service.dart';
 import '../services/background_sync_manager.dart';
+import '../services/book_invite_code_store.dart';
 import 'feedback_page.dart';
 import '../services/gift_code_service.dart';
 import '../services/local_data_reset_service.dart';
@@ -415,48 +417,104 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         final tt = Theme.of(ctx).textTheme;
-        return AlertDialog(
-          title: Text(
-            '加入多人账本',
-            style: tt.titleMedium?.copyWith(color: cs.onSurface),
-          ),
-          content: TextField(
-            controller: controller,
-            maxLength: 8,
-            style: tt.bodyMedium?.copyWith(color: cs.onSurface),
-            decoration: InputDecoration(
-              hintText: '输入 8 位邀请码',
-              hintStyle: tt.bodyMedium?.copyWith(
-                color: cs.onSurface.withOpacity(0.5),
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            final raw = controller.text;
+            final digitsOnly = raw.replaceAll(RegExp(r'\\D'), '');
+            final canJoin = digitsOnly.length == 8;
+
+            return AlertDialog(
+              title: Text(
+                '加入多人账本',
+                style: tt.titleMedium?.copyWith(color: cs.onSurface),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(
-                '取消',
-                style: tt.labelLarge?.copyWith(color: cs.onSurface),
+              content: TextField(
+                controller: controller,
+                maxLength: 8,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                style: tt.bodyMedium?.copyWith(color: cs.onSurface),
+                decoration: InputDecoration(
+                  hintText: '输入 8 位邀请码',
+                  hintStyle: tt.bodyMedium?.copyWith(
+                    color: cs.onSurface.withOpacity(0.5),
+                  ),
+                ),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final code = controller.text.trim();
-                if (code.length != 8) {
-                  ErrorHandler.showWarning(ctx, '请输入 8 位邀请码');
-                  return;
-                }
-                Navigator.pop(ctx);
-                await _joinBookByCodeStub(code);
-              },
-              child: Text(
-                '加入',
-                style: tt.labelLarge?.copyWith(color: cs.onPrimary),
-              ),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(
+                    '取消',
+                    style: tt.labelLarge?.copyWith(color: cs.onSurface),
+                  ),
+                ),
+                FilledButton(
+                  onPressed: !canJoin
+                      ? null
+                      : () async {
+                          final code = controller.text
+                              .trim()
+                              .replaceAll(RegExp(r'\\D'), '');
+                          if (code.length != 8) {
+                            ErrorHandler.showWarning(ctx, '请输入 8 位邀请码');
+                            return;
+                          }
+                          Navigator.pop(ctx);
+                          await _joinBookByCodeStub(code);
+                        },
+                  child: Text(
+                    '加入',
+                    style: tt.labelLarge,
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
+    );
+  }
+
+  Future<void> _copyToClipboard(String text, {String? successMessage}) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: trimmed));
+    if (!mounted) return;
+    ErrorHandler.showSuccess(context, successMessage ?? '已复制');
+  }
+
+  Future<void> _showInviteCodeDialog({
+    required String bookId,
+    required String bookName,
+    required String inviteCode,
+  }) async {
+    await BookInviteCodeStore.instance.setInviteCode(bookId, inviteCode);
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('多人账本邀请码'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('账本：$bookName'),
+            const SizedBox(height: 10),
+            SelectableText(inviteCode, style: const TextStyle(fontSize: 18)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => _copyToClipboard(inviteCode, successMessage: '邀请码已复制'),
+            child: const Text('复制'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -467,8 +525,15 @@ class _ProfilePageState extends State<ProfilePage> {
       final serverBookId =
           (result['id'] as num?)?.toInt().toString() ?? '';
       final name = result['name'] as String? ?? '多人账本';
+      final inviteCode = (result['inviteCode'] as String?)?.trim() ?? '';
       if (mounted && serverBookId.isNotEmpty) {
-        await context.read<BookProvider>().addServerBook(serverBookId, name);
+        final bookProvider = context.read<BookProvider>();
+        await bookProvider.addServerBook(serverBookId, name);
+        await bookProvider.selectBook(serverBookId);
+        if (inviteCode.isNotEmpty) {
+          await BookInviteCodeStore.instance.setInviteCode(serverBookId, inviteCode);
+        }
+        await SyncEngine().forceBootstrapV2(context, serverBookId);
       }
       if (!mounted) return;
       ErrorHandler.showSuccess(context, '已成功加入账本');
@@ -1098,6 +1163,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _showBookManagerSheet(BuildContext context) async {
     final bookProvider = context.read<BookProvider>();
     final cs = Theme.of(context).colorScheme;
+    final loggedIn = _token != null && _token!.isNotEmpty;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1120,21 +1186,36 @@ class _ProfilePageState extends State<ProfilePage> {
                           .titleMedium
                           ?.copyWith(color: cs.onSurface),
                     ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _showAddBookDialog(context);
-                      },
-                      icon: Icon(Icons.add, color: cs.primary),
-                      label: Text(
-                        AppStrings.addBook,
-                        style: tt.labelLarge?.copyWith(color: cs.primary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                     const Spacer(),
+                     TextButton.icon(
+                       onPressed: () {
+                         Navigator.pop(ctx);
+                         _showAddBookDialog(context);
+                       },
+                       icon: Icon(Icons.add, color: cs.primary),
+                       label: Text(
+                         AppStrings.addBook,
+                         style: tt.labelLarge?.copyWith(color: cs.primary),
+                       ),
+                     ),
+                     if (loggedIn)
+                       TextButton.icon(
+                         onPressed: () {
+                           Navigator.pop(ctx);
+                           _showJoinInviteDialog();
+                         },
+                         style: TextButton.styleFrom(
+                           foregroundColor: cs.primary,
+                         ),
+                         icon: Icon(Icons.person_add_alt_1, color: cs.primary),
+                         label: Text(
+                           '加入',
+                           style: tt.labelLarge?.copyWith(color: cs.primary),
+                         ),
+                       ),
+                   ],
+                 ),
+               ),
               ...bookProvider.books.map(
                 (book) => RadioListTile<String>(
                   value: book.id,
@@ -1375,10 +1456,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     '导入 CSV 数据',
                     style: tt.titleSmall?.copyWith(color: cs.onSurface),
                   ),
-                  subtitle: Text('从 CSV 文件导入记账记录',
-                      style: tt.bodySmall?.copyWith(
-                        color: cs.onSurface.withOpacity(0.7),
-                      )),
                   onTap: () {
                     Navigator.pop(ctx);
                     _importCsv(context);
@@ -1391,10 +1468,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     '导出 CSV',
                     style: tt.titleSmall?.copyWith(color: cs.onSurface),
                   ),
-                  subtitle: Text('适合 Excel/表格查看与分析',
-                      style: tt.bodySmall?.copyWith(
-                        color: cs.onSurface.withOpacity(0.7),
-                      )),
                   onTap: () {
                     Navigator.pop(ctx);
                     _showExportSheet(context);
@@ -1449,12 +1522,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   '导入 CSV 数据',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
-                subtitle: Text(
-                  '从 CSV 文件导入记账记录',
-                  style: tt.bodySmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
-                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _importCsv(context);
@@ -1469,12 +1536,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   '导出 Excel',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
-                subtitle: Text(
-                  '适合表格查看与二次处理',
-                  style: tt.bodySmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
-                ),
                 onTap: () => openExport(RecordsExportFormat.excel),
               ),
               ListTile(
@@ -1486,12 +1547,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   '导出 PDF',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
-                subtitle: Text(
-                  '适合发送/打印留存',
-                  style: tt.bodySmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
-                ),
                 onTap: () => openExport(RecordsExportFormat.pdf),
               ),
               ListTile(
@@ -1502,12 +1557,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: Text(
                   '导出 CSV',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
-                ),
-                subtitle: Text(
-                  '适合 Excel/表格查看与分析',
-                  style: tt.bodySmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
                 ),
                 onTap: () => openExport(RecordsExportFormat.csv),
               ),
@@ -1558,12 +1607,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   '导出为 Excel',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
-                subtitle: Text(
-                  '适合表格查看与二次处理',
-                  style: tt.bodySmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
-                ),
                 onTap: () => openExport(RecordsExportFormat.excel),
               ),
               ListTile(
@@ -1575,12 +1618,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   '导出为 PDF',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
                 ),
-                subtitle: Text(
-                  '适合发送/打印留存',
-                  style: tt.bodySmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
-                ),
                 onTap: () => openExport(RecordsExportFormat.pdf),
               ),
               ListTile(
@@ -1591,12 +1628,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: Text(
                   '导出为 CSV',
                   style: tt.titleSmall?.copyWith(color: cs.onSurface),
-                ),
-                subtitle: Text(
-                  '适合在 Excel / 表格中查看',
-                  style: tt.bodySmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
                 ),
                 onTap: () => openExport(RecordsExportFormat.csv),
               ),
@@ -1799,41 +1830,120 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _showAddBookDialog(BuildContext context) async {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    final loggedIn = _token != null && _token!.isNotEmpty;
+    bool createAsMulti = false;
     await showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text(AppStrings.newBook),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            decoration:
-                const InputDecoration(hintText: AppStrings.bookNameHint),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return AppStrings.bookNameRequired;
-              }
-              return null;
-            },
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text(AppStrings.newBook),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration:
+                        const InputDecoration(hintText: AppStrings.bookNameHint),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return AppStrings.bookNameRequired;
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  if (loggedIn)
+                    SwitchListTile(
+                      value: createAsMulti,
+                      onChanged: (value) {
+                        setState(() => createAsMulti = value);
+                      },
+                      title: const Text('创建为多人账本'),
+                      subtitle: const Text('生成邀请码，可与好友共享（需登录）'),
+                      contentPadding: EdgeInsets.zero,
+                    )
+                  else
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.group_outlined),
+                      title: const Text('多人账本需登录'),
+                      subtitle: const Text('登录后可直接创建多人账本并生成邀请码'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _goLogin();
+                      },
+                    ),
+                ],
+              ),
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(AppStrings.cancel),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (formKey.currentState?.validate() != true) return;
+                final name = controller.text.trim();
+
+                if (!createAsMulti) {
+                  await context.read<BookProvider>().addBook(name);
+                  if (context.mounted) Navigator.pop(ctx);
+                  return;
+                }
+
+                if (!loggedIn) {
+                  ErrorHandler.showWarning(context, '未登录，请先登录');
+                  return;
+                }
+
+                // Create server multi-book, then add it locally.
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => const Center(child: CircularProgressIndicator()),
+                );
+
+                try {
+                  final result = await BookService().createMultiBook(name);
+                  final serverBookId =
+                      (result['id'] as num?)?.toInt().toString() ?? '';
+                  if (serverBookId.isEmpty) {
+                    throw Exception('创建多人账本失败');
+                  }
+                  final inviteCode = result['inviteCode'] as String?;
+
+                  final bookProvider = context.read<BookProvider>();
+                  await bookProvider.addServerBook(serverBookId, name);
+                  await bookProvider.selectBook(serverBookId);
+
+                  if (!context.mounted) return;
+                  Navigator.of(context, rootNavigator: true).pop(); // loading
+                  Navigator.pop(ctx); // add dialog
+
+                  if (inviteCode != null && inviteCode.isNotEmpty) {
+                    await _showInviteCodeDialog(
+                      bookId: serverBookId,
+                      bookName: name,
+                      inviteCode: inviteCode,
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Navigator.of(context, rootNavigator: true).pop(); // loading
+                    ErrorHandler.handleAsyncError(context, e);
+                  }
+                }
+              },
+              child: const Text(AppStrings.save),
+            )
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(AppStrings.cancel),
-          ),
-          FilledButton(
-            onPressed: () async {
-              if (formKey.currentState?.validate() != true) return;
-              await context
-                  .read<BookProvider>()
-                  .addBook(controller.text.trim());
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: const Text(AppStrings.save),
-          )
-        ],
       ),
     );
   }
@@ -1848,13 +1958,19 @@ class _ProfilePageState extends State<ProfilePage> {
     final controller = TextEditingController(text: initialName);
     final formKey = GlobalKey<FormState>();
     final bookProvider = context.read<BookProvider>();
-    
+     
     // 检查是否已登录
     final loggedIn = _token != null && _token!.isNotEmpty;
-    
+    final isMultiBook = int.tryParse(id) != null;
+    String? inviteCodeCache;
+    if (loggedIn && isMultiBook) {
+      inviteCodeCache = await BookInviteCodeStore.instance.getInviteCode(id);
+    }
+     
     await showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheetState) => AlertDialog(
         title: Text(
           '账本设置',
           style: tt.titleMedium?.copyWith(color: cs.onSurface),
@@ -1886,7 +2002,49 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 16),
                 // 多人账本功能
-                if (loggedIn) ...[
+                if (loggedIn && isMultiBook) ...[
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.group_outlined, color: cs.primary),
+                    title: const Text('多人账本'),
+                    subtitle: Text(
+                      (inviteCodeCache?.isNotEmpty ?? false)
+                          ? '邀请码：$inviteCodeCache'
+                          : '邀请码：—',
+                    ),
+                    trailing: Wrap(
+                      spacing: 4,
+                      children: [
+                        IconButton(
+                          tooltip: '复制邀请码',
+                          icon: const Icon(Icons.copy),
+                          onPressed: () async {
+                            final code = inviteCodeCache;
+                            if (code == null || code.isEmpty) {
+                              ErrorHandler.showWarning(ctx, '暂无邀请码');
+                              return;
+                            }
+                            await _copyToClipboard(code, successMessage: '邀请码已复制');
+                          },
+                        ),
+                      ],
+                    ),
+                    onTap: () async {
+                      final code = inviteCodeCache;
+                      if (code == null || code.isEmpty) {
+                        ErrorHandler.showWarning(ctx, '暂无邀请码');
+                        return;
+                      }
+                      await _showInviteCodeDialog(
+                        bookId: id,
+                        bookName: controller.text.trim().isEmpty ? initialName : controller.text.trim(),
+                        inviteCode: code,
+                      );
+                    },
+                  ),
+                ] else if (loggedIn && !isMultiBook) ...[
                   const Divider(),
                   const SizedBox(height: 8),
                   ListTile(
@@ -1895,10 +2053,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     title: const Text('升级为多人账本'),
                     subtitle: const Text('生成邀请码，与好友共享账本'),
                     trailing: Switch(
-                      value: false, // TODO: 从服务器获取是否已升级
+                      value: false,
                       onChanged: (value) {
                         if (value) {
-                          Navigator.pop(context);
+                          Navigator.pop(ctx);
                           _showUpgradeToMultiBookDialog(context, id);
                         }
                       },
@@ -1913,7 +2071,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     title: const Text('多人账本'),
                     subtitle: const Text('登录后可使用多人账本功能'),
                     onTap: () {
-                      Navigator.pop(context);
+                      Navigator.pop(ctx);
                       _goLogin();
                     },
                   ),
@@ -1924,7 +2082,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: Text(
               AppStrings.cancel,
               style: tt.labelLarge?.copyWith(color: cs.onSurface),
@@ -1939,6 +2097,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: const Text(AppStrings.save),
           )
         ],
+      ),
       ),
     );
   }
@@ -1970,7 +2129,13 @@ class _ProfilePageState extends State<ProfilePage> {
           await SyncEngine().forceBootstrapV2(context, serverBookId);
         }
       }
-      final inviteCode = result['inviteCode'] as String? ?? _generateInviteCode();
+      final inviteCode = (result['inviteCode'] as String?)?.trim() ?? '';
+      if (inviteCode.isEmpty) {
+        throw Exception('服务器未返回邀请码，请稍后重试');
+      }
+      if (serverBookId.isNotEmpty) {
+        await BookInviteCodeStore.instance.setInviteCode(serverBookId, inviteCode);
+      }
      
     await showDialog(
       context: context,
@@ -1992,11 +2157,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 color: cs.primaryContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      inviteCode,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        inviteCode,
                       style: tt.headlineSmall?.copyWith(
                         color: cs.onPrimaryContainer,
                         fontWeight: FontWeight.bold,
@@ -2004,16 +2169,15 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.copy, color: cs.primary),
-                    onPressed: () {
-                      // TODO: 复制到剪贴板
-                      ErrorHandler.showSuccess(context, '已复制邀请码');
-                    },
-                  ),
-                ],
+                    IconButton(
+                      icon: Icon(Icons.copy, color: cs.primary),
+                      onPressed: () async {
+                        await _copyToClipboard(inviteCode, successMessage: '邀请码已复制');
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () {

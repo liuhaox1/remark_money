@@ -1180,6 +1180,24 @@ class SyncEngine {
     String bookId, {
     required String reason,
   }) async {
+    final uid = await _authUserIdOrZero();
+    await _runMetaThrottled(
+      'meta_budget_u${uid}_b$bookId',
+      () async {
+        await _syncBudgetRaw(budgetProvider, bookId, reason: reason);
+        return true;
+      },
+      // Budget sync should not run concurrently (duplicate SQL) but should still be allowed
+      // whenever requested; bypass the time window and only coalesce in-flight requests.
+      bypassWindow: true,
+    );
+  }
+
+  Future<void> _syncBudgetRaw(
+    BudgetProvider budgetProvider,
+    String bookId, {
+    required String reason,
+  }) async {
     try {
       debugPrint('[SyncEngine] budget sync book=$bookId reason=$reason');
       final budgetEntry = budgetProvider.budgetForBook(bookId);
@@ -1397,6 +1415,30 @@ class SyncEngine {
   }
 
   Future<void> _syncAccounts(
+    AccountProvider accountProvider,
+    RecordProvider recordProvider,
+    String bookId, {
+    required String reason,
+  }) async {
+    final uid = await _authUserIdOrZero();
+    await _runMetaThrottled(
+      'meta_accounts_u${uid}_b$bookId',
+      () async {
+        await _syncAccountsRaw(
+          accountProvider,
+          recordProvider,
+          bookId,
+          reason: reason,
+        );
+        return true;
+      },
+      // Accounts sync should not run concurrently (duplicate SQL) but should still be allowed
+      // whenever requested; bypass the time window and only coalesce in-flight requests.
+      bypassWindow: true,
+    );
+  }
+
+  Future<void> _syncAccountsRaw(
     AccountProvider accountProvider,
     RecordProvider recordProvider,
     String bookId, {
