@@ -2,8 +2,14 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../database/database_helper.dart';
 import '../models/book.dart';
+import '../models/budget.dart';
+import '../models/recurring_record.dart';
+import '../models/record.dart';
+import '../models/tag.dart';
 import '../repository/repository_factory.dart';
+import '../services/sync_outbox_service.dart';
 import '../utils/error_handler.dart';
 
 class BookProvider extends ChangeNotifier {
@@ -118,9 +124,14 @@ class BookProvider extends ChangeNotifier {
   }
 
   /// 将本地账本升级为服务器多人账本（迁移记录 bookId 并替换本地Book id）
-  Future<void> upgradeLocalBookToServer(String oldBookId, String newBookId) async {
+  Future<void> upgradeLocalBookToServer(
+    String oldBookId,
+    String newBookId, {
+    bool queueUploadAllRecords = false,
+  }) async {
     final index = _books.indexWhere((b) => b.id == oldBookId);
     if (index == -1) return;
+    if (oldBookId == newBookId) return;
     try {
       final name = _books[index].name;
       _books[index] = Book(id: newBookId, name: name);
@@ -130,10 +141,148 @@ class BookProvider extends ChangeNotifier {
       }
       await _repository.saveBooks(_books);
 
+      // Migrate book-scoped data so the "upgraded" book keeps its local content/settings.
       if (RepositoryFactory.isUsingDatabase) {
-        final repo = RepositoryFactory.createRecordRepository() as dynamic;
+        final db = await DatabaseHelper().database;
+        await db.transaction((txn) async {
+          // Records: move to new book and reset server sync meta (new server book => re-upload as new bills).
+          await txn.update(
+            Tables.records,
+            {
+              'book_id': newBookId,
+              'server_id': null,
+              'server_version': null,
+            },
+            where: 'book_id = ?',
+            whereArgs: [oldBookId],
+          );
+
+          // Budgets: book_id is the primary key.
+          await txn.update(
+            Tables.budgets,
+            {'book_id': newBookId},
+            where: 'book_id = ?',
+            whereArgs: [oldBookId],
+          );
+
+          // Tags / recurring records are scoped by book_id.
+          await txn.update(
+            Tables.tags,
+            {'book_id': newBookId},
+            where: 'book_id = ?',
+            whereArgs: [oldBookId],
+          );
+          await txn.update(
+            Tables.recurringRecords,
+            {'book_id': newBookId},
+            where: 'book_id = ?',
+            whereArgs: [oldBookId],
+          );
+
+          // Any queued ops for the old book are now invalid; they must be rebuilt for the new book.
+          await txn.delete(
+            Tables.syncOutbox,
+            where: 'book_id = ?',
+            whereArgs: [oldBookId],
+          );
+          await txn.delete(
+            Tables.syncOutbox,
+            where: 'book_id = ?',
+            whereArgs: [newBookId],
+          );
+        });
+      } else {
+        // SharedPreferences backend: migrate JSON payloads.
+        final recordRepo = RepositoryFactory.createRecordRepository() as dynamic;
+        final budgetRepo = RepositoryFactory.createBudgetRepository() as dynamic;
+        final tagRepo = RepositoryFactory.createTagRepository() as dynamic;
+        final recurringRepo =
+            RepositoryFactory.createRecurringRecordRepository() as dynamic;
+
         try {
-          await repo.migrateBookId(oldBookId, newBookId);
+          final List<Record> list =
+              (await recordRepo.loadRecords() as List).cast<Record>();
+          final migrated = list.map<Record>((r) {
+            if (r.bookId != oldBookId) return r;
+            return Record(
+              id: r.id,
+              amount: r.amount,
+              remark: r.remark,
+              date: r.date,
+              categoryKey: r.categoryKey,
+              bookId: newBookId,
+              accountId: r.accountId,
+              direction: r.direction,
+              includeInStats: r.includeInStats,
+              pairId: r.pairId,
+              serverId: null,
+              serverVersion: null,
+            );
+          }).toList(growable: false);
+          await recordRepo.saveRecords(migrated);
+        } catch (e, stackTrace) {
+          ErrorHandler.logError(
+            'BookProvider.upgradeLocalBookToServer.migrateRecords',
+            e,
+            stackTrace,
+          );
+          rethrow;
+        }
+
+        try {
+          final budget = await budgetRepo.loadBudget();
+          final oldEntry = budget.entries[oldBookId];
+          if (oldEntry != null) {
+            final next = Map<String, BudgetEntry>.from(budget.entries);
+            next.remove(oldBookId);
+            next[newBookId] = oldEntry;
+            await budgetRepo.saveBudget(Budget(entries: next));
+          }
+        } catch (_) {}
+
+        try {
+          final List<Tag> tagsOld =
+              (await tagRepo.loadTags(bookId: oldBookId) as List).cast<Tag>();
+          if (tagsOld.isNotEmpty) {
+            await tagRepo.saveTagsForBook(
+              newBookId,
+              tagsOld
+                  .map<Tag>((t) => t.copyWith(bookId: newBookId))
+                  .toList(growable: false),
+            );
+            await tagRepo.saveTagsForBook(oldBookId, <Tag>[]);
+          }
+        } catch (_) {}
+
+        try {
+          final List<dynamic> plansRaw = await recurringRepo.loadPlans();
+          final List<RecurringRecordPlan> plans =
+              plansRaw.cast<RecurringRecordPlan>();
+          final next = plans.map<RecurringRecordPlan>((p) {
+            if (p.bookId != oldBookId) return p;
+            return p.copyWith(bookId: newBookId);
+          }).toList(growable: false);
+          await recurringRepo.savePlans(next);
+        } catch (_) {}
+
+        // Clear any cached outbox for both old/new book ids.
+        try {
+          await SyncOutboxService.instance.clearBook(oldBookId);
+          await SyncOutboxService.instance.clearBook(newBookId);
+        } catch (_) {}
+      }
+
+        if (queueUploadAllRecords) {
+          // Rebuild outbox so local records will be uploaded into the new server book.
+          try {
+            final recordRepo = RepositoryFactory.createRecordRepository() as dynamic;
+            final List<Record> all =
+                (await recordRepo.loadRecords() as List).cast<Record>();
+            final target =
+                all.where((r) => r.bookId == newBookId).toList(growable: false);
+            for (final r in target) {
+              await SyncOutboxService.instance.enqueueUpsert(r);
+          }
         } catch (_) {}
       }
 

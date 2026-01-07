@@ -1947,12 +1947,31 @@ class _ProfilePageState extends State<ProfilePage> {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     final bookService = BookService();
-    
+    final bookProvider = context.read<BookProvider>();
+     
     try {
-      // 调用后端API升级为多人账本
-      final result = await bookService.createMultiBook(bookId);
+      final localBook = bookProvider.books.firstWhere(
+        (b) => b.id == bookId,
+        orElse: () => bookProvider.activeBook ?? Book(id: bookId, name: '多人账本'),
+      );
+
+      // 调用后端 API 创建多人账本（服务器端新账本），并把本地账本迁移到该 server bookId。
+      final result = await bookService.createMultiBook(localBook.name);
+      final serverBookId =
+          (result['id'] as num?)?.toInt().toString() ?? '';
+      if (serverBookId.isNotEmpty) {
+        await bookProvider.upgradeLocalBookToServer(
+          bookId,
+          serverBookId,
+          queueUploadAllRecords: true,
+        );
+        // Kick an immediate bootstrap so migrated local data starts uploading right away.
+        if (mounted) {
+          await SyncEngine().forceBootstrapV2(context, serverBookId);
+        }
+      }
       final inviteCode = result['inviteCode'] as String? ?? _generateInviteCode();
-    
+     
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(

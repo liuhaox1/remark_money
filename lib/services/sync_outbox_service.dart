@@ -61,6 +61,34 @@ class SyncOutboxService {
 
   Stream<String> get onBookChanged => _bookChanges.stream;
 
+  /// Clear all queued ops for a book (both guest and logged-in owners).
+  Future<void> clearBook(String bookId) async {
+    if (bookId.isEmpty) return;
+    if (RepositoryFactory.isUsingDatabase) {
+      try {
+        final db = await DatabaseHelper().database;
+        await db.delete(
+          Tables.syncOutbox,
+          where: 'book_id = ?',
+          whereArgs: [bookId],
+        );
+      } catch (_) {}
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys().where((k) {
+      if (!k.startsWith(_prefsKeyPrefix)) return false;
+      // guest: sync_outbox_<bookId>
+      if (k == '$_prefsKeyPrefix$bookId') return true;
+      // logged-in: sync_outbox_u{uid}_<bookId>
+      return k.endsWith('_$bookId');
+    }).toList(growable: false);
+    for (final k in keys) {
+      await prefs.remove(k);
+    }
+  }
+
   bool get isSuppressed => _suppressed;
 
   Future<T> runSuppressed<T>(Future<T> Function() action) async {
