@@ -190,6 +190,10 @@ class SpeechService {
     return true;
   }
 
+  Future<bool> openSystemSettings() async {
+    return openAppSettings();
+  }
+
   /// 释放资源
   void dispose() {
     _speech.cancel();

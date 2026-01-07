@@ -37,6 +37,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
   bool _isListening = false;
   bool _isSaving = false;
   String _statusText = '先说一句话（可多句），识别成文字后点击“发送”解析';
+  String? _initError;
   List<_VoiceDraftItem> _drafts = const [];
 
   @override
@@ -56,7 +57,8 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
     final initialized = await _speechService.initialize();
     if (!initialized && mounted) {
       setState(() {
-        _statusText = _speechService.lastError ?? '需要麦克风权限才能使用语音记账';
+        _initError = _speechService.lastError ?? '需要麦克风权限才能使用语音记账';
+        _statusText = _initError!;
       });
     }
   }
@@ -316,6 +318,18 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
                       color: cs.onSurface.withOpacity(0.75),
                     ),
                   ),
+                  if ((_initError ?? '').contains('权限') ||
+                      (_initError ?? '').contains('麦克风'))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await _speechService.openSystemSettings();
+                        },
+                        icon: const Icon(Icons.settings_outlined),
+                        label: const Text('去系统设置开启权限'),
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   _buildInputCard(context),
                   const SizedBox(height: 12),
