@@ -30,7 +30,8 @@ class ApiConfig {
   }
 
   static String get _defaultBaseUrl {
-    const devLocal = 'http://localhost:8080';
+    // Use the same base URL for both development and test environments.
+    const devLocal = 'http://115.190.162.10:8080';
     const prod = 'http://115.190.162.10:8080';
 
     if (kReleaseMode) return prod;
