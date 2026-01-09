@@ -3,22 +3,30 @@
 <mapper namespace="com.remark.money.mapper.IdSequenceMapper">
 
   <!--
-    Ensure the sequence exists and is always >= MAX(bill_info.id)+1.
-    This makes client-allocated ids safe even if bill_info already has data.
+    Ensure the sequence exists.
+    Note: we only initialize once to avoid doing MAX(bill_info.id) on every allocation request.
   -->
   <insert id="ensureBillInfo">
     INSERT INTO id_sequence (name, next_id)
-    SELECT 'bill_info', IFNULL(MAX(id), 0) + 1 FROM bill_info
-    ON DUPLICATE KEY UPDATE
-      next_id = GREATEST(next_id, VALUES(next_id))
+    SELECT 'bill_info', IFNULL((SELECT MAX(id) FROM bill_info), 0) + 1
+    FROM DUAL
+    WHERE NOT EXISTS (
+      SELECT 1 FROM id_sequence WHERE name = 'bill_info'
+    )
   </insert>
 
-  <select id="lockNextId" resultType="long">
-    SELECT next_id FROM id_sequence WHERE name = #{name} FOR UPDATE
-  </select>
+  <update id="advanceWithLastInsertId">
+    UPDATE id_sequence
+    SET next_id = LAST_INSERT_ID(next_id + #{count})
+    WHERE name = #{name}
+  </update>
 
   <update id="advance">
     UPDATE id_sequence SET next_id = next_id + #{count} WHERE name = #{name}
   </update>
+
+  <select id="lastInsertId" resultType="long">
+    SELECT LAST_INSERT_ID()
+  </select>
 
 </mapper>

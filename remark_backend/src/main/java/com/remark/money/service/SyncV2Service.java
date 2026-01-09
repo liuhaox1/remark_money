@@ -28,7 +28,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,8 +35,6 @@ import java.util.stream.Collectors;
 
 @Service
 public class SyncV2Service {
-  private static final String EMPTY_TAG_SENTINEL = "__EMPTY__";
-
   private static final int RETENTION_DAYS = 30;
 
   private final BillInfoMapper billInfoMapper;
@@ -106,14 +103,20 @@ public class SyncV2Service {
   public Map<String, Object> allocateBillIds(int count) {
     int realCount = Math.max(1, Math.min(count, 5000));
     idSequenceMapper.ensureBillInfo();
-    Long start = idSequenceMapper.lockNextId("bill_info");
-    if (start == null) start = 1L;
-    idSequenceMapper.advance("bill_info", realCount);
-    long end = start + realCount - 1L;
+
+    int updated = idSequenceMapper.advanceWithLastInsertId("bill_info", realCount);
+    if (updated != 1) {
+      throw new IllegalStateException("failed to advance id sequence");
+    }
+    Long endId = idSequenceMapper.lastInsertId();
+    if (endId == null || endId <= 0) {
+      throw new IllegalStateException("failed to read allocated id range");
+    }
+    long startId = endId - realCount + 1L;
     Map<String, Object> resp = new HashMap<>();
     resp.put("success", true);
-    resp.put("startId", start);
-    resp.put("endId", end);
+    resp.put("startId", startId);
+    resp.put("endId", endId);
     resp.put("count", realCount);
     return resp;
   }
@@ -323,41 +326,15 @@ public class SyncV2Service {
     Map<Long, List<String>> out = new HashMap<>();
     if (billIds == null || billIds.isEmpty()) return out;
 
-    // 1) Load personal tags (scope_user_id = userId).
-    // 2) For legacy shared tags, fall back to scope_user_id = 0 only when the user has no rows at all for that bill.
-    //    This preserves "personal tags" semantics while keeping old data visible after migration.
     List<BillTagRel> rels = billTagRelMapper.findByBillIds(bookId, scopeUserId, billIds);
-    Set<Long> billsWithAnyUserRow = new HashSet<>();
-    if (rels != null) {
-      for (BillTagRel r : rels) {
-        if (r == null || r.getBillId() == null) continue;
-        billsWithAnyUserRow.add(r.getBillId());
-        String tid = r.getTagId();
-        if (tid == null) continue;
-        tid = tid.trim();
-        if (tid.isEmpty() || EMPTY_TAG_SENTINEL.equals(tid)) continue;
-        out.computeIfAbsent(r.getBillId(), k -> new ArrayList<>()).add(tid);
-      }
-    }
-
-    // No legacy fallback if the client isn't asking for a user scope (defensive).
-    if (scopeUserId == null || scopeUserId <= 0) return out;
-
-    List<Long> missing = billIds.stream()
-        .filter(id -> id != null && !billsWithAnyUserRow.contains(id))
-        .collect(Collectors.toList());
-    if (missing.isEmpty()) return out;
-
-    List<BillTagRel> legacyShared = billTagRelMapper.findByBillIds(bookId, 0L, missing);
-    if (legacyShared != null) {
-      for (BillTagRel r : legacyShared) {
-        if (r == null || r.getBillId() == null) continue;
-        String tid = r.getTagId();
-        if (tid == null) continue;
-        tid = tid.trim();
-        if (tid.isEmpty() || EMPTY_TAG_SENTINEL.equals(tid)) continue;
-        out.computeIfAbsent(r.getBillId(), k -> new ArrayList<>()).add(tid);
-      }
+    if (rels == null || rels.isEmpty()) return out;
+    for (BillTagRel r : rels) {
+      if (r == null || r.getBillId() == null) continue;
+      String tid = r.getTagId();
+      if (tid == null) continue;
+      tid = tid.trim();
+      if (tid.isEmpty()) continue;
+      out.computeIfAbsent(r.getBillId(), k -> new ArrayList<>()).add(tid);
     }
     return out;
   }
@@ -609,16 +586,10 @@ public class SyncV2Service {
         Long billId = e.getKey();
         List<String> tagIds = e.getValue();
         if (billId == null || tagIds == null) continue;
-        if (tagIds.isEmpty()) {
-          BillTagRel r = new BillTagRel(bookId, userId, billId, EMPTY_TAG_SENTINEL);
-          r.setSortOrder(0);
-          rels.add(r);
-          continue;
-        }
+        if (tagIds.isEmpty()) continue;
         int idx = 0;
         for (String tid : tagIds) {
           if (tid == null || tid.trim().isEmpty()) continue;
-          if (EMPTY_TAG_SENTINEL.equals(tid.trim())) continue;
           BillTagRel r = new BillTagRel(bookId, userId, billId, tid.trim());
           r.setSortOrder(idx++);
           rels.add(r);

@@ -9,10 +9,12 @@ public interface IdSequenceMapper {
   /** Ensure bill_info sequence exists and does not go backwards. */
   int ensureBillInfo();
 
-  /** Lock current next_id for update. */
-  Long lockNextId(@Param("name") String name);
+  /** Atomically advance next_id by count and store the resulting value in LAST_INSERT_ID(). */
+  int advanceWithLastInsertId(@Param("name") String name, @Param("count") long count);
 
   /** Advance next_id by count. */
   int advance(@Param("name") String name, @Param("count") long count);
-}
 
+  /** Read last insert id for this connection (used with advanceWithLastInsertId). */
+  Long lastInsertId();
+}

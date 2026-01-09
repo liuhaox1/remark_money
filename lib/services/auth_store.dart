@@ -6,6 +6,7 @@ Future<void> clearSyncV2LocalState(SharedPreferences prefs) async {
     if (k.startsWith('sync_v2_last_change_id_') ||
         k.startsWith('sync_v2_conflicts_') ||
         k.startsWith('sync_v2_summary_checked_at_') ||
+        k.startsWith('bill_id_pool_v1_') ||
         k.startsWith('data_version_') ||
         k.startsWith('budget_update_time_') ||
         k.startsWith('budget_local_edit_ms_') ||

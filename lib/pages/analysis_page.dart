@@ -1146,16 +1146,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final categoryList = categoryMap.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    final memberMap = <int, double>{};
-    for (final record
-        in filteredPeriodRecords.where((r) => flowIsExpense ? r.isExpense : r.isIncome)) {
-      if (!record.includeInStats) continue;
-      if (record.categoryKey.startsWith('transfer')) continue;
-      final uid = record.createdByUserId ?? 0;
-      memberMap[uid] = (memberMap[uid] ?? 0) + record.amount;
+    final isMultiBook = int.tryParse(bookId) != null;
+    final memberList = <MapEntry<int, double>>[];
+    if (isMultiBook) {
+      final memberMap = <int, double>{};
+      for (final record in filteredPeriodRecords
+          .where((r) => flowIsExpense ? r.isExpense : r.isIncome)) {
+        if (!record.includeInStats) continue;
+        if (record.categoryKey.startsWith('transfer')) continue;
+        final uid = record.createdByUserId ?? 0;
+        memberMap[uid] = (memberMap[uid] ?? 0) + record.amount;
+      }
+      memberList.addAll(memberMap.entries);
+      memberList.sort((a, b) => b.value.compareTo(a.value));
     }
-    final memberList = memberMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
     
     // 当前周期总额（用于占比/排行榜等）
     final periodTotal = filteredPeriodRecords

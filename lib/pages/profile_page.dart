@@ -63,6 +63,30 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _wiping = false;
   bool _bootstrapping = false;
 
+  Future<void> _confirmAndLogout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认退出账号？'),
+        content: const Text('退出后将停止云端同步，本地数据仍保留在本机。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _logout();
+    if (!mounted) return;
+    ErrorHandler.showSuccess(context, '已退出登录');
+  }
+
   Future<int> _conflictCountForDisplay(String bookId) async {
     final recordProvider = context.read<RecordProvider>();
     final count = await SyncV2ConflictStore.count(bookId);
@@ -1139,6 +1163,26 @@ class _ProfilePageState extends State<ProfilePage> {
               onTap: _confirmWipeAllLocalData,
             ),
           ],
+          if (isLoggedIn) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(Icons.logout, color: cs.error.withOpacity(0.95)),
+              title: Text(
+                '退出账号',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: cs.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              subtitle: Text(
+                '仅退出登录，不会删除本地数据',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface.withOpacity(0.6),
+                    ),
+              ),
+              onTap: _confirmAndLogout,
+            ),
+          ],
         ],
       ),
     );
@@ -1216,7 +1260,24 @@ class _ProfilePageState extends State<ProfilePage> {
                   ],
                 ),
               ),
-              const SizedBox.shrink(),
+              if (isLoggedIn)
+                IconButton(
+                  tooltip: '退出账号',
+                  onPressed: _confirmAndLogout,
+                  icon: Icon(
+                    Icons.logout,
+                    color: cs.error.withOpacity(isDark ? 0.9 : 0.95),
+                  ),
+                )
+              else
+                IconButton(
+                  tooltip: '账号设置',
+                  onPressed: () => _openAccountSettings(isLoggedIn),
+                  icon: Icon(
+                    Icons.settings_outlined,
+                    color: cs.onSurface.withOpacity(0.75),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),

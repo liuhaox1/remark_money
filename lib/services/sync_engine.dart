@@ -33,6 +33,7 @@ import 'sync_v2_pull_utils.dart';
 import 'sync_v2_push_retry.dart';
 import 'sync_v2_summary_store.dart';
 import 'tag_delete_queue.dart';
+import 'bill_id_pool_store.dart';
 
 class SyncEngine {
   SyncEngine({
@@ -173,6 +174,10 @@ class SyncEngine {
   static const int _metaThrottleWindowMs = 15 * 1000;
   static final Map<String, int> _metaLastOkMs = <String, int>{};
   static final Map<String, Future<bool>> _metaInFlight = <String, Future<bool>>{};
+
+  static const int _billIdPoolBatchSize = 50;
+  static final Map<String, Future<List<int>>> _billIdPoolInFlight =
+      <String, Future<List<int>>>{};
 
   Future<int> _authUserIdOrZero() async {
     final prefs = await SharedPreferences.getInstance();
@@ -860,26 +865,24 @@ class SyncEngine {
     }
     if (creates.isEmpty) return;
 
-    final alloc = await _syncService.v2AllocateBillIds(
+    final ids = await _reserveBillIds(
+      bookId: bookId,
       count: creates.length,
       reason: reason,
     );
-    if (alloc['success'] != true) {
+    if (ids.length != creates.length) {
       debugPrint(
-          '[SyncEngine] v2AllocateBillIds failed: ${alloc['error']} (creates=${creates.length})');
+        '[SyncEngine] reserve bill ids failed (need=${creates.length} got=${ids.length}) reason=$reason',
+      );
       return;
     }
-    final startId = alloc['startId'] as int?;
-    if (startId == null) return;
-    debugPrint(
-        '[SyncEngine] allocated bill ids start=$startId count=${creates.length} reason=$reason');
 
     final updated = <SyncOutboxItem>[];
-    var next = startId;
+    var i = 0;
     for (final it in creates) {
       final bill = (it.payload['bill'] as Map).cast<String, dynamic>();
       final localId = bill['localId'] as String?;
-      final assigned = next++;
+      final assigned = ids[i++];
 
       bill['serverId'] = assigned;
       bill['id'] = assigned;
@@ -902,6 +905,57 @@ class SyncEngine {
     }
 
     await _outbox.updateItems(bookId, updated);
+  }
+
+  Future<List<int>> _reserveBillIds({
+    required String bookId,
+    required int count,
+    required String reason,
+  }) async {
+    if (bookId.isEmpty) return const [];
+    if (count <= 0) return const [];
+
+    final key = 'bill_id_pool_$bookId';
+    final inFlight = _billIdPoolInFlight[key];
+    if (inFlight != null) {
+      final ids = await inFlight;
+      return ids.length == count ? ids : const [];
+    }
+
+    final future = () async {
+      final store = BillIdPoolStore.instance;
+      final fromPool = await store.take(bookId: bookId, count: count);
+      if (fromPool.length == count) return fromPool;
+
+      final need = count - fromPool.length;
+      final req = need > _billIdPoolBatchSize ? need : _billIdPoolBatchSize;
+
+      final alloc = await _syncService.v2AllocateBillIds(
+        count: req,
+        reason: reason,
+      );
+      if (alloc['success'] != true) {
+        debugPrint('[SyncEngine] v2AllocateBillIds failed: ${alloc['error']}');
+        return fromPool;
+      }
+      final startId = alloc['startId'] as int?;
+      final endId = alloc['endId'] as int?;
+      if (startId == null || endId == null || endId < startId) {
+        debugPrint('[SyncEngine] v2AllocateBillIds invalid range: $alloc');
+        return fromPool;
+      }
+
+      await store.setPool(bookId: bookId, nextId: startId, endId: endId);
+      final more = await store.take(bookId: bookId, count: need);
+      return <int>[...fromPool, ...more];
+    }();
+
+    _billIdPoolInFlight[key] = future;
+    try {
+      return await future;
+    } finally {
+      _billIdPoolInFlight.remove(key);
+    }
   }
 
   Future<void> _pullV2(
