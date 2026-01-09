@@ -438,6 +438,7 @@ public class SyncController {
       @RequestBody Map<String, Object> request) {
     try {
       Long userId = getUserIdFromToken(token);
+      String bookId = (String) request.get("bookId");
 
       @SuppressWarnings("unchecked")
       List<Map<String, Object>> categoriesData =
@@ -450,7 +451,8 @@ public class SyncController {
         categories = categoriesData.stream().map(this::mapToCategoryInfo).collect(Collectors.toList());
       }
 
-      SyncService.CategorySyncResult result = syncService.uploadCategories(userId, categories, deletedKeys);
+      SyncService.CategorySyncResult result =
+          syncService.uploadCategories(userId, bookId, categories, deletedKeys);
       Map<String, Object> response = new HashMap<>();
       if (result.isSuccess()) {
         response.put("success", true);
@@ -477,10 +479,11 @@ public class SyncController {
    */
   @GetMapping("/category/download")
   public ResponseEntity<Map<String, Object>> downloadCategories(
-      @RequestHeader("Authorization") String token) {
+      @RequestHeader("Authorization") String token,
+      @RequestParam(value = "bookId", required = false) String bookId) {
     try {
       Long userId = getUserIdFromToken(token);
-      SyncService.CategorySyncResult result = syncService.downloadCategories(userId);
+      SyncService.CategorySyncResult result = syncService.downloadCategories(userId, bookId);
 
       Map<String, Object> response = new HashMap<>();
       if (result.isSuccess()) {

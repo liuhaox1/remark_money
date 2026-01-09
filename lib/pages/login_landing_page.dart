@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../providers/book_provider.dart';
 import '../services/background_sync_manager.dart';
@@ -31,7 +32,7 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
     // Push any outbox ops created while logged out (e.g. first record before register/login).
     await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'login');
     // Kick an immediate sync/meta sync after login so the UI won't show stale/empty data.
-    BackgroundSyncManager.instance.start(context);
+    BackgroundSyncManager.instance.start(context, triggerInitialSync: false);
     final activeBookId = context.read<BookProvider>().activeBookId;
     if (activeBookId.isNotEmpty) {
       BackgroundSyncManager.instance.requestMetaSync(activeBookId, reason: 'login');

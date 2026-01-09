@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 12;
+const int _databaseVersion = 13;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -340,6 +340,19 @@ class DatabaseHelper {
           'CREATE INDEX IF NOT EXISTS idx_sync_outbox_owner_book_server ON ${Tables.syncOutbox}(owner_user_id, book_id, server_id)',
         );
         break;
+      case 13:
+        // records: add created_by (used for multi-book member stats)
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.records} ADD COLUMN created_by INTEGER NOT NULL DEFAULT 0',
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_records_created_by ON ${Tables.records}(created_by)',
+          );
+        } catch (_) {}
+        break;
       default:
         break;
     }
@@ -353,6 +366,7 @@ class DatabaseHelper {
 	        id TEXT PRIMARY KEY,
 	        server_id INTEGER,
 	        server_version INTEGER,
+	        created_by INTEGER NOT NULL DEFAULT 0,
 	        book_id TEXT NOT NULL,
 	        category_key TEXT NOT NULL,
 	        account_id TEXT NOT NULL,

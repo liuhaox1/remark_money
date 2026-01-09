@@ -19,6 +19,14 @@ class CategoryProvider extends ChangeNotifier {
   Category _sanitize(Category c) =>
       c.copyWith(name: CategoryRepository.sanitizeCategoryName(c.key, c.name));
 
+  void replaceFromCloud(List<Category> categories) {
+    _categories
+      ..clear()
+      ..addAll(categories.map(_sanitize));
+    _loaded = true;
+    notifyListeners();
+  }
+
   /// 加载所有分类
   Future<void> load() async {
     if (_loaded) return;

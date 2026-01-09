@@ -25,6 +25,16 @@ class TagProvider extends ChangeNotifier {
   bool _loading = false;
   bool get loading => _loading;
 
+  void replaceFromCloud(String bookId, List<Tag> tags) {
+    _loadedBookId = bookId;
+    _tags
+      ..clear()
+      ..addAll(tags);
+    _recordTagIdsCache.clear();
+    _loading = false;
+    notifyListeners();
+  }
+
   Future<void> loadForBook(String bookId, {bool force = false}) async {
     if (!force && _loadedBookId == bookId) return;
     _loading = true;

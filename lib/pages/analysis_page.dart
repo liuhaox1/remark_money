@@ -18,6 +18,8 @@ import '../widgets/book_selector_button.dart';
 import '../widgets/period_selector.dart';
 import '../widgets/chart_entry.dart';
 import '../widgets/chart_line.dart';
+import '../widgets/chart_pie.dart';
+import '../services/book_service.dart';
 import 'add_record_page.dart';
 import 'bill_page.dart';
 import 'report_detail_page.dart';
@@ -36,6 +38,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
   final GlobalKey _flowSelectorKey = GlobalKey();
   late DateTime _selectedWeekStart;
   late final ScrollController _weekIndexController;
+  final Map<String, Map<int, String>> _memberNamesByBook = {};
+  final Set<String> _memberLoadingBooks = <String>{};
 
   static const double _kWeekItemWidth = 52;
   static const double _kWeekItemSpacing = 8;
@@ -55,6 +59,42 @@ class _AnalysisPageState extends State<AnalysisPage> {
   void dispose() {
     _weekIndexController.dispose();
     super.dispose();
+  }
+
+  void _ensureMembersLoaded(String bookId) {
+    final isMultiBook = int.tryParse(bookId) != null;
+    if (!isMultiBook) return;
+    if (_memberNamesByBook.containsKey(bookId)) return;
+    if (_memberLoadingBooks.contains(bookId)) return;
+
+    _memberLoadingBooks.add(bookId);
+    () async {
+      try {
+        final raw = await BookService().listMembers(bookId);
+        final map = <int, String>{};
+        for (final m in raw) {
+          final uid = (m['userId'] as num?)?.toInt();
+          if (uid == null) continue;
+          final nickname = (m['nickname'] as String?)?.trim();
+          final username = (m['username'] as String?)?.trim();
+          final role = (m['role'] as String?)?.trim();
+          final base = (nickname != null && nickname.isNotEmpty)
+              ? nickname
+              : (username != null && username.isNotEmpty)
+                  ? username
+                  : '用户#$uid';
+          map[uid] = role == 'owner' ? '$base（创建者）' : base;
+        }
+        if (!mounted) return;
+        setState(() {
+          _memberNamesByBook[bookId] = map;
+        });
+      } catch (_) {
+        // Ignore: member names are optional for charts.
+      } finally {
+        _memberLoadingBooks.remove(bookId);
+      }
+    }();
   }
 
   bool _isCountedRecord(Record record) {
@@ -360,6 +400,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final bookId = bookProvider.activeBookId;
+    _ensureMembersLoaded(bookId);
     final bookName = bookProvider.activeBook?.name ?? AppStrings.defaultBook;
     final now = DateTime.now();
     final isCurrentYear = now.year == _selectedYear;
@@ -658,6 +699,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                             _buildCategoryAnalysisCard(
                                               cs,
                                               data,
+                                            ),
+                                            const SizedBox(height: 12),
+                                            _buildMemberAnalysisCard(
+                                              cs,
+                                              data,
+                                              bookId: bookId,
                                             ),
                                             const SizedBox(height: 12),
                                             _buildInsightsCard(cs, data),
@@ -1098,6 +1145,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
     final categoryList = categoryMap.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+
+    final memberMap = <int, double>{};
+    for (final record
+        in filteredPeriodRecords.where((r) => flowIsExpense ? r.isExpense : r.isIncome)) {
+      if (!record.includeInStats) continue;
+      if (record.categoryKey.startsWith('transfer')) continue;
+      final uid = record.createdByUserId ?? 0;
+      memberMap[uid] = (memberMap[uid] ?? 0) + record.amount;
+    }
+    final memberList = memberMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     
     // 当前周期总额（用于占比/排行榜等）
     final periodTotal = filteredPeriodRecords
@@ -1250,6 +1308,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
       'categoryData': categoryList.take(10).map((e) {
         return {
           'category': e.key,
+          'amount': e.value,
+          'percent': periodTotal > 0 ? (e.value / periodTotal * 100) : 0.0,
+        };
+      }).toList(),
+      'memberData': memberList.take(10).map((e) {
+        return {
+          'userId': e.key,
           'amount': e.value,
           'percent': periodTotal > 0 ? (e.value / periodTotal * 100) : 0.0,
         };
@@ -1433,6 +1498,138 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 ),
               );
             }).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMemberAnalysisCard(
+    ColorScheme cs,
+    Map<String, dynamic> data, {
+    required String bookId,
+  }) {
+    final memberData = data['memberData'] as List<Map<String, dynamic>>? ?? [];
+    if (memberData.isEmpty) return const SizedBox.shrink();
+
+    final nameMap = _memberNamesByBook[bookId] ?? const <int, String>{};
+    Color pickColor(int seed) {
+      final palette = <Color>[
+        cs.primary,
+        cs.secondary,
+        cs.tertiary,
+        cs.error,
+        cs.primaryContainer,
+        cs.secondaryContainer,
+        cs.tertiaryContainer,
+      ];
+      final idx = seed.abs() % palette.length;
+      return palette[idx];
+    }
+
+    final entries = <ChartEntry>[];
+    for (final item in memberData) {
+      final uid = (item['userId'] as num?)?.toInt() ?? 0;
+      final amt = (item['amount'] as num?)?.toDouble() ?? 0.0;
+      if (amt <= 0) continue;
+      final name = nameMap[uid] ?? (uid == 0 ? '未知/游客' : '用户#$uid');
+      entries.add(
+        ChartEntry(
+          label: name,
+          value: amt,
+          color: pickColor(uid),
+        ),
+      );
+    }
+
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    // Top6 + 其他，避免成员过多导致可读性差
+    entries.sort((a, b) => b.value.compareTo(a.value));
+    final top = entries.take(6).toList(growable: false);
+    final others = entries.skip(6).toList(growable: false);
+    final otherSum = others.fold<double>(0, (s, e) => s + e.value);
+    final chartEntries = <ChartEntry>[...top];
+    if (otherSum > 0) {
+      chartEntries.add(
+        ChartEntry(label: '其他', value: otherSum, color: cs.outlineVariant),
+      );
+    }
+
+    final total = chartEntries.fold<double>(0, (s, e) => s + e.value);
+
+    return Card(
+      color: cs.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.group_outlined, color: cs.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '按成员占比',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: ChartPie(entries: chartEntries),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    children: chartEntries.map((e) {
+                      final pct = total > 0 ? (e.value / total * 100) : 0.0;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: e.color,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                e.label,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: cs.onSurface,
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${pct.toStringAsFixed(1)}%',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurface.withOpacity(0.7),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(growable: false),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

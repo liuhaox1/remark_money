@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/category.dart';
+import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
+import '../services/auth_service.dart';
+import '../services/book_service.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/app_tab_top_bar.dart';
 import '../utils/validators.dart';
@@ -23,6 +26,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
   late final TabController _tabController =
       TabController(length: 2, vsync: this);
   final Set<String> _expandedTopKeys = <String>{};
+  bool _canEdit = true;
 
   @override
   void initState() {
@@ -30,7 +34,35 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
     // 进入页面时强制重新加载分类，确保迁移逻辑执行
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CategoryProvider>().reload();
+      _initEditPermission();
     });
+  }
+
+  Future<void> _initEditPermission() async {
+    try {
+      final bookId = context.read<BookProvider>().activeBookId;
+      final isMultiBook = int.tryParse(bookId) != null;
+      if (!isMultiBook) {
+        if (mounted) setState(() => _canEdit = true);
+        return;
+      }
+
+      final uid = await const AuthService().loadUserId();
+      if (uid == null) {
+        if (mounted) setState(() => _canEdit = false);
+        return;
+      }
+
+      final members = await BookService().listMembers(bookId);
+      final me = members.firstWhere(
+        (m) => (m['userId'] as num?)?.toInt() == uid,
+        orElse: () => const <String, dynamic>{},
+      );
+      final role = (me['role'] as String?)?.trim();
+      if (mounted) setState(() => _canEdit = role == 'owner');
+    } catch (_) {
+      if (mounted) setState(() => _canEdit = false);
+    }
   }
 
   @override
@@ -72,7 +104,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddCategoryDialog,
+        onPressed: _canEdit ? _showAddCategoryDialog : null,
         child: const Icon(Icons.add),
       ),
     );
@@ -169,12 +201,12 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
                   IconButton(
                     icon: Icon(Icons.edit_outlined,
                         size: 20, color: cs.onSurface.withOpacity(0.7)),
-                    onPressed: () => _showEditCategoryDialog(top),
+                    onPressed: _canEdit ? () => _showEditCategoryDialog(top) : null,
                   ),
                   IconButton(
                     icon: Icon(Icons.delete_outline,
                         size: 20, color: cs.onSurface.withOpacity(0.7)),
-                    onPressed: () => _confirmDelete(top),
+                    onPressed: _canEdit ? () => _confirmDelete(top) : null,
                   ),
                   Icon(
                     expanded
@@ -207,7 +239,7 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () => _showAddSubCategoryDialog(top),
+                onPressed: _canEdit ? () => _showAddSubCategoryDialog(top) : null,
                 icon: Icon(Icons.add, size: 18, color: cs.primary),
                 label: Text(
                   '添加子分类',
@@ -250,12 +282,12 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
           IconButton(
             icon: Icon(Icons.edit_outlined,
                 size: 18, color: cs.onSurface.withOpacity(0.7)),
-            onPressed: () => _showEditCategoryDialog(category),
+            onPressed: _canEdit ? () => _showEditCategoryDialog(category) : null,
           ),
           IconButton(
             icon: Icon(Icons.delete_outline,
                 size: 18, color: cs.onSurface.withOpacity(0.7)),
-            onPressed: () => _confirmDelete(category),
+            onPressed: _canEdit ? () => _confirmDelete(category) : null,
           ),
         ],
       ),

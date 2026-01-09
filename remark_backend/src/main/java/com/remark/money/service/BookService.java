@@ -2,6 +2,7 @@ package com.remark.money.service;
 
 import com.remark.money.entity.Book;
 import com.remark.money.entity.BookMember;
+import com.remark.money.entity.BookMemberProfile;
 import com.remark.money.mapper.BookMapper;
 import com.remark.money.mapper.BookMemberMapper;
 import org.springframework.dao.DuplicateKeyException;
@@ -76,6 +77,17 @@ public class BookService {
 
   public List<Book> listByUser(Long userId) {
     return bookMapper.listByUser(userId);
+  }
+
+  public List<BookMemberProfile> listMembers(Long userId, Long bookId) {
+    if (bookId == null) {
+      throw new IllegalArgumentException("missing bookId");
+    }
+    BookMember me = bookMemberMapper.find(bookId, userId);
+    if (me == null || me.getStatus() == null || me.getStatus() != 1) {
+      throw new IllegalArgumentException("no permission");
+    }
+    return bookMemberMapper.listProfilesByBook(bookId);
   }
 
   private void addMember(Long bookId, Long userId, String role) {

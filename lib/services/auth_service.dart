@@ -134,6 +134,11 @@ class AuthService {
     return prefs.getString('auth_token');
   }
 
+  Future<int?> loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('auth_user_id') ?? prefs.getInt('sync_owner_user_id');
+  }
+
   /// 检查 token 是否有效（永不过期，只要存在即有效）
   /// 注意：假登录的 token 不被认为是有效的
   Future<bool> isTokenValid() async {

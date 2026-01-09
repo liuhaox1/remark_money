@@ -13,6 +13,7 @@ import '../utils/error_handler.dart';
 import '../services/data_version_service.dart';
 import '../services/user_stats_service.dart';
 import '../services/sync_outbox_service.dart';
+import '../services/auth_service.dart';
 import 'account_provider.dart';
 
 class RecordProvider extends ChangeNotifier {
@@ -128,6 +129,7 @@ class RecordProvider extends ChangeNotifier {
     TransactionDirection direction = TransactionDirection.out,
     bool includeInStats = true,
     String? pairId,
+    int? createdByUserId,
     AccountProvider? accountProvider,
   }) async {
     // 数据验证
@@ -167,6 +169,8 @@ class RecordProvider extends ChangeNotifier {
 
       final record = Record(
         id: _generateId(),
+        createdByUserId:
+            createdByUserId ?? await const AuthService().loadUserId() ?? 0,
         amount: amount.abs(),
         remark: remark,
         date: date,

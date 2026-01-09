@@ -42,6 +42,7 @@ import 'sync_conflicts_page.dart';
 import 'export_data_page.dart';
 import 'savings_plans_page.dart';
 import 'recurring_records_page.dart';
+import 'book_members_page.dart';
 import '../utils/data_export_import.dart';
 import '../utils/error_handler.dart';
 import '../widgets/user_stats_card.dart';
@@ -2041,6 +2042,27 @@ class _ProfilePageState extends State<ProfilePage> {
                         bookId: id,
                         bookName: controller.text.trim().isEmpty ? initialName : controller.text.trim(),
                         inviteCode: code,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.people_alt_outlined, color: cs.primary),
+                    title: const Text('成员列表'),
+                    subtitle: const Text('查看该账本下的成员'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BookMembersPage(
+                            bookId: id,
+                            bookName: controller.text.trim().isEmpty
+                                ? initialName
+                                : controller.text.trim(),
+                          ),
+                        ),
                       );
                     },
                   ),

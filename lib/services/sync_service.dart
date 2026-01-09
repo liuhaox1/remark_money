@@ -264,6 +264,7 @@ class SyncService {
   }
 
   Future<SyncResult> uploadCategories({
+    String? bookId,
     required List<Map<String, dynamic>> categories,
     List<String>? deletedKeys,
   }) async {
@@ -283,6 +284,7 @@ class SyncService {
           },
           body: jsonEncode({
             'deviceId': deviceId,
+            if (bookId != null && bookId.isNotEmpty) 'bookId': bookId,
             'categories': categories,
             if (deletedKeys != null && deletedKeys.isNotEmpty)
               'deletedKeys': deletedKeys,
@@ -306,7 +308,7 @@ class SyncService {
     }
   }
 
-  Future<SyncResult> downloadCategories() async {
+  Future<SyncResult> downloadCategories({String? bookId}) async {
     try {
       final token = await _getToken();
       if (token == null) {
@@ -314,9 +316,13 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
+      final query = StringBuffer('/api/sync/category/download?deviceId=$deviceId');
+      if (bookId != null && bookId.isNotEmpty) {
+        query.write('&bookId=$bookId');
+      }
       final resp = await runWithNetworkGuard(
         () => _client.get(
-          _uri('/api/sync/category/download?deviceId=$deviceId'),
+          _uri(query.toString()),
           headers: {
             'Authorization': 'Bearer $token',
           },

@@ -4,12 +4,16 @@ import com.remark.money.common.ErrorCode;
 import com.remark.money.entity.AccountInfo;
 import com.remark.money.entity.BudgetInfo;
 import com.remark.money.entity.CategoryInfo;
+import com.remark.money.entity.Book;
+import com.remark.money.entity.BookMember;
 import com.remark.money.entity.SavingsPlanInfo;
 import com.remark.money.entity.TagInfo;
 import com.remark.money.entity.User;
 import com.remark.money.mapper.AccountInfoMapper;
 import com.remark.money.mapper.BudgetInfoMapper;
 import com.remark.money.mapper.CategoryInfoMapper;
+import com.remark.money.mapper.BookMapper;
+import com.remark.money.mapper.BookMemberMapper;
 import com.remark.money.mapper.SavingsPlanInfoMapper;
 import com.remark.money.mapper.TagInfoMapper;
 import com.remark.money.mapper.UserMapper;
@@ -43,19 +47,25 @@ public class SyncService {
   private final CategoryInfoMapper categoryInfoMapper;
   private final TagInfoMapper tagInfoMapper;
   private final SavingsPlanInfoMapper savingsPlanInfoMapper;
+  private final BookMapper bookMapper;
+  private final BookMemberMapper bookMemberMapper;
 
   public SyncService(UserMapper userMapper,
                      AccountInfoMapper accountInfoMapper,
                      BudgetInfoMapper budgetInfoMapper,
                      CategoryInfoMapper categoryInfoMapper,
                      TagInfoMapper tagInfoMapper,
-                     SavingsPlanInfoMapper savingsPlanInfoMapper) {
+                     SavingsPlanInfoMapper savingsPlanInfoMapper,
+                     BookMapper bookMapper,
+                     BookMemberMapper bookMemberMapper) {
     this.userMapper = userMapper;
     this.accountInfoMapper = accountInfoMapper;
     this.budgetInfoMapper = budgetInfoMapper;
     this.categoryInfoMapper = categoryInfoMapper;
     this.tagInfoMapper = tagInfoMapper;
     this.savingsPlanInfoMapper = savingsPlanInfoMapper;
+    this.bookMapper = bookMapper;
+    this.bookMemberMapper = bookMemberMapper;
   }
 
   /**
@@ -384,12 +394,36 @@ public class SyncService {
       }
     }
 
+    Map<String, SavingsPlanInfo> existingByPlanId = new HashMap<>();
+    if (plans != null && !plans.isEmpty()) {
+      Set<String> planIds =
+          plans.stream()
+              .filter(Objects::nonNull)
+              .map(SavingsPlanInfo::getPlanId)
+              .filter(Objects::nonNull)
+              .map(String::trim)
+              .filter(s -> !s.isEmpty())
+              .collect(Collectors.toSet());
+      if (!planIds.isEmpty()) {
+        existingByPlanId =
+            savingsPlanInfoMapper.findByUserIdBookIdAndPlanIds(userId, bookId, planIds).stream()
+                .filter(Objects::nonNull)
+                .filter(p -> p.getPlanId() != null && !p.getPlanId().trim().isEmpty())
+                .collect(
+                    Collectors.toMap(
+                        p -> p.getPlanId().trim(),
+                        p -> p,
+                        (a, b) -> a));
+      }
+    }
+
     if (plans != null) {
       for (SavingsPlanInfo p : plans) {
         if (p == null) continue;
         if (p.getPlanId() == null || p.getPlanId().trim().isEmpty()) {
           return SavingsPlanSyncResult.error("missing planId");
         }
+        p.setPlanId(p.getPlanId().trim());
         p.setUserId(userId);
         p.setBookId(bookId);
         if (p.getIsDelete() == null) p.setIsDelete(0);
@@ -397,8 +431,7 @@ public class SyncService {
           return SavingsPlanSyncResult.error("missing payload");
         }
 
-        SavingsPlanInfo existing =
-            savingsPlanInfoMapper.findByUserIdBookIdAndPlanId(userId, bookId, p.getPlanId());
+        SavingsPlanInfo existing = existingByPlanId.get(p.getPlanId());
         if (existing == null) {
           savingsPlanInfoMapper.insertOne(p);
           continue;
@@ -440,20 +473,43 @@ public class SyncService {
 
   @Transactional
   public CategorySyncResult uploadCategories(Long userId, List<CategoryInfo> categories, List<String> deletedKeys) {
+    return uploadCategories(userId, null, categories, deletedKeys);
+  }
+
+  @Transactional
+  public CategorySyncResult uploadCategories(
+      Long userId, String bookIdRaw, List<CategoryInfo> categories, List<String> deletedKeys) {
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError.isError()) {
       return CategorySyncResult.error(permissionError.getMessage());
     }
 
+    Long effectiveUserId = userId;
+    if (bookIdRaw != null && !bookIdRaw.trim().isEmpty()) {
+      try {
+        Long bookId = Long.parseLong(bookIdRaw.trim());
+        Book book = bookMapper.findById(bookId);
+        if (book != null && Boolean.TRUE.equals(book.getIsMulti())) {
+          // Multi-book categories are owned by the creator and only editable by owner.
+          if (book.getOwnerId() == null || !book.getOwnerId().equals(userId)) {
+            return CategorySyncResult.error("permission denied");
+          }
+          effectiveUserId = book.getOwnerId();
+        }
+      } catch (Exception ignored) {
+        // Non-numeric bookId or lookup failed: fall back to user-scoped categories.
+      }
+    }
+
     if (deletedKeys != null) {
       for (String k : deletedKeys) {
         if (k == null || k.trim().isEmpty()) continue;
-        categoryInfoMapper.softDeleteByKey(userId, k.trim());
+        categoryInfoMapper.softDeleteByKey(effectiveUserId, k.trim());
       }
     }
 
     if (categories == null || categories.isEmpty()) {
-      return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(userId));
+      return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(effectiveUserId));
     }
 
     Set<String> keys =
@@ -464,12 +520,12 @@ public class SyncService {
     Map<String, CategoryInfo> existingByKey =
         keys.isEmpty()
             ? new HashMap<>()
-            : categoryInfoMapper.findByUserIdAndKeys(userId, keys).stream()
+            : categoryInfoMapper.findByUserIdAndKeys(effectiveUserId, keys).stream()
                 .collect(Collectors.toMap(CategoryInfo::getCategoryKey, c -> c));
 
     for (CategoryInfo c : categories) {
       if (c == null) continue;
-      c.setUserId(userId);
+      c.setUserId(effectiveUserId);
       if (c.getIsDelete() == null) c.setIsDelete(0);
       CategoryInfo existing = c.getCategoryKey() == null ? null : existingByKey.get(c.getCategoryKey());
       if (existing != null) {
@@ -514,13 +570,14 @@ public class SyncService {
       }
     }
 
+    final Long insertUserId = effectiveUserId;
     List<CategoryInfo> toInsert =
         categories.stream()
             .filter(Objects::nonNull)
             .filter(c -> c.getCategoryKey() != null && !c.getCategoryKey().trim().isEmpty())
             .filter(c -> !existingByKey.containsKey(c.getCategoryKey()))
             .peek(c -> {
-              c.setUserId(userId);
+              c.setUserId(insertUserId);
               if (c.getIsDelete() == null) c.setIsDelete(0);
             })
             .collect(Collectors.toList());
@@ -528,15 +585,38 @@ public class SyncService {
       categoryInfoMapper.batchInsert(toInsert);
     }
 
-    return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(userId));
+    return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(effectiveUserId));
   }
 
   public CategorySyncResult downloadCategories(Long userId) {
+    return downloadCategories(userId, null);
+  }
+
+  public CategorySyncResult downloadCategories(Long userId, String bookIdRaw) {
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError.isError()) {
       return CategorySyncResult.error(permissionError.getMessage());
     }
-    return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(userId));
+
+    Long effectiveUserId = userId;
+    if (bookIdRaw != null && !bookIdRaw.trim().isEmpty()) {
+      try {
+        Long bookId = Long.parseLong(bookIdRaw.trim());
+        Book book = bookMapper.findById(bookId);
+        if (book != null && Boolean.TRUE.equals(book.getIsMulti())) {
+          BookMember member = bookMemberMapper.find(bookId, userId);
+          if (member == null || member.getStatus() == null || member.getStatus() != 1) {
+            return CategorySyncResult.error("no permission");
+          }
+          if (book.getOwnerId() != null) {
+            effectiveUserId = book.getOwnerId();
+          }
+        }
+      } catch (Exception ignored) {
+        // Non-numeric bookId or lookup failed: fall back to user-scoped categories.
+      }
+    }
+    return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(effectiveUserId));
   }
 
   @Transactional

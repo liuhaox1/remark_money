@@ -24,6 +24,17 @@
     LIMIT 1
   </select>
 
+  <select id="findByUserIdBookIdAndPlanIds" resultMap="SavingsPlanInfoResultMap">
+    SELECT *
+    FROM savings_plan_info
+    WHERE user_id = #{userId}
+      AND book_id = #{bookId}
+      AND plan_id IN
+      <foreach collection="planIds" item="planId" open="(" separator="," close=")">
+        #{planId}
+      </foreach>
+  </select>
+
   <select id="findAllByUserIdAndBookId" resultMap="SavingsPlanInfoResultMap">
     SELECT *
     FROM savings_plan_info
@@ -79,4 +90,3 @@
   </update>
 
 </mapper>
-

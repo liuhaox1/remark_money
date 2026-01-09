@@ -290,6 +290,7 @@ public class SyncV2Service {
   private Map<String, Object> toBillMap(BillInfo bill, List<String> tagIds) {
     Map<String, Object> map = new HashMap<>();
     map.put("serverId", bill.getId());
+    map.put("userId", bill.getUserId());
     map.put("bookId", bill.getBookId());
     map.put("accountId", bill.getAccountId());
     map.put("categoryKey", bill.getCategoryKey());

@@ -187,7 +187,7 @@ class SyncEngine {
     if (pushBeforePull) {
       await _uploadOutboxV2(recordProvider, bookId, reason: 'force_bootstrap');
     }
-    await _syncCategories(categoryProvider, reason: 'force_bootstrap');
+    await _syncCategories(categoryProvider, bookId, reason: 'force_bootstrap');
     await _syncTags(tagProvider, bookId, reason: 'force_bootstrap');
     await _syncBudget(budgetProvider, bookId, reason: 'force_bootstrap');
     await _syncAccounts(accountProvider, recordProvider, bookId, reason: 'force_bootstrap');
@@ -213,7 +213,7 @@ class SyncEngine {
     // Avoid syncing unrelated meta on user-triggered changes to reduce backend load.
     // Full meta refresh still happens on app_start/app_resumed/meta_periodic/force_bootstrap.
     if (reason == 'categories_changed') {
-      await _syncCategories(categoryProvider, reason: reason);
+      await _syncCategories(categoryProvider, bookId, reason: reason);
       return true;
     }
     if (reason == 'tags_changed') {
@@ -233,7 +233,7 @@ class SyncEngine {
       return true;
     }
 
-    await _syncCategories(categoryProvider, reason: reason);
+    await _syncCategories(categoryProvider, bookId, reason: reason);
     await _syncTags(tagProvider, bookId, reason: reason);
     await _syncBudget(budgetProvider, bookId, reason: reason);
     await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
@@ -242,14 +242,15 @@ class SyncEngine {
   }
 
   Future<void> _syncCategories(
-    CategoryProvider? categoryProvider, {
+    CategoryProvider? categoryProvider,
+    String bookId, {
     required String reason,
   }) async {
     final uid = await _authUserIdOrZero();
     final bypassWindow =
         reason == 'categories_changed' || reason == 'force_bootstrap';
     await _runMetaThrottled(
-      'meta_categories_u$uid',
+      'meta_categories_u${uid}_b$bookId',
       () async {
       try {
         final repo = RepositoryFactory.createCategoryRepository();
@@ -260,7 +261,7 @@ class SyncEngine {
         final deletedKeys = await CategoryDeleteQueue.instance.load();
 
         // Download first to obtain server syncVersion baselines, without overwriting local edits.
-        final download = await _syncService.downloadCategories();
+        final download = await _syncService.downloadCategories(bookId: bookId);
         if (!download.success) {
           debugPrint('[SyncEngine] categories download failed: ${download.error}');
           return false;
@@ -273,13 +274,46 @@ class SyncEngine {
         for (final c in remoteCats) {
           remoteByKey[c.key] = c;
         }
+
+        bool needsUpload = deletedKeys.isNotEmpty;
+        if (!needsUpload) {
+          for (final c in categories) {
+            final r = remoteByKey[c.key];
+            if (r == null) {
+              needsUpload = true;
+              break;
+            }
+            final unchanged =
+                r.name == c.name &&
+                r.isExpense == c.isExpense &&
+                r.parentKey == c.parentKey &&
+                r.icon.codePoint == c.icon.codePoint &&
+                r.icon.fontFamily == c.icon.fontFamily &&
+                r.icon.fontPackage == c.icon.fontPackage;
+            if (!unchanged) {
+              needsUpload = true;
+              break;
+            }
+          }
+        }
         final List<Category> merged = categories
             .map((c) => c.copyWith(syncVersion: c.syncVersion ?? remoteByKey[c.key]?.syncVersion))
             .toList(growable: false);
-        await repo.saveCategories(merged);
+
+        if (!needsUpload) {
+          // No local edits/deletes: apply server view and skip upload to reduce SQL.
+          await repo.saveCategories(remoteCats);
+          if (categoryProvider != null) {
+            try {
+              categoryProvider.replaceFromCloud(remoteCats);
+            } catch (_) {}
+          }
+          return true;
+        }
 
         final payload = merged.map((c) => c.toMap()).toList(growable: false);
         final upload = await _syncService.uploadCategories(
+          bookId: bookId,
           categories: payload,
           deletedKeys: deletedKeys,
         );
@@ -302,7 +336,7 @@ class SyncEngine {
         await repo.saveCategories(remoteCats2);
         if (categoryProvider != null) {
           try {
-            await categoryProvider.reload();
+            categoryProvider.replaceFromCloud(remoteCats2);
           } catch (_) {}
         }
         return true;
@@ -347,10 +381,39 @@ class SyncEngine {
         for (final t in remoteTags) {
           remoteById[t.id] = t;
         }
+
+        bool needsUpload = deleted.isNotEmpty;
+        if (!needsUpload) {
+          for (final t in tags) {
+            final r = remoteById[t.id];
+            if (r == null) {
+              needsUpload = true;
+              break;
+            }
+            final unchanged = r.bookId == t.bookId &&
+                r.name == t.name &&
+                r.colorValue == t.colorValue &&
+                r.sortOrder == t.sortOrder;
+            if (!unchanged) {
+              needsUpload = true;
+              break;
+            }
+          }
+        }
         final List<Tag> merged = tags
             .map((t) => t.copyWith(syncVersion: t.syncVersion ?? remoteById[t.id]?.syncVersion))
             .toList(growable: false);
-        await repo.saveTagsForBook(bookId, merged);
+
+        if (!needsUpload) {
+          // No local edits/deletes: apply server view and skip upload to reduce SQL.
+          await repo.saveTagsForBook(bookId, remoteTags);
+          if (tagProvider != null) {
+            try {
+              tagProvider.replaceFromCloud(bookId, remoteTags);
+            } catch (_) {}
+          }
+          return true;
+        }
 
         final payload = merged
             .map(
@@ -391,7 +454,7 @@ class SyncEngine {
         await repo.saveTagsForBook(bookId, remoteTags2);
         if (tagProvider != null) {
           try {
-            await tagProvider.loadForBook(bookId, force: true);
+            tagProvider.replaceFromCloud(bookId, remoteTags2);
           } catch (_) {}
         }
         return true;
@@ -926,6 +989,12 @@ class SyncEngine {
   Record _mapToRecord(Map<String, dynamic> map) {
     final serverId = map['id'] as int? ?? map['serverId'] as int?;
     final serverVersion = map['version'] as int? ?? map['serverVersion'] as int?;
+    final createdByUserId = (() {
+      final raw = map['userId'] ?? map['createdByUserId'];
+      if (raw is num) return raw.toInt();
+      if (raw is String) return int.tryParse(raw.trim());
+      return null;
+    })();
 
     double parseAmount(dynamic v) {
       if (v is num) return v.toDouble();
@@ -936,6 +1005,7 @@ class SyncEngine {
       id: serverId != null ? 'server_$serverId' : _generateTempId(),
       serverId: serverId,
       serverVersion: serverVersion,
+      createdByUserId: createdByUserId,
       amount: parseAmount(map['amount']),
       remark: map['remark'] as String? ?? '',
       date: DateTime.parse(map['billDate'] as String),
@@ -1022,6 +1092,7 @@ class SyncEngine {
       final updated = existing.copyWith(
         serverId: serverId,
         serverVersion: serverVersion,
+        createdByUserId: cloudRecord.createdByUserId ?? existing.createdByUserId,
         amount: cloudRecord.amount,
         remark: cloudRecord.remark,
         date: cloudRecord.date,
@@ -1052,6 +1123,7 @@ class SyncEngine {
       direction: cloudRecord.direction,
       includeInStats: cloudRecord.includeInStats,
       pairId: cloudRecord.pairId,
+      createdByUserId: cloudRecord.createdByUserId ?? 0,
       accountProvider: accountProvider,
     );
     await recordProvider.setServerSyncState(
@@ -1121,7 +1193,49 @@ class SyncEngine {
                     : p.copyWith(syncVersion: remoteById[p.id]?.syncVersion),
               )
               .toList(growable: false);
-          await repo.replacePlansForBook(bookId, mergedLocal);
+
+          bool needsUpload = deletedIds.isNotEmpty;
+          if (!needsUpload) {
+            for (final p in mergedLocal) {
+              final r = remoteById[p.id];
+              if (r == null) {
+                needsUpload = true;
+                break;
+              }
+              // Compare business fields only (syncVersion is only for concurrency).
+              final unchanged =
+                  p.bookId == r.bookId &&
+                  p.accountId == r.accountId &&
+                  p.name == r.name &&
+                  p.type == r.type &&
+                  p.targetAmount == r.targetAmount &&
+                  p.includeInStats == r.includeInStats &&
+                  p.savedAmount == r.savedAmount &&
+                  p.archived == r.archived &&
+                  p.startDate == r.startDate &&
+                  p.endDate == r.endDate &&
+                  p.monthlyDay == r.monthlyDay &&
+                  p.monthlyAmount == r.monthlyAmount &&
+                  p.weeklyWeekday == r.weeklyWeekday &&
+                  p.weeklyAmount == r.weeklyAmount &&
+                  p.executedCount == r.executedCount &&
+                  p.lastExecutedAt == r.lastExecutedAt &&
+                  p.defaultFromAccountId == r.defaultFromAccountId;
+              if (!unchanged) {
+                needsUpload = true;
+                break;
+              }
+            }
+          }
+
+          if (!needsUpload) {
+            // No local edits/deletes: apply server view and skip upload to reduce SQL.
+            final filtered = remotePlans
+                .where((p) => !remoteDeleted.contains(p.id))
+                .toList(growable: false);
+            await repo.replacePlansForBook(bookId, filtered);
+            return true;
+          }
 
           final payload = mergedLocal.map((p) => p.toMap()).toList(growable: false);
           final upload = await _syncService.uploadSavingsPlans(

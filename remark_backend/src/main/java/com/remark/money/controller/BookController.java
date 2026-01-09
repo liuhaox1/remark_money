@@ -1,6 +1,7 @@
 package com.remark.money.controller;
 
 import com.remark.money.entity.Book;
+import com.remark.money.entity.BookMemberProfile;
 import com.remark.money.service.BookService;
 import com.remark.money.util.JwtUtil;
 import org.springframework.util.StringUtils;
@@ -50,6 +51,13 @@ public class BookController {
   public List<Book> list(HttpServletRequest request) {
     Long userId = getUserId(request);
     return bookService.listByUser(userId);
+  }
+
+  @GetMapping("/members")
+  public List<BookMemberProfile> members(
+      @RequestParam("bookId") Long bookId, HttpServletRequest request) {
+    Long userId = getUserId(request);
+    return bookService.listMembers(userId, bookId);
   }
 
   private Long getUserId(HttpServletRequest request) {

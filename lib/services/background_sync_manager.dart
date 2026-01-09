@@ -44,7 +44,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   static const int _periodicPullIntervalMs = 3 * 60 * 1000; // 3min
   static const int _metaPeriodicIntervalMs = 60 * 60 * 1000; // 60min
 
-  void start(BuildContext context) {
+  void start(BuildContext context, {bool triggerInitialSync = true}) {
     if (_started) return;
     _started = true;
     _context = context;
@@ -78,18 +78,20 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       requestMetaSync(bookId, reason: 'savings_plans_changed');
     });
 
-    // 启动后先对当前账本做一次静默同步（拉取多设备变更）
-    final activeBookId = context.read<BookProvider>().activeBookId;
-    if (activeBookId.isNotEmpty) {
-      // Guest mode (no token) should not keep retrying network sync on startup.
-      // Login flows will explicitly trigger a sync/meta sync once the token is persisted.
-      () async {
-        final ok = await const AuthService().isTokenValid();
-        if (!ok) return;
-        requestSync(activeBookId, reason: 'app_start');
-        // Also sync meta (budget/accounts/categories/tags/etc.) so pages won't show empty data after login.
-        requestMetaSync(activeBookId, reason: 'app_start');
-      }();
+    if (triggerInitialSync) {
+      // 启动后先对当前账本做一次静默同步（拉取多设备变更）
+      final activeBookId = context.read<BookProvider>().activeBookId;
+      if (activeBookId.isNotEmpty) {
+        // Guest mode (no token) should not keep retrying network sync on startup.
+        // Login flows will explicitly trigger a sync/meta sync once the token is persisted.
+        () async {
+          final ok = await const AuthService().isTokenValid();
+          if (!ok) return;
+          requestSync(activeBookId, reason: 'app_start');
+          // Also sync meta (budget/accounts/categories/tags/etc.) so pages won't show empty data after login.
+          requestMetaSync(activeBookId, reason: 'app_start');
+        }();
+      }
     }
     _startPeriodicPullTimer();
   }

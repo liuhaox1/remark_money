@@ -248,6 +248,7 @@ class RecordRepositoryDb {
         'id': record.id,
         'server_id': record.serverId,
         'server_version': record.serverVersion,
+        'created_by': record.createdByUserId ?? 0,
         'book_id': record.bookId,
         'category_key': record.categoryKey,
         'account_id': record.accountId,
@@ -511,6 +512,12 @@ class RecordRepositoryDb {
         final values = <String, Object?>{
           'server_id': serverId,
           if (serverVersion != null) 'server_version': serverVersion,
+          'created_by': (() {
+            final raw = bill['userId'] ?? bill['createdByUserId'];
+            if (raw is num) return raw.toInt();
+            if (raw is String) return int.tryParse(raw.trim()) ?? 0;
+            return 0;
+          })(),
           'book_id': bookId,
           'category_key': bill['categoryKey']?.toString() ?? '',
           'account_id': bill['accountId']?.toString() ?? '',
@@ -620,15 +627,16 @@ class RecordRepositoryDb {
       final batch = db.batch();
       final now = DateTime.now().millisecondsSinceEpoch;
 
-      for (final record in records) {
-        batch.insert(
-          Tables.records,
-          {
-            'id': record.id,
-            'book_id': record.bookId,
-            'category_key': record.categoryKey,
-            'account_id': record.accountId,
-            'amount': record.amount,
+        for (final record in records) {
+          batch.insert(
+            Tables.records,
+            {
+              'id': record.id,
+              'created_by': record.createdByUserId ?? 0,
+              'book_id': record.bookId,
+              'category_key': record.categoryKey,
+              'account_id': record.accountId,
+              'amount': record.amount,
             'is_expense': record.direction == TransactionDirection.out ? 1 : 0,
             'date': record.date.millisecondsSinceEpoch,
             'remark': record.remark,
@@ -667,6 +675,7 @@ class RecordRepositoryDb {
             Tables.records,
             {
               'id': record.id,
+              'created_by': record.createdByUserId ?? 0,
               'book_id': record.bookId,
               'category_key': record.categoryKey,
               'account_id': record.accountId,
@@ -1049,6 +1058,7 @@ class RecordRepositoryDb {
       id: map['id'] as String,
       serverId: map['server_id'] as int?,
       serverVersion: map['server_version'] as int?,
+      createdByUserId: (map['created_by'] as num?)?.toInt(),
       bookId: map['book_id'] as String,
       categoryKey: map['category_key'] as String,
       accountId: map['account_id'] as String,

@@ -1,6 +1,7 @@
 package com.remark.money.mapper;
 
 import com.remark.money.entity.BookMember;
+import com.remark.money.entity.BookMemberProfile;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
@@ -19,5 +20,14 @@ public interface BookMemberMapper {
   @Select("SELECT id, book_id, user_id, role, status, joined_at "
       + "FROM book_member WHERE user_id = #{userId} AND status = 1")
   List<BookMember> listByUser(@Param("userId") Long userId);
+
+  @Select(
+      "SELECT bm.user_id AS userId, bm.role AS role, bm.status AS status, bm.joined_at AS joinedAt,"
+          + " u.nickname AS nickname, u.username AS username "
+          + "FROM book_member bm "
+          + "LEFT JOIN user u ON u.id = bm.user_id "
+          + "WHERE bm.book_id = #{bookId} "
+          + "ORDER BY bm.joined_at ASC")
+  List<BookMemberProfile> listProfilesByBook(@Param("bookId") Long bookId);
 }
 
