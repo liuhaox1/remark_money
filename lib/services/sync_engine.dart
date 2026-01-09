@@ -47,6 +47,109 @@ class SyncEngine {
   final AuthService _authService;
   final SyncOutboxService _outbox;
 
+  static const String _prefsGuestUploadPolicyKey = 'guest_upload_policy';
+
+  Future<int> _loadGuestUploadPolicyRaw() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_prefsGuestUploadPolicyKey) ?? 0; // 0=ask,1=always,2=never
+  }
+
+  Future<void> _saveGuestUploadPolicyRaw(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_prefsGuestUploadPolicyKey, value);
+  }
+
+  Future<({bool proceed, bool remember})> _promptGuestUpload(
+    BuildContext context, {
+    required int count,
+  }) async {
+    if (!context.mounted) return (proceed: false, remember: false);
+
+    bool remember = false;
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('同步本地数据到云端？'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '检测到本地有 $count 条未同步记录。\n同步后可跨设备查看，并在卸载/换机时避免丢失。',
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                value: remember,
+                onChanged: (v) => setState(() => remember = v ?? false),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('记住我的选择'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('暂不同步'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text('同步'),
+            ),
+          ],
+        ),
+      ),
+    );
+    return (proceed: result == true, remember: remember);
+  }
+
+  /// Do NOT force uploading guest-created records after login.
+  /// If there are guest-created records (owner=0), prompt the user (unless a remembered policy exists).
+  Future<void> maybeUploadGuestOutboxAfterLogin(
+    BuildContext context, {
+    String reason = 'login',
+  }) async {
+    final tokenValid = await _authService.isTokenValid();
+    if (!tokenValid) return;
+
+    final policy = await _loadGuestUploadPolicyRaw();
+
+    if (!context.mounted) return;
+    final bookProvider = context.read<BookProvider>();
+    final bookIds = <String>{};
+    final active = bookProvider.activeBookId;
+    if (active.isNotEmpty) bookIds.add(active);
+    for (final b in bookProvider.books) {
+      if (b.id.isNotEmpty) bookIds.add(b.id);
+    }
+
+    final guestCount = await _outbox.countGuestCreateOps(
+      bookIds: bookIds.toList(growable: false),
+    );
+    if (guestCount <= 0) return;
+
+    if (policy == 2) {
+      // never
+      return;
+    }
+    if (policy == 1) {
+      // always
+      await pushAllOutboxAfterLogin(context, reason: reason);
+      return;
+    }
+
+    final decision = await _promptGuestUpload(context, count: guestCount);
+    if (!context.mounted) return;
+
+    if (decision.remember) {
+      await _saveGuestUploadPolicyRaw(decision.proceed ? 1 : 2);
+    }
+    if (!decision.proceed) return;
+
+    await pushAllOutboxAfterLogin(context, reason: reason);
+  }
+
   // Coalesce/throttle meta sync (categories/tags) to avoid duplicate queries within a short window.
   // Only throttle after a successful run so transient failures won't block retries.
   static const int _metaThrottleWindowMs = 15 * 1000;

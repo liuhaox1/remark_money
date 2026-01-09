@@ -31,6 +31,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   final Map<String, String> _pendingMetaReasonsByBook = <String, String>{};
   bool _syncing = false;
   bool _started = false;
+  bool _skipNextAppStartSync = false;
   int _lastMetaSyncMs = 0;
   final Map<String, int> _lastAccountsSyncMsByBook = <String, int>{};
   final Map<String, int> _lastUserMetaSyncMsByBook = <String, int>{};
@@ -85,6 +86,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
         // Guest mode (no token) should not keep retrying network sync on startup.
         // Login flows will explicitly trigger a sync/meta sync once the token is persisted.
         () async {
+          // If login just happened, skip the pending app_start sync to avoid duplicate SQL.
+          if (_skipNextAppStartSync) {
+            _skipNextAppStartSync = false;
+            return;
+          }
           final ok = await const AuthService().isTokenValid();
           if (!ok) return;
           requestSync(activeBookId, reason: 'app_start');
@@ -94,6 +100,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       }
     }
     _startPeriodicPullTimer();
+  }
+
+  /// Called after a successful login to suppress an in-flight app_start sync that may still be pending.
+  void markLoggedIn() {
+    _skipNextAppStartSync = true;
   }
 
   void _startPeriodicPullTimer() {

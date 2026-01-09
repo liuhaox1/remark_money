@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
-import 'network_guard.dart';
+import 'api_client.dart';
+import 'auth_store.dart';
 
 /// 注册异常，用于提供友好的错误提示
 class RegisterException implements Exception {
@@ -33,31 +33,18 @@ class AuthService {
 
   Uri _uri(String path) => Uri.parse('${ApiConfig.baseUrl}$path');
 
-  Future<void> _clearSyncV2LocalState(SharedPreferences prefs) async {
-    final keys = prefs.getKeys().toList(growable: false);
-    for (final k in keys) {
-      if (k.startsWith('sync_v2_last_change_id_') ||
-          k.startsWith('sync_v2_conflicts_') ||
-          k.startsWith('sync_v2_summary_checked_at_') ||
-          k.startsWith('data_version_') ||
-          k.startsWith('budget_update_time_') ||
-          k.startsWith('budget_local_edit_ms_') ||
-          k.startsWith('budget_server_update_ms_') ||
-          k.startsWith('budget_server_sync_version_') ||
-          k.startsWith('budget_local_base_sync_version_') ||
-          k.startsWith('budget_conflict_backup_')) {
-        await prefs.remove(k);
-      }
-    }
-  }
-
-  Future<void> _saveAuth({required String token, int? userId}) async {
+  Future<void> _saveAuth({
+    required String token,
+    int? userId,
+    String? nickname,
+    String? username,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final prevUserId = prefs.getInt('auth_user_id');
 
     // 仅在“账号变化”时清理 v2 游标/冲突，避免同账号重新登录（token 变化）导致全量重拉。
     if (prevUserId != null && userId != null && prevUserId != userId) {
-      await _clearSyncV2LocalState(prefs);
+      await clearSyncV2LocalState(prefs);
     }
 
     await prefs.setString('auth_token', token);
@@ -66,15 +53,25 @@ class AuthService {
       // Keep a durable owner id for local/outbox scoping even after logout.
       await prefs.setInt('sync_owner_user_id', userId);
     }
+    if (nickname != null) {
+      final n = nickname.trim();
+      if (n.isNotEmpty) {
+        await prefs.setString('auth_nickname', n);
+      }
+    }
+    if (username != null) {
+      final u = username.trim();
+      if (u.isNotEmpty) {
+        await prefs.setString('auth_username', u);
+      }
+    }
   }
 
   Future<void> sendSmsCode(String phone) async {
-    final resp = await runWithNetworkGuard(
-      () => http.post(
-        _uri('/api/auth/send-sms-code'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'phone': phone}),
-      ),
+    final resp = await ApiClient.instance.post(
+      _uri('/api/auth/send-sms-code'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'phone': phone}),
     );
     if (resp.statusCode >= 400) {
       throw Exception('发送验证码失败: ${resp.body}');
@@ -85,12 +82,10 @@ class AuthService {
     required String phone,
     required String code,
   }) async {
-    final resp = await runWithNetworkGuard(
-      () => http.post(
-        _uri('/api/auth/login/sms'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'phone': phone, 'code': code}),
-      ),
+    final resp = await ApiClient.instance.post(
+      _uri('/api/auth/login/sms'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'phone': phone, 'code': code}),
     );
     if (resp.statusCode >= 400) {
       throw Exception(resp.body);
@@ -100,17 +95,17 @@ class AuthService {
     await _saveAuth(
       token: result.token,
       userId: (result.user['id'] as num?)?.toInt(),
+      nickname: result.user['nickname'] as String?,
+      username: result.user['username'] as String?,
     );
     return result;
   }
 
   Future<AuthResult> loginWithWeChat({required String code}) async {
-    final resp = await runWithNetworkGuard(
-      () => http.post(
-        _uri('/api/auth/login/wechat'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'code': code}),
-      ),
+    final resp = await ApiClient.instance.post(
+      _uri('/api/auth/login/wechat'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'code': code}),
     );
     if (resp.statusCode >= 400) {
       throw Exception(resp.body);
@@ -120,6 +115,8 @@ class AuthService {
     await _saveAuth(
       token: result.token,
       userId: (result.user['id'] as num?)?.toInt(),
+      nickname: result.user['nickname'] as String?,
+      username: result.user['username'] as String?,
     );
     return result;
   }
@@ -139,6 +136,19 @@ class AuthService {
     return prefs.getInt('auth_user_id') ?? prefs.getInt('sync_owner_user_id');
   }
 
+  Future<String?> loadNickname() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getString('auth_nickname');
+    if (v == null) return null;
+    final t = v.trim();
+    return t.isEmpty ? null : t;
+  }
+
+  Future<void> saveNickname(String nickname) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_nickname', nickname.trim());
+  }
+
   /// 检查 token 是否有效（永不过期，只要存在即有效）
   /// 注意：假登录的 token 不被认为是有效的
   Future<bool> isTokenValid() async {
@@ -154,10 +164,7 @@ class AuthService {
   }
 
   Future<void> clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('auth_user_id');
-    await _clearSyncV2LocalState(prefs);
+    await clearAuthTokenAndLocalSyncState();
   }
 
   /// 注册：使用账号和密码注册
@@ -165,15 +172,13 @@ class AuthService {
     required String username,
     required String password,
   }) async {
-    final resp = await runWithNetworkGuard(
-      () => http.post(
-        _uri('/api/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': username,
-          'password': password,
-        }),
-      ),
+    final resp = await ApiClient.instance.post(
+      _uri('/api/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'password': password,
+      }),
     );
     if (resp.statusCode >= 400) {
       final errorBody = resp.body.trim();
@@ -192,15 +197,13 @@ class AuthService {
     required String username,
     required String password,
   }) async {
-    final resp = await runWithNetworkGuard(
-      () => http.post(
-        _uri('/api/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': username,
-          'password': password,
-        }),
-      ),
+    final resp = await ApiClient.instance.post(
+      _uri('/api/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'password': password,
+      }),
     );
     if (resp.statusCode >= 400) {
       final errorBody = resp.body;
@@ -211,6 +214,8 @@ class AuthService {
     await _saveAuth(
       token: result.token,
       userId: (result.user['id'] as num?)?.toInt(),
+      nickname: result.user['nickname'] as String?,
+      username: result.user['username'] as String?,
     );
     return result;
   }

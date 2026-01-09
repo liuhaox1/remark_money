@@ -43,7 +43,7 @@
   </insert>
 
   <insert id="batchInsert">
-    INSERT INTO category_info (user_id, category_key, name, icon_code_point, icon_font_family, icon_font_package, is_expense, parent_key, is_delete, sync_version, update_time, created_at)
+    INSERT IGNORE INTO category_info (user_id, category_key, name, icon_code_point, icon_font_family, icon_font_package, is_expense, parent_key, is_delete, sync_version, update_time, created_at)
     VALUES
     <foreach collection="items" item="c" separator=",">
       (#{c.userId}, #{c.categoryKey}, #{c.name}, #{c.iconCodePoint}, #{c.iconFontFamily}, #{c.iconFontPackage}, #{c.isExpense}, #{c.parentKey}, #{c.isDelete}, 1, NOW(), NOW())

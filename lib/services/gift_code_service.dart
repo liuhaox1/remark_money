@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
 import '../config/api_config.dart';
-import 'network_guard.dart';
+import 'api_client.dart';
 
 class GiftCodeService {
   final AuthService _authService = const AuthService();
@@ -29,17 +28,15 @@ class GiftCodeService {
       throw Exception('礼包码格式不正确，请输入8位数字');
     }
 
-    final resp = await runWithNetworkGuard(
-      () => http.post(
-        _uri('/api/gift/redeem'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'code': code,
-        }),
-      ),
+    final resp = await ApiClient.instance.post(
+      _uri('/api/gift/redeem'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'code': code,
+      }),
     );
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;

@@ -1,10 +1,8 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import 'auth_service.dart';
 import '../config/api_config.dart';
-import 'network_guard.dart';
+import 'api_client.dart';
 
 class FeedbackService {
   FeedbackService();
@@ -34,16 +32,14 @@ class FeedbackService {
       headers['Authorization'] = 'Bearer $token';
     }
 
-    final resp = await runWithNetworkGuard(
-      () => http.post(
-        _uri('/api/feedback/submit'),
-        headers: headers,
-        body: jsonEncode({
-          'content': trimmed,
-          if (contact != null && contact.trim().isNotEmpty)
-            'contact': contact.trim(),
-        }),
-      ),
+    final resp = await ApiClient.instance.post(
+      _uri('/api/feedback/submit'),
+      headers: headers,
+      body: jsonEncode({
+        'content': trimmed,
+        if (contact != null && contact.trim().isNotEmpty)
+          'contact': contact.trim(),
+      }),
     );
 
     final data = jsonDecode(resp.body);

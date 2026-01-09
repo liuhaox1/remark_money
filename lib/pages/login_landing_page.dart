@@ -29,9 +29,10 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
     // Ensure the token is fully persisted before triggering sync/navigation.
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
-    // Push any outbox ops created while logged out (e.g. first record before register/login).
-    await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'login');
+    // Guest-created local records should not be uploaded without user consent.
+    await SyncEngine().maybeUploadGuestOutboxAfterLogin(context, reason: 'login');
     // Kick an immediate sync/meta sync after login so the UI won't show stale/empty data.
+    BackgroundSyncManager.instance.markLoggedIn();
     BackgroundSyncManager.instance.start(context, triggerInitialSync: false);
     final activeBookId = context.read<BookProvider>().activeBookId;
     if (activeBookId.isNotEmpty) {

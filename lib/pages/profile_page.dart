@@ -36,6 +36,7 @@ import '../services/recurring_record_runner.dart';
 import '../services/sync_outbox_service.dart';
 import '../services/sync_engine.dart';
 import '../services/sync_v2_conflict_store.dart';
+import '../services/user_service.dart';
 import 'account_settings_page.dart';
 import 'vip_purchase_page.dart';
 import 'sync_conflicts_page.dart';
@@ -57,6 +58,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final AuthService _authService = const AuthService();
   String? _token;
+  String? _nickname;
   bool _loadingToken = true;
   bool _wiping = false;
   bool _bootstrapping = false;
@@ -80,6 +82,92 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadToken();
+  }
+
+  Future<void> _editNickname() async {
+    final isLoggedIn = (_token != null && _token!.isNotEmpty);
+    if (!isLoggedIn) {
+      ErrorHandler.showWarning(context, '未登录，请先登录');
+      return;
+    }
+
+    final cs = Theme.of(context).colorScheme;
+    final controller = TextEditingController(text: _nickname ?? '');
+    final formKey = GlobalKey<FormState>();
+    bool saving = false;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setLocal) {
+          return AlertDialog(
+            title: const Text('编辑昵称'),
+            content: Form(
+              key: formKey,
+              child: TextFormField(
+                controller: controller,
+                maxLength: 20,
+                decoration: const InputDecoration(
+                  hintText: '请输入昵称（最多20字）',
+                ),
+                validator: (v) {
+                  final t = (v ?? '').trim();
+                  if (t.isEmpty) return '昵称不能为空';
+                  if (t.length > 20) return '昵称最多20个字符';
+                  return null;
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.of(ctx).pop(false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (formKey.currentState?.validate() != true) return;
+                        setLocal(() => saving = true);
+                        try {
+                          final newName = controller.text.trim();
+                          final resp =
+                              await UserService().updateMyNickname(newName);
+                          if (resp['success'] == true) {
+                            await _authService.saveNickname(newName);
+                            await BookService().invalidateMembersCache();
+                            if (mounted) {
+                              setState(() {
+                                _nickname = newName;
+                              });
+                            }
+                            if (ctx.mounted) Navigator.of(ctx).pop(true);
+                          } else {
+                            throw Exception(resp['error'] ?? '更新失败');
+                          }
+                        } catch (e) {
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: Text(e.toString()),
+                                backgroundColor: cs.error,
+                              ),
+                            );
+                          }
+                        } finally {
+                          if (ctx.mounted) setLocal(() => saving = false);
+                        }
+                      },
+                child: Text(saving ? '保存中...' : '保存'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+    if (ok == true && mounted) {
+      await _loadToken();
+    }
   }
 
   Future<void> _openAccountSettings(bool isLoggedIn) async {
@@ -279,9 +367,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadToken() async {
     final t = await _authService.loadToken();
+    final nick = await _authService.loadNickname();
     if (!mounted) return;
     setState(() {
       _token = t;
+      _nickname = nick;
       _loadingToken = false;
     });
   }
@@ -555,8 +645,8 @@ class _ProfilePageState extends State<ProfilePage> {
     if (result == true) {
       await _loadToken();
       if (!mounted) return;
-      // Push any outbox ops created while logged out (no token), so they don't get stuck indefinitely.
-      await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'login');
+      // Guest-created local records should not be uploaded without user consent.
+      await SyncEngine().maybeUploadGuestOutboxAfterLogin(context, reason: 'login');
     }
   }
 
@@ -568,9 +658,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
     final activeBookName = bookProvider.activeBook?.name ?? AppStrings.book;
     final bookCount = bookProvider.books.length;
-	    final categoryCount = categoryProvider.categories.length;
-	    final isLoggedIn = (_token != null && _token!.isNotEmpty);
-	    final activeBookId = bookProvider.activeBookId;
+ 	    final categoryCount = categoryProvider.categories.length;
+ 	    final isLoggedIn = (_token != null && _token!.isNotEmpty);
+ 	    final activeBookId = bookProvider.activeBookId;
+      final displayName =
+          isLoggedIn ? (_nickname?.trim().isNotEmpty == true ? _nickname!.trim() : '用户') : '设置';
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -591,7 +683,7 @@ class _ProfilePageState extends State<ProfilePage> {
                    _buildLoginHintCard(context),
                    const SizedBox(height: 12),
                  ] else ...[
-	                  FutureBuilder<int>(
+ 	                  FutureBuilder<int>(
 	                    future: activeBookId.isNotEmpty
 	                        ? _conflictCountForDisplay(activeBookId)
 	                        : Future.value(0),
@@ -623,15 +715,15 @@ class _ProfilePageState extends State<ProfilePage> {
 	                    },
 	                  ),
                 ],
-                _buildHeaderCard(
-                  context,
-                  title: '设置',
-                  subtitle: '管理你的账本、主题和预算',
-                  activeBook: activeBookName,
-                  bookCount: bookCount,
-                  categoryCount: categoryCount,
-                  isLoggedIn: isLoggedIn,
-                ),
+                 _buildHeaderCard(
+                   context,
+                   title: displayName,
+                   subtitle: isLoggedIn ? '点击头像可编辑昵称/账号设置' : '管理你的账本、主题和预算',
+                   activeBook: activeBookName,
+                   bookCount: bookCount,
+                   categoryCount: categoryCount,
+                   isLoggedIn: isLoggedIn,
+                 ),
                 const SizedBox(height: 12),
                 const UserStatsCard(),
                 const SizedBox(height: 12),
@@ -1059,7 +1151,13 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 InkWell(
                   borderRadius: BorderRadius.circular(28),
-                  onTap: () => _openAccountSettings(isLoggedIn),
+                  onTap: () async {
+                    if (isLoggedIn) {
+                      await _editNickname();
+                      return;
+                    }
+                    _openAccountSettings(isLoggedIn);
+                  },
                   child: CircleAvatar(
                     radius: 24,
                     backgroundColor: cs.primary.withOpacity(isDark ? 0.22 : 0.14),
@@ -1191,6 +1289,14 @@ class _ProfilePageState extends State<ProfilePage> {
                      TextButton.icon(
                        onPressed: () {
                          Navigator.pop(ctx);
+                         if (!loggedIn) {
+                           ErrorHandler.showWarning(
+                             context,
+                             AppStrings.guestSingleBookOnly,
+                           );
+                           _goLogin();
+                           return;
+                         }
                          _showAddBookDialog(context);
                        },
                        icon: Icon(Icons.add, color: cs.primary),
@@ -1832,6 +1938,12 @@ class _ProfilePageState extends State<ProfilePage> {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final loggedIn = _token != null && _token!.isNotEmpty;
+    final bookCount = context.read<BookProvider>().books.length;
+    if (!loggedIn && bookCount > 0) {
+      ErrorHandler.showWarning(context, AppStrings.guestSingleBookOnly);
+      _goLogin();
+      return;
+    }
     bool createAsMulti = false;
     await showDialog(
       context: context,

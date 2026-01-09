@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
+import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class BookSelectorButton extends StatelessWidget {
@@ -221,6 +222,16 @@ class BookSelectorButton extends StatelessWidget {
   }
 
   Future<void> _showAddBookDialog(BuildContext context) async {
+    final token = await const AuthService().loadToken();
+    final loggedIn = token != null && token.isNotEmpty;
+    if (!loggedIn) {
+      if (context.mounted) {
+        ErrorHandler.showWarning(context, AppStrings.guestSingleBookOnly);
+        Navigator.pushNamed(context, '/login');
+      }
+      return;
+    }
+
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
     await showDialog(

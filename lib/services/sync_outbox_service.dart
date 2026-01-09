@@ -198,6 +198,62 @@ class SyncOutboxService {
     }
   }
 
+  /// Count guest-created "create" operations (owner=0, upsert without any server id).
+  /// These represent records created while unauthenticated that the user may or may not want to upload.
+  Future<int> countGuestCreateOps({Iterable<String>? bookIds}) async {
+    final books = bookIds
+        ?.where((e) => e.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+
+    if (RepositoryFactory.isUsingDatabase) {
+      try {
+        final db = await DatabaseHelper().database;
+        if (books == null || books.isEmpty) {
+          final rows = await db.rawQuery(
+            'SELECT COUNT(*) AS c FROM ${Tables.syncOutbox} WHERE owner_user_id = 0 AND op = ? AND server_id IS NULL',
+            [SyncOutboxOp.upsert.name],
+          );
+          return (rows.first['c'] as int?) ?? 0;
+        }
+        final placeholders = List.filled(books.length, '?').join(',');
+        final rows = await db.rawQuery(
+          'SELECT COUNT(*) AS c FROM ${Tables.syncOutbox} WHERE owner_user_id = 0 AND op = ? AND server_id IS NULL AND book_id IN ($placeholders)',
+          [SyncOutboxOp.upsert.name, ...books],
+        );
+        return (rows.first['c'] as int?) ?? 0;
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs
+        .getKeys()
+        .where((k) => k.startsWith(_prefsKeyPrefix) && !k.startsWith('${_prefsKeyPrefix}u'))
+        .toList(growable: false);
+
+    int count = 0;
+    for (final k in keys) {
+      final bookId = k.substring(_prefsKeyPrefix.length);
+      if (books != null && books.isNotEmpty && !books.contains(bookId)) continue;
+      final list = prefs.getStringList(k) ?? const <String>[];
+      for (final s in list) {
+        try {
+          final map = jsonDecode(s) as Map<String, dynamic>;
+          final item = SyncOutboxItem.fromJson(map);
+          if (item.op != SyncOutboxOp.upsert) continue;
+          final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
+          final serverId =
+              item.payload['serverId'] as int? ?? (bill?['serverId'] as int?);
+          if (serverId != null) continue;
+          count++;
+        } catch (_) {}
+      }
+    }
+    return count;
+  }
+
   Map<String, dynamic> _recordToBillPayload(
     Record record, {
     required int updateAtMs,

@@ -41,11 +41,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     if (result == true) {
       await _refreshToken();
       if (!mounted) return;
-      // If user created records while logged out, push queued outbox ops immediately after login.
-      final bookId = context.read<BookProvider>().activeBookId;
-      if (bookId.isNotEmpty) {
-        await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'login');
-      }
+      // Guest-created local records should not be uploaded without user consent.
+      await SyncEngine().maybeUploadGuestOutboxAfterLogin(context, reason: 'login');
       if (!mounted) return;
       Navigator.pop(context, true);
     }

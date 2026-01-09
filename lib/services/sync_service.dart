@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
 
 import '../config/api_config.dart';
+import 'api_client.dart';
 import 'network_guard.dart';
 
 class SyncService {
@@ -14,7 +14,6 @@ class SyncService {
   factory SyncService() => instance;
 
   final AuthService _authService = const AuthService();
-  final http.Client _client = http.Client();
   String? _deviceId;
 
   Uri _uri(String path) => Uri.parse('${ApiConfig.baseUrl}$path');
@@ -50,19 +49,17 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.post(
-          _uri('/api/sync/budget/upload'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'deviceId': deviceId,
-            'bookId': bookId,
-            'budget': budgetData,
-          }),
-        ),
+      final resp = await ApiClient.instance.post(
+        _uri('/api/sync/budget/upload'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'deviceId': deviceId,
+          'bookId': bookId,
+          'budget': budgetData,
+        }),
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -85,13 +82,11 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.get(
-          _uri('/api/sync/budget/download?deviceId=$deviceId&bookId=$bookId'),
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
-        ),
+      final resp = await ApiClient.instance.get(
+        _uri('/api/sync/budget/download?deviceId=$deviceId&bookId=$bookId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -120,21 +115,18 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.post(
-          _uri('/api/sync/savingsPlan/upload'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'deviceId': deviceId,
-            'bookId': bookId,
-            'plans': plans,
-            if (deletedIds != null && deletedIds.isNotEmpty)
-              'deletedIds': deletedIds,
-          }),
-        ),
+      final resp = await ApiClient.instance.post(
+        _uri('/api/sync/savingsPlan/upload'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'deviceId': deviceId,
+          'bookId': bookId,
+          'plans': plans,
+          if (deletedIds != null && deletedIds.isNotEmpty) 'deletedIds': deletedIds,
+        }),
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -161,13 +153,11 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.get(
-          _uri('/api/sync/savingsPlan/download?deviceId=$deviceId&bookId=$bookId'),
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
-        ),
+      final resp = await ApiClient.instance.get(
+        _uri('/api/sync/savingsPlan/download?deviceId=$deviceId&bookId=$bookId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -197,20 +187,18 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.post(
-          _uri('/api/sync/account/upload'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'deviceId': deviceId,
-            'accounts': accounts,
-            if (deletedAccounts != null && deletedAccounts.isNotEmpty)
-              'deletedAccounts': deletedAccounts,
-          }),
-        ),
+      final resp = await ApiClient.instance.post(
+        _uri('/api/sync/account/upload'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'deviceId': deviceId,
+          'accounts': accounts,
+          if (deletedAccounts != null && deletedAccounts.isNotEmpty)
+            'deletedAccounts': deletedAccounts,
+        }),
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -238,13 +226,11 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.get(
-          _uri('/api/sync/account/download?deviceId=$deviceId'),
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
-        ),
+      final resp = await ApiClient.instance.get(
+        _uri('/api/sync/account/download?deviceId=$deviceId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -275,21 +261,18 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.post(
-          _uri('/api/sync/category/upload'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'deviceId': deviceId,
-            if (bookId != null && bookId.isNotEmpty) 'bookId': bookId,
-            'categories': categories,
-            if (deletedKeys != null && deletedKeys.isNotEmpty)
-              'deletedKeys': deletedKeys,
-          }),
-        ),
+      final resp = await ApiClient.instance.post(
+        _uri('/api/sync/category/upload'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'deviceId': deviceId,
+          if (bookId != null && bookId.isNotEmpty) 'bookId': bookId,
+          'categories': categories,
+          if (deletedKeys != null && deletedKeys.isNotEmpty) 'deletedKeys': deletedKeys,
+        }),
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -320,13 +303,11 @@ class SyncService {
       if (bookId != null && bookId.isNotEmpty) {
         query.write('&bookId=$bookId');
       }
-      final resp = await runWithNetworkGuard(
-        () => _client.get(
-          _uri(query.toString()),
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
-        ),
+      final resp = await ApiClient.instance.get(
+        _uri(query.toString()),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -357,21 +338,19 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.post(
-          _uri('/api/sync/tag/upload'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'deviceId': deviceId,
-            'bookId': bookId,
-            'tags': tags,
-            if (deletedTagIds != null && deletedTagIds.isNotEmpty)
-              'deletedTagIds': deletedTagIds,
-          }),
-        ),
+      final resp = await ApiClient.instance.post(
+        _uri('/api/sync/tag/upload'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'deviceId': deviceId,
+          'bookId': bookId,
+          'tags': tags,
+          if (deletedTagIds != null && deletedTagIds.isNotEmpty)
+            'deletedTagIds': deletedTagIds,
+        }),
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -398,13 +377,11 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.get(
-          _uri('/api/sync/tag/download?deviceId=$deviceId&bookId=$bookId'),
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
-        ),
+      final resp = await ApiClient.instance.get(
+        _uri('/api/sync/tag/download?deviceId=$deviceId&bookId=$bookId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -436,21 +413,19 @@ class SyncService {
 
       final requestId = DateTime.now().microsecondsSinceEpoch.toString();
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.post(
-          _uri('/api/sync/v2/push'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-            'X-Client-Request-Id': requestId,
-            'X-Device-Id': deviceId,
-            if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
-          },
-          body: jsonEncode({
-            'bookId': bookId,
-            'ops': ops,
-          }),
-        ),
+      final resp = await ApiClient.instance.post(
+        _uri('/api/sync/v2/push'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'X-Client-Request-Id': requestId,
+          'X-Device-Id': deviceId,
+          if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
+        },
+        body: jsonEncode({
+          'bookId': bookId,
+          'ops': ops,
+        }),
       );
 
       return (jsonDecode(resp.body) as Map).cast<String, dynamic>();
@@ -478,16 +453,14 @@ class SyncService {
         url += '&afterChangeId=$afterChangeId';
       }
 
-      final resp = await runWithNetworkGuard(
-        () => _client.get(
-          _uri(url),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'X-Client-Request-Id': requestId,
-            'X-Device-Id': deviceId,
-            if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
-          },
-        ),
+      final resp = await ApiClient.instance.get(
+        _uri(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'X-Client-Request-Id': requestId,
+          'X-Device-Id': deviceId,
+          if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
+        },
       );
 
       return (jsonDecode(resp.body) as Map).cast<String, dynamic>();
@@ -508,16 +481,14 @@ class SyncService {
 
       final requestId = DateTime.now().microsecondsSinceEpoch.toString();
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.get(
-          _uri('/api/sync/v2/summary?bookId=$bookId'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'X-Client-Request-Id': requestId,
-            'X-Device-Id': deviceId,
-            if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
-          },
-        ),
+      final resp = await ApiClient.instance.get(
+        _uri('/api/sync/v2/summary?bookId=$bookId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'X-Client-Request-Id': requestId,
+          'X-Device-Id': deviceId,
+          if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
+        },
       );
 
       return (jsonDecode(resp.body) as Map).cast<String, dynamic>();
@@ -538,20 +509,18 @@ class SyncService {
 
       final requestId = DateTime.now().microsecondsSinceEpoch.toString();
       final deviceId = await _getDeviceId();
-      final resp = await runWithNetworkGuard(
-        () => _client.post(
-          _uri('/api/sync/v2/ids/allocate'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-            'X-Client-Request-Id': requestId,
-            'X-Device-Id': deviceId,
-            if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
-          },
-          body: jsonEncode({
-            'count': count,
-          }),
-        ),
+      final resp = await ApiClient.instance.post(
+        _uri('/api/sync/v2/ids/allocate'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'X-Client-Request-Id': requestId,
+          'X-Device-Id': deviceId,
+          if (reason != null && reason.isNotEmpty) 'X-Sync-Reason': reason,
+        },
+        body: jsonEncode({
+          'count': count,
+        }),
       );
 
       return (jsonDecode(resp.body) as Map).cast<String, dynamic>();

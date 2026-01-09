@@ -270,6 +270,7 @@ class AppStrings {
   static const deleteBook = '删除账本';
   static const newBook = '新建账本';
   static const bookNameHint = '账本名称';
+  static const guestSingleBookOnly = '游客模式仅支持一个账本，登录后可新增';
 
   // Assets
   static const assets = '资产';

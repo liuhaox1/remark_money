@@ -32,15 +32,15 @@ class _BookMembersPageState extends State<BookMembersPage> {
       appBar: AppBar(
         title: Text('成员 · ${widget.bookName}'),
         actions: [
-          IconButton(
-            tooltip: '刷新',
-            onPressed: () {
-              setState(() {
-                _future = _load();
-              });
-            },
-            icon: const Icon(Icons.refresh),
-          ),
+            IconButton(
+              tooltip: '刷新',
+              onPressed: () {
+                setState(() {
+                  _future = BookService().listMembers(widget.bookId, forceRefresh: true);
+                });
+              },
+              icon: const Icon(Icons.refresh),
+            ),
         ],
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(

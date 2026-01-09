@@ -9,7 +9,9 @@ import '../models/recurring_record.dart';
 import '../models/record.dart';
 import '../models/tag.dart';
 import '../repository/repository_factory.dart';
+import '../services/auth_service.dart';
 import '../services/sync_outbox_service.dart';
+import '../l10n/app_strings.dart';
 import '../utils/error_handler.dart';
 
 class BookProvider extends ChangeNotifier {
@@ -69,6 +71,11 @@ class BookProvider extends ChangeNotifier {
 
   Future<void> addBook(String name) async {
     try {
+      final token = await const AuthService().loadToken();
+      final isLoggedIn = token != null && token.isNotEmpty;
+      if (!isLoggedIn && _books.isNotEmpty) {
+        throw Exception(AppStrings.guestSingleBookOnly);
+      }
       final id = _generateId();
       final book = Book(id: id, name: name);
       _books.add(book);

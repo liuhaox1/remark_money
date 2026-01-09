@@ -9,6 +9,7 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../services/auth_service.dart';
+import '../services/auth_event_bus.dart';
 import '../services/background_sync_manager.dart';
 import '../services/app_settings_service.dart';
 import '../services/recurring_record_runner.dart';
@@ -24,6 +25,7 @@ import 'add_account_type_page.dart';
 import 'add_record_page.dart';
 import 'analysis_page.dart';
 import 'home_page.dart';
+import 'login_landing_page.dart';
 import 'profile_page.dart';
 
 class RootShell extends StatefulWidget {
@@ -36,6 +38,8 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> {
   int _index = 0;
   final AuthService _authService = const AuthService();
+  StreamSubscription<void>? _unauthorizedSub;
+  bool _handlingUnauthorized = false;
 
   late final List<Widget> _pages = [
     const HomePage(),
@@ -47,6 +51,16 @@ class _RootShellState extends State<RootShell> {
   @override
   void initState() {
     super.initState();
+    _unauthorizedSub = AuthEventBus.instance.onUnauthorized.listen((_) {
+      if (!mounted) return;
+      if (_handlingUnauthorized) return;
+      _handlingUnauthorized = true;
+      // Navigate to landing and clear the whole stack to avoid stale pages accessing protected APIs.
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginLandingPage()),
+        (route) => false,
+      );
+    });
     // 登录时自动同步（延迟执行，确保context和providers已准备好）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -98,6 +112,7 @@ class _RootShellState extends State<RootShell> {
 
   @override
   void dispose() {
+    _unauthorizedSub?.cancel();
     BackgroundSyncManager.instance.stop();
     RecurringRecordRunner.instance.stop();
     super.dispose();

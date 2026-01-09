@@ -4,6 +4,7 @@ import com.remark.money.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
   @Mapper
   public interface UserMapper {
@@ -28,4 +29,7 @@ import org.apache.ibatis.annotations.Select;
 
   @org.apache.ibatis.annotations.Update("UPDATE user SET pay_type = #{payType}, pay_expire = #{payExpire}, updated_at = NOW() WHERE id = #{id}")
   void updatePay(@Param("id") Long id, @Param("payType") Integer payType, @Param("payExpire") java.time.LocalDateTime payExpire);
+
+  @Update("UPDATE user SET nickname = #{nickname}, updated_at = NOW() WHERE id = #{id}")
+  int updateNickname(@Param("id") Long id, @Param("nickname") String nickname);
 }

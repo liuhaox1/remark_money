@@ -69,12 +69,13 @@ public class SyncV2Service {
   }
 
   public Map<String, Object> summary(Long userId, String bookId) {
-    assertBookMember(userId, bookId);
-    Long scopeUserId = isServerBook(bookId) ? 0L : userId;
+    final Long serverBid = assertBookMemberAndGetBidIfServer(userId, bookId);
+    final boolean sharedBook = serverBid != null;
+    Long scopeUserId = sharedBook ? 0L : userId;
 
     LocalDateTime cutoff = LocalDateTime.now().minusDays(RETENTION_DAYS);
     BillInfoSyncSummary billSummary =
-        isServerBook(bookId)
+        sharedBook
             ? billInfoMapper.summaryNonDeletedByBookId(bookId)
             : billInfoMapper.summaryNonDeletedByUserIdAndBookId(userId, bookId);
     int billCount = billSummary != null && billSummary.getBillCount() != null ? billSummary.getBillCount() : 0;
@@ -115,23 +116,24 @@ public class SyncV2Service {
     return resp;
   }
 
-  private boolean isServerBook(String bookId) {
-    if (bookId == null) return false;
+  /**
+   * If {@code bookId} is a server book (numeric + exists in {@code book} table), assert membership and return bid.
+   * Otherwise return null (treated as a local/personal book id).
+   */
+  private Long assertBookMemberAndGetBidIfServer(Long userId, String bookId) {
+    if (bookId == null) return null;
+    final Long bid;
     try {
-      Long bid = Long.parseLong(bookId);
-      return bookMapper.findById(bid) != null;
+      bid = Long.parseLong(bookId);
     } catch (NumberFormatException e) {
-      return false;
+      return null;
     }
-  }
-
-  private void assertBookMember(Long userId, String bookId) {
-    if (!isServerBook(bookId)) return;
-    Long bid = Long.parseLong(bookId);
+    if (bookMapper.findById(bid) == null) return null;
     BookMember m = bookMemberMapper.find(bid, userId);
     if (m == null) {
       throw new IllegalArgumentException("no access to shared book");
     }
+    return bid;
   }
 
   private Long asLong(Object value) {
@@ -379,9 +381,9 @@ public class SyncV2Service {
                                  String requestId,
                                  String deviceId,
                                  String syncReason) {
-    assertBookMember(userId, bookId);
-    Long scopeUserId = isServerBook(bookId) ? 0L : userId;
-    final boolean sharedBook = isServerBook(bookId);
+    final Long serverBid = assertBookMemberAndGetBidIfServer(userId, bookId);
+    final boolean sharedBook = serverBid != null;
+    Long scopeUserId = sharedBook ? 0L : userId;
 
     List<Map<String, Object>> results = new ArrayList<>();
     if (ops == null) ops = new ArrayList<>();
@@ -473,7 +475,7 @@ public class SyncV2Service {
 
       try {
         if ("delete".equalsIgnoreCase(type)) {
-          handleDelete(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups, requestId, deviceId, syncReason);
+          handleDelete(userId, bookId, scopeUserId, sharedBook, op, item, pendingLogs, pendingDedups, requestId, deviceId, syncReason);
           if ("applied".equals(item.get("status")) && item.get("serverId") instanceof Number) {
             pendingTagDeletes.add(((Number) item.get("serverId")).longValue());
           }
@@ -496,7 +498,7 @@ public class SyncV2Service {
             }
             pendingCreates.add(new PendingCreate(opId, bill, tagIds, item));
           } else {
-            handleUpsert(userId, bookId, scopeUserId, op, item, pendingLogs, pendingDedups, newlyInsertedBillIds, requestId, deviceId, syncReason);
+            handleUpsert(userId, bookId, scopeUserId, sharedBook, op, item, pendingLogs, pendingDedups, newlyInsertedBillIds, requestId, deviceId, syncReason);
             if ("applied".equals(item.get("status")) && item.get("serverId") instanceof Number) {
               Object billObj = op.get("bill");
               if (billObj instanceof Map) {
@@ -603,6 +605,7 @@ public class SyncV2Service {
   private void handleUpsert(Long userId,
                             String bookId,
                             Long scopeUserId,
+                            boolean sharedBook,
                             Map<String, Object> op,
                             Map<String, Object> item,
                             List<BillChangeLog> pendingLogs,
@@ -614,7 +617,6 @@ public class SyncV2Service {
     String opId = op.get("opId").toString();
     Object expectedVersionObj = op.get("expectedVersion");
     Long expectedVersion = asLong(expectedVersionObj);
-    final boolean sharedBook = isServerBook(bookId);
 
     Object billObj = op.get("bill");
     if (!(billObj instanceof Map)) {
@@ -670,7 +672,7 @@ public class SyncV2Service {
       return;
     }
 
-    int updated = isServerBook(bookId)
+    int updated = sharedBook
         ? billInfoMapper.updateWithExpectedVersionByBookId(bookId, expectedVersion, bill)
         : billInfoMapper.updateWithExpectedVersionByUserIdAndBookId(userId, bookId, expectedVersion, bill);
     if (updated <= 0) {
@@ -713,6 +715,7 @@ public class SyncV2Service {
   private void handleDelete(Long userId,
                             String bookId,
                             Long scopeUserId,
+                            boolean sharedBook,
                             Map<String, Object> op,
                             Map<String, Object> item,
                             List<BillChangeLog> pendingLogs,
@@ -724,8 +727,6 @@ public class SyncV2Service {
     Long billId = asLong(op.get("serverId"));
     if (billId == null) billId = asLong(op.get("billId"));
     Long expectedVersion = asLong(op.get("expectedVersion"));
-    final boolean sharedBook = isServerBook(bookId);
-
     if (billId == null) {
       throw new IllegalArgumentException("missing serverId");
     }
@@ -754,7 +755,7 @@ public class SyncV2Service {
       return;
     }
 
-    int updated = isServerBook(bookId)
+    int updated = sharedBook
         ? billInfoMapper.softDeleteWithExpectedVersionByBookId(bookId, billId, expectedVersion)
         : billInfoMapper.softDeleteWithExpectedVersionByUserIdAndBookId(userId, bookId, billId, expectedVersion);
     if (updated <= 0) {
@@ -791,9 +792,9 @@ public class SyncV2Service {
   }
 
   public Map<String, Object> pull(Long userId, String bookId, Long afterChangeId, int limit) {
-    assertBookMember(userId, bookId);
-    Long scopeUserId = isServerBook(bookId) ? 0L : userId;
-    final boolean sharedBook = isServerBook(bookId);
+    final Long serverBid = assertBookMemberAndGetBidIfServer(userId, bookId);
+    final boolean sharedBook = serverBid != null;
+    Long scopeUserId = sharedBook ? 0L : userId;
 
     long cursor = afterChangeId != null ? afterChangeId : 0L;
     int realLimit = limit > 0 ? Math.min(limit, 500) : 200;
