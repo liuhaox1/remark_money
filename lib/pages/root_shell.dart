@@ -8,11 +8,13 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
+import '../providers/tag_provider.dart';
 import '../services/auth_service.dart';
 import '../services/auth_event_bus.dart';
 import '../services/background_sync_manager.dart';
 import '../services/app_settings_service.dart';
 import '../services/recurring_record_runner.dart';
+import '../services/book_service.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
@@ -40,6 +42,8 @@ class _RootShellState extends State<RootShell> {
   final AuthService _authService = const AuthService();
   StreamSubscription<void>? _unauthorizedSub;
   bool _handlingUnauthorized = false;
+  String? _lastBookId;
+  bool _reloadingBook = false;
 
   late final List<Widget> _pages = [
     const HomePage(),
@@ -119,6 +123,10 @@ class _RootShellState extends State<RootShell> {
   }
 
   Future<void> _openQuickAddPage() async {
+    if (_reloadingBook) {
+      ErrorHandler.showWarning(context, 'æ­£åœ¨åˆ‡æ¢è´¦æœ¬ï¼Œè¯·ç¨åŽ');
+      return;
+    }
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AddRecordPage()),
@@ -141,19 +149,54 @@ class _RootShellState extends State<RootShell> {
     final bookProvider = context.watch<BookProvider>();
     final recordProvider = context.watch<RecordProvider>();
     final categoryProvider = context.watch<CategoryProvider>();
+    final accountProvider = context.watch<AccountProvider>();
+    final tagProvider = context.watch<TagProvider>();
     
-    if (!bookProvider.loaded || !recordProvider.loaded || !categoryProvider.loaded) {
+    if (!bookProvider.loaded ||
+        !recordProvider.loaded ||
+        !categoryProvider.loaded ||
+        !accountProvider.loaded ||
+        tagProvider.loading) {
       return Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
         ),
       );
     }
+
+    final activeBookId = bookProvider.activeBookId;
+    if (_lastBookId != activeBookId) {
+      _lastBookId = activeBookId;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        setState(() => _reloadingBook = true);
+        try {
+          await Future.wait([
+            context.read<TagProvider>().loadForBook(activeBookId),
+            context.read<AccountProvider>().loadForBook(activeBookId),
+          ]);
+        } catch (_) {}
+        if (mounted) setState(() => _reloadingBook = false);
+      });
+    }
     
     return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: _pages,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _index,
+            children: _pages,
+          ),
+          if (_reloadingBook)
+            Positioned.fill(
+              child: Stack(
+                children: const [
+                  ModalBarrier(dismissible: false, color: Colors.black12),
+                  Center(child: CircularProgressIndicator()),
+                ],
+              ),
+            ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: cs.surface,
@@ -665,6 +708,18 @@ class _AccountTile extends StatelessWidget {
     final accountProvider = context.read<AccountProvider>();
     final recordProvider = context.read<RecordProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
+
+    if (int.tryParse(bookId) != null) {
+      try {
+        final ok = await BookService().isCurrentUserOwner(bookId);
+        if (!ok) {
+          if (context.mounted) {
+            ErrorHandler.showWarning(context, '多人账本仅创建者可修改账户');
+          }
+          return;
+        }
+      } catch (_) {}
+    }
 
     // 1) 账户下还有流水：不允许删除（否则余额必然对不上/出现异常）
     final usedCount =
@@ -1375,6 +1430,18 @@ List<_AccountGroupData> _groupAccounts(List<Account> accounts) {
 }
 
 Future<AccountKind?> _startAddAccountFlow(BuildContext context) async {
+  final bookId = context.read<BookProvider>().activeBookId;
+  if (int.tryParse(bookId) != null) {
+    try {
+      final ok = await BookService().isCurrentUserOwner(bookId);
+      if (!ok) {
+        if (context.mounted) {
+          ErrorHandler.showWarning(context, '多人账本仅创建者可修改账户');
+        }
+        return null;
+      }
+    } catch (_) {}
+  }
   final accountProvider = context.read<AccountProvider>();
   final assetBefore = accountProvider.byKind(AccountKind.asset).length;
   final hasDebtBefore =

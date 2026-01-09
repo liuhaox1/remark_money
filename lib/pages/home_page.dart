@@ -1898,11 +1898,12 @@ class _HomePageState extends State<HomePage> {
 
     final mediaQuery = MediaQuery.of(context);
 
-    final systemBottomPadding = mediaQuery.viewPadding.bottom; // 系统底部安全区域
+    final systemBottomPadding = mediaQuery.padding.bottom; // 系统底部安全区域
+    final navBarHeight = NavigationBarTheme.of(context).height ?? 80.0;
 
     const extraPadding = 16.0; // ???????????????????
 
-    final bottomPadding = systemBottomPadding + extraPadding;
+    final bottomPadding = systemBottomPadding + navBarHeight + extraPadding;
 
     
 

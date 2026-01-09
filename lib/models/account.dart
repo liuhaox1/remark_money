@@ -40,6 +40,7 @@ enum AccountSubtype {
 class Account {
   const Account({
     required this.id,
+    this.bookId = 'default-book',
     this.serverId,
     this.syncVersion,
     required this.name,
@@ -63,6 +64,7 @@ class Account {
   });
 
   final String id;
+  final String bookId;
   final int? serverId; // 服务器自增ID
   final int? syncVersion; // server monotonic sync version
   final String name;
@@ -90,6 +92,7 @@ class Account {
 
   Account copyWith({
     String? id,
+    String? bookId,
     int? serverId,
     int? syncVersion,
     String? name,
@@ -113,6 +116,7 @@ class Account {
   }) {
     return Account(
       id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
       serverId: serverId ?? this.serverId,
       syncVersion: syncVersion ?? this.syncVersion,
       name: name ?? this.name,
@@ -139,6 +143,7 @@ class Account {
   Map<String, dynamic> toMap() {
     return {
       'id': id, // 客户端临时ID（首次上传时使用）
+      'bookId': bookId,
       'serverId': serverId, // 服务器ID（如果已同步）
       'syncVersion': syncVersion,
       'name': name,
@@ -201,12 +206,15 @@ class Account {
     // 客户端上传时，id是临时ID（String），serverId是已同步的服务器ID
     final serverId = map['id'] is int ? map['id'] as int? : map['serverId'] as int?;
     final clientId = map['id'] is String ? map['id'] as String? : null;
+    final rawBookId = (map['bookId'] ?? map['book_id'])?.toString().trim();
+    final bookId = (rawBookId != null && rawBookId.isNotEmpty) ? rawBookId : 'default-book';
     final syncVersionRaw = map['syncVersion'] ?? map['sync_version'];
     final syncVersion = syncVersionRaw is num
         ? syncVersionRaw.toInt()
         : (syncVersionRaw is String ? int.tryParse(syncVersionRaw) : null);
     return Account(
       id: clientId ?? (serverId != null ? 'server_$serverId' : _generateTempId()),
+      bookId: bookId,
       serverId: serverId,
       syncVersion: syncVersion,
       name: map['name'] as String,

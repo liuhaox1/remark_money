@@ -5,6 +5,7 @@ import '../constants/bank_brands.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
+import '../services/book_service.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
 
@@ -1530,6 +1531,18 @@ class _AccountFormPageState extends State<AccountFormPage> {
     try {
     final provider = context.read<AccountProvider>();
     final bookId = context.read<BookProvider>().activeBookId;
+
+      if (int.tryParse(bookId) != null) {
+        try {
+          final ok = await BookService().isCurrentUserOwner(bookId);
+          if (!ok) {
+            if (mounted) {
+              ErrorHandler.showWarning(context, '多人账本仅创建者可修改账户');
+            }
+            return;
+          }
+        } catch (_) {}
+      }
       final accountType = _mapSubtypeToLegacy(subtype);
 
       if (isEditing && widget.account != null) {

@@ -59,6 +59,10 @@ public class SyncController {
       @RequestBody Map<String, Object> request) {
     try {
       Long userId = getUserIdFromToken(token);
+      String bookId = (String) request.get("bookId");
+      if (bookId == null || bookId.trim().isEmpty()) {
+        bookId = "default-book";
+      }
       @SuppressWarnings("unchecked")
       List<Map<String, Object>> accountsData =
           (List<Map<String, Object>>) request.get("accounts");
@@ -100,7 +104,7 @@ public class SyncController {
       if (deletedServerIds != null || deletedAccountIds != null) {
         // Apply explicit deletions first (soft delete), then upsert remaining accounts.
         SyncService.AccountSyncResult del =
-            syncService.deleteAccounts(userId, deletedServerIds, deletedAccountIds);
+            syncService.deleteAccounts(userId, bookId, deletedServerIds, deletedAccountIds);
         if (!del.isSuccess()) {
           Map<String, Object> response = new HashMap<>();
           response.put("success", false);
@@ -112,12 +116,18 @@ public class SyncController {
         } else {
           List<AccountInfo> accounts =
               accountsData.stream().map(this::mapToAccountInfo).collect(Collectors.toList());
-          result = syncService.uploadAccounts(userId, accounts);
+          for (AccountInfo a : accounts) {
+            a.setBookId(bookId);
+          }
+          result = syncService.uploadAccounts(userId, bookId, accounts);
         }
       } else {
         List<AccountInfo> accounts =
             accountsData.stream().map(this::mapToAccountInfo).collect(Collectors.toList());
-        result = syncService.uploadAccounts(userId, accounts);
+        for (AccountInfo a : accounts) {
+          a.setBookId(bookId);
+        }
+        result = syncService.uploadAccounts(userId, bookId, accounts);
       }
 
       Map<String, Object> response = new HashMap<>();
@@ -146,10 +156,14 @@ public class SyncController {
    */
   @GetMapping("/account/download")
   public ResponseEntity<Map<String, Object>> downloadAccounts(
-      @RequestHeader("Authorization") String token) {
+      @RequestHeader("Authorization") String token,
+      @RequestParam(value = "bookId", required = false) String bookId) {
     try {
       Long userId = getUserIdFromToken(token);
-      SyncService.AccountSyncResult result = syncService.downloadAccounts(userId);
+      if (bookId == null || bookId.trim().isEmpty()) {
+        bookId = "default-book";
+      }
+      SyncService.AccountSyncResult result = syncService.downloadAccounts(userId, bookId);
 
       Map<String, Object> response = new HashMap<>();
       if (result.isSuccess()) {
@@ -188,6 +202,9 @@ public class SyncController {
       }
     }
     account.setAccountId((String) map.get("id"));
+    if (map.get("bookId") instanceof String) {
+      account.setBookId(((String) map.get("bookId")).trim());
+    }
     account.setName((String) map.get("name"));
     account.setKind((String) map.get("kind"));
     account.setSubtype((String) map.get("subtype"));
@@ -251,6 +268,7 @@ public class SyncController {
     if (account.getSyncVersion() != null) {
       map.put("syncVersion", account.getSyncVersion());
     }
+    map.put("bookId", account.getBookId());
     map.put("name", account.getName());
     map.put("kind", account.getKind());
     map.put("subtype", account.getSubtype());

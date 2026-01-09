@@ -103,7 +103,7 @@ void main() {
 
     // Accounts
     expect(
-      accountProvider.accounts.any((a) => a.id == 'default_wallet'),
+      accountProvider.accounts.any((a) => a.id == 'default_wallet' || a.id.startsWith('default_wallet_')),
       isTrue,
     );
     expect(

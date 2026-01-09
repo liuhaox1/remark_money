@@ -714,6 +714,28 @@ class _ProfilePageState extends State<ProfilePage> {
 	                      );
 	                    },
 	                  ),
+                  FutureBuilder<int>(
+                    future: SyncEngine().countGuestCreateOpsForCurrentBooks(context),
+                    builder: (ctx, snap) {
+                      final count = snap.data ?? 0;
+                      if (count <= 0) return const SizedBox.shrink();
+                      return Column(
+                        children: [
+                          InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => _openAccountSettings(true),
+                            child: _buildInfoBanner(
+                              ctx,
+                              icon: Icons.cloud_upload_outlined,
+                              title: '${AppStrings.guestManualUpload} ($count)',
+                              subtitle: AppStrings.guestManualUploadHint,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      );
+                    },
+                  ),
                 ],
                  _buildHeaderCard(
                    context,

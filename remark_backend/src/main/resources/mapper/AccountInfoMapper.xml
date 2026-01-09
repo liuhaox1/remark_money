@@ -5,6 +5,7 @@
   <resultMap id="AccountInfoResultMap" type="com.remark.money.entity.AccountInfo">
     <id property="id" column="id"/>
     <result property="userId" column="user_id"/>
+    <result property="bookId" column="book_id"/>
     <result property="accountId" column="account_id"/>
     <result property="name" column="name"/>
     <result property="kind" column="kind"/>
@@ -46,26 +47,29 @@
     </foreach>
   </select>
 
-  <select id="findByUserIdAndAccountId" resultMap="AccountInfoResultMap">
-    SELECT * FROM account_info WHERE user_id = #{userId} AND account_id = #{accountId} LIMIT 1
+  <select id="findByUserIdAndBookIdAndAccountId" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND account_id = #{accountId}
+    LIMIT 1
   </select>
 
-  <select id="findByUserIdAndAccountIds" resultMap="AccountInfoResultMap">
-    SELECT * FROM account_info WHERE user_id = #{userId} AND account_id IN
+  <select id="findByUserIdAndBookIdAndAccountIds" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND account_id IN
     <foreach item="id" collection="accountIds" open="(" separator="," close=")">
       #{id}
     </foreach>
   </select>
 
-  <select id="findAllByUserId" resultMap="AccountInfoResultMap">
+  <select id="findAllByUserIdAndBookId" resultMap="AccountInfoResultMap">
     SELECT * FROM account_info
-    WHERE user_id = #{userId} AND is_delete = 0
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0
     ORDER BY sort_order ASC, id ASC
   </select>
 
-  <delete id="deleteByUserIdAndAccountIdsNotIn">
+  <delete id="deleteByUserIdAndBookIdAndAccountIdsNotIn">
     DELETE FROM account_info
-    WHERE user_id = #{userId}
+    WHERE user_id = #{userId} AND book_id = #{bookId}
       AND account_id IS NOT NULL
       AND account_id NOT IN
       <foreach item="id" collection="accountIds" open="(" separator="," close=")">
@@ -76,34 +80,34 @@
   <update id="softDeleteById">
     UPDATE account_info
     SET is_delete = 1, sync_version = sync_version + 1, update_time = NOW()
-    WHERE user_id = #{userId} AND id = #{id}
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND id = #{id}
   </update>
 
   <update id="softDeleteByAccountId">
     UPDATE account_info
     SET is_delete = 1, sync_version = sync_version + 1, update_time = NOW()
-    WHERE user_id = #{userId} AND account_id = #{accountId}
+    WHERE user_id = #{userId} AND book_id = #{bookId} AND account_id = #{accountId}
   </update>
 
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
+    INSERT INTO account_info (user_id, book_id, account_id, name, kind, subtype, type, icon,
                             include_in_total, include_in_overview, currency, sort_order,
                             initial_balance, current_balance, counterparty, interest_rate,
                             due_date, note, brand_key, is_delete, sync_version, update_time, created_at)
-    VALUES (#{userId}, #{accountId}, #{name}, #{kind}, #{subtype}, #{type}, #{icon},
+    VALUES (#{userId}, #{bookId}, #{accountId}, #{name}, #{kind}, #{subtype}, #{type}, #{icon},
             #{includeInTotal}, #{includeInOverview}, #{currency}, #{sortOrder},
             #{initialBalance}, #{currentBalance}, #{counterparty}, #{interestRate},
             #{dueDate}, #{note}, #{brandKey}, #{isDelete}, 1, NOW(), NOW())
   </insert>
 
   <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO account_info (user_id, account_id, name, kind, subtype, type, icon,
+    INSERT INTO account_info (user_id, book_id, account_id, name, kind, subtype, type, icon,
                             include_in_total, include_in_overview, currency, sort_order,
                             initial_balance, current_balance, counterparty, interest_rate,
                             due_date, note, brand_key, is_delete, sync_version, update_time, created_at)
     VALUES
     <foreach collection="list" item="item" separator=",">
-      (#{item.userId}, #{item.accountId}, #{item.name}, #{item.kind}, #{item.subtype}, #{item.type}, #{item.icon},
+      (#{item.userId}, #{item.bookId}, #{item.accountId}, #{item.name}, #{item.kind}, #{item.subtype}, #{item.type}, #{item.icon},
        #{item.includeInTotal}, #{item.includeInOverview}, #{item.currency}, #{item.sortOrder},
        #{item.initialBalance}, #{item.currentBalance}, #{item.counterparty}, #{item.interestRate},
        #{item.dueDate}, #{item.note}, #{item.brandKey}, #{item.isDelete}, 1, NOW(), NOW())
@@ -112,6 +116,7 @@
 
   <update id="updateById">
     UPDATE account_info SET
+      book_id = #{bookId},
       name = #{name},
       kind = #{kind},
       subtype = #{subtype},
@@ -131,11 +136,12 @@
       is_delete = #{isDelete},
       sync_version = sync_version + 1,
       update_time = NOW()
-    WHERE id = #{id} AND user_id = #{userId}
+    WHERE id = #{id} AND user_id = #{userId} AND book_id = #{bookId}
   </update>
 
   <update id="updateWithExpectedSyncVersion">
     UPDATE account_info SET
+      book_id = #{account.bookId},
       name = #{account.name},
       kind = #{account.kind},
       subtype = #{account.subtype},
@@ -157,13 +163,16 @@
       update_time = NOW()
     WHERE id = #{account.id}
       AND user_id = #{account.userId}
+      AND book_id = #{account.bookId}
       AND sync_version = #{expectedSyncVersion}
   </update>
 
   <update id="batchUpdate">
     <bind name="userId" value="list[0].userId"/>
+    <bind name="bookId" value="list[0].bookId"/>
     UPDATE account_info
     SET
+      book_id = #{bookId},
       name = CASE id
         <foreach collection="list" item="item">
           WHEN #{item.id} THEN #{item.name}
@@ -269,6 +278,7 @@
       sync_version = sync_version + 1,
       update_time = NOW()
     WHERE user_id = #{userId}
+      AND book_id = #{bookId}
       AND id IN
       <foreach item="item" collection="list" open="(" separator="," close=")">
         #{item.id}

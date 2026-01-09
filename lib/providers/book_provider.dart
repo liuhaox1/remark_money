@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/book.dart';
 import '../models/budget.dart';
+import '../models/account.dart';
 import '../models/recurring_record.dart';
 import '../models/record.dart';
 import '../models/tag.dart';
@@ -186,6 +187,16 @@ class BookProvider extends ChangeNotifier {
             whereArgs: [oldBookId],
           );
 
+          // Accounts are scoped by book_id (v14+).
+          try {
+            await txn.update(
+              Tables.accounts,
+              {'book_id': newBookId},
+              where: 'book_id = ?',
+              whereArgs: [oldBookId],
+            );
+          } catch (_) {}
+
           // Any queued ops for the old book are now invalid; they must be rebuilt for the new book.
           await txn.delete(
             Tables.syncOutbox,
@@ -203,6 +214,7 @@ class BookProvider extends ChangeNotifier {
         final recordRepo = RepositoryFactory.createRecordRepository() as dynamic;
         final budgetRepo = RepositoryFactory.createBudgetRepository() as dynamic;
         final tagRepo = RepositoryFactory.createTagRepository() as dynamic;
+        final accountRepo = RepositoryFactory.createAccountRepository() as dynamic;
         final recurringRepo =
             RepositoryFactory.createRecurringRecordRepository() as dynamic;
 
@@ -244,6 +256,18 @@ class BookProvider extends ChangeNotifier {
             next.remove(oldBookId);
             next[newBookId] = oldEntry;
             await budgetRepo.saveBudget(Budget(entries: next));
+          }
+        } catch (_) {}
+
+        try {
+          final List<dynamic> list = await accountRepo.loadAccounts(bookId: oldBookId);
+          final accounts = list.cast<Account>();
+          if (accounts.isNotEmpty) {
+            final migrated = accounts
+                .map((a) => a.copyWith(bookId: newBookId))
+                .toList(growable: false);
+            await accountRepo.saveAccounts(bookId: newBookId, accounts: migrated);
+            await accountRepo.saveAccounts(bookId: oldBookId, accounts: const <Account>[]);
           }
         } catch (_) {}
 

@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 public class AccountInfo {
   private Long id; // 服务器自增ID
   private Long userId;
+  private String bookId; // 账本ID（多人账本按 bookId 共享）
   private String accountId; // 客户端临时ID（可选，用于首次上传匹配）
   private String name;
   private String kind; // asset, liability, lend
@@ -43,6 +44,14 @@ public class AccountInfo {
 
   public void setUserId(Long userId) {
     this.userId = userId;
+  }
+
+  public String getBookId() {
+    return bookId;
+  }
+
+  public void setBookId(String bookId) {
+    this.bookId = bookId;
   }
 
   public String getAccountId() {

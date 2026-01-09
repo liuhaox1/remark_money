@@ -82,7 +82,7 @@ public class BillInfoPurgeJob {
         String bookId = e.getKey();
         List<Long> ids = e.getValue();
         if (bookId == null || ids == null || ids.isEmpty()) continue;
-        billTagRelMapper.deleteByBillIds(bookId, ids);
+        billTagRelMapper.deleteByBillIdsAllScopes(bookId, ids);
       }
 
       List<Long> ids = bills.stream().map(BillInfo::getId).collect(Collectors.toList());

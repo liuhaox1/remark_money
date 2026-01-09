@@ -1,11 +1,13 @@
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/sync_engine.dart';
 import '../providers/book_provider.dart';
 import '../theme/ios_tokens.dart';
 import '../widgets/app_scaffold.dart';
+import '../l10n/app_strings.dart';
+import '../utils/error_handler.dart';
 import 'login_landing_page.dart';
 
 class AccountSettingsPage extends StatefulWidget {
@@ -20,11 +22,33 @@ class AccountSettingsPage extends StatefulWidget {
 class _AccountSettingsPageState extends State<AccountSettingsPage> {
   final AuthService _authService = const AuthService();
   bool _isLoggedIn = false;
+  int _guestUploadPolicy = 0; // 0=ask,1=always,2=never
+  int _guestPendingCreates = 0;
 
   @override
   void initState() {
     super.initState();
     _isLoggedIn = widget.initialLoggedIn;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadGuestUploadState();
+    });
+  }
+
+  Future<void> _loadGuestUploadState() async {
+    try {
+      final engine = SyncEngine();
+      final policy = await engine.getGuestUploadPolicy();
+      int pending = 0;
+      if (mounted) {
+        pending = await engine.countGuestCreateOpsForCurrentBooks(context);
+      }
+      if (!mounted) return;
+      setState(() {
+        _guestUploadPolicy = policy;
+        _guestPendingCreates = pending;
+      });
+    } catch (_) {}
   }
 
   Future<void> _refreshToken() async {
@@ -43,6 +67,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       if (!mounted) return;
       // Guest-created local records should not be uploaded without user consent.
       await SyncEngine().maybeUploadGuestOutboxAfterLogin(context, reason: 'login');
+      await _loadGuestUploadState();
       if (!mounted) return;
       Navigator.pop(context, true);
     }
@@ -108,6 +133,40 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
             ),
       ),
     );
+  }
+
+  String _policyLabel(int v) {
+    switch (v) {
+      case 1:
+        return AppStrings.guestUploadPolicyAlways;
+      case 2:
+        return AppStrings.guestUploadPolicyNever;
+      case 0:
+      default:
+        return AppStrings.guestUploadPolicyAsk;
+    }
+  }
+
+  Future<void> _setPolicy(int value) async {
+    await SyncEngine().setGuestUploadPolicy(value);
+    if (!mounted) return;
+    setState(() => _guestUploadPolicy = value);
+  }
+
+  Future<void> _manualUpload() async {
+    if (!_isLoggedIn) {
+      ErrorHandler.showWarning(context, '请先登录');
+      return;
+    }
+    try {
+      await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'manual');
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, '已开始同步');
+      await _loadGuestUploadState();
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.handleAsyncError(context, e);
+    }
   }
 
   @override
@@ -183,6 +242,79 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                               ),
                             ),
                       onTap: _isLoggedIn ? null : _handleLogin,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _sectionCard(
+                  context: context,
+                  children: [
+                    ListTile(
+                      title: const Text(AppStrings.guestManualUpload),
+                      subtitle: Text(
+                        _guestPendingCreates > 0
+                            ? '${AppStrings.guestManualUploadHint}（$_guestPendingCreates 条待同步）'
+                            : AppStrings.guestManualUploadHint,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: cs.onSurface.withOpacity(0.6),
+                            ),
+                      ),
+                      trailing: Icon(
+                        Icons.cloud_upload_outlined,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                      onTap: _manualUpload,
+                    ),
+                    ListTile(
+                      title: const Text(AppStrings.guestUploadPolicyTitle),
+                      subtitle: Text(
+                        _policyLabel(_guestUploadPolicy),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: cs.onSurface.withOpacity(0.6),
+                            ),
+                      ),
+                      trailing: Icon(
+                        Icons.tune_outlined,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                      onTap: () async {
+                        final chosen = await showModalBottomSheet<int>(
+                          context: context,
+                          showDragHandle: true,
+                          builder: (ctx) => SafeArea(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  title: const Text(AppStrings.guestUploadPolicyAsk),
+                                  trailing: _guestUploadPolicy == 0
+                                      ? const Icon(Icons.check)
+                                      : null,
+                                  onTap: () => Navigator.pop(ctx, 0),
+                                ),
+                                ListTile(
+                                  title:
+                                      const Text(AppStrings.guestUploadPolicyAlways),
+                                  trailing: _guestUploadPolicy == 1
+                                      ? const Icon(Icons.check)
+                                      : null,
+                                  onTap: () => Navigator.pop(ctx, 1),
+                                ),
+                                ListTile(
+                                  title: const Text(AppStrings.guestUploadPolicyNever),
+                                  trailing: _guestUploadPolicy == 2
+                                      ? const Icon(Icons.check)
+                                      : null,
+                                  onTap: () => Navigator.pop(ctx, 2),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ),
+                          ),
+                        );
+                        if (chosen == null) return;
+                        await _setPolicy(chosen);
+                      },
                     ),
                   ],
                 ),

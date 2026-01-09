@@ -28,6 +28,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class SyncV2Service {
+  private static final String EMPTY_TAG_SENTINEL = "__EMPTY__";
 
   private static final int RETENTION_DAYS = 30;
 
@@ -316,17 +318,46 @@ public class SyncV2Service {
     return map;
   }
 
-  private Map<Long, List<String>> loadTagIdsByBillIds(String bookId, List<Long> billIds) {
+  private Map<Long, List<String>> loadTagIdsByBillIds(
+      String bookId, Long scopeUserId, List<Long> billIds) {
     Map<Long, List<String>> out = new HashMap<>();
     if (billIds == null || billIds.isEmpty()) return out;
 
-    List<BillTagRel> rels = billTagRelMapper.findByBillIds(bookId, billIds);
-    if (rels == null || rels.isEmpty()) return out;
-    for (BillTagRel r : rels) {
-      if (r == null || r.getBillId() == null) continue;
-      String tid = r.getTagId();
-      if (tid == null || tid.trim().isEmpty()) continue;
-      out.computeIfAbsent(r.getBillId(), k -> new ArrayList<>()).add(tid);
+    // 1) Load personal tags (scope_user_id = userId).
+    // 2) For legacy shared tags, fall back to scope_user_id = 0 only when the user has no rows at all for that bill.
+    //    This preserves "personal tags" semantics while keeping old data visible after migration.
+    List<BillTagRel> rels = billTagRelMapper.findByBillIds(bookId, scopeUserId, billIds);
+    Set<Long> billsWithAnyUserRow = new HashSet<>();
+    if (rels != null) {
+      for (BillTagRel r : rels) {
+        if (r == null || r.getBillId() == null) continue;
+        billsWithAnyUserRow.add(r.getBillId());
+        String tid = r.getTagId();
+        if (tid == null) continue;
+        tid = tid.trim();
+        if (tid.isEmpty() || EMPTY_TAG_SENTINEL.equals(tid)) continue;
+        out.computeIfAbsent(r.getBillId(), k -> new ArrayList<>()).add(tid);
+      }
+    }
+
+    // No legacy fallback if the client isn't asking for a user scope (defensive).
+    if (scopeUserId == null || scopeUserId <= 0) return out;
+
+    List<Long> missing = billIds.stream()
+        .filter(id -> id != null && !billsWithAnyUserRow.contains(id))
+        .collect(Collectors.toList());
+    if (missing.isEmpty()) return out;
+
+    List<BillTagRel> legacyShared = billTagRelMapper.findByBillIds(bookId, 0L, missing);
+    if (legacyShared != null) {
+      for (BillTagRel r : legacyShared) {
+        if (r == null || r.getBillId() == null) continue;
+        String tid = r.getTagId();
+        if (tid == null) continue;
+        tid = tid.trim();
+        if (tid.isEmpty() || EMPTY_TAG_SENTINEL.equals(tid)) continue;
+        out.computeIfAbsent(r.getBillId(), k -> new ArrayList<>()).add(tid);
+      }
     }
     return out;
   }
@@ -461,7 +492,10 @@ public class SyncV2Service {
               : billInfoMapper.findByIdForUserAndBook(userId, bookId, dedup.getBillId());
           if (serverBill != null) {
             List<String> tagIds =
-                loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(serverBill.getId()))
+                loadTagIdsByBillIds(
+                        bookId,
+                        userId,
+                        java.util.Collections.singletonList(serverBill.getId()))
                     .get(serverBill.getId());
             if (tagIds == null) tagIds = new ArrayList<>();
             item.put("serverBill", toBillMap(serverBill, tagIds));
@@ -552,28 +586,40 @@ public class SyncV2Service {
 
     // v2: update bill-tag relations (replace semantics)
     if (!pendingTagUpdates.isEmpty() || !pendingTagDeletes.isEmpty()) {
-      List<Long> clearBillIds = new ArrayList<>();
-      clearBillIds.addAll(pendingTagUpdates.keySet());
-      clearBillIds.addAll(pendingTagDeletes);
-      clearBillIds = clearBillIds.stream().distinct().collect(Collectors.toList());
-      if (!clearBillIds.isEmpty() && !newlyInsertedBillIds.isEmpty()) {
-        clearBillIds = clearBillIds.stream()
-            .filter(id -> !newlyInsertedBillIds.contains(id) || pendingTagDeletes.contains(id))
+      // Personal tags are stored per-user, but bill deletions should clear tags for all users.
+      List<Long> updateBillIds = pendingTagUpdates.keySet().stream().distinct().collect(Collectors.toList());
+      List<Long> deleteBillIds = pendingTagDeletes.stream().distinct().collect(Collectors.toList());
+
+      // Avoid redundant deletes for newly created bills (no prior relations), except when this op is a delete.
+      if (!updateBillIds.isEmpty() && !newlyInsertedBillIds.isEmpty()) {
+        updateBillIds = updateBillIds.stream()
+            .filter(id -> !newlyInsertedBillIds.contains(id))
             .collect(Collectors.toList());
       }
-      if (!clearBillIds.isEmpty()) {
-        billTagRelMapper.deleteByBillIds(bookId, clearBillIds);
+
+      if (!deleteBillIds.isEmpty()) {
+        billTagRelMapper.deleteByBillIdsAllScopes(bookId, deleteBillIds);
+      }
+      if (!updateBillIds.isEmpty()) {
+        billTagRelMapper.deleteByBillIdsForScope(bookId, userId, updateBillIds);
       }
 
       List<BillTagRel> rels = new ArrayList<>();
       for (Map.Entry<Long, List<String>> e : pendingTagUpdates.entrySet()) {
         Long billId = e.getKey();
         List<String> tagIds = e.getValue();
-        if (billId == null || tagIds == null || tagIds.isEmpty()) continue;
+        if (billId == null || tagIds == null) continue;
+        if (tagIds.isEmpty()) {
+          BillTagRel r = new BillTagRel(bookId, userId, billId, EMPTY_TAG_SENTINEL);
+          r.setSortOrder(0);
+          rels.add(r);
+          continue;
+        }
         int idx = 0;
         for (String tid : tagIds) {
           if (tid == null || tid.trim().isEmpty()) continue;
-          BillTagRel r = new BillTagRel(bookId, billId, tid.trim());
+          if (EMPTY_TAG_SENTINEL.equals(tid.trim())) continue;
+          BillTagRel r = new BillTagRel(bookId, userId, billId, tid.trim());
           r.setSortOrder(idx++);
           rels.add(r);
         }
@@ -663,7 +709,7 @@ public class SyncV2Service {
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
         List<String> tagIds =
-            loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
+            loadTagIdsByBillIds(bookId, userId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
@@ -690,7 +736,7 @@ public class SyncV2Service {
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
         List<String> tagIds =
-            loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
+            loadTagIdsByBillIds(bookId, userId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
@@ -746,7 +792,7 @@ public class SyncV2Service {
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
         List<String> tagIds =
-            loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
+            loadTagIdsByBillIds(bookId, userId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
@@ -773,7 +819,7 @@ public class SyncV2Service {
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
         List<String> tagIds =
-            loadTagIdsByBillIds(bookId, java.util.Collections.singletonList(latest.getId()))
+            loadTagIdsByBillIds(bookId, userId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
@@ -853,7 +899,7 @@ public class SyncV2Service {
           : billInfoMapper.findByIdsForUserAndBook(userId, bookId, billIds);
       Map<Long, BillInfo> billMap = scopedBills.stream()
           .collect(Collectors.toMap(BillInfo::getId, b -> b));
-      Map<Long, List<String>> tagIdsByBillId = loadTagIdsByBillIds(bookId, billIds);
+      Map<Long, List<String>> tagIdsByBillId = loadTagIdsByBillIds(bookId, userId, billIds);
 
       for (BillChangeLog log : logs) {
         Map<String, Object> c = new HashMap<>();

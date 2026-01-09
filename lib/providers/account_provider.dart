@@ -17,6 +17,7 @@ class AccountProvider extends ChangeNotifier {
   final dynamic _repository = RepositoryFactory.createAccountRepository();
   final Random _random = Random();
 
+  String? _loadedBookId;
   final List<Account> _accounts = [];
   final Map<String, String> _idAliases = {};
 
@@ -35,8 +36,9 @@ class AccountProvider extends ChangeNotifier {
   ///
   /// 设计目标：记一笔不打断用户流程（无须先手动创建账户）。
   Future<Account> ensureDefaultWallet({String? bookId}) async {
+    final bid = (bookId == null || bookId.trim().isEmpty) ? 'default-book' : bookId.trim();
     if (!_loaded) {
-      await load();
+      await loadForBook(bid);
     }
 
     _rebuildDefaultWalletAliases();
@@ -44,6 +46,7 @@ class AccountProvider extends ChangeNotifier {
     if (_accounts.isNotEmpty) {
       // 优先：显式默认钱包（brandKey / id）
       final explicit = _accounts.where((a) =>
+          a.bookId == bid &&
           a.kind == AccountKind.asset &&
           a.subtype == AccountSubtype.cash.code &&
           (a.brandKey == 'default_wallet' || a.id == 'default_wallet'));
@@ -51,6 +54,7 @@ class AccountProvider extends ChangeNotifier {
 
       // 其次：名称为“默认钱包”的现金账户
       final byName = _accounts.where((a) =>
+          a.bookId == bid &&
           a.kind == AccountKind.asset &&
           a.subtype == AccountSubtype.cash.code &&
           a.name.trim() == '默认钱包');
@@ -66,7 +70,8 @@ class AccountProvider extends ChangeNotifier {
     // 没有任何账户：静默创建一个默认钱包（现金）
     await addAccount(
       Account(
-        id: 'default_wallet',
+        id: bid == 'default-book' ? 'default_wallet' : 'default_wallet_$bid',
+        bookId: bid,
         name: '默认钱包',
         kind: AccountKind.asset,
         subtype: AccountSubtype.cash.code,
@@ -93,22 +98,28 @@ class AccountProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> load() async {
-    if (_loaded) return;
+  Future<void> loadForBook(String bookId, {bool force = false}) async {
+    if (!force && _loaded && _loadedBookId == bookId) return;
     try {
-      final list = await _repository.loadAccounts();
+      final List<Account> list =
+          (await _repository.loadAccounts(bookId: bookId)).cast<Account>();
       _accounts
         ..clear()
         ..addAll(list);
+      _loadedBookId = bookId;
       _loaded = true;
       _rebuildDefaultWalletAliases();
       await _rebuildBalancesFromRecordsIfPossible();
       notifyListeners();
     } catch (e, stackTrace) {
-      ErrorHandler.logError('AccountProvider.load', e, stackTrace);
+      ErrorHandler.logError('AccountProvider.loadForBook', e, stackTrace);
       _loaded = false;
       rethrow;
     }
+  }
+
+  Future<void> load() async {
+    await loadForBook(_loadedBookId ?? 'default-book');
   }
 
   Future<void> _rebuildBalancesFromRecordsIfPossible() async {
@@ -179,7 +190,8 @@ class AccountProvider extends ChangeNotifier {
 
   Future<void> _persist() async {
     try {
-      await _repository.saveAccounts(_accounts);
+      final bid = _loadedBookId ?? 'default-book';
+      await _repository.saveAccounts(bookId: bid, accounts: _accounts);
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('AccountProvider._persist', e, stackTrace);
@@ -216,6 +228,12 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
+    final bid = (bookId == null || bookId.trim().isEmpty)
+        ? (_loadedBookId ?? 'default-book')
+        : bookId.trim();
+    if (!_loaded || _loadedBookId != bid) {
+      await loadForBook(bid);
+    }
     final nextSort =
         _accounts.isEmpty ? 0 : (_accounts.map((a) => a.sortOrder).reduce(max) + 1);
     final now = DateTime.now();
@@ -223,6 +241,7 @@ class AccountProvider extends ChangeNotifier {
     final newId = providedId.isNotEmpty ? providedId : _generateId();
     _accounts.add(
       account.copyWith(
+        bookId: bid,
         sortOrder: nextSort,
         id: newId,
         currentBalance: account.currentBalance,
@@ -233,12 +252,10 @@ class AccountProvider extends ChangeNotifier {
     );
     await _persist();
     _rebuildDefaultWalletAliases();
-    // 数据修改时版本号+1（账户数据是全局的，使用默认账本ID）
-    if (bookId != null) {
-      await DataVersionService.incrementVersion(bookId);
-    }
+    // 数据修改时版本号+1（按账本维度）
+    await DataVersionService.incrementVersion(bid);
     if (triggerSync) {
-      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+      MetaSyncNotifier.instance.notifyAccountsChanged(bid);
     }
   }
 
@@ -247,18 +264,22 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
+    final bid = (bookId == null || bookId.trim().isEmpty)
+        ? (_loadedBookId ?? 'default-book')
+        : bookId.trim();
+    if (!_loaded || _loadedBookId != bid) {
+      await loadForBook(bid);
+    }
     final resolved = _resolveId(updated.id);
     final index = _accounts.indexWhere((a) => a.id == resolved);
     if (index == -1) return;
-    _accounts[index] = updated.copyWith(updatedAt: DateTime.now());
+    _accounts[index] = updated.copyWith(bookId: bid, updatedAt: DateTime.now());
     await _persist();
     _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1
-    if (bookId != null) {
-      await DataVersionService.incrementVersion(bookId);
-    }
+    await DataVersionService.incrementVersion(bid);
     if (triggerSync) {
-      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+      MetaSyncNotifier.instance.notifyAccountsChanged(bid);
     }
   }
 
@@ -268,6 +289,12 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
+    final bid = (bookId == null || bookId.trim().isEmpty)
+        ? (_loadedBookId ?? 'default-book')
+        : bookId.trim();
+    if (!_loaded || _loadedBookId != bid) {
+      await loadForBook(bid);
+    }
     final resolved = _resolveId(accountId);
     final index = _accounts.indexWhere((a) => a.id == resolved);
     if (index == -1) return;
@@ -279,11 +306,9 @@ class AccountProvider extends ChangeNotifier {
     await _persist();
     _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1
-    if (bookId != null) {
-      await DataVersionService.incrementVersion(bookId);
-    }
+    await DataVersionService.incrementVersion(bid);
     if (triggerSync) {
-      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+      MetaSyncNotifier.instance.notifyAccountsChanged(bid);
     }
   }
 
@@ -295,6 +320,12 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
+    final bid = (bookId == null || bookId.trim().isEmpty)
+        ? (_loadedBookId ?? 'default-book')
+        : bookId.trim();
+    if (!_loaded || _loadedBookId != bid) {
+      await loadForBook(bid);
+    }
     final resolved = _resolveId(accountId);
     final index = _accounts.indexWhere((a) => a.id == resolved);
     if (index == -1) return;
@@ -309,11 +340,9 @@ class AccountProvider extends ChangeNotifier {
     await _persist();
     _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1
-    if (bookId != null) {
-      await DataVersionService.incrementVersion(bookId);
-    }
+    await DataVersionService.incrementVersion(bid);
     if (triggerSync) {
-      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+      MetaSyncNotifier.instance.notifyAccountsChanged(bid);
     }
   }
 
@@ -322,6 +351,12 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool triggerSync = true,
   }) async {
+    final bid = (bookId == null || bookId.trim().isEmpty)
+        ? (_loadedBookId ?? 'default-book')
+        : bookId.trim();
+    if (!_loaded || _loadedBookId != bid) {
+      await loadForBook(bid);
+    }
     final resolved = _resolveId(id);
     final index = _accounts.indexWhere((a) => a.id == resolved);
     if (index == -1) return;
@@ -334,11 +369,9 @@ class AccountProvider extends ChangeNotifier {
     await _persist();
     _rebuildDefaultWalletAliases();
     // 数据修改时版本号+1
-    if (bookId != null) {
-      await DataVersionService.incrementVersion(bookId);
-    }
+    await DataVersionService.incrementVersion(bid);
     if (triggerSync) {
-      MetaSyncNotifier.instance.notifyAccountsChanged(bookId ?? 'default-book');
+      MetaSyncNotifier.instance.notifyAccountsChanged(bid);
     }
   }
 
@@ -349,6 +382,8 @@ class AccountProvider extends ChangeNotifier {
     String? bookId,
     bool preserveRecentlyChanged = true,
   }) async {
+    final bid = (bookId == null || bookId.trim().isEmpty) ? (_loadedBookId ?? 'default-book') : bookId.trim();
+    _loadedBookId = bid;
     final localById = <String, Account>{};
     for (final a in _accounts) {
       localById[a.id] = a;
@@ -375,11 +410,11 @@ class AccountProvider extends ChangeNotifier {
 
     // 仅保留“云端未返回”的本地账户中，仍被本地记录引用的部分；否则会导致资产列表出现越来越多的“幽灵账户”。
     final usedAccountIds = <String>{};
-    if (bookId != null && RepositoryFactory.isUsingDatabase) {
+    if (bid.isNotEmpty && RepositoryFactory.isUsingDatabase) {
       try {
         final repo = RepositoryFactory.createRecordRepository();
         if (repo.runtimeType.toString().contains('RecordRepositoryDb')) {
-          final set = await (repo as dynamic).loadUsedAccountIds(bookId: bookId);
+          final set = await (repo as dynamic).loadUsedAccountIds(bookId: bid);
           if (set is Set<String>) {
             usedAccountIds.addAll(set);
           } else if (set is List) {
@@ -424,7 +459,7 @@ class AccountProvider extends ChangeNotifier {
       ..addAll(next);
 
     _rebuildDefaultWalletAliases();
-    await _repository.saveAccounts(_accounts);
+    await _repository.saveAccounts(bookId: bid, accounts: _accounts);
     notifyListeners();
   }
 

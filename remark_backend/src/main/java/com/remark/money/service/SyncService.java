@@ -40,6 +40,59 @@ public class SyncService {
 
   private static final String DEFAULT_WALLET_ACCOUNT_ID = "default_wallet";
   private static final String DEFAULT_WALLET_NAME = "默认钱包";
+  private static final String DEFAULT_BOOK_ID = "default-book";
+
+  private String normalizeBookId(String bookIdRaw) {
+    if (bookIdRaw == null) return DEFAULT_BOOK_ID;
+    String s = bookIdRaw.trim();
+    return s.isEmpty() ? DEFAULT_BOOK_ID : s;
+  }
+
+  private String defaultWalletAccountIdForBook(String bookIdRaw) {
+    String bookId = normalizeBookId(bookIdRaw);
+    if (DEFAULT_BOOK_ID.equals(bookId)) return DEFAULT_WALLET_ACCOUNT_ID;
+    return DEFAULT_WALLET_ACCOUNT_ID + "_" + bookId;
+  }
+
+  private static class EffectiveBookScope {
+    final Long effectiveUserId;
+    final String bookId;
+    final boolean isMulti;
+    EffectiveBookScope(Long effectiveUserId, String bookId, boolean isMulti) {
+      this.effectiveUserId = effectiveUserId;
+      this.bookId = bookId;
+      this.isMulti = isMulti;
+    }
+  }
+
+  private EffectiveBookScope resolveEffectiveBookScopeForAccounts(
+      Long userId, String bookIdRaw, boolean requireOwnerForWrite) {
+    String bookId = normalizeBookId(bookIdRaw);
+    // Non-server book ids (e.g. default-book or local UUID) are treated as personal scope.
+    Long effectiveUserId = userId;
+    boolean isMulti = false;
+    try {
+      Long bid = Long.parseLong(bookId);
+      Book book = bookMapper.findById(bid);
+      if (book == null) {
+        throw new IllegalArgumentException("账本不存在");
+      }
+      BookMember member = bookMemberMapper.find(bid, userId);
+      if (member == null) {
+        throw new IllegalArgumentException("无权访问账本");
+      }
+      isMulti = Boolean.TRUE.equals(book.getIsMulti());
+      if (isMulti) {
+        effectiveUserId = book.getOwnerId();
+        if (requireOwnerForWrite && !Objects.equals(userId, effectiveUserId)) {
+          throw new IllegalArgumentException("仅创建者可修改账户");
+        }
+      }
+    } catch (NumberFormatException ignored) {
+      // not a server book id
+    }
+    return new EffectiveBookScope(effectiveUserId, bookId, isMulti);
+  }
 
   private final UserMapper userMapper;
   private final AccountInfoMapper accountInfoMapper;
@@ -97,16 +150,22 @@ public class SyncService {
 
   private boolean isDefaultWallet(AccountInfo a) {
     if (a == null) return false;
-    if (DEFAULT_WALLET_ACCOUNT_ID.equals(a.getAccountId())) return true;
+    String aid = a.getAccountId();
+    if (aid != null) {
+      String s = aid.trim();
+      if (DEFAULT_WALLET_ACCOUNT_ID.equals(s)) return true;
+      if (s.startsWith(DEFAULT_WALLET_ACCOUNT_ID + "_")) return true;
+    }
     if (DEFAULT_WALLET_ACCOUNT_ID.equals(a.getBrandKey())) return true;
     String name = a.getName();
     return name != null && DEFAULT_WALLET_NAME.equals(name.trim());
   }
 
-  private AccountInfo buildDefaultWallet(Long userId) {
+  private AccountInfo buildDefaultWallet(Long userId, String bookId) {
     AccountInfo a = new AccountInfo();
     a.setUserId(userId);
-    a.setAccountId(DEFAULT_WALLET_ACCOUNT_ID);
+    a.setBookId(bookId);
+    a.setAccountId(defaultWalletAccountIdForBook(bookId));
     a.setName(DEFAULT_WALLET_NAME);
     a.setKind("asset");
     a.setSubtype("cash");
@@ -123,15 +182,16 @@ public class SyncService {
     return a;
   }
 
-  private void ensureDefaultWalletExists(Long userId, List<AccountInfo> activeAccounts) {
+  private void ensureDefaultWalletExists(Long userId, String bookId, List<AccountInfo> activeAccounts) {
     if (activeAccounts != null && activeAccounts.stream().anyMatch(this::isDefaultWallet)) {
       return;
     }
 
     AccountInfo existing =
-        accountInfoMapper.findByUserIdAndAccountId(userId, DEFAULT_WALLET_ACCOUNT_ID);
+        accountInfoMapper.findByUserIdAndBookIdAndAccountId(
+            userId, bookId, defaultWalletAccountIdForBook(bookId));
     if (existing == null) {
-      AccountInfo created = buildDefaultWallet(userId);
+      AccountInfo created = buildDefaultWallet(userId, bookId);
       accountInfoMapper.insert(created);
       if (activeAccounts != null) {
         activeAccounts.add(created);
@@ -183,10 +243,17 @@ public class SyncService {
    */
   @Transactional
   public AccountSyncResult uploadAccounts(Long userId, List<AccountInfo> accounts) {
+    return uploadAccounts(userId, DEFAULT_BOOK_ID, accounts);
+  }
+
+  @Transactional
+  public AccountSyncResult uploadAccounts(Long userId, String bookIdRaw, List<AccountInfo> accounts) {
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError.isError()) {
       return AccountSyncResult.error(permissionError.getMessage());
     }
+
+    EffectiveBookScope scope = resolveEffectiveBookScopeForAccounts(userId, bookIdRaw, true);
 
     List<AccountInfo> toInsert = new ArrayList<>();
     List<AccountInfo> toUpdate = new ArrayList<>();
@@ -200,7 +267,7 @@ public class SyncService {
     Map<Long, AccountInfo> existingById =
         incomingIds.isEmpty()
             ? new HashMap<>()
-            : accountInfoMapper.findByUserIdAndIds(userId, incomingIds).stream()
+            : accountInfoMapper.findByUserIdAndIds(scope.effectiveUserId, incomingIds).stream()
                 .collect(Collectors.toMap(AccountInfo::getId, a -> a));
 
     Set<String> incomingAccountIds =
@@ -211,11 +278,14 @@ public class SyncService {
     Map<String, AccountInfo> existingByAccountId =
         incomingAccountIds.isEmpty()
             ? new HashMap<>()
-            : accountInfoMapper.findByUserIdAndAccountIds(userId, incomingAccountIds).stream()
+            : accountInfoMapper
+                .findByUserIdAndBookIdAndAccountIds(scope.effectiveUserId, scope.bookId, incomingAccountIds)
+                .stream()
                 .collect(Collectors.toMap(AccountInfo::getAccountId, a -> a));
 
     for (AccountInfo account : accounts) {
-      account.setUserId(userId);
+      account.setUserId(scope.effectiveUserId);
+      account.setBookId(scope.bookId);
       if (account.getIsDelete() == null) {
         account.setIsDelete(0);
       }
@@ -275,8 +345,9 @@ public class SyncService {
     // IMPORTANT: do NOT hard-delete "missing" accounts based on a potentially partial client list.
     // Deletions must be explicit (tombstone) to avoid irreversible data loss.
 
-    List<AccountInfo> accountsFromDb = accountInfoMapper.findAllByUserId(userId);
-    ensureDefaultWalletExists(userId, accountsFromDb);
+    List<AccountInfo> accountsFromDb =
+        accountInfoMapper.findAllByUserIdAndBookId(scope.effectiveUserId, scope.bookId);
+    ensureDefaultWalletExists(scope.effectiveUserId, scope.bookId, accountsFromDb);
     return AccountSyncResult.success(accountsFromDb);
   }
 
@@ -284,40 +355,54 @@ public class SyncService {
    * 下载账户数据
    */
   public AccountSyncResult downloadAccounts(Long userId) {
+    return downloadAccounts(userId, DEFAULT_BOOK_ID);
+  }
+
+  public AccountSyncResult downloadAccounts(Long userId, String bookIdRaw) {
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError.isError()) {
       return AccountSyncResult.error(permissionError.getMessage());
     }
 
-    List<AccountInfo> accounts = accountInfoMapper.findAllByUserId(userId);
-    ensureDefaultWalletExists(userId, accounts);
+    EffectiveBookScope scope = resolveEffectiveBookScopeForAccounts(userId, bookIdRaw, false);
+    List<AccountInfo> accounts = accountInfoMapper.findAllByUserIdAndBookId(scope.effectiveUserId, scope.bookId);
+    ensureDefaultWalletExists(scope.effectiveUserId, scope.bookId, accounts);
     return AccountSyncResult.success(accounts);
   }
 
   @Transactional
   public AccountSyncResult deleteAccounts(Long userId, List<Long> serverIds, List<String> accountIds) {
+    return deleteAccounts(userId, DEFAULT_BOOK_ID, serverIds, accountIds);
+  }
+
+  @Transactional
+  public AccountSyncResult deleteAccounts(
+      Long userId, String bookIdRaw, List<Long> serverIds, List<String> accountIds) {
     ErrorCode permissionError = checkSyncPermission(userId);
     if (permissionError.isError()) {
       return AccountSyncResult.error(permissionError.getMessage());
     }
 
+    EffectiveBookScope scope = resolveEffectiveBookScopeForAccounts(userId, bookIdRaw, true);
+
     int affected = 0;
     if (serverIds != null) {
       for (Long id : serverIds) {
         if (id == null || id <= 0) continue;
-        affected += accountInfoMapper.softDeleteById(userId, id);
+        affected += accountInfoMapper.softDeleteById(scope.effectiveUserId, scope.bookId, id);
       }
     }
     if (accountIds != null) {
       for (String aid : accountIds) {
         if (aid == null || aid.trim().isEmpty()) continue;
-        affected += accountInfoMapper.softDeleteByAccountId(userId, aid);
+        affected += accountInfoMapper.softDeleteByAccountId(scope.effectiveUserId, scope.bookId, aid.trim());
       }
     }
 
     // return latest server view (non-deleted) for client reconciliation if needed
-    List<AccountInfo> accounts = accountInfoMapper.findAllByUserId(userId);
-    ensureDefaultWalletExists(userId, accounts);
+    List<AccountInfo> accounts =
+        accountInfoMapper.findAllByUserIdAndBookId(scope.effectiveUserId, scope.bookId);
+    ensureDefaultWalletExists(scope.effectiveUserId, scope.bookId, accounts);
     return AccountSyncResult.success(accounts);
   }
 

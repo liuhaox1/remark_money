@@ -1264,12 +1264,6 @@ class _BillPageState extends State<BillPage> {
                             '导出 Excel',
                             style: tt.titleSmall?.copyWith(color: cs.onSurface),
                           ),
-                          subtitle: Text(
-                            '适合表格查看与二次处理',
-                            style: tt.bodySmall?.copyWith(
-                              color: cs.onSurface.withOpacity(0.7),
-                            ),
-                          ),
                           onTap: () => Navigator.pop(
                             ctx,
                             RecordsExportFormat.excel,
@@ -1284,12 +1278,6 @@ class _BillPageState extends State<BillPage> {
                             '导出 PDF',
                             style: tt.titleSmall?.copyWith(color: cs.onSurface),
                           ),
-                          subtitle: Text(
-                            '适合发送/打印留存',
-                            style: tt.bodySmall?.copyWith(
-                              color: cs.onSurface.withOpacity(0.7),
-                            ),
-                          ),
                           onTap: () => Navigator.pop(
                             ctx,
                             RecordsExportFormat.pdf,
@@ -1303,12 +1291,6 @@ class _BillPageState extends State<BillPage> {
                           title: Text(
                             '导出 CSV',
                             style: tt.titleSmall?.copyWith(color: cs.onSurface),
-                          ),
-                          subtitle: Text(
-                            '适合 Excel/表格查看与分析',
-                            style: tt.bodySmall?.copyWith(
-                              color: cs.onSurface.withOpacity(0.7),
-                            ),
                           ),
                           onTap: () => Navigator.pop(
                             ctx,

@@ -147,10 +147,12 @@ public class SyncV2ServiceTest {
     Long serverId = ((Number) results.get(0).get("serverId")).longValue();
 
     List<com.remark.money.entity.BillTagRel> rels =
-        billTagRelMapper.findByBillIds(bookId, Collections.singletonList(serverId));
+        billTagRelMapper.findByBillIds(bookId, userId, Collections.singletonList(serverId));
     assertEquals(2, rels.size());
+    assertEquals(userId, rels.get(0).getScopeUserId());
     assertEquals("t1", rels.get(0).getTagId());
     assertEquals(Integer.valueOf(0), rels.get(0).getSortOrder());
+    assertEquals(userId, rels.get(1).getScopeUserId());
     assertEquals("t2", rels.get(1).getTagId());
     assertEquals(Integer.valueOf(1), rels.get(1).getSortOrder());
 

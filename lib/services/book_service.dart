@@ -210,4 +210,21 @@ class BookService {
       _membersInFlight.remove(key);
     }
   }
+
+  Future<bool> isCurrentUserOwner(String bookId) async {
+    final bid = int.tryParse(bookId);
+    if (bid == null) return true; // local/personal books
+
+    final prefs = await SharedPreferences.getInstance();
+    final uid = prefs.getInt('auth_user_id') ?? prefs.getInt('sync_owner_user_id') ?? 0;
+    if (uid <= 0) return false;
+
+    final members = await listMembers(bookId, forceRefresh: false);
+    for (final m in members) {
+      final mid = (m['userId'] as num?)?.toInt() ?? int.tryParse('${m['userId']}') ?? 0;
+      final role = (m['role'] ?? '').toString();
+      if (mid == uid && role == 'owner') return true;
+    }
+    return false;
+  }
 }

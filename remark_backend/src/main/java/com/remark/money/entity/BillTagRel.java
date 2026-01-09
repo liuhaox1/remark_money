@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class BillTagRel {
   private String bookId;
+  private Long scopeUserId;
   private Long billId;
   private String tagId;
   private Integer sortOrder;
@@ -11,8 +12,9 @@ public class BillTagRel {
 
   public BillTagRel() {}
 
-  public BillTagRel(String bookId, Long billId, String tagId) {
+  public BillTagRel(String bookId, Long scopeUserId, Long billId, String tagId) {
     this.bookId = bookId;
+    this.scopeUserId = scopeUserId;
     this.billId = billId;
     this.tagId = tagId;
     this.sortOrder = 0;
@@ -24,6 +26,14 @@ public class BillTagRel {
 
   public void setBookId(String bookId) {
     this.bookId = bookId;
+  }
+
+  public Long getScopeUserId() {
+    return scopeUserId;
+  }
+
+  public void setScopeUserId(Long scopeUserId) {
+    this.scopeUserId = scopeUserId;
   }
 
   public Long getBillId() {

@@ -213,16 +213,17 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- 账单-标签关系表（v2）
-CREATE TABLE IF NOT EXISTS bill_tag_rel (
+-- 账单-标签关系表（v2，按用户维度存储“个人标签”）
+CREATE TABLE IF NOT EXISTS bill_tag_rel_user (
   book_id VARCHAR(64) NOT NULL,
+  scope_user_id BIGINT NOT NULL COMMENT '标签归属用户（个人标签）',
   bill_id BIGINT NOT NULL,
   tag_id VARCHAR(64) NOT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (book_id, bill_id, tag_id),
-  INDEX idx_bill_tag_bill (book_id, bill_id),
-  INDEX idx_bill_tag_tag (book_id, tag_id)
+  PRIMARY KEY (book_id, scope_user_id, bill_id, tag_id),
+  INDEX idx_bill_tag_user_bill (book_id, scope_user_id, bill_id),
+  INDEX idx_bill_tag_user_tag (book_id, scope_user_id, tag_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 账单删除墓碑（用于 bill_info 物理删除后仍能同步“删除”给长期离线设备）
@@ -242,6 +243,7 @@ CREATE TABLE IF NOT EXISTS bill_delete_tombstone (
 CREATE TABLE IF NOT EXISTS account_info (
   id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '服务器自增ID',
   user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL DEFAULT 'default-book' COMMENT '账本ID（多人账本按 bookId 共享）',
   account_id VARCHAR(64) NULL COMMENT '客户端生成的临时ID（仅用于首次上传匹配）',
   name VARCHAR(128) NOT NULL COMMENT '账户名称',
   kind VARCHAR(16) NOT NULL COMMENT '账户类型: asset, liability, lend',
@@ -263,10 +265,57 @@ CREATE TABLE IF NOT EXISTS account_info (
   sync_version BIGINT NOT NULL DEFAULT 1 COMMENT 'server monotonic sync version',
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_user_account_id (user_id, account_id),
-  INDEX idx_user_delete (user_id, is_delete),
-  INDEX idx_user_id (user_id)
+  UNIQUE KEY uk_user_book_account (user_id, book_id, account_id),
+  INDEX idx_user_book_delete (user_id, book_id, is_delete),
+  INDEX idx_user_book (user_id, book_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- account_info add book_id if missing
+SET @column_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'account_info'
+    AND COLUMN_NAME = 'book_id'
+);
+SET @sql = IF(@column_exists > 0,
+  'SELECT 1',
+  'ALTER TABLE account_info ADD COLUMN book_id VARCHAR(64) NOT NULL DEFAULT ''default-book'' COMMENT ''账本ID'' AFTER user_id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- account_info ensure indexes for book scope
+SET @idx_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'account_info'
+    AND INDEX_NAME = 'idx_user_book'
+);
+SET @sql = IF(@idx_exists > 0,
+  'SELECT 1',
+  'CREATE INDEX idx_user_book ON account_info(user_id, book_id)'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'account_info'
+    AND INDEX_NAME = 'idx_user_book_delete'
+);
+SET @sql = IF(@idx_exists > 0,
+  'SELECT 1',
+  'CREATE INDEX idx_user_book_delete ON account_info(user_id, book_id, is_delete)'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- account_info add sync_version if missing
 SET @column_exists = (
@@ -551,7 +600,7 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- bill_info: drop legacy tag_ids column (tag relations are stored in bill_tag_rel)
+-- bill_info: drop legacy tag_ids column (tag relations are stored in bill_tag_rel_user)
 SET @column_exists = (
     SELECT COUNT(*) FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = @db_name

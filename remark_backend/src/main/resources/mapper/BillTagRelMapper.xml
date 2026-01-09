@@ -4,6 +4,7 @@
 
   <resultMap id="BillTagRelResultMap" type="com.remark.money.entity.BillTagRel">
     <result property="bookId" column="book_id"/>
+    <result property="scopeUserId" column="scope_user_id"/>
     <result property="billId" column="bill_id"/>
     <result property="tagId" column="tag_id"/>
     <result property="sortOrder" column="sort_order"/>
@@ -11,9 +12,10 @@
   </resultMap>
 
   <select id="findByBillIds" resultMap="BillTagRelResultMap">
-    SELECT book_id, bill_id, tag_id, sort_order, created_at
-    FROM bill_tag_rel
+    SELECT book_id, scope_user_id, bill_id, tag_id, sort_order, created_at
+    FROM bill_tag_rel_user
     WHERE book_id = #{bookId}
+      AND scope_user_id = #{scopeUserId}
       AND bill_id IN
     <foreach collection="billIds" item="id" open="(" separator="," close=")">
       #{id}
@@ -21,8 +23,18 @@
     ORDER BY bill_id ASC, sort_order ASC, created_at ASC
   </select>
 
-  <delete id="deleteByBillIds">
-    DELETE FROM bill_tag_rel
+  <delete id="deleteByBillIdsForScope">
+    DELETE FROM bill_tag_rel_user
+    WHERE book_id = #{bookId}
+      AND scope_user_id = #{scopeUserId}
+      AND bill_id IN
+    <foreach collection="billIds" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+  </delete>
+
+  <delete id="deleteByBillIdsAllScopes">
+    DELETE FROM bill_tag_rel_user
     WHERE book_id = #{bookId}
       AND bill_id IN
     <foreach collection="billIds" item="id" open="(" separator="," close=")">
@@ -31,10 +43,10 @@
   </delete>
 
   <insert id="batchInsert">
-    INSERT INTO bill_tag_rel (book_id, bill_id, tag_id, sort_order, created_at)
+    INSERT INTO bill_tag_rel_user (book_id, scope_user_id, bill_id, tag_id, sort_order, created_at)
     VALUES
     <foreach collection="list" item="item" separator=",">
-      (#{item.bookId}, #{item.billId}, #{item.tagId}, #{item.sortOrder}, NOW())
+      (#{item.bookId}, #{item.scopeUserId}, #{item.billId}, #{item.tagId}, #{item.sortOrder}, NOW())
     </foreach>
   </insert>
 

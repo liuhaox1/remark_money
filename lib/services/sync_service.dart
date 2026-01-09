@@ -177,6 +177,7 @@ class SyncService {
   }
 
   Future<SyncResult> uploadAccounts({
+    required String bookId,
     required List<Map<String, dynamic>> accounts,
     List<Map<String, dynamic>>? deletedAccounts,
   }) async {
@@ -195,6 +196,7 @@ class SyncService {
         },
         body: jsonEncode({
           'deviceId': deviceId,
+          'bookId': bookId,
           'accounts': accounts,
           if (deletedAccounts != null && deletedAccounts.isNotEmpty)
             'deletedAccounts': deletedAccounts,
@@ -218,7 +220,7 @@ class SyncService {
   }
 
   /// 下载账户数据
-  Future<SyncResult> downloadAccounts() async {
+  Future<SyncResult> downloadAccounts({required String bookId}) async {
     try {
       final token = await _getToken();
       if (token == null) {
@@ -227,7 +229,7 @@ class SyncService {
 
       final deviceId = await _getDeviceId();
       final resp = await ApiClient.instance.get(
-        _uri('/api/sync/account/download?deviceId=$deviceId'),
+        _uri('/api/sync/account/download?deviceId=$deviceId&bookId=$bookId'),
         headers: {
           'Authorization': 'Bearer $token',
         },

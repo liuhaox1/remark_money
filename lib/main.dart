@@ -77,7 +77,7 @@ Future<void> main() async {
     recordProvider.load(),
     categoryProvider.load(),
     budgetProvider.load(),
-    accountProvider.load(),
+    accountProvider.loadForBook(bookProvider.activeBookId),
     recurringRecordProvider.load(),
     themeProvider.load(),
   ]);

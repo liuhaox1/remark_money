@@ -49,6 +49,24 @@ class SyncEngine {
 
   static const String _prefsGuestUploadPolicyKey = 'guest_upload_policy';
 
+  Future<int> getGuestUploadPolicy() async => _loadGuestUploadPolicyRaw();
+
+  Future<void> setGuestUploadPolicy(int value) async {
+    if (value != 0 && value != 1 && value != 2) return;
+    await _saveGuestUploadPolicyRaw(value);
+  }
+
+  Future<int> countGuestCreateOpsForCurrentBooks(BuildContext context) async {
+    final bookProvider = context.read<BookProvider>();
+    final bookIds = <String>{};
+    final active = bookProvider.activeBookId;
+    if (active.isNotEmpty) bookIds.add(active);
+    for (final b in bookProvider.books) {
+      if (b.id.isNotEmpty) bookIds.add(b.id);
+    }
+    return _outbox.countGuestCreateOps(bookIds: bookIds);
+  }
+
   Future<int> _loadGuestUploadPolicyRaw() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_prefsGuestUploadPolicyKey) ?? 0; // 0=ask,1=always,2=never
@@ -1673,7 +1691,7 @@ class SyncEngine {
         if (localAccounts.isNotEmpty || deletedAccounts.isNotEmpty) {
           // Download first to obtain serverId/syncVersion baselines to satisfy optimistic concurrency.
           try {
-            final down = await _syncService.downloadAccounts();
+            final down = await _syncService.downloadAccounts(bookId: bookId);
             if (down.success && down.accounts != null) {
               await _outbox.runSuppressed(() async {
                 await DataVersionService.runWithoutIncrement(() async {
@@ -1694,6 +1712,7 @@ class SyncEngine {
               .toList(growable: false);
 
           final uploadResult = await _syncService.uploadAccounts(
+            bookId: bookId,
             accounts: payload,
             deletedAccounts: deletedAccounts,
           );
@@ -1723,7 +1742,7 @@ class SyncEngine {
           // Self-heal: download latest serverId/syncVersion and merge into local state without overwriting edits.
           // This helps recover quickly from optimistic-concurrency errors (e.g. missing/stale syncVersion).
           try {
-            final down = await _syncService.downloadAccounts();
+            final down = await _syncService.downloadAccounts(bookId: bookId);
             if (down.success && down.accounts != null) {
               await _outbox.runSuppressed(() async {
                 await DataVersionService.runWithoutIncrement(() async {
@@ -1739,7 +1758,7 @@ class SyncEngine {
         return;
       }
 
-      final downloadResult = await _syncService.downloadAccounts();
+      final downloadResult = await _syncService.downloadAccounts(bookId: bookId);
       if (!downloadResult.success || downloadResult.accounts == null) return;
 
       final cloudAccounts = downloadResult.accounts!;

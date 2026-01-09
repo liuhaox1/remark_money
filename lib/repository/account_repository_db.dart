@@ -8,11 +8,13 @@ class AccountRepositoryDb {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   /// 加载所有账户
-  Future<List<Account>> loadAccounts() async {
+  Future<List<Account>> loadAccounts({required String bookId}) async {
     try {
       final db = await _dbHelper.database;
       final maps = await db.query(
         Tables.accounts,
+        where: 'book_id = ?',
+        whereArgs: [bookId],
         orderBy: 'sort_order ASC, created_at ASC',
       );
 
@@ -25,13 +27,13 @@ class AccountRepositoryDb {
   }
 
   /// 保存账户列表
-  Future<void> saveAccounts(List<Account> accounts) async {
+  Future<void> saveAccounts({required String bookId, required List<Account> accounts}) async {
     try {
       final db = await _dbHelper.database;
       final batch = db.batch();
 
-      // 先删除所有账户
-      batch.delete(Tables.accounts);
+      // 先删除当前账本的所有账户
+      batch.delete(Tables.accounts, where: 'book_id = ?', whereArgs: [bookId]);
 
       // 插入新账户
       for (final account in accounts) {
@@ -59,7 +61,7 @@ class AccountRepositoryDb {
         _accountToMap(account),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-      return await loadAccounts();
+      return await loadAccounts(bookId: account.bookId);
     } catch (e, stackTrace) {
       debugPrint('[AccountRepositoryDb] add failed: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -77,7 +79,7 @@ class AccountRepositoryDb {
         where: 'id = ?',
         whereArgs: [account.id],
       );
-      return await loadAccounts();
+      return await loadAccounts(bookId: account.bookId);
     } catch (e, stackTrace) {
       debugPrint('[AccountRepositoryDb] update failed: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -86,7 +88,7 @@ class AccountRepositoryDb {
   }
 
   /// 删除账户
-  Future<List<Account>> delete(String id) async {
+  Future<List<Account>> delete(String id, {required String bookId}) async {
     try {
       final db = await _dbHelper.database;
       await db.delete(
@@ -94,7 +96,7 @@ class AccountRepositoryDb {
         where: 'id = ?',
         whereArgs: [id],
       );
-      return await loadAccounts();
+      return await loadAccounts(bookId: bookId);
     } catch (e, stackTrace) {
       debugPrint('[AccountRepositoryDb] delete failed: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -107,6 +109,7 @@ class AccountRepositoryDb {
     final now = DateTime.now().millisecondsSinceEpoch;
     return {
       'id': account.id,
+      'book_id': account.bookId,
       'server_id': account.serverId,
       'sync_version': account.syncVersion ?? 0,
       'name': account.name,
@@ -149,6 +152,7 @@ class AccountRepositoryDb {
 
     return Account(
       id: map['id'] as String,
+      bookId: map['book_id'] as String? ?? 'default-book',
       serverId: map['server_id'] as int?,
       syncVersion: map['sync_version'] as int?,
       name: map['name'] as String,

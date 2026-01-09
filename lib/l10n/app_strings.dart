@@ -271,6 +271,12 @@ class AppStrings {
   static const newBook = '新建账本';
   static const bookNameHint = '账本名称';
   static const guestSingleBookOnly = '游客模式仅支持一个账本，登录后可新增';
+  static const guestUploadPolicyTitle = '登录后同步本地数据';
+  static const guestUploadPolicyAsk = '每次询问';
+  static const guestUploadPolicyAlways = '总是同步';
+  static const guestUploadPolicyNever = '永不同步';
+  static const guestManualUpload = '同步本地数据到云端';
+  static const guestManualUploadHint = '仅同步未登录期间创建的数据';
 
   // Assets
   static const assets = '资产';

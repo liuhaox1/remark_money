@@ -2,7 +2,7 @@ DROP TABLE IF EXISTS sync_op_dedup;
 DROP TABLE IF EXISTS sync_scope_state;
 DROP TABLE IF EXISTS bill_change_log;
 DROP TABLE IF EXISTS bill_delete_tombstone;
-DROP TABLE IF EXISTS bill_tag_rel;
+DROP TABLE IF EXISTS bill_tag_rel_user;
 DROP TABLE IF EXISTS bill_info;
 DROP TABLE IF EXISTS book;
 DROP TABLE IF EXISTS book_member;
@@ -107,17 +107,18 @@ CREATE TABLE tag_info (
 CREATE INDEX idx_tag_user_book_sort ON tag_info(user_id, book_id, sort_order, created_at);
 CREATE INDEX idx_tag_user_book_delete ON tag_info(user_id, book_id, is_delete);
 
-CREATE TABLE bill_tag_rel (
+CREATE TABLE bill_tag_rel_user (
   book_id VARCHAR(64) NOT NULL,
+  scope_user_id BIGINT NOT NULL,
   bill_id BIGINT NOT NULL,
   tag_id VARCHAR(64) NOT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (book_id, bill_id, tag_id)
+  PRIMARY KEY (book_id, scope_user_id, bill_id, tag_id)
 );
 
-CREATE INDEX idx_bill_tag_bill ON bill_tag_rel(book_id, bill_id);
-CREATE INDEX idx_bill_tag_tag ON bill_tag_rel(book_id, tag_id);
+CREATE INDEX idx_bill_tag_bill ON bill_tag_rel_user(book_id, scope_user_id, bill_id);
+CREATE INDEX idx_bill_tag_tag ON bill_tag_rel_user(book_id, scope_user_id, tag_id);
 
 CREATE TABLE bill_delete_tombstone (
   book_id VARCHAR(64) NOT NULL,
@@ -135,6 +136,7 @@ CREATE INDEX idx_tombstone_scope ON bill_delete_tombstone(book_id, scope_user_id
 CREATE TABLE account_info (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL DEFAULT 'default-book',
   account_id VARCHAR(64),
   name VARCHAR(128) NOT NULL,
   kind VARCHAR(16) NOT NULL,
@@ -155,11 +157,12 @@ CREATE TABLE account_info (
   is_delete INT NOT NULL DEFAULT 0,
   sync_version BIGINT NOT NULL DEFAULT 1,
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, book_id, account_id)
 );
 
-CREATE INDEX idx_user_account_id ON account_info(user_id, account_id);
-CREATE INDEX idx_user_delete ON account_info(user_id, is_delete);
+CREATE INDEX idx_user_book_account_id ON account_info(user_id, book_id, account_id);
+CREATE INDEX idx_user_book_delete ON account_info(user_id, book_id, is_delete);
 
 CREATE TABLE bill_change_log (
   change_id BIGINT AUTO_INCREMENT PRIMARY KEY,

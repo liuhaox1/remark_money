@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 13;
+const int _databaseVersion = 14;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -353,6 +353,24 @@ class DatabaseHelper {
           );
         } catch (_) {}
         break;
+      case 14:
+        // accounts: add book_id scope
+        try {
+          await db.execute(
+            "ALTER TABLE ${Tables.accounts} ADD COLUMN book_id TEXT NOT NULL DEFAULT 'default-book'",
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            "UPDATE ${Tables.accounts} SET book_id = 'default-book' WHERE book_id IS NULL OR book_id = ''",
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_accounts_book_sort ON ${Tables.accounts}(book_id, sort_order, created_at)',
+          );
+        } catch (_) {}
+        break;
       default:
         break;
     }
@@ -419,6 +437,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${Tables.accounts} (
         id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL DEFAULT 'default-book',
         name TEXT NOT NULL,
         type TEXT NOT NULL,
         subtype TEXT NOT NULL DEFAULT 'cash',
@@ -572,6 +591,9 @@ class DatabaseHelper {
 
     // 账户表索引
     await db.execute('CREATE INDEX IF NOT EXISTS idx_accounts_type ON ${Tables.accounts}(type)');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_accounts_book_sort ON ${Tables.accounts}(book_id, sort_order, created_at)',
+    );
 
     // 记录模板表索引
     await db.execute('CREATE INDEX IF NOT EXISTS idx_templates_last_used ON ${Tables.recordTemplates}(last_used_at)');
@@ -717,6 +739,7 @@ class DatabaseHelper {
         final accountMap = Map<String, dynamic>.from(map as Map);
         await txn.insert(Tables.accounts, {
           'id': accountMap['id'],
+          'book_id': accountMap['bookId'] ?? accountMap['book_id'] ?? 'default-book',
           'name': accountMap['name'],
           'type': accountMap['type'] ?? accountMap['kind'] ?? 'asset',
           'current_balance': accountMap['currentBalance'] ?? accountMap['balance'] ?? 0.0,
