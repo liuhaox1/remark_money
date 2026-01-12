@@ -171,6 +171,10 @@ class TagProvider extends ChangeNotifier {
     }
   }
 
+  void clearRecordTagCache() {
+    _recordTagIdsCache.clear();
+  }
+
   Future<void> setTagsForRecord(
     String recordId,
     List<String> tagIds, {
@@ -179,11 +183,8 @@ class TagProvider extends ChangeNotifier {
     try {
       await _repo.setTagsForRecord(recordId, tagIds);
       _recordTagIdsCache[recordId] = List<String>.from(tagIds.toSet());
-      if (record != null && record.serverId != null) {
-        await SyncOutboxService.instance.enqueueUpsert(record);
-      }
       if (record != null) {
-        MetaSyncNotifier.instance.notifyTagsChanged(record.bookId);
+        await SyncOutboxService.instance.enqueueUpsert(record);
       }
       notifyListeners();
     } catch (e, stackTrace) {
@@ -199,11 +200,8 @@ class TagProvider extends ChangeNotifier {
     try {
       await _repo.deleteLinksForRecord(recordId);
       _recordTagIdsCache.remove(recordId);
-      if (record != null && record.serverId != null) {
-        await SyncOutboxService.instance.enqueueUpsert(record);
-      }
       if (record != null) {
-        MetaSyncNotifier.instance.notifyTagsChanged(record.bookId);
+        await SyncOutboxService.instance.enqueueUpsert(record);
       }
       notifyListeners();
     } catch (e, stackTrace) {

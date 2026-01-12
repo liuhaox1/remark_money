@@ -265,6 +265,7 @@ class SyncEngine {
   }) async {
     final recordProvider = context.read<RecordProvider>();
     final accountProvider = context.read<AccountProvider>();
+    final tagProvider = context.read<TagProvider>();
 
     final tokenValid = await _authService.isTokenValid();
     if (!tokenValid) return false;
@@ -282,6 +283,7 @@ class SyncEngine {
     final pullOk = await _pullV2(
       recordProvider,
       accountProvider,
+      tagProvider,
       bookId,
       reason: reason,
     );
@@ -292,6 +294,7 @@ class SyncEngine {
       await _maybeBootstrapFromSummary(
         recordProvider,
         accountProvider,
+        tagProvider,
         bookId,
         reason: reason,
       );
@@ -325,7 +328,13 @@ class SyncEngine {
     await _syncBudget(budgetProvider, bookId, reason: 'force_bootstrap');
     await _syncAccounts(accountProvider, recordProvider, bookId, reason: 'force_bootstrap');
     await _syncSavingsPlans(bookId, reason: 'force_bootstrap');
-    await _pullV2(recordProvider, accountProvider, bookId, reason: 'force_bootstrap');
+    await _pullV2(
+      recordProvider,
+      accountProvider,
+      tagProvider,
+      bookId,
+      reason: 'force_bootstrap',
+    );
   }
 
   /// 同步“元数据”（预算/账户等低频数据）。
@@ -359,10 +368,15 @@ class SyncEngine {
     final needsTags = requireTags && !hasTags;
 
     bool ok = true;
-    if (needsCategories && !needsAccounts && !needsTags) {
+    if (needsCategories) {
       await _syncCategories(categoryProvider, bookId, reason: reason);
-    } else {
-      ok = await syncMeta(context, bookId, reason: reason);
+    }
+    if (needsAccounts) {
+      final recordProvider = context.read<RecordProvider>();
+      await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
+    }
+    if (needsTags) {
+      await _syncTags(tagProvider, bookId, reason: reason);
     }
     if (!ok || !context.mounted) return false;
 
@@ -1172,6 +1186,7 @@ class SyncEngine {
   Future<bool> _pullV2(
     RecordProvider recordProvider,
     AccountProvider accountProvider,
+    TagProvider? tagProvider,
     String bookId, {
     required String reason,
   }) async {
@@ -1262,6 +1277,7 @@ class SyncEngine {
                 );
               }
             }
+            tagProvider?.clearRecordTagCache();
           });
         });
       }
@@ -1290,6 +1306,7 @@ class SyncEngine {
   Future<void> _maybeBootstrapFromSummary(
     RecordProvider recordProvider,
     AccountProvider accountProvider,
+    TagProvider? tagProvider,
     String bookId, {
     required String reason,
   }) async {
@@ -1341,6 +1358,7 @@ class SyncEngine {
       await _pullV2(
         recordProvider,
         accountProvider,
+        tagProvider,
         bookId,
         reason: 'bootstrap_summary_mismatch',
       );
@@ -1488,6 +1506,7 @@ class SyncEngine {
 
     final cloudRecord = _mapToRecord(billMap);
     final rawTagIds = billMap['tagIds'];
+    final hasTagIds = rawTagIds is List;
     final tagIds = rawTagIds is List
         ? rawTagIds.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
         : const <String>[];
@@ -1507,15 +1526,23 @@ class SyncEngine {
         pairId: cloudRecord.pairId,
       );
       await recordProvider.updateRecord(updated, accountProvider: accountProvider);
-      if (tagIds.isNotEmpty) {
+      if (hasTagIds) {
         try {
           final tagRepo = RepositoryFactory.createTagRepository();
-          await tagRepo.setTagsForRecord(existing.id, tagIds);
+          if (tagIds.isEmpty) {
+            await tagRepo.deleteLinksForRecord(existing.id);
+          } else {
+            await tagRepo.setTagsForRecord(existing.id, tagIds);
+          }
         } catch (_) {}
       }
       return;
     }
 
+    final accountProviderForInsert =
+        accountProvider.byId(cloudRecord.accountId) != null
+            ? accountProvider
+            : null;
     final created = await recordProvider.addRecord(
       amount: cloudRecord.amount,
       remark: cloudRecord.remark,
@@ -1527,17 +1554,21 @@ class SyncEngine {
       includeInStats: cloudRecord.includeInStats,
       pairId: cloudRecord.pairId,
       createdByUserId: cloudRecord.createdByUserId ?? 0,
-      accountProvider: accountProvider,
+      accountProvider: accountProviderForInsert,
     );
     await recordProvider.setServerSyncState(
       created.id,
       serverId: serverId,
       serverVersion: serverVersion,
     );
-    if (tagIds.isNotEmpty) {
+    if (hasTagIds) {
       try {
         final tagRepo = RepositoryFactory.createTagRepository();
-        await tagRepo.setTagsForRecord(created.id, tagIds);
+        if (tagIds.isEmpty) {
+          await tagRepo.deleteLinksForRecord(created.id);
+        } else {
+          await tagRepo.setTagsForRecord(created.id, tagIds);
+        }
       } catch (_) {}
     }
   }

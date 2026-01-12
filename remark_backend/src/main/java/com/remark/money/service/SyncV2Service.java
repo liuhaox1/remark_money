@@ -322,14 +322,17 @@ public class SyncV2Service {
   }
 
   private Map<Long, List<String>> loadTagIdsByBillIds(
-      String bookId, Long scopeUserId, List<Long> billIds) {
+      String bookId, Long scopeUserId, Long userId, List<Long> billIds) {
     Map<Long, List<String>> out = new HashMap<>();
     if (billIds == null || billIds.isEmpty()) return out;
 
-    List<BillTagRel> rels =
-        scopeUserId != null && scopeUserId == 0L
-            ? billTagRelMapper.findByBillIdsAllScopes(bookId, billIds)
-            : billTagRelMapper.findByBillIds(bookId, scopeUserId, billIds);
+    List<BillTagRel> rels;
+    if (scopeUserId != null && scopeUserId == 0L) {
+      // Shared book: tag relations are per-user; don't leak other users' tags.
+      rels = billTagRelMapper.findByBillIds(bookId, userId, billIds);
+    } else {
+      rels = billTagRelMapper.findByBillIds(bookId, scopeUserId, billIds);
+    }
     if (rels == null || rels.isEmpty()) return out;
     for (BillTagRel r : rels) {
       if (r == null || r.getBillId() == null) continue;
@@ -472,10 +475,11 @@ public class SyncV2Service {
               : billInfoMapper.findByIdForUserAndBook(userId, bookId, dedup.getBillId());
           if (serverBill != null) {
             List<String> tagIds =
-                loadTagIdsByBillIds(
-                        bookId,
-                        scopeUserId,
-                        java.util.Collections.singletonList(serverBill.getId()))
+            loadTagIdsByBillIds(
+                    bookId,
+                    scopeUserId,
+                    userId,
+                    java.util.Collections.singletonList(serverBill.getId()))
                     .get(serverBill.getId());
             if (tagIds == null) tagIds = new ArrayList<>();
             item.put("serverBill", toBillMap(serverBill, tagIds));
@@ -683,7 +687,7 @@ public class SyncV2Service {
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
         List<String> tagIds =
-            loadTagIdsByBillIds(bookId, scopeUserId, java.util.Collections.singletonList(latest.getId()))
+            loadTagIdsByBillIds(bookId, scopeUserId, userId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
@@ -710,7 +714,7 @@ public class SyncV2Service {
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
         List<String> tagIds =
-            loadTagIdsByBillIds(bookId, scopeUserId, java.util.Collections.singletonList(latest.getId()))
+            loadTagIdsByBillIds(bookId, scopeUserId, userId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
@@ -766,7 +770,7 @@ public class SyncV2Service {
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
         List<String> tagIds =
-            loadTagIdsByBillIds(bookId, scopeUserId, java.util.Collections.singletonList(latest.getId()))
+            loadTagIdsByBillIds(bookId, scopeUserId, userId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
@@ -793,7 +797,7 @@ public class SyncV2Service {
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
         List<String> tagIds =
-            loadTagIdsByBillIds(bookId, scopeUserId, java.util.Collections.singletonList(latest.getId()))
+            loadTagIdsByBillIds(bookId, scopeUserId, userId, java.util.Collections.singletonList(latest.getId()))
                 .get(latest.getId());
         if (tagIds == null) tagIds = new ArrayList<>();
         item.put("serverBill", toBillMap(latest, tagIds));
@@ -873,7 +877,7 @@ public class SyncV2Service {
           : billInfoMapper.findByIdsForUserAndBook(userId, bookId, billIds);
       Map<Long, BillInfo> billMap = scopedBills.stream()
           .collect(Collectors.toMap(BillInfo::getId, b -> b));
-      Map<Long, List<String>> tagIdsByBillId = loadTagIdsByBillIds(bookId, scopeUserId, billIds);
+      Map<Long, List<String>> tagIdsByBillId = loadTagIdsByBillIds(bookId, scopeUserId, userId, billIds);
 
       for (BillChangeLog log : logs) {
         Map<String, Object> c = new HashMap<>();
