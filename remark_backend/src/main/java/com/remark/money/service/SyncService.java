@@ -182,60 +182,61 @@ public class SyncService {
     return a;
   }
 
-  private void ensureDefaultWalletExists(Long userId, String bookId, List<AccountInfo> activeAccounts) {
-    if (activeAccounts != null && activeAccounts.stream().anyMatch(this::isDefaultWallet)) {
-      return;
+  private void ensureDefaultWalletExists(Long userId, String bookId, List<AccountInfo> allAccounts) {
+    if (allAccounts != null) {
+      for (AccountInfo a : allAccounts) {
+        if (a != null && defaultWalletAccountIdForBook(bookId).equals(a.getAccountId())) {
+          if (a.getIsDelete() != null && a.getIsDelete() == 1) {
+            restoreDefaultWallet(a);
+          }
+          return;
+        }
+      }
     }
 
-    AccountInfo existing =
-        accountInfoMapper.findByUserIdAndBookIdAndAccountId(
-            userId, bookId, defaultWalletAccountIdForBook(bookId));
-    if (existing == null) {
-      AccountInfo created = buildDefaultWallet(userId, bookId);
-      accountInfoMapper.insert(created);
-      if (activeAccounts != null) {
-        activeAccounts.add(created);
-      }
-      return;
+    AccountInfo created = buildDefaultWallet(userId, bookId);
+    accountInfoMapper.insert(created);
+    if (allAccounts != null) {
+      allAccounts.add(created);
     }
+  }
 
-    if (existing.getIsDelete() != null && existing.getIsDelete() == 1) {
-      existing.setIsDelete(0);
-      if (existing.getName() == null || existing.getName().trim().isEmpty()) {
-        existing.setName(DEFAULT_WALLET_NAME);
-      }
-      if (existing.getKind() == null || existing.getKind().trim().isEmpty()) {
-        existing.setKind("asset");
-      }
-      if (existing.getSubtype() == null || existing.getSubtype().trim().isEmpty()) {
-        existing.setSubtype("cash");
-      }
-      if (existing.getType() == null || existing.getType().trim().isEmpty()) {
-        existing.setType("cash");
-      }
-      if (existing.getIcon() == null || existing.getIcon().trim().isEmpty()) {
-        existing.setIcon("wallet");
-      }
-      if (existing.getIncludeInTotal() == null) existing.setIncludeInTotal(1);
-      if (existing.getIncludeInOverview() == null) existing.setIncludeInOverview(1);
-      if (existing.getCurrency() == null || existing.getCurrency().trim().isEmpty()) {
-        existing.setCurrency("CNY");
-      }
-      if (existing.getSortOrder() == null) existing.setSortOrder(-100);
-      if (existing.getInitialBalance() == null) existing.setInitialBalance(BigDecimal.ZERO);
-      if (existing.getCurrentBalance() == null) existing.setCurrentBalance(BigDecimal.ZERO);
-      if (existing.getBrandKey() == null || existing.getBrandKey().trim().isEmpty()) {
-        existing.setBrandKey(DEFAULT_WALLET_ACCOUNT_ID);
-      }
-      accountInfoMapper.updateById(existing);
+  private void restoreDefaultWallet(AccountInfo existing) {
+    existing.setIsDelete(0);
+    if (existing.getName() == null || existing.getName().trim().isEmpty()) {
+      existing.setName(DEFAULT_WALLET_NAME);
     }
+    if (existing.getKind() == null || existing.getKind().trim().isEmpty()) {
+      existing.setKind("asset");
+    }
+    if (existing.getSubtype() == null || existing.getSubtype().trim().isEmpty()) {
+      existing.setSubtype("cash");
+    }
+    if (existing.getType() == null || existing.getType().trim().isEmpty()) {
+      existing.setType("cash");
+    }
+    if (existing.getIcon() == null || existing.getIcon().trim().isEmpty()) {
+      existing.setIcon("wallet");
+    }
+    if (existing.getIncludeInTotal() == null) existing.setIncludeInTotal(1);
+    if (existing.getIncludeInOverview() == null) existing.setIncludeInOverview(1);
+    if (existing.getCurrency() == null || existing.getCurrency().trim().isEmpty()) {
+      existing.setCurrency("CNY");
+    }
+    if (existing.getSortOrder() == null) existing.setSortOrder(-100);
+    if (existing.getInitialBalance() == null) existing.setInitialBalance(BigDecimal.ZERO);
+    if (existing.getCurrentBalance() == null) existing.setCurrentBalance(BigDecimal.ZERO);
+    if (existing.getBrandKey() == null || existing.getBrandKey().trim().isEmpty()) {
+      existing.setBrandKey(DEFAULT_WALLET_ACCOUNT_ID);
+    }
+    accountInfoMapper.updateById(existing);
+  }
 
-    if (activeAccounts != null && activeAccounts.stream().noneMatch(this::isDefaultWallet)) {
-      activeAccounts.add(existing);
-      activeAccounts.sort(
-          Comparator.comparing(AccountInfo::getSortOrder, Comparator.nullsLast(Integer::compareTo))
-              .thenComparing(AccountInfo::getId, Comparator.nullsLast(Long::compareTo)));
-    }
+  private List<AccountInfo> filterActiveAccounts(List<AccountInfo> allAccounts) {
+    if (allAccounts == null) return new ArrayList<>();
+    return allAccounts.stream()
+        .filter(a -> a.getIsDelete() == null || a.getIsDelete() == 0)
+        .collect(Collectors.toList());
   }
 
   /**
@@ -346,9 +347,9 @@ public class SyncService {
     // Deletions must be explicit (tombstone) to avoid irreversible data loss.
 
     List<AccountInfo> accountsFromDb =
-        accountInfoMapper.findAllByUserIdAndBookId(scope.effectiveUserId, scope.bookId);
+        accountInfoMapper.findAllByUserIdAndBookIdIncludingDeleted(scope.effectiveUserId, scope.bookId);
     ensureDefaultWalletExists(scope.effectiveUserId, scope.bookId, accountsFromDb);
-    return AccountSyncResult.success(accountsFromDb);
+    return AccountSyncResult.success(filterActiveAccounts(accountsFromDb));
   }
 
   /**
@@ -365,9 +366,10 @@ public class SyncService {
     }
 
     EffectiveBookScope scope = resolveEffectiveBookScopeForAccounts(userId, bookIdRaw, false);
-    List<AccountInfo> accounts = accountInfoMapper.findAllByUserIdAndBookId(scope.effectiveUserId, scope.bookId);
+    List<AccountInfo> accounts =
+        accountInfoMapper.findAllByUserIdAndBookIdIncludingDeleted(scope.effectiveUserId, scope.bookId);
     ensureDefaultWalletExists(scope.effectiveUserId, scope.bookId, accounts);
-    return AccountSyncResult.success(accounts);
+    return AccountSyncResult.success(filterActiveAccounts(accounts));
   }
 
   @Transactional
@@ -401,9 +403,9 @@ public class SyncService {
 
     // return latest server view (non-deleted) for client reconciliation if needed
     List<AccountInfo> accounts =
-        accountInfoMapper.findAllByUserIdAndBookId(scope.effectiveUserId, scope.bookId);
+        accountInfoMapper.findAllByUserIdAndBookIdIncludingDeleted(scope.effectiveUserId, scope.bookId);
     ensureDefaultWalletExists(scope.effectiveUserId, scope.bookId, accounts);
-    return AccountSyncResult.success(accounts);
+    return AccountSyncResult.success(filterActiveAccounts(accounts));
   }
 
   @Transactional
@@ -595,6 +597,32 @@ public class SyncService {
 
     if (categories == null || categories.isEmpty()) {
       return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(effectiveUserId));
+    }
+
+    boolean noDeleted = deletedKeys == null || deletedKeys.isEmpty();
+    boolean allMissingSync =
+        categories.stream()
+            .filter(Objects::nonNull)
+            .allMatch(c -> c.getSyncVersion() == null || c.getSyncVersion() <= 0);
+    Integer existingCount = categoryInfoMapper.countByUserId(effectiveUserId);
+    if (noDeleted && allMissingSync && (existingCount == null || existingCount <= 0)) {
+      final Long insertUserId = effectiveUserId;
+      List<CategoryInfo> toInsert =
+          categories.stream()
+              .filter(Objects::nonNull)
+              .filter(c -> c.getCategoryKey() != null && !c.getCategoryKey().trim().isEmpty())
+              .peek(c -> {
+                c.setUserId(insertUserId);
+                if (c.getIsDelete() == null) c.setIsDelete(0);
+                if (c.getSyncVersion() == null || c.getSyncVersion() <= 0) {
+                  c.setSyncVersion(1L);
+                }
+              })
+              .collect(Collectors.toList());
+      if (!toInsert.isEmpty()) {
+        categoryInfoMapper.batchInsert(toInsert);
+      }
+      return CategorySyncResult.success(toInsert);
     }
 
     Set<String> keys =

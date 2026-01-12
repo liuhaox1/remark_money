@@ -46,7 +46,13 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   static const int _metaPeriodicIntervalMs = 60 * 60 * 1000; // 60min
 
   void start(BuildContext context, {bool triggerInitialSync = true}) {
-    if (_started) return;
+    if (_started) {
+      // Rebind to the latest context (e.g., after login navigation) to avoid
+      // holding a disposed context that lacks providers.
+      _context = context;
+      _bookProvider = context.read<BookProvider>();
+      return;
+    }
     _started = true;
     _context = context;
     _bookProvider = context.read<BookProvider>();

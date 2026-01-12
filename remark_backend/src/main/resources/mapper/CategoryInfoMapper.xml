@@ -37,6 +37,12 @@
       </foreach>
   </select>
 
+  <select id="countByUserId" resultType="int">
+    SELECT COUNT(*)
+    FROM category_info
+    WHERE user_id = #{userId}
+  </select>
+
   <insert id="insertOne" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO category_info (user_id, category_key, name, icon_code_point, icon_font_family, icon_font_package, is_expense, parent_key, is_delete, sync_version, update_time, created_at)
     VALUES (#{userId}, #{categoryKey}, #{name}, #{iconCodePoint}, #{iconFontFamily}, #{iconFontPackage}, #{isExpense}, #{parentKey}, #{isDelete}, 1, NOW(), NOW())

@@ -105,9 +105,11 @@ class _RootShellState extends State<RootShell> {
         return;
       }
       
-      // v2 透明同步下不再调用 v1 /api/sync/status/query，避免触发 sync_record 频繁查询。
-      // 登录后后台同步由 BackgroundSyncManager 负责。
-    } catch (e, stackTrace) {
+        // v2 透明同步下不再调用 v1 /api/sync/status/query，避免触发 sync_record 频繁查询。
+        // 登录后后台同步由 BackgroundSyncManager 负责。
+        // Meta sync is triggered by BackgroundSyncManager (app_start/login flows);
+        // avoid duplicating it here to reduce extra SQL.
+      } catch (e, stackTrace) {
       // 静默失败，不显示错误，但记录详细日志
       debugPrint('Login version fetch failed: $e');
       debugPrint('Stack trace: $stackTrace');

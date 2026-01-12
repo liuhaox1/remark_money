@@ -13,6 +13,8 @@ public interface CategoryInfoMapper {
 
   List<CategoryInfo> findByUserIdAndKeys(@Param("userId") Long userId, @Param("keys") Set<String> keys);
 
+  Integer countByUserId(@Param("userId") Long userId);
+
   int insertOne(CategoryInfo categoryInfo);
 
   int batchInsert(@Param("items") List<CategoryInfo> items);

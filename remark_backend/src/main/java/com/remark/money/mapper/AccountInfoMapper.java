@@ -30,6 +30,10 @@ public interface AccountInfoMapper {
   // 查询用户某账本的所有账户
   List<AccountInfo> findAllByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
 
+  // 查询用户某账本的所有账户（包含已删除）
+  List<AccountInfo> findAllByUserIdAndBookIdIncludingDeleted(
+      @Param("userId") Long userId, @Param("bookId") String bookId);
+
   // 删除：当客户端上传“全量账户列表”时，服务端删除不在列表中的旧账户（以 account_id 为准）
   void deleteByUserIdAndBookIdAndAccountIdsNotIn(
       @Param("userId") Long userId, @Param("bookId") String bookId, @Param("accountIds") Set<String> accountIds);

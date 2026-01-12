@@ -67,6 +67,12 @@
     ORDER BY sort_order ASC, id ASC
   </select>
 
+  <select id="findAllByUserIdAndBookIdIncludingDeleted" resultMap="AccountInfoResultMap">
+    SELECT * FROM account_info
+    WHERE user_id = #{userId} AND book_id = #{bookId}
+    ORDER BY sort_order ASC, id ASC
+  </select>
+
   <delete id="deleteByUserIdAndBookIdAndAccountIdsNotIn">
     DELETE FROM account_info
     WHERE user_id = #{userId} AND book_id = #{bookId}

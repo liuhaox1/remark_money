@@ -15,6 +15,7 @@ import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/tag_provider.dart';
 import '../repository/repository_factory.dart';
+import '../repository/category_repository.dart';
 import '../repository/record_repository_db.dart';
 import '../repository/savings_plan_repository.dart';
 import 'account_delete_queue.dart';
@@ -174,6 +175,10 @@ class SyncEngine {
   static const int _metaThrottleWindowMs = 15 * 1000;
   static final Map<String, int> _metaLastOkMs = <String, int>{};
   static final Map<String, Future<bool>> _metaInFlight = <String, Future<bool>>{};
+  static final Map<String, int> _lastPullMsByBook = <String, int>{};
+  static final Map<String, bool> _lastPullAdvancedByBook = <String, bool>{};
+  static final Set<String> _defaultCategoryKeys =
+      CategoryRepository.defaultCategories.map((c) => c.key).toSet();
 
   static const int _billIdPoolBatchSize = 50;
   static final Map<String, Future<List<int>>> _billIdPoolInFlight =
@@ -386,6 +391,62 @@ class SyncEngine {
             : (rawCategories as List).cast<Category>();
         final deletedKeys = await CategoryDeleteQueue.instance.load();
 
+        final canUploadOnly =
+            deletedKeys.isEmpty &&
+            categories.isNotEmpty &&
+            categories.every((c) => c.syncVersion == null) &&
+            reason != 'categories_changed' &&
+            reason != 'force_bootstrap';
+        if (canUploadOnly) {
+          final allDefaultKeys =
+              categories.every((c) => _defaultCategoryKeys.contains(c.key));
+          if (allDefaultKeys) {
+            final downloadFirst = await _syncService.downloadCategories(
+              bookId: bookId,
+            );
+            if (downloadFirst.success && downloadFirst.categories != null) {
+              final remoteFirst = (downloadFirst.categories ?? const [])
+                  .map((m) => (m as Map).cast<String, dynamic>())
+                  .toList(growable: false);
+              if (remoteFirst.isNotEmpty) {
+                final remoteCatsFirst =
+                    remoteFirst.map(Category.fromMap).toList(growable: false);
+                await repo.saveCategories(remoteCatsFirst);
+                if (categoryProvider != null) {
+                  try {
+                    categoryProvider.replaceFromCloud(remoteCatsFirst);
+                  } catch (_) {}
+                }
+                return true;
+              }
+            }
+          }
+          final uploadOnly = await _syncService.uploadCategories(
+            bookId: bookId,
+            categories: categories.map((c) => c.toMap()).toList(growable: false),
+          );
+          if (uploadOnly.success && uploadOnly.categories != null) {
+            final remote = (uploadOnly.categories ?? const [])
+                .map((m) => (m as Map).cast<String, dynamic>())
+                .toList(growable: false);
+            final remoteCats = remote.map(Category.fromMap).toList(growable: false);
+            await repo.saveCategories(remoteCats);
+            if (categoryProvider != null) {
+              try {
+                categoryProvider.replaceFromCloud(remoteCats);
+              } catch (_) {}
+            }
+            return true;
+          }
+          final error = uploadOnly.error ?? '';
+          final shouldFallback = error.contains('missing syncVersion') ||
+              error.contains('conflict');
+          if (!shouldFallback) {
+            debugPrint('[SyncEngine] categories upload failed: $error');
+            return false;
+          }
+        }
+
         // Download first to obtain server syncVersion baselines, without overwriting local edits.
         final download = await _syncService.downloadCategories(bookId: bookId);
         if (!download.success) {
@@ -485,19 +546,67 @@ class SyncEngine {
     await _runMetaThrottled(
       'meta_tags_u${uid}_b$bookId',
       () async {
-      try {
-        final repo = RepositoryFactory.createTagRepository();
-        final rawTags = await repo.loadTags(bookId: bookId);
-        final List<Tag> tags =
-            rawTags is List<Tag> ? rawTags : (rawTags as List).cast<Tag>();
-        final deletedByBook = await TagDeleteQueue.instance.load();
-        final deleted = deletedByBook[bookId] ?? const <String>[];
+        try {
+          final repo = RepositoryFactory.createTagRepository();
+          final rawTags = await repo.loadTags(bookId: bookId);
+          final List<Tag> tags =
+              rawTags is List<Tag> ? rawTags : (rawTags as List).cast<Tag>();
+          final deletedByBook = await TagDeleteQueue.instance.load();
+          final deleted = deletedByBook[bookId] ?? const <String>[];
 
-        // Download first to obtain server syncVersion baselines, without overwriting local edits.
-        final download = await _syncService.downloadTags(bookId: bookId);
-        if (!download.success) {
-          debugPrint('[SyncEngine] tags download failed: ${download.error}');
-          return false;
+          final canUploadOnly =
+              deleted.isEmpty &&
+              tags.isNotEmpty &&
+              tags.every((t) => t.syncVersion == null) &&
+              reason != 'tags_changed' &&
+              reason != 'force_bootstrap';
+          if (canUploadOnly) {
+            final uploadOnlyPayload = tags
+                .map(
+                  (t) => <String, dynamic>{
+                    'id': t.id,
+                    'bookId': bookId,
+                    'name': t.name,
+                    'syncVersion': t.syncVersion,
+                    'colorValue': t.colorValue,
+                    'sortOrder': t.sortOrder,
+                    'createdAt': t.createdAt?.toIso8601String(),
+                    'updatedAt': t.updatedAt?.toIso8601String(),
+                  },
+                )
+                .toList(growable: false);
+            final uploadOnly = await _syncService.uploadTags(
+              bookId: bookId,
+              tags: uploadOnlyPayload,
+              deletedTagIds: const <String>[],
+            );
+            if (uploadOnly.success && uploadOnly.tags != null) {
+              final remote = (uploadOnly.tags ?? const [])
+                  .map((m) => (m as Map).cast<String, dynamic>())
+                  .toList(growable: false);
+              final remoteTags = remote.map(Tag.fromMap).toList(growable: false);
+              await repo.saveTagsForBook(bookId, remoteTags);
+              if (tagProvider != null) {
+                try {
+                  tagProvider.replaceFromCloud(bookId, remoteTags);
+                } catch (_) {}
+              }
+              return true;
+            }
+            final error = (uploadOnly.error ?? '').toLowerCase();
+            final shouldFallback =
+                error.contains('missing syncversion') || error.contains('conflict');
+            if (!shouldFallback) {
+              debugPrint('[SyncEngine] tags upload failed: ${uploadOnly.error}');
+              return false;
+            }
+          }
+
+          // Download first to obtain server syncVersion baselines, without overwriting local edits.
+          final download = await _syncService.downloadTags(bookId: bookId);
+          if (!download.success) {
+            debugPrint('[SyncEngine] tags download failed: ${download.error}');
+            return false;
         }
         final remote = (download.tags ?? const [])
             .map((m) => (m as Map).cast<String, dynamic>())
@@ -968,6 +1077,7 @@ class SyncEngine {
     const pageSize = 200;
     const maxPagesPerSync = 50;
     var pages = 0;
+    var advancedThisPull = false;
 
     while (true) {
       pages++;
@@ -1010,6 +1120,7 @@ class SyncEngine {
             );
 
       if (changes.isNotEmpty) {
+        advancedThisPull = true;
         await _outbox.runSuppressed(() async {
           await DataVersionService.runWithoutIncrement(() async {
             // 性能关键：DB 模式下批量应用变更，避免逐条 add/update/delete 触发大量 notify/落库。
@@ -1060,11 +1171,14 @@ class SyncEngine {
       }
 
       if (next > prevCursor) {
+        advancedThisPull = true;
         cursor = next;
         await SyncV2CursorStore.setLastChangeId(bookId, cursor);
       }
       if (!hasMore) break;
     }
+    _lastPullMsByBook[bookId] = DateTime.now().millisecondsSinceEpoch;
+    _lastPullAdvancedByBook[bookId] = advancedThisPull;
   }
 
   Future<void> _maybeBootstrapFromSummary(
@@ -1074,6 +1188,12 @@ class SyncEngine {
     required String reason,
   }) async {
     try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final lastPullMs = _lastPullMsByBook[bookId] ?? 0;
+      final lastPullAdvanced = _lastPullAdvancedByBook[bookId] ?? false;
+      if (lastPullAdvanced && now - lastPullMs < 60 * 1000) {
+        return;
+      }
       if (!await SyncV2SummaryStore.shouldCheck(bookId)) return;
 
       final pending = await _outbox.loadPending(bookId, limit: 1);
@@ -1323,20 +1443,68 @@ class SyncEngine {
         reason == 'savings_plans_changed' || reason == 'force_bootstrap';
     await _runMetaThrottled(
       'meta_savings_plans_u${uid}_b$bookId',
-      () async {
-        try {
-          debugPrint('[SyncEngine] savings plans sync book=$bookId reason=$reason');
-          final repo = SavingsPlanRepository();
-          final localPlans = await repo.loadPlans(bookId: bookId);
-          final deletedIds =
-              await SavingsPlanDeleteQueue.instance.loadForBook(bookId);
+        () async {
+          try {
+            debugPrint('[SyncEngine] savings plans sync book=$bookId reason=$reason');
+            final repo = SavingsPlanRepository();
+            final localPlans = await repo.loadPlans(bookId: bookId);
+            final deletedIds =
+                await SavingsPlanDeleteQueue.instance.loadForBook(bookId);
 
-          final download =
-              await _syncService.downloadSavingsPlans(bookId: bookId);
-          if (!download.success) {
-            debugPrint(
-              '[SyncEngine] savings plans download failed: ${download.error}',
-            );
+            final canUploadOnly =
+                deletedIds.isEmpty &&
+                localPlans.isNotEmpty &&
+                localPlans.every((p) => p.syncVersion == null) &&
+                reason != 'savings_plans_changed' &&
+                reason != 'force_bootstrap';
+            if (canUploadOnly) {
+              final payload = localPlans.map((p) => p.toMap()).toList(growable: false);
+              final uploadOnly = await _syncService.uploadSavingsPlans(
+                bookId: bookId,
+                plans: payload,
+                deletedIds: const <String>[],
+              );
+              if (uploadOnly.success && uploadOnly.savingsPlans != null) {
+                final serverRaw =
+                    uploadOnly.savingsPlans ?? const <Map<String, dynamic>>[];
+                final nextPlans = <SavingsPlan>[];
+                final serverDeleted = <String>{};
+                for (final m in serverRaw) {
+                  final isDelete = (m['isDelete'] == true) ||
+                      (m['isDelete'] is num && (m['isDelete'] as num).toInt() == 1);
+                  final pid = (m['id'] ?? '').toString();
+                  if (pid.isEmpty) continue;
+                  if (isDelete) {
+                    serverDeleted.add(pid);
+                    continue;
+                  }
+                  try {
+                    nextPlans.add(SavingsPlan.fromMap(m));
+                  } catch (_) {}
+                }
+                final filtered = nextPlans
+                    .where((p) => !serverDeleted.contains(p.id))
+                    .toList(growable: false);
+                await repo.replacePlansForBook(bookId, filtered);
+                return true;
+              }
+              final err = (uploadOnly.error ?? '').toLowerCase();
+              final shouldFallback =
+                  err.contains('conflict') || err.contains('syncversion');
+              if (!shouldFallback) {
+                debugPrint(
+                  '[SyncEngine] savings plans upload failed: ${uploadOnly.error}',
+                );
+                return false;
+              }
+            }
+
+            final download =
+                await _syncService.downloadSavingsPlans(bookId: bookId);
+            if (!download.success) {
+              debugPrint(
+                '[SyncEngine] savings plans download failed: ${download.error}',
+              );
             return false;
           }
           final remoteRaw = download.savingsPlans ?? const <Map<String, dynamic>>[];

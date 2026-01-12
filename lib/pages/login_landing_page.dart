@@ -32,10 +32,10 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
     // Guest-created local records should not be uploaded without user consent.
     await SyncEngine().maybeUploadGuestOutboxAfterLogin(context, reason: 'login');
     // Kick an immediate sync/meta sync after login so the UI won't show stale/empty data.
-    BackgroundSyncManager.instance.markLoggedIn();
-    BackgroundSyncManager.instance.start(context, triggerInitialSync: false);
     final activeBookId = context.read<BookProvider>().activeBookId;
     if (activeBookId.isNotEmpty) {
+      BackgroundSyncManager.instance.markLoggedIn();
+      BackgroundSyncManager.instance.start(context, triggerInitialSync: false);
       BackgroundSyncManager.instance.requestMetaSync(activeBookId, reason: 'login');
       BackgroundSyncManager.instance.requestSync(activeBookId, reason: 'login');
     }
