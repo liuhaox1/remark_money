@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -75,17 +76,20 @@ public class SyncService {
       Long bid = Long.parseLong(bookId);
       Book book = bookMapper.findById(bid);
       if (book == null) {
-        throw new IllegalArgumentException("账本不存在");
+        log.warn("resolveEffectiveBookScopeForAccounts missing book userId={} bookId={}", userId, bookId);
+        return null;
       }
       BookMember member = bookMemberMapper.find(bid, userId);
       if (member == null) {
-        throw new IllegalArgumentException("无权访问账本");
+        log.warn("resolveEffectiveBookScopeForAccounts no member userId={} bookId={}", userId, bookId);
+        return null;
       }
       isMulti = Boolean.TRUE.equals(book.getIsMulti());
       if (isMulti) {
         effectiveUserId = book.getOwnerId();
         if (requireOwnerForWrite && !Objects.equals(userId, effectiveUserId)) {
-          throw new IllegalArgumentException("仅创建者可修改账户");
+          log.warn("resolveEffectiveBookScopeForAccounts not owner userId={} ownerId={} bookId={}", userId, effectiveUserId, bookId);
+          return null;
         }
       }
     } catch (NumberFormatException ignored) {
@@ -255,6 +259,9 @@ public class SyncService {
     }
 
     EffectiveBookScope scope = resolveEffectiveBookScopeForAccounts(userId, bookIdRaw, true);
+    if (scope == null) {
+      return AccountSyncResult.error("no permission");
+    }
 
     List<AccountInfo> toInsert = new ArrayList<>();
     List<AccountInfo> toUpdate = new ArrayList<>();
@@ -366,6 +373,9 @@ public class SyncService {
     }
 
     EffectiveBookScope scope = resolveEffectiveBookScopeForAccounts(userId, bookIdRaw, false);
+    if (scope == null) {
+      return AccountSyncResult.success(Collections.emptyList());
+    }
     List<AccountInfo> accounts =
         accountInfoMapper.findAllByUserIdAndBookIdIncludingDeleted(scope.effectiveUserId, scope.bookId);
     ensureDefaultWalletExists(scope.effectiveUserId, scope.bookId, accounts);
@@ -386,6 +396,9 @@ public class SyncService {
     }
 
     EffectiveBookScope scope = resolveEffectiveBookScopeForAccounts(userId, bookIdRaw, true);
+    if (scope == null) {
+      return AccountSyncResult.error("no permission");
+    }
 
     int affected = 0;
     if (serverIds != null) {

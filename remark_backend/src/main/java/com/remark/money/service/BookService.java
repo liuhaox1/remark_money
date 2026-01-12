@@ -5,14 +5,19 @@ import com.remark.money.entity.BookMember;
 import com.remark.money.entity.BookMemberProfile;
 import com.remark.money.mapper.BookMapper;
 import com.remark.money.mapper.BookMemberMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.util.Collections;
 import java.util.List;
 
 @Service
 public class BookService {
+
+  private static final Logger log = LoggerFactory.getLogger(BookService.class);
 
   private final BookMapper bookMapper;
   private final BookMemberMapper bookMemberMapper;
@@ -81,11 +86,13 @@ public class BookService {
 
   public List<BookMemberProfile> listMembers(Long userId, Long bookId) {
     if (bookId == null) {
-      throw new IllegalArgumentException("missing bookId");
+      log.warn("listMembers missing bookId userId={}", userId);
+      return Collections.emptyList();
     }
     BookMember me = bookMemberMapper.find(bookId, userId);
     if (me == null || me.getStatus() == null || me.getStatus() != 1) {
-      throw new IllegalArgumentException("no permission");
+      log.warn("listMembers no permission userId={} bookId={}", userId, bookId);
+      return Collections.emptyList();
     }
     return bookMemberMapper.listProfilesByBook(bookId);
   }
