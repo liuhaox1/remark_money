@@ -1,7 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SyncV2SummaryStore {
-  static const Duration _minInterval = Duration(hours: 6);
+  static const Duration _minInterval = Duration(hours: 24);
 
   static const String _legacyPrefix = 'sync_v2_summary_checked_at_';
 

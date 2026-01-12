@@ -3,7 +3,16 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/tag_provider.dart';
+import 'account_delete_queue.dart';
+import 'budget_sync_state_store.dart';
+import 'category_delete_queue.dart';
+import 'meta_sync_state_store.dart';
+import 'savings_plan_delete_queue.dart';
+import 'tag_delete_queue.dart';
 import 'meta_sync_notifier.dart';
 import 'sync_engine.dart';
 import 'sync_outbox_service.dart';
@@ -70,10 +79,10 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       requestMetaSync(bookId, reason: 'budget_changed');
     });
 
-    _categoriesSub = MetaSyncNotifier.instance.onCategoriesChanged.listen((_) {
-      final activeBookId = _bookProvider?.activeBookId ?? '';
-      if (activeBookId.isEmpty) return;
-      requestMetaSync(activeBookId, reason: 'categories_changed');
+    _categoriesSub =
+        MetaSyncNotifier.instance.onCategoriesChanged.listen((bookId) {
+      if (bookId.isEmpty) return;
+      requestMetaSync(bookId, reason: 'categories_changed');
     });
 
     _tagsSub = MetaSyncNotifier.instance.onTagsChanged.listen((bookId) {
@@ -100,8 +109,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
           final ok = await const AuthService().isTokenValid();
           if (!ok) return;
           requestSync(activeBookId, reason: 'app_start');
-          // Also sync meta (budget/accounts/categories/tags/etc.) so pages won't show empty data after login.
-          requestMetaSync(activeBookId, reason: 'app_start');
+          // Also sync meta (budget/accounts/categories/tags/etc.) so pages won't show empty data after login,
+          // but skip when local meta is warm and no pending local changes.
+          if (await _shouldAppStartMetaSync(activeBookId, context)) {
+            requestMetaSync(activeBookId, reason: 'app_start');
+          }
         }();
       }
     }
@@ -210,6 +222,55 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _metaDebounce = Timer(const Duration(seconds: 2), _flushMeta);
   }
 
+  Future<bool> _shouldAppStartMetaSync(String bookId, BuildContext context) async {
+    if (bookId.isEmpty) return false;
+    if (!_isMetaWarm(bookId, context)) return true;
+    if (await _hasLocalMetaChanges(bookId, context)) return true;
+    final last = await MetaSyncStateStore.getLastMetaSyncMs(bookId);
+    if (last <= 0) return true;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return now - last > _metaPeriodicIntervalMs;
+  }
+
+  bool _isMetaWarm(String bookId, BuildContext context) {
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final hasCategories = categoryProvider.hasCategoriesForBook(bookId);
+    final hasAccounts = accountProvider.hasAccountsForBook(bookId);
+    return hasCategories && hasAccounts;
+  }
+
+  Future<bool> _hasLocalMetaChanges(String bookId, BuildContext context) async {
+    final categoryProvider = context.read<CategoryProvider>();
+    final tagProvider = context.read<TagProvider>();
+    final accountProvider = context.read<AccountProvider>();
+
+    final categoryDeletes = await CategoryDeleteQueue.instance.loadForBook(bookId);
+    if (categoryDeletes.isNotEmpty) return true;
+    final tagDeletes = await TagDeleteQueue.instance.load();
+    if ((tagDeletes[bookId] ?? const <String>[]).isNotEmpty) return true;
+    final accountDeletes = await AccountDeleteQueue.instance.loadForBook(bookId);
+    if (accountDeletes.isNotEmpty) return true;
+    final savingsDeletes = await SavingsPlanDeleteQueue.instance.loadForBook(bookId);
+    if (savingsDeletes.isNotEmpty) return true;
+
+    final localEditMs = await BudgetSyncStateStore.getLocalEditMs(bookId);
+    if (localEditMs > 0) return true;
+
+    final hasUnsyncedCategories = categoryProvider.isLoadedForBook(bookId) &&
+        categoryProvider.categories.any((c) => c.syncVersion == null);
+    if (hasUnsyncedCategories) return true;
+    final hasUnsyncedTags = tagProvider.isLoadedForBook(bookId) &&
+        tagProvider.tags.any((t) => t.bookId == bookId && t.syncVersion == null);
+    if (hasUnsyncedTags) return true;
+    final hasUnsyncedAccounts = accountProvider.isLoadedForBook(bookId) &&
+        accountProvider.accounts
+            .any((a) => a.bookId == bookId && a.syncVersion == null);
+    if (hasUnsyncedAccounts) return true;
+
+    return false;
+  }
+
   Future<void> _flushMeta() async {
     final ctx = _context;
     if (ctx == null) return;
@@ -235,6 +296,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
         }
         final doneAt = DateTime.now().millisecondsSinceEpoch;
         _lastMetaSyncMs = doneAt;
+        await MetaSyncStateStore.setLastMetaSyncMs(bookId, doneAt);
         if (reason == 'accounts_changed') {
           _lastAccountsSyncMsByBook[bookId] = doneAt;
         } else if (reason == 'budget_changed' ||
@@ -254,7 +316,12 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   Future<void> _flush() async {
     final ctx = _context;
     if (ctx == null) return;
-    if (_syncing) return;
+    if (_syncing) {
+      // Avoid dropping pending syncs while a run is in-flight.
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(seconds: 2), _flush);
+      return;
+    }
     if (_pendingBooks.isEmpty) return;
     _syncing = true;
 
@@ -265,8 +332,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       for (final bookId in books) {
         final reason = _pendingReasonsByBook.remove(bookId) ?? 'unknown';
         debugPrint('[BackgroundSyncManager] sync book=$bookId reason=$reason');
-        await engine.syncBookV2(ctx, bookId, reason: reason);
-        _lastSyncMsByBook[bookId] = DateTime.now().millisecondsSinceEpoch;
+        final ok = await engine.syncBookV2(ctx, bookId, reason: reason);
+        if (ok) {
+          _lastSyncMsByBook[bookId] = DateTime.now().millisecondsSinceEpoch;
+          debugPrint('[BackgroundSyncManager] sync ok book=$bookId reason=$reason');
+        }
       }
     } catch (e) {
       debugPrint('[BackgroundSyncManager] sync failed: $e');
@@ -295,9 +365,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
           final backgroundFor = pausedAt == 0 ? 0 : now - pausedAt;
           if (backgroundFor >= _resumeMinBackgroundMs) {
             requestSync(activeBookId, reason: 'app_resumed');
-            if (now - _lastMetaSyncMs > _metaPeriodicIntervalMs) {
-              requestMetaSync(activeBookId, reason: 'app_resumed');
-            }
+            () async {
+              if (await _shouldAppStartMetaSync(activeBookId, ctx)) {
+                requestMetaSync(activeBookId, reason: 'app_resumed');
+              }
+            }();
           }
           _startPeriodicPullTimer();
         }

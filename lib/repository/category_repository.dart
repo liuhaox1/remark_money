@@ -5,7 +5,14 @@ import '../l10n/app_strings.dart';
 import '../models/category.dart';
 
 class CategoryRepository {
-  static const _key = 'categories_v1';
+  static const _keyBase = 'categories_v1';
+
+  String _normalizeBookId(String? bookId) {
+    final id = (bookId ?? '').trim();
+    return id.isEmpty ? 'default-book' : id;
+  }
+
+  String _keyForBook(String? bookId) => '${_keyBase}_${_normalizeBookId(bookId)}';
 
   /// 兜底分类：当无法识别出合理的支出分类时，使用“未分类”避免误落到高频分类（如“餐饮”）。
   static const String uncategorizedExpenseKey = 'top_uncategorized';
@@ -670,14 +677,20 @@ class CategoryRepository {
     ),
   ];
 
-  Future<List<Category>> loadCategories() async {
+  Future<List<Category>> loadCategories({
+    String? bookId,
+    bool allowDefault = true,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_key);
+    final raw = prefs.getStringList(_keyForBook(bookId));
 
     // 如果本地还没有数据，或者被清空为一个空列表，就回写一份默认分类
     if (raw == null || raw.isEmpty) {
-      await saveCategories(defaultCategories);
-      return List<Category>.from(defaultCategories);
+      if (allowDefault) {
+        await saveCategories(defaultCategories, bookId: bookId);
+        return List<Category>.from(defaultCategories);
+      }
+      return <Category>[];
     }
 
     final categories = raw.map((value) => Category.fromJson(value)).toList();
@@ -703,9 +716,9 @@ class CategoryRepository {
     
     // 如果迁移后有变化，保存更新后的分类
     if (hasChanges || migratedCategories.any((c) => needsMigration(c))) {
-      await saveCategories(migratedCategories);
+      await saveCategories(migratedCategories, bookId: bookId);
     }
-    
+
     return migratedCategories;
   }
 
@@ -890,7 +903,7 @@ class CategoryRepository {
     return defaultCat.name;
   }
 
-  Future<void> saveCategories(List<Category> categories) async {
+  Future<void> saveCategories(List<Category> categories, {String? bookId}) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     final payload = categories
@@ -903,33 +916,33 @@ class CategoryRepository {
               .toJson(),
         )
         .toList();
-    await prefs.setStringList(_key, payload);
+    await prefs.setStringList(_keyForBook(bookId), payload);
   }
 
-  Future<List<Category>> add(Category category) async {
-    final list = await loadCategories();
+  Future<List<Category>> add(Category category, {String? bookId}) async {
+    final list = await loadCategories(bookId: bookId);
     final now = DateTime.now();
     list.add(category.copyWith(createdAt: now, updatedAt: now));
-    await saveCategories(list);
+    await saveCategories(list, bookId: bookId);
     return list;
   }
 
-  Future<List<Category>> delete(String key) async {
-    final list = await loadCategories();
+  Future<List<Category>> delete(String key, {String? bookId}) async {
+    final list = await loadCategories(bookId: bookId);
     list.removeWhere((element) => element.key == key);
-    await saveCategories(list);
+    await saveCategories(list, bookId: bookId);
     return list;
   }
 
-  Future<List<Category>> update(Category category) async {
-    final list = await loadCategories();
+  Future<List<Category>> update(Category category, {String? bookId}) async {
+    final list = await loadCategories(bookId: bookId);
     final index = list.indexWhere((c) => c.key == category.key);
     if (index != -1) {
       list[index] = category.copyWith(
         createdAt: list[index].createdAt,
         updatedAt: DateTime.now(),
       );
-      await saveCategories(list);
+      await saveCategories(list, bookId: bookId);
     }
     return list;
   }

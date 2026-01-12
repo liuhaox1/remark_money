@@ -25,6 +25,15 @@ class TagProvider extends ChangeNotifier {
   bool _loading = false;
   bool get loading => _loading;
 
+  bool isLoadedForBook(String bookId) {
+    return _loadedBookId == bookId;
+  }
+
+  bool hasTagsForBook(String bookId) {
+    if (!isLoadedForBook(bookId)) return false;
+    return _tags.any((t) => t.bookId == bookId);
+  }
+
   void replaceFromCloud(String bookId, List<Tag> tags) {
     _loadedBookId = bookId;
     _tags

@@ -258,7 +258,7 @@ class SyncEngine {
     await syncBookV2(context, bookId);
   }
 
-  Future<void> syncBookV2(
+  Future<bool> syncBookV2(
     BuildContext context,
     String bookId, {
     String reason = 'unknown',
@@ -267,24 +267,25 @@ class SyncEngine {
     final accountProvider = context.read<AccountProvider>();
 
     final tokenValid = await _authService.isTokenValid();
-    if (!tokenValid) return;
+    if (!tokenValid) return false;
     await _uploadOutboxV2(recordProvider, bookId, reason: reason);
     // 性能关键点：本地记账触发 outbox 变化时，先只 push（把本地变更上云）。
     // 立即 pull 会额外产生一轮 bill_change_log + bill_info 查询（服务端/客户端都浪费）。
     // 多设备变更的拉取由 app_start / app_resumed（以及未来可选的轮询/SSE）来覆盖。
-    if (reason == 'local_outbox_changed') return;
+    if (reason == 'local_outbox_changed') return true;
 
     // Keep sync transparent but light-weight:
     // - Pull on app_start / app_resumed / periodic timers.
     // - Meta (categories/tags/budget/accounts/...) is scheduled separately by BackgroundSyncManager,
     //   to avoid duplicate requests/SQL during login/app_start flows.
 
-    await _pullV2(
+    final pullOk = await _pullV2(
       recordProvider,
       accountProvider,
       bookId,
       reason: reason,
     );
+    if (!pullOk) return false;
 
     final shouldSummaryCheck = reason == 'app_start' || reason == 'app_resumed';
     if (shouldSummaryCheck) {
@@ -295,6 +296,7 @@ class SyncEngine {
         reason: reason,
       );
     }
+    return true;
   }
 
   Future<void> forceBootstrapV2(
@@ -342,20 +344,17 @@ class SyncEngine {
     final accountProvider = context.read<AccountProvider>();
     final tagProvider = context.read<TagProvider>();
 
-    final isServerBook = int.tryParse(bookId) != null;
-    final forceCategoryRefresh = requireCategories && isServerBook;
     final hasCategories =
-        !requireCategories ||
-        (!forceCategoryRefresh && categoryProvider.categories.isNotEmpty);
+        !requireCategories || categoryProvider.hasCategoriesForBook(bookId);
     final hasAccounts =
         !requireAccounts ||
-        accountProvider.accounts.any((a) => a.bookId == bookId);
+        accountProvider.hasAccountsForBook(bookId);
     final hasTags =
-        !requireTags || tagProvider.tags.any((t) => t.bookId == bookId);
+        !requireTags || tagProvider.hasTagsForBook(bookId);
 
     if (hasCategories && hasAccounts && hasTags) return true;
 
-    final needsCategories = requireCategories && (!hasCategories || forceCategoryRefresh);
+    final needsCategories = requireCategories && !hasCategories;
     final needsAccounts = requireAccounts && !hasAccounts;
     final needsTags = requireTags && !hasTags;
 
@@ -377,19 +376,19 @@ class SyncEngine {
         await tagProvider.loadForBook(bookId);
       } catch (_) {}
     }
-    if (requireCategories && categoryProvider.categories.isEmpty) {
+    if (requireCategories && !categoryProvider.hasCategoriesForBook(bookId)) {
       try {
-        await categoryProvider.reload();
+        await categoryProvider.reloadForBook(bookId);
       } catch (_) {}
     }
 
     final readyCategories =
-        !requireCategories || categoryProvider.categories.isNotEmpty;
+        !requireCategories || categoryProvider.hasCategoriesForBook(bookId);
     final readyAccounts =
         !requireAccounts ||
-        accountProvider.accounts.any((a) => a.bookId == bookId);
+        accountProvider.hasAccountsForBook(bookId);
     final readyTags =
-        !requireTags || tagProvider.tags.any((t) => t.bookId == bookId);
+        !requireTags || tagProvider.hasTagsForBook(bookId);
 
     return readyCategories && readyAccounts && readyTags;
   }
@@ -450,12 +449,20 @@ class SyncEngine {
       'meta_categories_u${uid}_b$bookId',
       () async {
       try {
-        final repo = RepositoryFactory.createCategoryRepository();
-        final rawCategories = await repo.loadCategories();
+        final useCache = int.tryParse(bookId) != null;
+        final cacheRepo = CategoryRepository();
+        final repo =
+            useCache ? cacheRepo : RepositoryFactory.createCategoryRepository();
+        final rawCategories = useCache
+            ? await cacheRepo.loadCategories(
+                bookId: bookId,
+                allowDefault: false,
+              )
+            : await repo.loadCategories(bookId: bookId);
         final List<Category> categories = rawCategories is List<Category>
             ? rawCategories
             : (rawCategories as List).cast<Category>();
-        final deletedKeys = await CategoryDeleteQueue.instance.load();
+        final deletedKeys = await CategoryDeleteQueue.instance.loadForBook(bookId);
 
         final canUploadOnly =
             deletedKeys.isEmpty &&
@@ -477,11 +484,15 @@ class SyncEngine {
               if (remoteFirst.isNotEmpty) {
                 final remoteCatsFirst =
                     remoteFirst.map(Category.fromMap).toList(growable: false);
-                await repo.saveCategories(remoteCatsFirst);
                 if (categoryProvider != null) {
                   try {
-                    categoryProvider.replaceFromCloud(remoteCatsFirst);
+                    categoryProvider.replaceFromCloudForBook(
+                      bookId,
+                      remoteCatsFirst,
+                    );
                   } catch (_) {}
+                } else {
+                  await repo.saveCategories(remoteCatsFirst, bookId: bookId);
                 }
                 return true;
               }
@@ -496,11 +507,12 @@ class SyncEngine {
                 .map((m) => (m as Map).cast<String, dynamic>())
                 .toList(growable: false);
             final remoteCats = remote.map(Category.fromMap).toList(growable: false);
-            await repo.saveCategories(remoteCats);
             if (categoryProvider != null) {
               try {
-                categoryProvider.replaceFromCloud(remoteCats);
+                categoryProvider.replaceFromCloudForBook(bookId, remoteCats);
               } catch (_) {}
+            } else {
+              await repo.saveCategories(remoteCats, bookId: bookId);
             }
             return true;
           }
@@ -513,11 +525,12 @@ class SyncEngine {
                   .toList(growable: false);
               final remoteCats =
                   remote.map(Category.fromMap).toList(growable: false);
-              await repo.saveCategories(remoteCats);
               if (categoryProvider != null) {
                 try {
-                  categoryProvider.replaceFromCloud(remoteCats);
+                  categoryProvider.replaceFromCloudForBook(bookId, remoteCats);
                 } catch (_) {}
+              } else {
+                await repo.saveCategories(remoteCats, bookId: bookId);
               }
               return true;
             }
@@ -572,11 +585,12 @@ class SyncEngine {
 
         if (!needsUpload) {
           // No local edits/deletes: apply server view and skip upload to reduce SQL.
-          await repo.saveCategories(remoteCats);
           if (categoryProvider != null) {
             try {
-              categoryProvider.replaceFromCloud(remoteCats);
+              categoryProvider.replaceFromCloudForBook(bookId, remoteCats);
             } catch (_) {}
+          } else {
+            await repo.saveCategories(remoteCats, bookId: bookId);
           }
           return true;
         }
@@ -591,7 +605,7 @@ class SyncEngine {
           debugPrint('[SyncEngine] categories upload failed: ${upload.error}');
         }
         if (upload.success) {
-          await CategoryDeleteQueue.instance.clear();
+          await CategoryDeleteQueue.instance.clearBook(bookId);
         }
 
         // Apply server authoritative view.
@@ -601,17 +615,18 @@ class SyncEngine {
             : (download.categories ?? const []);
         if (!upload.success &&
             (upload.error ?? '').contains('permission denied')) {
-          await CategoryDeleteQueue.instance.clear();
+          await CategoryDeleteQueue.instance.clearBook(bookId);
         }
         final remote2 = (authoritative)
             .map((m) => (m as Map).cast<String, dynamic>())
             .toList(growable: false);
         final remoteCats2 = remote2.map(Category.fromMap).toList(growable: false);
-        await repo.saveCategories(remoteCats2);
         if (categoryProvider != null) {
           try {
-            categoryProvider.replaceFromCloud(remoteCats2);
+            categoryProvider.replaceFromCloudForBook(bookId, remoteCats2);
           } catch (_) {}
+        } else {
+          await repo.saveCategories(remoteCats2, bookId: bookId);
         }
         return true;
       } catch (e) {
@@ -1154,7 +1169,7 @@ class SyncEngine {
     }
   }
 
-  Future<void> _pullV2(
+  Future<bool> _pullV2(
     RecordProvider recordProvider,
     AccountProvider accountProvider,
     String bookId, {
@@ -1170,7 +1185,7 @@ class SyncEngine {
       pages++;
       if (pages > maxPagesPerSync) {
         debugPrint('[SyncEngine] v2Pull reached max pages; stop (book=$bookId)');
-        return;
+        return false;
       }
 
       final prevCursor = cursor;
@@ -1182,7 +1197,7 @@ class SyncEngine {
       );
       if (resp['success'] != true) {
         debugPrint('[SyncEngine] v2Pull failed: ${resp['error']}');
-        return;
+        return false;
       }
 
       if (resp['cursorExpired'] == true) {
@@ -1254,7 +1269,7 @@ class SyncEngine {
       final hasMore = resp['hasMore'] as bool? ?? false;
       if (hasMore && next <= prevCursor) {
         debugPrint('[SyncEngine] v2Pull hasMore but cursor not advanced; stop to avoid loop');
-        return;
+        return false;
       }
 
       if (next > prevCursor) {
@@ -1266,6 +1281,10 @@ class SyncEngine {
     }
     _lastPullMsByBook[bookId] = DateTime.now().millisecondsSinceEpoch;
     _lastPullAdvancedByBook[bookId] = advancedThisPull;
+    debugPrint(
+      '[SyncEngine] v2Pull ok book=$bookId advanced=$advancedThisPull reason=$reason',
+    );
+    return true;
   }
 
   Future<void> _maybeBootstrapFromSummary(
@@ -1286,6 +1305,9 @@ class SyncEngine {
       final pending = await _outbox.loadPending(bookId, limit: 1);
       if (pending.isNotEmpty) return;
 
+      final localCursor = await SyncV2CursorStore.getLastChangeId(bookId);
+      if (localCursor <= 0) return;
+
       final resp = await _syncService.v2Summary(
         bookId: bookId,
         reason: reason.isNotEmpty ? '$reason:summary_check' : 'summary_check',
@@ -1302,7 +1324,6 @@ class SyncEngine {
       final serverSumVersions = (summary['sumVersions'] as num?)?.toInt() ?? 0;
       if (serverBillCount <= 0 || serverMaxChangeId <= 0) return;
 
-      final localCursor = await SyncV2CursorStore.getLastChangeId(bookId);
       if (localCursor != serverMaxChangeId) return;
 
       final localSyncedCount = await _countLocalSyncedRecords(recordProvider, bookId);
@@ -1995,7 +2016,7 @@ class SyncEngine {
 
       // 用户在资产页修改账户后：优先上传，再用服务端回包回填 serverId/最新字段。
       if (reason == 'accounts_changed') {
-        final deletedAccounts = await AccountDeleteQueue.instance.load();
+          final deletedAccounts = await AccountDeleteQueue.instance.loadForBook(bookId);
         final localAccounts = accountProvider.accounts;
         if (localAccounts.isNotEmpty || deletedAccounts.isNotEmpty) {
           // Download first to obtain serverId/syncVersion baselines to satisfy optimistic concurrency.
@@ -2036,7 +2057,7 @@ class SyncEngine {
               });
             });
             if (deletedAccounts.isNotEmpty) {
-              await AccountDeleteQueue.instance.clear();
+              await AccountDeleteQueue.instance.clearBook(bookId);
             }
             return;
           }

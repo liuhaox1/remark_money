@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/category.dart';
 import '../repository/category_repository.dart';
 import '../repository/repository_factory.dart';
@@ -7,70 +8,126 @@ import '../services/meta_sync_notifier.dart';
 import '../utils/error_handler.dart';
 
 class CategoryProvider extends ChangeNotifier {
-  // SharedPreferences 版和数据库版方法签名一致，这里用 dynamic 接收
+  CategoryProvider();
+
+  // Use the repository selected by RepositoryFactory for the default book.
   final dynamic _repo = RepositoryFactory.createCategoryRepository();
-  final List<Category> _categories = [];
+  // Use shared-prefs cache for server books to avoid cross-book overwrites.
+  final CategoryRepository _cacheRepo = CategoryRepository();
+
+  final List<Category> _categories = <Category>[];
+  final Set<String> _loadedBooks = <String>{};
+  String? _activeBookId;
 
   List<Category> get categories => List.unmodifiable(_categories);
 
-  bool _loaded = false;
-  bool get loaded => _loaded;
+  bool get loaded =>
+      _activeBookId != null && _loadedBooks.contains(_activeBookId);
+
+  bool _useCacheForBook(String bookId) => int.tryParse(bookId) != null;
+
+  String _normalizeBookId(String? bookId) {
+    final id = (bookId ?? '').trim();
+    return id.isEmpty ? 'default-book' : id;
+  }
+
+  bool isLoadedForBook(String bookId) {
+    final normalized = _normalizeBookId(bookId);
+    return _activeBookId == normalized && _loadedBooks.contains(normalized);
+  }
+
+  bool hasCategoriesForBook(String bookId) {
+    return isLoadedForBook(bookId) && _categories.isNotEmpty;
+  }
 
   Category _sanitize(Category c) =>
       c.copyWith(name: CategoryRepository.sanitizeCategoryName(c.key, c.name));
 
   void replaceFromCloud(List<Category> categories) {
+    replaceFromCloudForBook('default-book', categories);
+  }
+
+  void replaceFromCloudForBook(String bookId, List<Category> categories) {
+    final normalized = _normalizeBookId(bookId);
     _categories
       ..clear()
       ..addAll(categories.map(_sanitize));
-    _loaded = true;
+    _activeBookId = normalized;
+    _loadedBooks.add(normalized);
+    if (_useCacheForBook(normalized)) {
+      _cacheRepo.saveCategories(categories, bookId: normalized);
+    } else {
+      _repo.saveCategories(categories, bookId: normalized);
+      _cacheRepo.saveCategories(categories, bookId: normalized);
+    }
     notifyListeners();
   }
 
-  /// 加载所有分类
   Future<void> load() async {
-    if (_loaded) return;
+    await loadForBook('default-book');
+  }
+
+  Future<void> loadForBook(String bookId) async {
+    final normalized = _normalizeBookId(bookId);
+    if (_activeBookId == normalized && _loadedBooks.contains(normalized)) {
+      return;
+    }
 
     try {
-      final List<Category> list =
-          (await _repo.loadCategories()).cast<Category>();
+      final List<Category> list = _useCacheForBook(normalized)
+          ? (await _cacheRepo.loadCategories(
+                  bookId: normalized, allowDefault: false))
+              .cast<Category>()
+          : (await _repo.loadCategories(bookId: normalized)).cast<Category>();
       _categories
         ..clear()
         ..addAll(list.map(_sanitize));
-      _loaded = true;
+      _activeBookId = normalized;
+      _loadedBooks.add(normalized);
       notifyListeners();
     } catch (e, stackTrace) {
-      ErrorHandler.logError('CategoryProvider.load', e, stackTrace);
-      _loaded = false;
+      ErrorHandler.logError('CategoryProvider.loadForBook', e, stackTrace);
+      _loadedBooks.remove(normalized);
       rethrow;
     }
   }
 
-  /// 重新加载所有分类（强制刷新，用于迁移等场景）
   Future<void> reload() async {
+    await reloadForBook('default-book');
+  }
+
+  Future<void> reloadForBook(String bookId) async {
+    final normalized = _normalizeBookId(bookId);
     try {
-      final List<Category> list =
-          (await _repo.loadCategories()).cast<Category>();
+      final List<Category> list = _useCacheForBook(normalized)
+          ? (await _cacheRepo.loadCategories(
+                  bookId: normalized, allowDefault: false))
+              .cast<Category>()
+          : (await _repo.loadCategories(bookId: normalized)).cast<Category>();
       _categories
         ..clear()
         ..addAll(list.map(_sanitize));
-      _loaded = true;
+      _activeBookId = normalized;
+      _loadedBooks.add(normalized);
       notifyListeners();
     } catch (e, stackTrace) {
-      ErrorHandler.logError('CategoryProvider.reload', e, stackTrace);
-      _loaded = false;
+      ErrorHandler.logError('CategoryProvider.reloadForBook', e, stackTrace);
+      _loadedBooks.remove(normalized);
       rethrow;
     }
   }
 
-  /// 新增分类
   Future<void> addCategory(Category c) async {
     try {
-      final List<Category> list = (await _repo.add(c)).cast<Category>();
+      final bookId = _normalizeBookId(_activeBookId);
+      final List<Category> list = _useCacheForBook(bookId)
+          ? (await _cacheRepo.add(c, bookId: bookId)).cast<Category>()
+          : (await _repo.add(c, bookId: bookId)).cast<Category>();
+      await _cacheRepo.saveCategories(list, bookId: bookId);
       _categories
         ..clear()
         ..addAll(list.map(_sanitize));
-      MetaSyncNotifier.instance.notifyCategoriesChanged();
+      MetaSyncNotifier.instance.notifyCategoriesChanged(bookId);
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('CategoryProvider.addCategory', e, stackTrace);
@@ -78,15 +135,18 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  /// 删除分类
   Future<void> deleteCategory(String key) async {
     try {
-      final List<Category> list = (await _repo.delete(key)).cast<Category>();
-      await CategoryDeleteQueue.instance.enqueue(key);
+      final bookId = _normalizeBookId(_activeBookId);
+      final List<Category> list = _useCacheForBook(bookId)
+          ? (await _cacheRepo.delete(key, bookId: bookId)).cast<Category>()
+          : (await _repo.delete(key, bookId: bookId)).cast<Category>();
+      await CategoryDeleteQueue.instance.enqueue(bookId, key);
+      await _cacheRepo.saveCategories(list, bookId: bookId);
       _categories
         ..clear()
         ..addAll(list.map(_sanitize));
-      MetaSyncNotifier.instance.notifyCategoriesChanged();
+      MetaSyncNotifier.instance.notifyCategoriesChanged(bookId);
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('CategoryProvider.deleteCategory', e, stackTrace);
@@ -94,15 +154,17 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  /// 更新分类（名称 / 图标 / 类型）
   Future<void> updateCategory(Category category) async {
     try {
-      final List<Category> list =
-          (await _repo.update(category)).cast<Category>();
+      final bookId = _normalizeBookId(_activeBookId);
+      final List<Category> list = _useCacheForBook(bookId)
+          ? (await _cacheRepo.update(category, bookId: bookId)).cast<Category>()
+          : (await _repo.update(category, bookId: bookId)).cast<Category>();
+      await _cacheRepo.saveCategories(list, bookId: bookId);
       _categories
         ..clear()
         ..addAll(list.map(_sanitize));
-      MetaSyncNotifier.instance.notifyCategoriesChanged();
+      MetaSyncNotifier.instance.notifyCategoriesChanged(bookId);
       notifyListeners();
     } catch (e, stackTrace) {
       ErrorHandler.logError('CategoryProvider.updateCategory', e, stackTrace);

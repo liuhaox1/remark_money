@@ -23,6 +23,17 @@
     ORDER BY bill_id ASC, sort_order ASC, created_at ASC
   </select>
 
+  <select id="findByBillIdsAllScopes" resultMap="BillTagRelResultMap">
+    SELECT book_id, scope_user_id, bill_id, tag_id, sort_order, created_at
+    FROM bill_tag_rel_user
+    WHERE book_id = #{bookId}
+      AND bill_id IN
+    <foreach collection="billIds" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+    ORDER BY bill_id ASC, sort_order ASC, created_at ASC
+  </select>
+
   <delete id="deleteByBillIdsForScope">
     DELETE FROM bill_tag_rel_user
     WHERE book_id = #{bookId}

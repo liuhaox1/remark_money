@@ -27,6 +27,7 @@ import '../providers/account_provider.dart';
 import '../providers/tag_provider.dart';
 import '../repository/repository_factory.dart';
 import '../services/sync_engine.dart';
+import '../services/background_sync_manager.dart';
 
 import '../utils/date_utils.dart';
 import '../utils/error_handler.dart';
@@ -215,8 +216,10 @@ class _HomePageState extends State<HomePage> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _triggerForegroundSync(reason: 'home_visible');
       _startForegroundSyncTimer();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureMetaReadyForHome();
     });
 
   }
@@ -619,6 +622,24 @@ class _HomePageState extends State<HomePage> {
 
   }
 
+  Future<void> _ensureMetaReadyForHome() async {
+    if (!mounted) return;
+    final bookId = context.read<BookProvider>().activeBookId;
+    if (int.tryParse(bookId) == null) return;
+
+    final categoryProvider = context.read<CategoryProvider>();
+    if (categoryProvider.categories.isNotEmpty) return;
+
+    await SyncEngine().ensureMetaReady(
+      context,
+      bookId,
+      requireCategories: true,
+      requireAccounts: false,
+      requireTags: false,
+      reason: 'home_visible',
+    );
+  }
+
   void _startForegroundSyncTimer() {
     _foregroundSyncTimer?.cancel();
     _foregroundSyncTimer = Timer.periodic(
@@ -638,7 +659,7 @@ class _HomePageState extends State<HomePage> {
     if (int.tryParse(bookId) == null) return;
 
     try {
-      await SyncEngine().syncBookV2(context, bookId, reason: reason);
+      BackgroundSyncManager.instance.requestSync(bookId, reason: reason);
     } catch (_) {}
   }
 

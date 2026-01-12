@@ -280,7 +280,7 @@ class _ProfilePageState extends State<ProfilePage> {
       await bookProvider.load();
       await Future.wait([
         recordProvider.load(),
-        categoryProvider.load(),
+        categoryProvider.loadForBook(bookProvider.activeBookId),
         budgetProvider.load(),
         accountProvider.load(),
         recurringProvider.load(),
@@ -1944,7 +1944,8 @@ class _ProfilePageState extends State<ProfilePage> {
       await Future.wait([
         if (!recordProvider.loaded) recordProvider.load(),
         if (!accountProvider.loaded) accountProvider.load(),
-        if (!categoryProvider.loaded) categoryProvider.load(),
+        if (!categoryProvider.loaded)
+          categoryProvider.loadForBook(bookProvider.activeBookId),
         if (!bookProvider.loaded) bookProvider.load(),
       ]);
 

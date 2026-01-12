@@ -65,7 +65,9 @@ class QaSeedService {
 
     if (!bookProvider.loaded) await bookProvider.load();
     if (!accountProvider.loaded) await accountProvider.load();
-    if (!categoryProvider.loaded) await categoryProvider.load();
+    if (!categoryProvider.loaded) {
+      await categoryProvider.loadForBook(bookProvider.activeBookId);
+    }
     if (!recordProvider.loaded) await recordProvider.load();
 
     // 1) Ensure QA book exists.
@@ -76,6 +78,7 @@ class QaSeedService {
       await bookProvider.selectBook(options.bookId);
     }
 
+    await categoryProvider.loadForBook(options.bookId);
     await tagProvider.loadForBook(options.bookId);
 
     // 2) Accounts: default wallet + a few representative types.

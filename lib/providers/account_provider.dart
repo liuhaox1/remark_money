@@ -32,6 +32,15 @@ class AccountProvider extends ChangeNotifier {
   bool _loaded = false;
   bool get loaded => _loaded;
 
+  bool isLoadedForBook(String bookId) {
+    return _loaded && _loadedBookId == bookId;
+  }
+
+  bool hasAccountsForBook(String bookId) {
+    if (!isLoadedForBook(bookId)) return false;
+    return _accounts.any((a) => a.bookId == bookId);
+  }
+
   /// 确保至少存在一个“默认钱包/现金”账户，并返回它。
   ///
   /// 设计目标：记一笔不打断用户流程（无须先手动创建账户）。
@@ -362,6 +371,7 @@ class AccountProvider extends ChangeNotifier {
     if (index == -1) return;
     final account = _accounts[index];
     await AccountDeleteQueue.instance.enqueue(
+      bookId: bid,
       accountId: account.id,
       serverId: account.serverId,
     );

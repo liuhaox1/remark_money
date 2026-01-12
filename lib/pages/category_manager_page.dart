@@ -33,7 +33,8 @@ class _CategoryManagerPageState extends State<CategoryManagerPage>
     super.initState();
     // 进入页面时强制重新加载分类，确保迁移逻辑执行
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CategoryProvider>().reload();
+      final bookId = context.read<BookProvider>().activeBookId;
+      context.read<CategoryProvider>().reloadForBook(bookId);
       _initEditPermission();
     });
   }

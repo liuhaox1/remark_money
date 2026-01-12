@@ -13,6 +13,10 @@ public interface BillTagRelMapper {
       @Param("scopeUserId") Long scopeUserId,
       @Param("billIds") List<Long> billIds);
 
+  List<BillTagRel> findByBillIdsAllScopes(
+      @Param("bookId") String bookId,
+      @Param("billIds") List<Long> billIds);
+
   int deleteByBillIdsForScope(
       @Param("bookId") String bookId,
       @Param("scopeUserId") Long scopeUserId,

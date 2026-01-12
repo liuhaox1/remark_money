@@ -9,7 +9,7 @@ class CategoryRepositoryDb {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   /// 加载所有分类
-  Future<List<Category>> loadCategories() async {
+  Future<List<Category>> loadCategories({String? bookId, bool allowDefault = true}) async {
     try {
       final db = await _dbHelper.database;
       final maps = await db.query(
@@ -19,8 +19,11 @@ class CategoryRepositoryDb {
 
       if (maps.isEmpty) {
         // 如果没有数据，初始化默认分类
-        await _initializeDefaultCategories(db);
-        return await loadCategories();
+        if (allowDefault) {
+          await _initializeDefaultCategories(db);
+          return await loadCategories(allowDefault: allowDefault);
+        }
+        return <Category>[];
       }
 
       final categories = maps.map((map) => _mapToCategory(map)).toList();
@@ -46,7 +49,7 @@ class CategoryRepositoryDb {
       
       // 如果迁移后有变化，保存更新后的分类
       if (hasChanges || migratedCategories.any((c) => CategoryRepository.needsMigration(c))) {
-        await saveCategories(migratedCategories);
+        await saveCategories(migratedCategories, bookId: bookId);
         return migratedCategories;
       }
       
@@ -59,7 +62,7 @@ class CategoryRepositoryDb {
   }
 
   /// 保存分类列表
-  Future<void> saveCategories(List<Category> categories) async {
+  Future<void> saveCategories(List<Category> categories, {String? bookId}) async {
     try {
       final db = await _dbHelper.database;
       final batch = db.batch();
@@ -98,7 +101,7 @@ class CategoryRepositoryDb {
   }
 
   /// 添加分类
-  Future<List<Category>> add(Category category) async {
+  Future<List<Category>> add(Category category, {String? bookId}) async {
     try {
       final db = await _dbHelper.database;
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -120,7 +123,7 @@ class CategoryRepositoryDb {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
-      return await loadCategories();
+      return await loadCategories(bookId: bookId);
     } catch (e, stackTrace) {
       debugPrint('[CategoryRepositoryDb] add failed: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -129,7 +132,7 @@ class CategoryRepositoryDb {
   }
 
   /// 删除分类
-  Future<List<Category>> delete(String key) async {
+  Future<List<Category>> delete(String key, {String? bookId}) async {
     try {
       final db = await _dbHelper.database;
       await db.delete(
@@ -137,7 +140,7 @@ class CategoryRepositoryDb {
         where: 'key = ?',
         whereArgs: [key],
       );
-      return await loadCategories();
+      return await loadCategories(bookId: bookId);
     } catch (e, stackTrace) {
       debugPrint('[CategoryRepositoryDb] delete failed: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -146,7 +149,7 @@ class CategoryRepositoryDb {
   }
 
   /// 更新分类
-  Future<List<Category>> update(Category category) async {
+  Future<List<Category>> update(Category category, {String? bookId}) async {
     try {
       final db = await _dbHelper.database;
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -167,7 +170,7 @@ class CategoryRepositoryDb {
         whereArgs: [category.key],
       );
 
-      return await loadCategories();
+      return await loadCategories(bookId: bookId);
     } catch (e, stackTrace) {
       debugPrint('[CategoryRepositoryDb] update failed: $e');
       debugPrint('Stack trace: $stackTrace');

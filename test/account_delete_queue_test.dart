@@ -11,29 +11,28 @@ void main() {
   test('enqueue dedupes and merges serverId', () async {
     final queue = AccountDeleteQueue.instance;
 
-    await queue.enqueue(accountId: 'a1');
-    var list = await queue.load();
+    await queue.enqueue(bookId: 'default-book', accountId: 'a1');
+    var list = await queue.loadForBook('default-book');
     expect(list.length, 1);
     expect(list.first['id'], 'a1');
     expect(list.first.containsKey('serverId'), isFalse);
 
-    await queue.enqueue(accountId: 'a1', serverId: 12);
-    list = await queue.load();
+    await queue.enqueue(bookId: 'default-book', accountId: 'a1', serverId: 12);
+    list = await queue.loadForBook('default-book');
     expect(list.length, 1);
     expect(list.first['id'], 'a1');
     expect(list.first['serverId'], 12);
 
-    await queue.enqueue(accountId: 'a1', serverId: 12);
-    list = await queue.load();
+    await queue.enqueue(bookId: 'default-book', accountId: 'a1', serverId: 12);
+    list = await queue.loadForBook('default-book');
     expect(list.length, 1);
   });
 
   test('clear removes queue', () async {
     final queue = AccountDeleteQueue.instance;
-    await queue.enqueue(accountId: 'a1', serverId: 1);
-    expect((await queue.load()).length, 1);
+    await queue.enqueue(bookId: 'default-book', accountId: 'a1', serverId: 1);
+    expect((await queue.loadForBook('default-book')).length, 1);
     await queue.clear();
-    expect((await queue.load()).length, 0);
+    expect((await queue.loadForBook('default-book')).length, 0);
   });
 }
-

@@ -75,7 +75,7 @@ Future<void> main() async {
   await bookProvider.load();
   await Future.wait([
     recordProvider.load(),
-    categoryProvider.load(),
+    categoryProvider.loadForBook(bookProvider.activeBookId),
     budgetProvider.load(),
     accountProvider.loadForBook(bookProvider.activeBookId),
     recurringRecordProvider.load(),
