@@ -12,6 +12,7 @@ import '../repository/category_repository.dart';
 import '../services/speech_service.dart';
 import '../services/voice_category_alias_service.dart';
 import '../services/voice_record_parser.dart';
+import '../services/sync_engine.dart';
 import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../widgets/number_pad_sheet.dart';
@@ -39,6 +40,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
   String _statusText = '先说一句话（可多句），识别成文字后点击“发送”解析';
   String? _initError;
   List<_VoiceDraftItem> _drafts = const [];
+  bool _ensuringMeta = false;
 
   @override
   void initState() {
@@ -141,6 +143,10 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
       return;
     }
 
+    final bookId = context.read<BookProvider>().activeBookId;
+    final ready = await _ensureMetaReadyForBook(bookId);
+    if (!ready || !mounted) return;
+
     final parsed = VoiceRecordParser.parseMany(text);
     if (!mounted) return;
     if (parsed.isEmpty) {
@@ -154,7 +160,6 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
 
     final categoryProvider = context.read<CategoryProvider>();
     final categories = categoryProvider.categories;
-    final bookId = context.read<BookProvider>().activeBookId;
     final accountProvider = context.read<AccountProvider>();
     final aliases = await VoiceCategoryAliasService.instance.loadAliases(bookId);
 
@@ -193,6 +198,72 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
         if (!mounted || _drafts.isEmpty) return;
         _editDraft(0);
       });
+    }
+  }
+
+  Future<bool> _ensureMetaReadyForBook(String bookId) async {
+    if (_ensuringMeta) return false;
+    if (int.tryParse(bookId) == null) return true;
+
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final needs =
+        categoryProvider.categories.isEmpty ||
+        accountProvider.accounts.where((a) => a.bookId == bookId).isEmpty;
+    if (!needs) return true;
+
+    _ensuringMeta = true;
+    try {
+      await _runBlockingMetaSync('正在同步账本数据...', () async {
+        final ok = await SyncEngine().ensureMetaReady(
+          context,
+          bookId,
+          requireCategories: true,
+          requireAccounts: true,
+          requireTags: false,
+          reason: 'meta_ensure',
+        );
+        if (!ok && mounted) {
+          ErrorHandler.showError(context, '同步失败，请稍后重试');
+        }
+      });
+      if (!mounted) return false;
+      return true;
+    } finally {
+      _ensuringMeta = false;
+    }
+  }
+
+  Future<void> _runBlockingMetaSync(
+    String message,
+    Future<void> Function() action,
+  ) async {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
     }
   }
 

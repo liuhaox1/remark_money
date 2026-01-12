@@ -11,6 +11,7 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/recurring_record_provider.dart';
 import '../providers/tag_provider.dart';
+import '../services/sync_engine.dart';
 import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../widgets/number_pad_sheet.dart';
@@ -40,6 +41,7 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
   String? _selectedCategoryKey;
   String? _selectedAccountId;
   List<String> _selectedTagIds = <String>[];
+  bool _ensuringMeta = false;
 
   @override
   void initState() {
@@ -67,7 +69,6 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
     _didInit = true;
 
     final bookId = context.read<BookProvider>().activeBookId;
-    context.read<TagProvider>().loadForBook(bookId);
 
     final plan = widget.plan;
     if (plan != null) {
@@ -81,16 +82,84 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
       _selectedTagIds = List<String>.from(plan.tagIds);
       _amountCtrl.text = plan.amount == 0 ? '' : plan.amount.toStringAsFixed(2);
       _remarkCtrl.text = plan.remark;
-      return;
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      await _ensureMetaReadyForBook(bookId);
+      if (!mounted) return;
+      await context.read<TagProvider>().loadForBook(bookId);
+      if (!mounted) return;
+      if (plan != null) return;
       final accountProvider = context.read<AccountProvider>();
       final wallet = await accountProvider.ensureDefaultWallet(bookId: bookId);
       if (!mounted) return;
       setState(() => _selectedAccountId = wallet.id);
     });
+  }
+
+  Future<void> _ensureMetaReadyForBook(String bookId) async {
+    if (_ensuringMeta) return;
+    if (int.tryParse(bookId) == null) return;
+
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final needs =
+        categoryProvider.categories.isEmpty ||
+        accountProvider.accounts.where((a) => a.bookId == bookId).isEmpty;
+    if (!needs) return;
+
+    _ensuringMeta = true;
+    try {
+      await _runBlockingMetaSync('æ­£åœ¨åŒæ­¥è´¦æœ¬æ•°æ®...', () async {
+        final ok = await SyncEngine().ensureMetaReady(
+          context,
+          bookId,
+          requireCategories: true,
+          requireAccounts: true,
+          requireTags: false,
+          reason: 'meta_ensure',
+        );
+        if (!ok && mounted) {
+          ErrorHandler.showError(context, 'åŒæ­¥å¤±è´¥ï¼Œè¯·ç¨åŽé‡è¯•');
+        }
+      });
+    } finally {
+      _ensuringMeta = false;
+    }
+  }
+
+  Future<void> _runBlockingMetaSync(
+    String message,
+    Future<void> Function() action,
+  ) async {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
   }
 
   Future<void> _openCategoryPicker() async {

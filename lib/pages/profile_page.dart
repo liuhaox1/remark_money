@@ -633,6 +633,36 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _runBlockingTask(String message, Future<void> Function() action) async {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+  }
+
   Future<void> _joinBookByCodeStub(String code) async {
     final bookService = BookService();
     try {
@@ -648,7 +678,11 @@ class _ProfilePageState extends State<ProfilePage> {
         if (inviteCode.isNotEmpty) {
           await BookInviteCodeStore.instance.setInviteCode(serverBookId, inviteCode);
         }
-        await SyncEngine().forceBootstrapV2(context, serverBookId);
+        await _runBlockingTask('æ­£åœ¨åŒæ­¥è´¦æœ¬æ•°æ®...', () async {
+          await SyncEngine().forceBootstrapV2(context, serverBookId);
+          await context.read<TagProvider>().loadForBook(serverBookId);
+          await context.read<AccountProvider>().loadForBook(serverBookId, force: true);
+        });
       }
       if (!mounted) return;
       ErrorHandler.showSuccess(context, '已成功加入账本');

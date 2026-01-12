@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 
 import 'package:flutter/material.dart';
@@ -24,6 +26,7 @@ import '../providers/record_provider.dart';
 import '../providers/account_provider.dart';
 import '../providers/tag_provider.dart';
 import '../repository/repository_factory.dart';
+import '../services/sync_engine.dart';
 
 import '../utils/date_utils.dart';
 import '../utils/error_handler.dart';
@@ -172,6 +175,8 @@ class _HomePageState extends State<HomePage> {
   int _monthStatsRequestSeq = 0;
   bool _monthStatsLoading = false;
   RecordProvider? _recordProviderListener;
+  Timer? _foregroundSyncTimer;
+  int _lastForegroundSyncMs = 0;
 
   // 添加缓存来存储每天的统计信息
 
@@ -207,6 +212,11 @@ class _HomePageState extends State<HomePage> {
     // 异步加载月份统计数据
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadMonthStats();
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _triggerForegroundSync(reason: 'home_visible');
+      _startForegroundSyncTimer();
     });
 
   }
@@ -594,6 +604,8 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _recordProviderListener?.removeListener(_handleRecordProviderChanged);
     _recordProviderListener = null;
+    _foregroundSyncTimer?.cancel();
+    _foregroundSyncTimer = null;
 
     _searchFocusNode.removeListener(_handleSearchFocusChange);
 
@@ -605,6 +617,29 @@ class _HomePageState extends State<HomePage> {
 
     super.dispose();
 
+  }
+
+  void _startForegroundSyncTimer() {
+    _foregroundSyncTimer?.cancel();
+    _foregroundSyncTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _triggerForegroundSync(reason: 'foreground_poll'),
+    );
+  }
+
+  Future<void> _triggerForegroundSync({required String reason}) async {
+    if (!mounted) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastForegroundSyncMs < 30 * 1000) return;
+    _lastForegroundSyncMs = now;
+
+    final bookId = context.read<BookProvider>().activeBookId;
+    if (bookId.isEmpty) return;
+    if (int.tryParse(bookId) == null) return;
+
+    try {
+      await SyncEngine().syncBookV2(context, bookId, reason: reason);
+    } catch (_) {}
   }
 
 

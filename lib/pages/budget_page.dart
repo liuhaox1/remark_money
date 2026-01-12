@@ -11,6 +11,7 @@ import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../theme/app_tokens.dart';
+import '../services/sync_engine.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
 import '../utils/text_style_extensions.dart';
@@ -40,6 +41,8 @@ class _BudgetPageState extends State<BudgetPage>
   bool _savingYearTotal = false;
 
   TabController? _tabController;
+  bool _metaEnsured = false;
+  bool _ensuringMeta = false;
 
   String? _viewDataKey;
   Future<Map<String, _BudgetViewData>>? _viewDataFuture;
@@ -61,6 +64,75 @@ class _BudgetPageState extends State<BudgetPage>
     }
     _tabController ??=
         TabController(length: 2, vsync: this, initialIndex: _initialTabIndex);
+
+    if (!_metaEnsured) {
+      _metaEnsured = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final bookId = context.read<BookProvider>().activeBookId;
+        await _ensureMetaReadyForBook(bookId);
+      });
+    }
+  }
+
+  Future<void> _ensureMetaReadyForBook(String bookId) async {
+    if (_ensuringMeta) return;
+    if (int.tryParse(bookId) == null) return;
+
+    final categoryProvider = context.read<CategoryProvider>();
+    if (categoryProvider.categories.isNotEmpty) return;
+
+    _ensuringMeta = true;
+    try {
+      await _runBlockingMetaSync('æ­£åœ¨åŒæ­¥è´¦æœ¬æ•°æ®...', () async {
+        final ok = await SyncEngine().ensureMetaReady(
+          context,
+          bookId,
+          requireCategories: true,
+          requireAccounts: false,
+          requireTags: false,
+          reason: 'meta_ensure',
+        );
+        if (!ok && mounted) {
+          ErrorHandler.showError(context, 'åŒæ­¥å¤±è´¥ï¼Œè¯·ç¨åŽé‡è¯•');
+        }
+      });
+    } finally {
+      _ensuringMeta = false;
+    }
+  }
+
+  Future<void> _runBlockingMetaSync(
+    String message,
+    Future<void> Function() action,
+  ) async {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
   }
 
   @override

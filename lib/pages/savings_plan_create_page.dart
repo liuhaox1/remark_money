@@ -9,6 +9,8 @@ import '../models/savings_plan.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../repository/savings_plan_repository.dart';
+import '../services/sync_engine.dart';
+import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 
 class SavingsPlanCreatePage extends StatefulWidget {
@@ -37,6 +39,7 @@ class _SavingsPlanCreatePageState extends State<SavingsPlanCreatePage> {
   final _weeklyAmountCtrl = TextEditingController();
 
   bool _saving = false;
+  bool _ensuringMeta = false;
 
   @override
   void dispose() {
@@ -57,8 +60,11 @@ class _SavingsPlanCreatePageState extends State<SavingsPlanCreatePage> {
   void initState() {
     super.initState();
     _type = widget.initialType;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      final bookId = context.read<BookProvider>().activeBookId;
+      final ok = await _ensureMetaReadyForBook(bookId);
+      if (!ok || !mounted) return;
       final accounts = context.read<AccountProvider>().accounts;
       String? firstId;
       for (final a in accounts) {
@@ -72,6 +78,34 @@ class _SavingsPlanCreatePageState extends State<SavingsPlanCreatePage> {
         setState(() => _depositAccountId = firstId);
       }
     });
+  }
+
+  Future<bool> _ensureMetaReadyForBook(String bookId) async {
+    if (_ensuringMeta) return false;
+    if (int.tryParse(bookId) == null) return true;
+
+    final accountProvider = context.read<AccountProvider>();
+    if (accountProvider.accounts.where((a) => a.bookId == bookId).isNotEmpty) {
+      return true;
+    }
+
+    _ensuringMeta = true;
+    try {
+      final ok = await SyncEngine().ensureMetaReady(
+        context,
+        bookId,
+        requireCategories: false,
+        requireAccounts: true,
+        requireTags: false,
+        reason: 'meta_ensure',
+      );
+      if (!ok && mounted) {
+        ErrorHandler.showError(context, 'åŒæ­¥å¤±è´¥ï¼Œè¯·ç¨åŽé‡è¯•');
+      }
+      return ok;
+    } finally {
+      _ensuringMeta = false;
+    }
   }
 
   Future<void> _pickEndDate() async {

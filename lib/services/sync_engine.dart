@@ -328,6 +328,72 @@ class SyncEngine {
 
   /// 同步“元数据”（预算/账户等低频数据）。
   /// 设计为低频触发：登录后、前台唤醒、进入资产页等场景。
+  Future<bool> ensureMetaReady(
+    BuildContext context,
+    String bookId, {
+    bool requireCategories = true,
+    bool requireAccounts = true,
+    bool requireTags = false,
+    String reason = 'meta_ensure',
+  }) async {
+    if (!context.mounted) return false;
+
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final tagProvider = context.read<TagProvider>();
+
+    final isServerBook = int.tryParse(bookId) != null;
+    final forceCategoryRefresh = requireCategories && isServerBook;
+    final hasCategories =
+        !requireCategories ||
+        (!forceCategoryRefresh && categoryProvider.categories.isNotEmpty);
+    final hasAccounts =
+        !requireAccounts ||
+        accountProvider.accounts.any((a) => a.bookId == bookId);
+    final hasTags =
+        !requireTags || tagProvider.tags.any((t) => t.bookId == bookId);
+
+    if (hasCategories && hasAccounts && hasTags) return true;
+
+    final needsCategories = requireCategories && (!hasCategories || forceCategoryRefresh);
+    final needsAccounts = requireAccounts && !hasAccounts;
+    final needsTags = requireTags && !hasTags;
+
+    bool ok = true;
+    if (needsCategories && !needsAccounts && !needsTags) {
+      await _syncCategories(categoryProvider, bookId, reason: reason);
+    } else {
+      ok = await syncMeta(context, bookId, reason: reason);
+    }
+    if (!ok || !context.mounted) return false;
+
+    if (requireAccounts) {
+      try {
+        await accountProvider.loadForBook(bookId, force: true);
+      } catch (_) {}
+    }
+    if (requireTags) {
+      try {
+        await tagProvider.loadForBook(bookId);
+      } catch (_) {}
+    }
+    if (requireCategories && categoryProvider.categories.isEmpty) {
+      try {
+        await categoryProvider.reload();
+      } catch (_) {}
+    }
+
+    final readyCategories =
+        !requireCategories || categoryProvider.categories.isNotEmpty;
+    final readyAccounts =
+        !requireAccounts ||
+        accountProvider.accounts.any((a) => a.bookId == bookId);
+    final readyTags =
+        !requireTags || tagProvider.tags.any((t) => t.bookId == bookId);
+
+    return readyCategories && readyAccounts && readyTags;
+  }
+
   Future<bool> syncMeta(
     BuildContext context,
     String bookId, {
@@ -439,6 +505,23 @@ class SyncEngine {
             return true;
           }
           final error = uploadOnly.error ?? '';
+          if (error.contains('permission denied')) {
+            final download = await _syncService.downloadCategories(bookId: bookId);
+            if (download.success && download.categories != null) {
+              final remote = (download.categories ?? const [])
+                  .map((m) => (m as Map).cast<String, dynamic>())
+                  .toList(growable: false);
+              final remoteCats =
+                  remote.map(Category.fromMap).toList(growable: false);
+              await repo.saveCategories(remoteCats);
+              if (categoryProvider != null) {
+                try {
+                  categoryProvider.replaceFromCloud(remoteCats);
+                } catch (_) {}
+              }
+              return true;
+            }
+          }
           final shouldFallback = error.contains('missing syncVersion') ||
               error.contains('conflict');
           if (!shouldFallback) {
@@ -516,6 +599,10 @@ class SyncEngine {
         final authoritative = upload.success && upload.categories != null
             ? upload.categories!
             : (download.categories ?? const []);
+        if (!upload.success &&
+            (upload.error ?? '').contains('permission denied')) {
+          await CategoryDeleteQueue.instance.clear();
+        }
         final remote2 = (authoritative)
             .map((m) => (m as Map).cast<String, dynamic>())
             .toList(growable: false);

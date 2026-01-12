@@ -17,6 +17,7 @@ import '../utils/date_utils.dart';
 import '../utils/category_name_helper.dart';
 import '../utils/validators.dart';
 import '../utils/error_handler.dart';
+import '../services/sync_engine.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../widgets/tag_picker_bottom_sheet.dart';
 import '../repository/category_repository.dart';
@@ -68,6 +69,8 @@ class _AddRecordPageState extends State<AddRecordPage> {
       RepositoryFactory.createRecordTemplateRepository();
 
   List<RecordTemplate> _templates = const [];
+  String? _metaEnsuredBookId;
+  bool _ensuringMeta = false;
 
   @override
   void initState() {
@@ -94,6 +97,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
       final bookId = context.read<BookProvider>().activeBookId;
       final tagProvider = context.read<TagProvider>();
       await tagProvider.loadForBook(bookId);
+      await _ensureMultiBookMeta(bookId);
       if (!mounted) return;
       final initial = widget.initialRecord;
       if (initial != null) {
@@ -104,6 +108,76 @@ class _AddRecordPageState extends State<AddRecordPage> {
         } catch (_) {}
       }
     });
+  }
+
+  Future<void> _ensureMultiBookMeta(String bookId) async {
+    if (_metaEnsuredBookId == bookId || _ensuringMeta) return;
+    if (int.tryParse(bookId) == null) {
+      _metaEnsuredBookId = bookId;
+      return;
+    }
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    if (categoryProvider.categories.isNotEmpty &&
+        accountProvider.accounts.where((a) => a.bookId == bookId).isNotEmpty) {
+      _metaEnsuredBookId = bookId;
+      return;
+    }
+    _ensuringMeta = true;
+    try {
+      await _runBlockingMetaSync('æ­£åœ¨åŒæ­¥è´¦æœ¬æ•°æ®...', () async {
+        final ok = await SyncEngine().ensureMetaReady(
+          context,
+          bookId,
+          requireCategories: true,
+          requireAccounts: true,
+          requireTags: false,
+          reason: 'meta_ensure',
+        );
+        if (!ok && mounted) {
+          ErrorHandler.showError(context, 'åŒæ­¥å¤±è´¥ï¼Œè¯·ç¨åŽé‡è¯•');
+        }
+      });
+      if (!mounted) return;
+      setState(() {
+        _metaEnsuredBookId = bookId;
+      });
+    } finally {
+      _ensuringMeta = false;
+    }
+  }
+
+  Future<void> _runBlockingMetaSync(
+    String message,
+    Future<void> Function() action,
+  ) async {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
   }
 
   @override

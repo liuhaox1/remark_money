@@ -15,6 +15,7 @@ import '../services/background_sync_manager.dart';
 import '../services/app_settings_service.dart';
 import '../services/recurring_record_runner.dart';
 import '../services/book_service.dart';
+import '../services/sync_engine.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo_avatar.dart';
 import '../widgets/account_select_bottom_sheet.dart';
@@ -173,6 +174,16 @@ class _RootShellState extends State<RootShell> {
         if (!mounted) return;
         setState(() => _reloadingBook = true);
         try {
+          if (int.tryParse(activeBookId) != null) {
+            await SyncEngine().ensureMetaReady(
+              context,
+              activeBookId,
+              requireCategories: true,
+              requireAccounts: false,
+              requireTags: false,
+              reason: 'book_switched',
+            );
+          }
           await Future.wait([
             context.read<TagProvider>().loadForBook(activeBookId),
             context.read<AccountProvider>().loadForBook(activeBookId),

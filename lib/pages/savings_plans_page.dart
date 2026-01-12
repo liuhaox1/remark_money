@@ -12,6 +12,8 @@ import '../models/savings_plan.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../repository/savings_plan_repository.dart';
+import '../services/sync_engine.dart';
+import '../utils/error_handler.dart';
 import 'savings_plan_create_page.dart';
 import 'savings_plan_detail_page.dart';
 
@@ -29,6 +31,7 @@ class _SavingsPlansPageState extends State<SavingsPlansPage>
   List<SavingsPlan> _plans = const [];
   late final TabController _tabController;
   SavingsPlanType? _typeFilter;
+  bool _ensuringMeta = false;
 
   @override
   void initState() {
@@ -47,6 +50,11 @@ class _SavingsPlansPageState extends State<SavingsPlansPage>
     final bookId = context.read<BookProvider>().activeBookId;
     setState(() => _loading = true);
     try {
+      final ok = await _ensureMetaReadyForBook(bookId);
+      if (!ok || !mounted) {
+        setState(() => _loading = false);
+        return;
+      }
       final list = await _repo.loadPlans(bookId: bookId);
       if (!mounted) return;
       setState(() {
@@ -56,6 +64,34 @@ class _SavingsPlansPageState extends State<SavingsPlansPage>
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
+    }
+  }
+
+  Future<bool> _ensureMetaReadyForBook(String bookId) async {
+    if (_ensuringMeta) return false;
+    if (int.tryParse(bookId) == null) return true;
+
+    final accountProvider = context.read<AccountProvider>();
+    if (accountProvider.accounts.where((a) => a.bookId == bookId).isNotEmpty) {
+      return true;
+    }
+
+    _ensuringMeta = true;
+    try {
+      final ok = await SyncEngine().ensureMetaReady(
+        context,
+        bookId,
+        requireCategories: false,
+        requireAccounts: true,
+        requireTags: false,
+        reason: 'meta_ensure',
+      );
+      if (!ok && mounted) {
+        ErrorHandler.showError(context, 'åŒæ­¥å¤±è´¥ï¼Œè¯·ç¨åŽé‡è¯•');
+      }
+      return ok;
+    } finally {
+      _ensuringMeta = false;
     }
   }
 

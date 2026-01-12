@@ -10,6 +10,8 @@ import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/record_provider.dart';
 import '../repository/savings_plan_repository.dart';
+import '../services/sync_engine.dart';
+import '../utils/error_handler.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../widgets/week_strip.dart';
 
@@ -28,6 +30,7 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
   bool _loading = true;
   List<Record> _records = const [];
   DateTime _selectedDay = DateTime.now();
+  bool _ensuringMeta = false;
 
   @override
   void initState() {
@@ -39,6 +42,11 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
     final bookId = context.read<BookProvider>().activeBookId;
     setState(() => _loading = true);
     try {
+      final ok = await _ensureMetaReadyForBook(bookId);
+      if (!ok || !mounted) {
+        setState(() => _loading = false);
+        return;
+      }
       final plans = await _repo.loadPlans(bookId: bookId);
       final plan = plans.firstWhere((p) => p.id == widget.planId);
       final recordProvider = context.read<RecordProvider>();
@@ -59,6 +67,34 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
+    }
+  }
+
+  Future<bool> _ensureMetaReadyForBook(String bookId) async {
+    if (_ensuringMeta) return false;
+    if (int.tryParse(bookId) == null) return true;
+
+    final accountProvider = context.read<AccountProvider>();
+    if (accountProvider.accounts.where((a) => a.bookId == bookId).isNotEmpty) {
+      return true;
+    }
+
+    _ensuringMeta = true;
+    try {
+      final ok = await SyncEngine().ensureMetaReady(
+        context,
+        bookId,
+        requireCategories: false,
+        requireAccounts: true,
+        requireTags: false,
+        reason: 'meta_ensure',
+      );
+      if (!ok && mounted) {
+        ErrorHandler.showError(context, 'åŒæ­¥å¤±è´¥ï¼Œè¯·ç¨åŽé‡è¯•');
+      }
+      return ok;
+    } finally {
+      _ensuringMeta = false;
     }
   }
 
