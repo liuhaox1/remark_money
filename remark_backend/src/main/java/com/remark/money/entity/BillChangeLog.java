@@ -6,6 +6,7 @@ public class BillChangeLog {
   private Long changeId;
   private String bookId;
   private Long scopeUserId;
+  private Long actorUserId;
   private Long billId;
   private Integer op; // 0=upsert,1=delete
   private Long billVersion;
@@ -15,8 +16,13 @@ public class BillChangeLog {
   }
 
   public BillChangeLog(String bookId, Long scopeUserId, Long billId, Integer op, Long billVersion) {
+    this(bookId, scopeUserId, billId, op, billVersion, 0L);
+  }
+
+  public BillChangeLog(String bookId, Long scopeUserId, Long billId, Integer op, Long billVersion, Long actorUserId) {
     this.bookId = bookId;
     this.scopeUserId = scopeUserId;
+    this.actorUserId = actorUserId;
     this.billId = billId;
     this.op = op;
     this.billVersion = billVersion;
@@ -44,6 +50,14 @@ public class BillChangeLog {
 
   public void setScopeUserId(Long scopeUserId) {
     this.scopeUserId = scopeUserId;
+  }
+
+  public Long getActorUserId() {
+    return actorUserId;
+  }
+
+  public void setActorUserId(Long actorUserId) {
+    this.actorUserId = actorUserId;
   }
 
   public Long getBillId() {

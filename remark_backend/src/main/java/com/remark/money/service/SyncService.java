@@ -43,17 +43,55 @@ public class SyncService {
   private static final String DEFAULT_WALLET_NAME = "默认钱包";
   private static final String DEFAULT_BOOK_ID = "default-book";
 
-  private String normalizeBookId(String bookIdRaw) {
-    if (bookIdRaw == null) return DEFAULT_BOOK_ID;
-    String s = bookIdRaw.trim();
-    return s.isEmpty() ? DEFAULT_BOOK_ID : s;
-  }
+	  private String requireBookId(String bookIdRaw) {
+	    if (bookIdRaw == null) throw new IllegalArgumentException("missing bookId");
+	    String s = bookIdRaw.trim();
+	    if (s.isEmpty()) throw new IllegalArgumentException("missing bookId");
+	    return s;
+	  }
 
-  private String defaultWalletAccountIdForBook(String bookIdRaw) {
-    String bookId = normalizeBookId(bookIdRaw);
-    if (DEFAULT_BOOK_ID.equals(bookId)) return DEFAULT_WALLET_ACCOUNT_ID;
-    return DEFAULT_WALLET_ACCOUNT_ID + "_" + bookId;
-  }
+	  private static class ServerBookAccess {
+	    final boolean isServerBook;
+	    final boolean ok;
+	    final String error;
+	    final Book book;
+
+	    ServerBookAccess(boolean isServerBook, boolean ok, String error, Book book) {
+	      this.isServerBook = isServerBook;
+	      this.ok = ok;
+	      this.error = error;
+	      this.book = book;
+	    }
+	  }
+
+	  /**
+	   * If bookId is numeric and exists in {@code book} table, require active membership.
+	   * Non-numeric bookIds are treated as local/personal scopes (no server membership to check).
+	   */
+	  private ServerBookAccess checkServerBookAccess(Long userId, String bookIdRaw) {
+	    final String bookId = requireBookId(bookIdRaw);
+	    final Long bid;
+	    try {
+	      bid = Long.parseLong(bookId);
+	    } catch (NumberFormatException e) {
+	      return new ServerBookAccess(false, true, null, null);
+	    }
+	    Book book = bookMapper.findById(bid);
+	    if (book == null) {
+	      return new ServerBookAccess(true, false, "book not found", null);
+	    }
+	    BookMember member = bookMemberMapper.find(bid, userId);
+	    if (member == null || member.getStatus() == null || member.getStatus() != 1) {
+	      return new ServerBookAccess(true, false, "no permission", book);
+	    }
+	    return new ServerBookAccess(true, true, null, book);
+	  }
+
+	  private String defaultWalletAccountIdForBook(String bookIdRaw) {
+	    String bookId = requireBookId(bookIdRaw);
+	    if (DEFAULT_BOOK_ID.equals(bookId)) return DEFAULT_WALLET_ACCOUNT_ID;
+	    return DEFAULT_WALLET_ACCOUNT_ID + "_" + bookId;
+	  }
 
   private static class EffectiveBookScope {
     final Long effectiveUserId;
@@ -68,7 +106,7 @@ public class SyncService {
 
   private EffectiveBookScope resolveEffectiveBookScopeForAccounts(
       Long userId, String bookIdRaw, boolean requireOwnerForWrite) {
-    String bookId = normalizeBookId(bookIdRaw);
+    String bookId = requireBookId(bookIdRaw);
     // Non-server book ids (e.g. default-book or local UUID) are treated as personal scope.
     Long effectiveUserId = userId;
     boolean isMulti = false;
@@ -248,7 +286,7 @@ public class SyncService {
    */
   @Transactional
   public AccountSyncResult uploadAccounts(Long userId, List<AccountInfo> accounts) {
-    return uploadAccounts(userId, DEFAULT_BOOK_ID, accounts);
+    throw new IllegalArgumentException("missing bookId");
   }
 
   @Transactional
@@ -363,7 +401,7 @@ public class SyncService {
    * 下载账户数据
    */
   public AccountSyncResult downloadAccounts(Long userId) {
-    return downloadAccounts(userId, DEFAULT_BOOK_ID);
+    throw new IllegalArgumentException("missing bookId");
   }
 
   public AccountSyncResult downloadAccounts(Long userId, String bookIdRaw) {
@@ -384,7 +422,7 @@ public class SyncService {
 
   @Transactional
   public AccountSyncResult deleteAccounts(Long userId, List<Long> serverIds, List<String> accountIds) {
-    return deleteAccounts(userId, DEFAULT_BOOK_ID, serverIds, accountIds);
+    throw new IllegalArgumentException("missing bookId");
   }
 
   @Transactional
@@ -422,28 +460,36 @@ public class SyncService {
   }
 
   @Transactional
-  public BudgetSyncResult uploadBudget(Long userId, String bookId, BudgetInfo budget) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError.isError()) {
-      return BudgetSyncResult.error(permissionError.getMessage());
-    }
-    if (bookId == null || bookId.trim().isEmpty()) {
-      return BudgetSyncResult.error("missing bookId");
-    }
-    if (budget == null) {
-      return BudgetSyncResult.error("missing budget");
-    }
-    budget.setUserId(userId);
-    budget.setBookId(bookId);
-    if (budget.getTotal() == null) budget.setTotal(BigDecimal.ZERO);
-    if (budget.getAnnualTotal() == null) budget.setAnnualTotal(BigDecimal.ZERO);
-    if (budget.getPeriodStartDay() == null) budget.setPeriodStartDay(1);
+	  public BudgetSyncResult uploadBudget(Long userId, String bookId, BudgetInfo budget) {
+	    ErrorCode permissionError = checkSyncPermission(userId);
+	    if (permissionError.isError()) {
+	      return BudgetSyncResult.error(permissionError.getMessage());
+	    }
+	    final String bid = (bookId == null) ? null : bookId.trim();
+	    if (bid == null || bid.isEmpty()) return BudgetSyncResult.error("missing bookId");
 
-    BudgetInfo existing = budgetInfoMapper.findByUserIdAndBookId(userId, bookId);
-    if (existing == null) {
-      budgetInfoMapper.insertNew(budget);
-      return BudgetSyncResult.success();
-    }
+	    final ServerBookAccess access = checkServerBookAccess(userId, bid);
+	    if (!access.ok) return BudgetSyncResult.error(access.error);
+
+	    // Shared (multi-member) server book budgets are book-scoped, not per-member.
+	    final Long effectiveUserId =
+	        access.book != null && Boolean.TRUE.equals(access.book.getIsMulti()) && access.book.getOwnerId() != null
+	            ? access.book.getOwnerId()
+	            : userId;
+	    if (budget == null) {
+	      return BudgetSyncResult.error("missing budget");
+	    }
+	    budget.setUserId(effectiveUserId);
+	    budget.setBookId(bid);
+	    if (budget.getTotal() == null) budget.setTotal(BigDecimal.ZERO);
+	    if (budget.getAnnualTotal() == null) budget.setAnnualTotal(BigDecimal.ZERO);
+	    if (budget.getPeriodStartDay() == null) budget.setPeriodStartDay(1);
+
+	    BudgetInfo existing = budgetInfoMapper.findByUserIdAndBookId(effectiveUserId, bid);
+	    if (existing == null) {
+	      budgetInfoMapper.insertNew(budget);
+	      return BudgetSyncResult.success();
+	    }
 
     // Use server monotonic sync_version to avoid client clock drift (optimistic concurrency).
     if (budget.getSyncVersion() == null) {
@@ -464,32 +510,41 @@ public class SyncService {
     return BudgetSyncResult.success();
   }
 
-  public BudgetSyncResult downloadBudget(Long userId, String bookId) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError.isError()) {
-      return BudgetSyncResult.error(permissionError.getMessage());
-    }
-    if (bookId == null || bookId.trim().isEmpty()) {
-      return BudgetSyncResult.error("missing bookId");
-    }
-    BudgetInfo budget = budgetInfoMapper.findByUserIdAndBookId(userId, bookId);
-    return BudgetSyncResult.success(budget);
-  }
+	  public BudgetSyncResult downloadBudget(Long userId, String bookId) {
+	    ErrorCode permissionError = checkSyncPermission(userId);
+	    if (permissionError.isError()) {
+	      return BudgetSyncResult.error(permissionError.getMessage());
+	    }
+	    final String bid = (bookId == null) ? null : bookId.trim();
+	    if (bid == null || bid.isEmpty()) return BudgetSyncResult.error("missing bookId");
+
+	    final ServerBookAccess access = checkServerBookAccess(userId, bid);
+	    if (!access.ok) return BudgetSyncResult.error(access.error);
+
+	    final Long effectiveUserId =
+	        access.book != null && Boolean.TRUE.equals(access.book.getIsMulti()) && access.book.getOwnerId() != null
+	            ? access.book.getOwnerId()
+	            : userId;
+	    BudgetInfo budget = budgetInfoMapper.findByUserIdAndBookId(effectiveUserId, bid);
+	    return BudgetSyncResult.success(budget);
+	  }
 
   @Transactional
-  public SavingsPlanSyncResult uploadSavingsPlans(
-      Long userId, String bookId, List<SavingsPlanInfo> plans, List<String> deletedPlanIds) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError.isError()) {
-      return SavingsPlanSyncResult.error(permissionError.getMessage());
-    }
-    if (bookId == null || bookId.trim().isEmpty()) {
-      return SavingsPlanSyncResult.error("missing bookId");
-    }
+	  public SavingsPlanSyncResult uploadSavingsPlans(
+	      Long userId, String bookId, List<SavingsPlanInfo> plans, List<String> deletedPlanIds) {
+	    ErrorCode permissionError = checkSyncPermission(userId);
+	    if (permissionError.isError()) {
+	      return SavingsPlanSyncResult.error(permissionError.getMessage());
+	    }
+	    if (bookId == null || bookId.trim().isEmpty()) {
+	      return SavingsPlanSyncResult.error("missing bookId");
+	    }
+	    final ServerBookAccess access = checkServerBookAccess(userId, bookId);
+	    if (!access.ok) return SavingsPlanSyncResult.error(access.error);
 
-    if (deletedPlanIds != null) {
-      for (String pid : deletedPlanIds) {
-        if (pid == null || pid.trim().isEmpty()) continue;
+	    if (deletedPlanIds != null) {
+	      for (String pid : deletedPlanIds) {
+	        if (pid == null || pid.trim().isEmpty()) continue;
         savingsPlanInfoMapper.softDeleteByPlanId(userId, bookId, pid.trim());
       }
     }
@@ -559,32 +614,39 @@ public class SyncService {
         savingsPlanInfoMapper.findAllByUserIdAndBookId(userId, bookId));
   }
 
-  public SavingsPlanSyncResult downloadSavingsPlans(Long userId, String bookId) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError.isError()) {
-      return SavingsPlanSyncResult.error(permissionError.getMessage());
-    }
-    if (bookId == null || bookId.trim().isEmpty()) {
-      return SavingsPlanSyncResult.error("missing bookId");
-    }
-    return SavingsPlanSyncResult.success(
-        savingsPlanInfoMapper.findAllByUserIdAndBookId(userId, bookId));
-  }
+	  public SavingsPlanSyncResult downloadSavingsPlans(Long userId, String bookId) {
+	    ErrorCode permissionError = checkSyncPermission(userId);
+	    if (permissionError.isError()) {
+	      return SavingsPlanSyncResult.error(permissionError.getMessage());
+	    }
+	    if (bookId == null || bookId.trim().isEmpty()) {
+	      return SavingsPlanSyncResult.error("missing bookId");
+	    }
+	    final ServerBookAccess access = checkServerBookAccess(userId, bookId);
+	    if (!access.ok) return SavingsPlanSyncResult.error(access.error);
+	    return SavingsPlanSyncResult.success(
+	        savingsPlanInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+	  }
 
-  @Transactional
-  public CategorySyncResult uploadCategories(Long userId, List<CategoryInfo> categories, List<String> deletedKeys) {
-    return uploadCategories(userId, null, categories, deletedKeys);
-  }
+	  @Transactional
+	  public CategorySyncResult uploadCategories(Long userId, List<CategoryInfo> categories, List<String> deletedKeys) {
+	    throw new IllegalArgumentException("missing bookId");
+	  }
 
-  @Transactional
-  public CategorySyncResult uploadCategories(
-      Long userId, String bookIdRaw, List<CategoryInfo> categories, List<String> deletedKeys) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError.isError()) {
-      return CategorySyncResult.error(permissionError.getMessage());
-    }
+	  @Transactional
+	  public CategorySyncResult uploadCategories(
+	      Long userId, String bookIdRaw, List<CategoryInfo> categories, List<String> deletedKeys) {
+	    ErrorCode permissionError = checkSyncPermission(userId);
+	    if (permissionError.isError()) {
+	      return CategorySyncResult.error(permissionError.getMessage());
+	    }
+	    if (bookIdRaw == null || bookIdRaw.trim().isEmpty()) {
+	      return CategorySyncResult.error("missing bookId");
+	    }
+	    final ServerBookAccess access = checkServerBookAccess(userId, bookIdRaw);
+	    if (!access.ok) return CategorySyncResult.error(access.error);
 
-    Long effectiveUserId = userId;
+	    Long effectiveUserId = userId;
     if (bookIdRaw != null && !bookIdRaw.trim().isEmpty()) {
       try {
         Long bookId = Long.parseLong(bookIdRaw.trim());
@@ -714,50 +776,45 @@ public class SyncService {
     return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(effectiveUserId));
   }
 
-  public CategorySyncResult downloadCategories(Long userId) {
-    return downloadCategories(userId, null);
-  }
+	  public CategorySyncResult downloadCategories(Long userId) {
+	    throw new IllegalArgumentException("missing bookId");
+	  }
 
-  public CategorySyncResult downloadCategories(Long userId, String bookIdRaw) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError.isError()) {
-      return CategorySyncResult.error(permissionError.getMessage());
-    }
+	  public CategorySyncResult downloadCategories(Long userId, String bookIdRaw) {
+	    ErrorCode permissionError = checkSyncPermission(userId);
+	    if (permissionError.isError()) {
+	      return CategorySyncResult.error(permissionError.getMessage());
+	    }
+	    if (bookIdRaw == null || bookIdRaw.trim().isEmpty()) {
+	      return CategorySyncResult.error("missing bookId");
+	    }
+	    final ServerBookAccess access = checkServerBookAccess(userId, bookIdRaw);
+	    if (!access.ok) return CategorySyncResult.error(access.error);
 
-    Long effectiveUserId = userId;
-    if (bookIdRaw != null && !bookIdRaw.trim().isEmpty()) {
-      try {
-        Long bookId = Long.parseLong(bookIdRaw.trim());
-        Book book = bookMapper.findById(bookId);
-        if (book != null && Boolean.TRUE.equals(book.getIsMulti())) {
-          BookMember member = bookMemberMapper.find(bookId, userId);
-          if (member == null || member.getStatus() == null || member.getStatus() != 1) {
-            return CategorySyncResult.error("no permission");
-          }
-          if (book.getOwnerId() != null) {
-            effectiveUserId = book.getOwnerId();
-          }
-        }
-      } catch (Exception ignored) {
-        // Non-numeric bookId or lookup failed: fall back to user-scoped categories.
-      }
-    }
-    return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(effectiveUserId));
-  }
+	    Long effectiveUserId = userId;
+	    if (access.book != null && Boolean.TRUE.equals(access.book.getIsMulti())) {
+	      if (access.book.getOwnerId() != null) {
+	        effectiveUserId = access.book.getOwnerId();
+	      }
+	    }
+	    return CategorySyncResult.success(categoryInfoMapper.findAllByUserId(effectiveUserId));
+	  }
 
   @Transactional
-  public TagSyncResult uploadTags(Long userId, String bookId, List<TagInfo> tags, List<String> deletedTagIds) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError.isError()) {
-      return TagSyncResult.error(permissionError.getMessage());
-    }
-    if (bookId == null || bookId.trim().isEmpty()) {
-      return TagSyncResult.error("missing bookId");
-    }
+	  public TagSyncResult uploadTags(Long userId, String bookId, List<TagInfo> tags, List<String> deletedTagIds) {
+	    ErrorCode permissionError = checkSyncPermission(userId);
+	    if (permissionError.isError()) {
+	      return TagSyncResult.error(permissionError.getMessage());
+	    }
+	    if (bookId == null || bookId.trim().isEmpty()) {
+	      return TagSyncResult.error("missing bookId");
+	    }
+	    final ServerBookAccess access = checkServerBookAccess(userId, bookId);
+	    if (!access.ok) return TagSyncResult.error(access.error);
 
-    if (deletedTagIds != null) {
-      for (String tid : deletedTagIds) {
-        if (tid == null || tid.trim().isEmpty()) continue;
+	    if (deletedTagIds != null) {
+	      for (String tid : deletedTagIds) {
+	        if (tid == null || tid.trim().isEmpty()) continue;
         tagInfoMapper.softDeleteByTagId(userId, bookId, tid.trim());
       }
     }
@@ -838,16 +895,18 @@ public class SyncService {
     return TagSyncResult.success(tagInfoMapper.findAllByUserIdAndBookId(userId, bookId));
   }
 
-  public TagSyncResult downloadTags(Long userId, String bookId) {
-    ErrorCode permissionError = checkSyncPermission(userId);
-    if (permissionError.isError()) {
-      return TagSyncResult.error(permissionError.getMessage());
-    }
-    if (bookId == null || bookId.trim().isEmpty()) {
-      return TagSyncResult.error("missing bookId");
-    }
-    return TagSyncResult.success(tagInfoMapper.findAllByUserIdAndBookId(userId, bookId));
-  }
+	  public TagSyncResult downloadTags(Long userId, String bookId) {
+	    ErrorCode permissionError = checkSyncPermission(userId);
+	    if (permissionError.isError()) {
+	      return TagSyncResult.error(permissionError.getMessage());
+	    }
+	    if (bookId == null || bookId.trim().isEmpty()) {
+	      return TagSyncResult.error("missing bookId");
+	    }
+	    final ServerBookAccess access = checkServerBookAccess(userId, bookId);
+	    if (!access.ok) return TagSyncResult.error(access.error);
+	    return TagSyncResult.success(tagInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+	  }
 
   public static class AccountSyncResult {
     private boolean success;

@@ -8,6 +8,7 @@ class Record {
   final int? serverId;
   final int? serverVersion;
   final int? createdByUserId;
+  final int? updatedByUserId;
 
   /// 金额为绝对值，方向由 [direction] 控制。
   final double amount;
@@ -25,6 +26,7 @@ class Record {
     this.serverId,
     this.serverVersion,
     this.createdByUserId,
+    this.updatedByUserId,
     required this.amount,
     required this.remark,
     required this.date,
@@ -41,6 +43,7 @@ class Record {
     int? serverId,
     int? serverVersion,
     int? createdByUserId,
+    int? updatedByUserId,
     double? amount,
     String? remark,
     DateTime? date,
@@ -56,6 +59,7 @@ class Record {
       serverId: serverId ?? this.serverId,
       serverVersion: serverVersion ?? this.serverVersion,
       createdByUserId: createdByUserId ?? this.createdByUserId,
+      updatedByUserId: updatedByUserId ?? this.updatedByUserId,
       amount: amount ?? this.amount,
       remark: remark ?? this.remark,
       date: date ?? this.date,
@@ -74,6 +78,7 @@ class Record {
       'serverId': serverId,
       'serverVersion': serverVersion,
       'createdByUserId': createdByUserId,
+      'updatedByUserId': updatedByUserId,
       'amount': amount,
       'remark': remark,
       'date': date.toIso8601String(),
@@ -115,6 +120,7 @@ class Record {
       serverId: map['serverId'] as int?,
       serverVersion: map['serverVersion'] as int?,
       createdByUserId: (map['createdByUserId'] as num?)?.toInt(),
+      updatedByUserId: (map['updatedByUserId'] as num?)?.toInt(),
       amount: rawAmount,
       remark: map['remark'] as String,
       date: DateTime.parse(map['date'] as String),

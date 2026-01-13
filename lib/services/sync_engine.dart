@@ -177,12 +177,19 @@ class SyncEngine {
   static final Map<String, Future<bool>> _metaInFlight = <String, Future<bool>>{};
   static final Map<String, int> _lastPullMsByBook = <String, int>{};
   static final Map<String, bool> _lastPullAdvancedByBook = <String, bool>{};
+  static const int _lightPullNoChangeCooldownMs = 5 * 60 * 1000;
   static final Set<String> _defaultCategoryKeys =
       CategoryRepository.defaultCategories.map((c) => c.key).toSet();
 
   static const int _billIdPoolBatchSize = 50;
   static final Map<String, Future<List<int>>> _billIdPoolInFlight =
       <String, Future<List<int>>>{};
+
+  static int lastPullMsForBook(String bookId) =>
+      _lastPullMsByBook[bookId] ?? 0;
+
+  static bool lastPullAdvancedForBook(String bookId) =>
+      _lastPullAdvancedByBook[bookId] ?? false;
 
   Future<int> _authUserIdOrZero() async {
     final prefs = await SharedPreferences.getInstance();
@@ -274,6 +281,7 @@ class SyncEngine {
     // 立即 pull 会额外产生一轮 bill_change_log + bill_info 查询（服务端/客户端都浪费）。
     // 多设备变更的拉取由 app_start / app_resumed（以及未来可选的轮询/SSE）来覆盖。
     if (reason == 'local_outbox_changed') return true;
+    if (_shouldSkipLightPull(bookId, reason)) return true;
 
     // Keep sync transparent but light-weight:
     // - Pull on app_start / app_resumed / periodic timers.
@@ -300,6 +308,16 @@ class SyncEngine {
       );
     }
     return true;
+  }
+
+  bool _shouldSkipLightPull(String bookId, String reason) {
+    if (reason != 'periodic_pull' && reason != 'foreground_poll') return false;
+    final lastPullMs = _lastPullMsByBook[bookId] ?? 0;
+    if (lastPullMs <= 0) return false;
+    final lastAdvanced = _lastPullAdvancedByBook[bookId] ?? false;
+    if (lastAdvanced) return false;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return now - lastPullMs < _lightPullNoChangeCooldownMs;
   }
 
   Future<void> forceBootstrapV2(
@@ -1195,6 +1213,7 @@ class SyncEngine {
     const maxPagesPerSync = 50;
     var pages = 0;
     var advancedThisPull = false;
+    var anyApplied = false;
 
     while (true) {
       pages++;
@@ -1238,6 +1257,7 @@ class SyncEngine {
 
       if (changes.isNotEmpty) {
         advancedThisPull = true;
+        anyApplied = true;
         await _outbox.runSuppressed(() async {
           await DataVersionService.runWithoutIncrement(() async {
             // 性能关键：DB 模式下批量应用变更，避免逐条 add/update/delete 触发大量 notify/落库。
@@ -1251,9 +1271,6 @@ class SyncEngine {
                 }
                 if (bills.isNotEmpty) {
                   await repo.applyCloudBillsV2(bookId: bookId, bills: bills);
-                  // 同步后：刷新最近记录缓存 + 统一重算余额（一次落库/一次 notify）
-                  await recordProvider.refreshRecentCache(bookId: bookId);
-                  await accountProvider.refreshBalancesFromRecords();
                 }
               } else {
                 for (final c in changes) {
@@ -1277,7 +1294,6 @@ class SyncEngine {
                 );
               }
             }
-            tagProvider?.clearRecordTagCache();
           });
         });
       }
@@ -1294,6 +1310,19 @@ class SyncEngine {
         await SyncV2CursorStore.setLastChangeId(bookId, cursor);
       }
       if (!hasMore) break;
+    }
+
+    // Post-processing (DB mode): refresh caches/balances once per pull, not once per page.
+    if (anyApplied && RepositoryFactory.isUsingDatabase) {
+      await _outbox.runSuppressed(() async {
+        await DataVersionService.runWithoutIncrement(() async {
+          await recordProvider.refreshRecentCache(bookId: bookId);
+          await accountProvider.refreshBalancesFromRecords();
+        });
+      });
+    }
+    if (anyApplied) {
+      tagProvider?.clearRecordTagCache();
     }
     _lastPullMsByBook[bookId] = DateTime.now().millisecondsSinceEpoch;
     _lastPullAdvancedByBook[bookId] = advancedThisPull;
@@ -1416,6 +1445,12 @@ class SyncEngine {
       if (raw is String) return int.tryParse(raw.trim());
       return null;
     })();
+    final updatedByUserId = (() {
+      final raw = map['updatedByUserId'] ?? map['actorUserId'];
+      if (raw is num) return raw.toInt();
+      if (raw is String) return int.tryParse(raw.trim());
+      return null;
+    })();
 
     double parseAmount(dynamic v) {
       if (v is num) return v.toDouble();
@@ -1427,6 +1462,7 @@ class SyncEngine {
       serverId: serverId,
       serverVersion: serverVersion,
       createdByUserId: createdByUserId,
+      updatedByUserId: updatedByUserId ?? createdByUserId,
       amount: parseAmount(map['amount']),
       remark: map['remark'] as String? ?? '',
       date: DateTime.parse(map['billDate'] as String),
@@ -1515,6 +1551,7 @@ class SyncEngine {
         serverId: serverId,
         serverVersion: serverVersion,
         createdByUserId: cloudRecord.createdByUserId ?? existing.createdByUserId,
+        updatedByUserId: cloudRecord.updatedByUserId ?? existing.updatedByUserId,
         amount: cloudRecord.amount,
         remark: cloudRecord.remark,
         date: cloudRecord.date,
@@ -1554,6 +1591,7 @@ class SyncEngine {
       includeInStats: cloudRecord.includeInStats,
       pairId: cloudRecord.pairId,
       createdByUserId: cloudRecord.createdByUserId ?? 0,
+      updatedByUserId: cloudRecord.updatedByUserId ?? cloudRecord.createdByUserId ?? 0,
       accountProvider: accountProviderForInsert,
     );
     await recordProvider.setServerSyncState(

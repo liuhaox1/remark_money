@@ -249,6 +249,7 @@ class RecordRepositoryDb {
         'server_id': record.serverId,
         'server_version': record.serverVersion,
         'created_by': record.createdByUserId ?? 0,
+        'updated_by': record.updatedByUserId ?? record.createdByUserId ?? 0,
         'book_id': record.bookId,
         'category_key': record.categoryKey,
         'account_id': record.accountId,
@@ -518,6 +519,12 @@ class RecordRepositoryDb {
             if (raw is String) return int.tryParse(raw.trim()) ?? 0;
             return 0;
           })(),
+          'updated_by': (() {
+            final raw = bill['updatedByUserId'] ?? bill['actorUserId'];
+            if (raw is num) return raw.toInt();
+            if (raw is String) return int.tryParse(raw.trim()) ?? 0;
+            return 0;
+          })(),
           'book_id': bookId,
           'category_key': bill['categoryKey']?.toString() ?? '',
           'account_id': bill['accountId']?.toString() ?? '',
@@ -633,6 +640,7 @@ class RecordRepositoryDb {
             {
               'id': record.id,
               'created_by': record.createdByUserId ?? 0,
+              'updated_by': record.updatedByUserId ?? record.createdByUserId ?? 0,
               'book_id': record.bookId,
               'category_key': record.categoryKey,
               'account_id': record.accountId,
@@ -676,6 +684,7 @@ class RecordRepositoryDb {
             {
               'id': record.id,
               'created_by': record.createdByUserId ?? 0,
+              'updated_by': record.updatedByUserId ?? record.createdByUserId ?? 0,
               'book_id': record.bookId,
               'category_key': record.categoryKey,
               'account_id': record.accountId,
@@ -1059,6 +1068,7 @@ class RecordRepositoryDb {
       serverId: map['server_id'] as int?,
       serverVersion: map['server_version'] as int?,
       createdByUserId: (map['created_by'] as num?)?.toInt(),
+      updatedByUserId: (map['updated_by'] as num?)?.toInt(),
       bookId: map['book_id'] as String,
       categoryKey: map['category_key'] as String,
       accountId: map['account_id'] as String,

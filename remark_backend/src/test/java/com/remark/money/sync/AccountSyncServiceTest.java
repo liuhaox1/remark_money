@@ -49,16 +49,17 @@ public class AccountSyncServiceTest {
   @Test
   public void uploadDoesNotHardDeleteMissingAccounts() {
     Long userId = 500L;
+    String bookId = "default-book";
 
     AccountInfo a1 = account("a1", "A1");
     AccountInfo a2 = account("a2", "A2");
 
     SyncService.AccountSyncResult up1 =
-        syncService.uploadAccounts(userId, Arrays.asList(a1, a2));
+        syncService.uploadAccounts(userId, bookId, Arrays.asList(a1, a2));
     assertTrue(up1.isSuccess());
 
     // SyncService now requires syncVersion for updating existing rows.
-    SyncService.AccountSyncResult baseline = syncService.downloadAccounts(userId);
+    SyncService.AccountSyncResult baseline = syncService.downloadAccounts(userId, bookId);
     assertTrue(baseline.isSuccess());
     AccountInfo serverA1 =
         baseline.getAccounts().stream()
@@ -70,10 +71,10 @@ public class AccountSyncServiceTest {
 
     // Uploading a partial list must NOT delete server-side accounts that are missing from the list.
     SyncService.AccountSyncResult up2 =
-        syncService.uploadAccounts(userId, Collections.singletonList(a1));
+        syncService.uploadAccounts(userId, bookId, Collections.singletonList(a1));
     assertTrue(up2.isSuccess());
 
-    SyncService.AccountSyncResult down = syncService.downloadAccounts(userId);
+    SyncService.AccountSyncResult down = syncService.downloadAccounts(userId, bookId);
     assertTrue(down.isSuccess());
     List<AccountInfo> got = down.getAccounts();
     assertNotNull(got);
@@ -86,19 +87,20 @@ public class AccountSyncServiceTest {
   @Test
   public void explicitDeleteRemovesFromDownloadView() {
     Long userId = 501L;
+    String bookId = "default-book";
 
     AccountInfo a1 = account("b1", "B1");
     AccountInfo a2 = account("b2", "B2");
 
     SyncService.AccountSyncResult up =
-        syncService.uploadAccounts(userId, Arrays.asList(a1, a2));
+        syncService.uploadAccounts(userId, bookId, Arrays.asList(a1, a2));
     assertTrue(up.isSuccess());
 
     SyncService.AccountSyncResult del =
-        syncService.deleteAccounts(userId, null, Collections.singletonList("b2"));
+        syncService.deleteAccounts(userId, bookId, null, Collections.singletonList("b2"));
     assertTrue(del.isSuccess());
 
-    SyncService.AccountSyncResult down = syncService.downloadAccounts(userId);
+    SyncService.AccountSyncResult down = syncService.downloadAccounts(userId, bookId);
     assertTrue(down.isSuccess());
     List<AccountInfo> got = down.getAccounts();
     assertNotNull(got);

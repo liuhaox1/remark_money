@@ -130,6 +130,7 @@ class RecordProvider extends ChangeNotifier {
     bool includeInStats = true,
     String? pairId,
     int? createdByUserId,
+    int? updatedByUserId,
     AccountProvider? accountProvider,
   }) async {
     // 数据验证
@@ -167,10 +168,12 @@ class RecordProvider extends ChangeNotifier {
         resolvedAccountId = fallback.id;
       }
 
+      final uid = await const AuthService().loadUserId() ?? 0;
+      final createdBy = createdByUserId ?? uid;
       final record = Record(
         id: _generateId(),
-        createdByUserId:
-            createdByUserId ?? await const AuthService().loadUserId() ?? 0,
+        createdByUserId: createdBy,
+        updatedByUserId: updatedByUserId ?? createdBy,
         amount: amount.abs(),
         remark: remark,
         date: date,
@@ -313,25 +316,32 @@ class RecordProvider extends ChangeNotifier {
     }
 
     try {
+      final next = await (() async {
+        if (SyncOutboxService.instance.isSuppressed) return updated;
+        final uid = await const AuthService().loadUserId() ?? 0;
+        if (uid <= 0) return updated;
+        return updated.copyWith(updatedByUserId: uid);
+      })();
+
       Record? old;
       if (_isUsingDatabase) {
         // 数据库版本：从数据库查询旧记录
         final dbRepo = _repository as dynamic;
-        old = await dbRepo.loadRecordById(updated.id);
-        await dbRepo.saveRecord(updated);
+        old = await dbRepo.loadRecordById(next.id);
+        await dbRepo.saveRecord(next);
         
         // 更新缓存中的记录
-        final index = _recentRecordsCache.indexWhere((r) => r.id == updated.id);
+        final index = _recentRecordsCache.indexWhere((r) => r.id == next.id);
         if (index != -1) {
-          _recentRecordsCache[index] = updated;
+          _recentRecordsCache[index] = next;
         }
       } else {
         // SharedPreferences 版本：兼容旧逻辑
         old = _recentRecordsCache.firstWhere(
-          (r) => r.id == updated.id,
-          orElse: () => updated,
+          (r) => r.id == next.id,
+          orElse: () => next,
         );
-        final list = await _repository.update(updated);
+        final list = await _repository.update(next);
         _recentRecordsCache
           ..clear()
           ..addAll(list);
@@ -341,14 +351,14 @@ class RecordProvider extends ChangeNotifier {
 
       if (old != null) {
         await _applyAccountDelta(accountProvider, old, reverse: true);
-        await _applyAccountDelta(accountProvider, updated);
+        await _applyAccountDelta(accountProvider, next);
       }
 
       // 数据修改时版本号+1
-      await DataVersionService.incrementVersion(updated.bookId);
+      await DataVersionService.incrementVersion(next.bookId);
 
       // 记录到同步发件箱（透明后台同步）
-      await SyncOutboxService.instance.enqueueUpsert(updated);
+      await SyncOutboxService.instance.enqueueUpsert(next);
 
       _notifyChanged();
     } catch (e, stackTrace) {

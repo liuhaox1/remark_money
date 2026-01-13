@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/sync_engine.dart';
+import '../services/sync_v2_conflict_store.dart';
 import '../providers/book_provider.dart';
 import '../theme/ios_tokens.dart';
 import '../widgets/app_scaffold.dart';
 import '../l10n/app_strings.dart';
 import '../utils/error_handler.dart';
+import 'family_activity_page.dart';
 import 'login_landing_page.dart';
+import 'sync_conflicts_page.dart';
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key, required this.initialLoggedIn});
@@ -172,6 +175,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final bookId = context.watch<BookProvider>().activeBookId;
+    final isSharedBook = int.tryParse(bookId) != null;
     return AppScaffold(
       title: '账号设置',
       body: SafeArea(
@@ -246,6 +251,67 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
+                if (isSharedBook)
+                  _sectionCard(
+                    context: context,
+                    children: [
+                      ListTile(
+                        title: const Text('家庭动态'),
+                        subtitle: Text(
+                          '查看成员新增/修改/删除的摘要记录',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: cs.onSurface.withOpacity(0.6),
+                              ),
+                        ),
+                        trailing: Icon(
+                          Icons.dynamic_feed_outlined,
+                          color: cs.onSurface.withOpacity(0.6),
+                        ),
+                        onTap: () {
+                          if (!_isLoggedIn) {
+                            ErrorHandler.showWarning(context, '请先登录');
+                            return;
+                          }
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FamilyActivityPage(bookId: bookId),
+                            ),
+                          );
+                        },
+                      ),
+                      FutureBuilder<int>(
+                        future: SyncV2ConflictStore.count(bookId),
+                        builder: (ctx, snap) {
+                          final count = snap.data ?? 0;
+                          return ListTile(
+                            title: const Text('同步冲突'),
+                            subtitle: Text(
+                              count > 0 ? '有 $count 条需要处理' : '暂无冲突',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurface.withOpacity(0.6),
+                                  ),
+                            ),
+                            trailing: Icon(
+                              Icons.sync_problem_outlined,
+                              color: count > 0 ? cs.tertiary : cs.onSurface.withOpacity(0.6),
+                            ),
+                            onTap: () {
+                              if (!_isLoggedIn) {
+                                ErrorHandler.showWarning(context, '请先登录');
+                                return;
+                              }
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => SyncConflictsPage(bookId: bookId),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                if (isSharedBook) const SizedBox(height: AppSpacing.md),
                 _sectionCard(
                   context: context,
                   children: [

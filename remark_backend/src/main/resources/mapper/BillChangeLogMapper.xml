@@ -6,6 +6,7 @@
     <id property="changeId" column="change_id"/>
     <result property="bookId" column="book_id"/>
     <result property="scopeUserId" column="scope_user_id"/>
+    <result property="actorUserId" column="actor_user_id"/>
     <result property="billId" column="bill_id"/>
     <result property="op" column="op"/>
     <result property="billVersion" column="bill_version"/>
@@ -13,15 +14,15 @@
   </resultMap>
 
   <insert id="insert">
-    INSERT INTO bill_change_log (book_id, scope_user_id, bill_id, op, bill_version, created_at)
-    VALUES (#{bookId}, #{scopeUserId}, #{billId}, #{op}, #{billVersion}, NOW())
+    INSERT INTO bill_change_log (book_id, scope_user_id, actor_user_id, bill_id, op, bill_version, created_at)
+    VALUES (#{bookId}, #{scopeUserId}, #{actorUserId}, #{billId}, #{op}, #{billVersion}, NOW())
   </insert>
 
   <insert id="batchInsert">
-    INSERT INTO bill_change_log (book_id, scope_user_id, bill_id, op, bill_version, created_at)
+    INSERT INTO bill_change_log (book_id, scope_user_id, actor_user_id, bill_id, op, bill_version, created_at)
     VALUES
     <foreach collection="list" item="item" separator=",">
-      (#{item.bookId}, #{item.scopeUserId}, #{item.billId}, #{item.op}, #{item.billVersion}, NOW())
+      (#{item.bookId}, #{item.scopeUserId}, #{item.actorUserId}, #{item.billId}, #{item.op}, #{item.billVersion}, NOW())
     </foreach>
   </insert>
 
@@ -39,10 +40,11 @@
   </select>
 
   <insert id="bootstrapShared">
-    INSERT INTO bill_change_log (book_id, scope_user_id, bill_id, op, bill_version, created_at)
+    INSERT INTO bill_change_log (book_id, scope_user_id, actor_user_id, bill_id, op, bill_version, created_at)
     SELECT
       bi.book_id,
       #{scopeUserId},
+      bi.user_id,
       bi.id,
       CASE WHEN bi.is_delete = 1 THEN 1 ELSE 0 END,
       bi.version,
@@ -56,10 +58,11 @@
   </insert>
 
   <insert id="bootstrapPersonal">
-    INSERT INTO bill_change_log (book_id, scope_user_id, bill_id, op, bill_version, created_at)
+    INSERT INTO bill_change_log (book_id, scope_user_id, actor_user_id, bill_id, op, bill_version, created_at)
     SELECT
       bi.book_id,
       #{scopeUserId},
+      bi.user_id,
       bi.id,
       CASE WHEN bi.is_delete = 1 THEN 1 ELSE 0 END,
       bi.version,
@@ -73,10 +76,11 @@
   </insert>
 
   <insert id="bootstrapTombstones">
-    INSERT INTO bill_change_log (book_id, scope_user_id, bill_id, op, bill_version, created_at)
+    INSERT INTO bill_change_log (book_id, scope_user_id, actor_user_id, bill_id, op, bill_version, created_at)
     SELECT
       t.book_id,
       t.scope_user_id,
+      0,
       t.bill_id,
       1,
       t.bill_version,
@@ -91,10 +95,22 @@
   </insert>
 
   <select id="findAfter" resultMap="BillChangeLogResultMap">
-    SELECT change_id, book_id, scope_user_id, bill_id, op, bill_version, created_at
+    SELECT change_id, book_id, scope_user_id, actor_user_id, bill_id, op, bill_version, created_at
     FROM bill_change_log
     WHERE book_id = #{bookId} AND scope_user_id = #{scopeUserId} AND change_id &gt; #{afterChangeId}
     ORDER BY change_id ASC
+    LIMIT #{limit}
+  </select>
+
+  <select id="findRecent" resultMap="BillChangeLogResultMap">
+    SELECT change_id, book_id, scope_user_id, actor_user_id, bill_id, op, bill_version, created_at
+    FROM bill_change_log
+    WHERE book_id = #{bookId}
+      AND scope_user_id = #{scopeUserId}
+      <if test="beforeChangeId != null">
+        AND change_id &lt; #{beforeChangeId}
+      </if>
+    ORDER BY change_id DESC
     LIMIT #{limit}
   </select>
 

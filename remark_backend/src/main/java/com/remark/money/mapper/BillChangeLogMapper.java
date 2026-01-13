@@ -12,6 +12,7 @@ import java.util.List;
 public interface BillChangeLogMapper {
   void insert(@Param("bookId") String bookId,
               @Param("scopeUserId") Long scopeUserId,
+              @Param("actorUserId") Long actorUserId,
               @Param("billId") Long billId,
               @Param("op") Integer op,
               @Param("billVersion") Long billVersion);
@@ -38,6 +39,11 @@ public interface BillChangeLogMapper {
                                 @Param("scopeUserId") Long scopeUserId,
                                 @Param("afterChangeId") Long afterChangeId,
                                 @Param("limit") int limit);
+
+  List<BillChangeLog> findRecent(@Param("bookId") String bookId,
+                                 @Param("scopeUserId") Long scopeUserId,
+                                 @Param("beforeChangeId") Long beforeChangeId,
+                                 @Param("limit") int limit);
 
   Long findMaxChangeId(@Param("bookId") String bookId,
                        @Param("scopeUserId") Long scopeUserId);

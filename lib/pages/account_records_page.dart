@@ -10,9 +10,12 @@ import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/tag_provider.dart';
+import '../services/book_service.dart';
 import '../theme/app_tokens.dart';
 import '../utils/date_utils.dart';
+import '../utils/error_handler.dart';
 import '../widgets/brand_logo_avatar.dart';
+import '../widgets/number_pad_sheet.dart';
 import 'account_form_page.dart';
 import 'add_record_page.dart';
 
@@ -43,6 +46,8 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
   Future<List<Record>>? _recordsFuture;
   String? _tagsKey;
   Future<Map<String, List<Tag>>>? _tagsFuture;
+  String? _membersBookId;
+  Map<int, String> _memberNameById = const {};
 
   @override
   void initState() {
@@ -50,6 +55,44 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
     final now = DateTime.now();
     _selectedYear = now.year;
     _expandedMonths.add(now.month);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureMemberNames();
+  }
+
+  Future<void> _ensureMemberNames() async {
+    final bookId = context.read<BookProvider>().activeBookId;
+    if (_membersBookId == bookId) return;
+    _membersBookId = bookId;
+    if (int.tryParse(bookId) == null) {
+      if (mounted) setState(() => _memberNameById = const {});
+      return;
+    }
+    try {
+      final members = await BookService().listMembers(bookId);
+      final next = <int, String>{};
+      for (final m in members) {
+        final uid = (m['userId'] as num?)?.toInt();
+        if (uid == null || uid <= 0) continue;
+        final nickname = (m['nickname'] as String?)?.trim();
+        final username = (m['username'] as String?)?.trim();
+        next[uid] = (nickname != null && nickname.isNotEmpty)
+            ? nickname
+            : (username != null && username.isNotEmpty)
+                ? username
+                : '用户$uid';
+      }
+      if (!mounted) return;
+      setState(() => _memberNameById = next);
+    } catch (_) {}
+  }
+
+  String _memberName(int? userId) {
+    if (userId == null || userId <= 0) return '';
+    return _memberNameById[userId] ?? '用户$userId';
   }
 
   List<int> _yearOptions() {
@@ -139,6 +182,14 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.tune_outlined),
+                title: const Text('调整余额'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await _adjustBalance(account);
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.add_rounded),
                 title: const Text('记一笔'),
                 onTap: () {
@@ -168,6 +219,80 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
         );
       },
     );
+  }
+
+  Future<void> _adjustBalance(Account account) async {
+    final bookId = context.read<BookProvider>().activeBookId;
+    if (int.tryParse(bookId) != null) {
+      try {
+        final ok = await BookService().isCurrentUserOwner(bookId);
+        if (!ok) {
+          if (mounted) {
+            ErrorHandler.showWarning(context, '多人账本仅创建者可修改账户');
+          }
+          return;
+        }
+      } catch (_) {}
+    }
+
+    final amountCtrl =
+        TextEditingController(text: account.currentBalance.toStringAsFixed(2));
+    try {
+      final nextBalance = await showDialog<double?>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('调整余额'),
+            content: TextField(
+              controller: amountCtrl,
+              readOnly: true,
+              decoration: const InputDecoration(
+                hintText: '请输入余额',
+              ),
+              onTap: () async {
+                await showNumberPadBottomSheet(
+                  ctx,
+                  controller: amountCtrl,
+                  allowDecimal: true,
+                  formatFixed2OnClose: true,
+                );
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final raw = amountCtrl.text.trim();
+                  final value = double.tryParse(raw);
+                  if (value == null) {
+                    ErrorHandler.showWarning(ctx, '请输入合法余额');
+                    return;
+                  }
+                  Navigator.of(ctx).pop(value);
+                },
+                child: const Text('保存'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (nextBalance == null) return;
+      final newInitialBalance =
+          account.initialBalance + (nextBalance - account.currentBalance);
+      await context.read<AccountProvider>().adjustInitialBalance(
+            account.id,
+            newInitialBalance,
+            bookId: bookId,
+          );
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, '余额已更新');
+    } finally {
+      amountCtrl.dispose();
+    }
   }
 
   Widget _buildHeaderCard(BuildContext context, Account account) {
@@ -563,6 +688,21 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
     final amountColor = isIncome ? AppColors.success : AppColors.danger;
     final title = category?.name ?? internalUi?.name ?? record.categoryKey;
     final icon = category?.icon ?? internalUi?.icon ?? Icons.category_outlined;
+    final sharedBook = int.tryParse(record.bookId) != null;
+    final createdBy = record.createdByUserId;
+    final updatedBy = record.updatedByUserId;
+    final createdName = _memberName(createdBy);
+    final updatedName = _memberName(updatedBy);
+    final showAttribution = sharedBook && (createdName.isNotEmpty || updatedName.isNotEmpty);
+    final attribution = (() {
+      if (!showAttribution) return '';
+      if (createdName.isNotEmpty && updatedName.isNotEmpty && createdBy != updatedBy) {
+        return '记录:$createdName · 修改:$updatedName';
+      }
+      if (createdName.isNotEmpty) return '记录:$createdName';
+      if (updatedName.isNotEmpty) return '修改:$updatedName';
+      return '';
+    })();
 
     return InkWell(
       onTap: () {
@@ -609,6 +749,17 @@ class _AccountRecordsPageState extends State<AccountRecordsPage> {
                           record.remark,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: Theme.of(context).colorScheme.outline,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      if (attribution.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          attribution,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.outline.withOpacity(0.9),
                               ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

@@ -168,6 +168,7 @@ CREATE TABLE bill_change_log (
   change_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   book_id VARCHAR(64) NOT NULL,
   scope_user_id BIGINT NOT NULL DEFAULT 0,
+  actor_user_id BIGINT NOT NULL DEFAULT 0,
   bill_id BIGINT NOT NULL,
   op INT NOT NULL DEFAULT 0,
   bill_version BIGINT NOT NULL DEFAULT 1,

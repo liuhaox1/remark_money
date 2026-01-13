@@ -216,9 +216,6 @@ class _HomePageState extends State<HomePage> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startForegroundSyncTimer();
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureMetaReadyForHome();
     });
 
@@ -609,6 +606,7 @@ class _HomePageState extends State<HomePage> {
     _recordProviderListener = null;
     _foregroundSyncTimer?.cancel();
     _foregroundSyncTimer = null;
+    _foregroundPullBackoffExpByBook.clear();
 
     _searchFocusNode.removeListener(_handleSearchFocusChange);
 
@@ -642,10 +640,40 @@ class _HomePageState extends State<HomePage> {
 
   void _startForegroundSyncTimer() {
     _foregroundSyncTimer?.cancel();
-    _foregroundSyncTimer = Timer.periodic(
-      const Duration(minutes: 1),
-      (_) => _triggerForegroundSync(reason: 'foreground_poll'),
-    );
+    _scheduleNextForegroundSync(delayMs: 60 * 1000);
+  }
+
+  static const int _foregroundPollBaseMs = 60 * 1000;
+  static const int _foregroundPollMaxMs = 5 * 60 * 1000;
+  final Map<String, int> _foregroundPullBackoffExpByBook = <String, int>{};
+
+  void _scheduleNextForegroundSync({required int delayMs}) {
+    _foregroundSyncTimer?.cancel();
+    _foregroundSyncTimer = Timer(Duration(milliseconds: delayMs), () async {
+      await _triggerForegroundSync(reason: 'foreground_poll');
+      if (!mounted) return;
+
+      final bookId = context.read<BookProvider>().activeBookId;
+      if (bookId.isEmpty || int.tryParse(bookId) == null) {
+        _scheduleNextForegroundSync(delayMs: _foregroundPollBaseMs);
+        return;
+      }
+
+      final lastPullMs = SyncEngine.lastPullMsForBook(bookId);
+      final advanced = SyncEngine.lastPullAdvancedForBook(bookId);
+      var exp = _foregroundPullBackoffExpByBook[bookId] ?? 0;
+      if (advanced) {
+        exp = 0;
+      } else if (lastPullMs > 0) {
+        exp = (exp + 1).clamp(0, 10);
+      }
+      _foregroundPullBackoffExpByBook[bookId] = exp;
+
+      final scaled = _foregroundPollBaseMs * (1 << exp);
+      final next =
+          scaled.clamp(_foregroundPollBaseMs, _foregroundPollMaxMs).toInt();
+      _scheduleNextForegroundSync(delayMs: next);
+    });
   }
 
   Future<void> _triggerForegroundSync({required String reason}) async {

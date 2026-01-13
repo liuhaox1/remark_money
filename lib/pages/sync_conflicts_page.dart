@@ -88,11 +88,25 @@ class _SyncConflictsPageState extends State<SyncConflictsPage> {
         ? TransactionDirection.income
         : TransactionDirection.out;
     final includeInStats = (serverBill['includeInStats'] as int? ?? 1) == 1;
+    final createdBy = (() {
+      final raw = serverBill['userId'] ?? serverBill['createdByUserId'];
+      if (raw is num) return raw.toInt();
+      if (raw is String) return int.tryParse(raw.trim());
+      return null;
+    })();
+    final updatedBy = (() {
+      final raw = serverBill['updatedByUserId'] ?? serverBill['actorUserId'];
+      if (raw is num) return raw.toInt();
+      if (raw is String) return int.tryParse(raw.trim());
+      return null;
+    })();
 
     final next = Record(
       id: local?.id ?? 'server_$serverId',
       serverId: serverId,
       serverVersion: serverBill['version'] as int? ?? item['serverVersion'] as int?,
+      createdByUserId: createdBy,
+      updatedByUserId: updatedBy ?? createdBy,
       amount: _amountFromBill(serverBill).abs(),
       remark: serverBill['remark'] as String? ?? '',
       date: DateTime.tryParse(serverBill['billDate'] as String? ?? '') ??
@@ -126,6 +140,8 @@ class _SyncConflictsPageState extends State<SyncConflictsPage> {
             direction: next.direction,
             includeInStats: next.includeInStats,
             pairId: next.pairId,
+            createdByUserId: next.createdByUserId,
+            updatedByUserId: next.updatedByUserId,
             accountProvider: accountProvider,
           );
           await recordProvider.setServerSyncState(

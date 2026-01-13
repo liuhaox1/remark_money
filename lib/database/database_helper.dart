@@ -9,7 +9,7 @@ import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.da
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 14;
+const int _databaseVersion = 15;
 
 /// 数据库名称
 const String _databaseName = 'remark_money.db';
@@ -371,6 +371,19 @@ class DatabaseHelper {
           );
         } catch (_) {}
         break;
+      case 15:
+        // records: add updated_by (last modifier user id, for multi-book transparency)
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.records} ADD COLUMN updated_by INTEGER NOT NULL DEFAULT 0',
+          );
+        } catch (_) {}
+        try {
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_records_updated_by ON ${Tables.records}(updated_by)',
+          );
+        } catch (_) {}
+        break;
       default:
         break;
     }
@@ -385,6 +398,7 @@ class DatabaseHelper {
 	        server_id INTEGER,
 	        server_version INTEGER,
 	        created_by INTEGER NOT NULL DEFAULT 0,
+          updated_by INTEGER NOT NULL DEFAULT 0,
 	        book_id TEXT NOT NULL,
 	        category_key TEXT NOT NULL,
 	        account_id TEXT NOT NULL,
@@ -584,6 +598,8 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_records_date_book ON ${Tables.records}(book_id, date)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_records_expense ON ${Tables.records}(is_expense, date)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_records_book_server_id ON ${Tables.records}(book_id, server_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_created_by ON ${Tables.records}(created_by)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_updated_by ON ${Tables.records}(updated_by)');
 
     // 分类表索引
     await db.execute('CREATE INDEX IF NOT EXISTS idx_categories_parent ON ${Tables.categories}(parent_key)');

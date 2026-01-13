@@ -42,12 +42,23 @@ public class SyncController {
     this.jwtUtil = jwtUtil;
   }
 
-  private Long getUserIdFromToken(String token) {
+  private Long tryGetUserIdFromToken(String token) {
     if (token == null || !token.startsWith("Bearer ")) {
-      throw new IllegalArgumentException("invalid token");
+      return null;
     }
     String jwt = token.substring(7);
-    return jwtUtil.parseUserId(jwt);
+    try {
+      return jwtUtil.parseUserId(jwt);
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  private ResponseEntity<Map<String, Object>> error(int status, String message) {
+    Map<String, Object> resp = new HashMap<>();
+    resp.put("success", false);
+    resp.put("error", message);
+    return ResponseEntity.status(status).body(resp);
   }
 
   /**
@@ -58,10 +69,11 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestBody Map<String, Object> request) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       String bookId = (String) request.get("bookId");
       if (bookId == null || bookId.trim().isEmpty()) {
-        bookId = "default-book";
+        return error(400, "missing bookId");
       }
       @SuppressWarnings("unchecked")
       List<Map<String, Object>> accountsData =
@@ -144,10 +156,7 @@ public class SyncController {
       }
     } catch (Exception e) {
       log.error("Account upload error", e);
-      Map<String, Object> response = new HashMap<>();
-      response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      return error(200, "server error");
     }
   }
 
@@ -159,9 +168,10 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestParam(value = "bookId", required = false) String bookId) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       if (bookId == null || bookId.trim().isEmpty()) {
-        bookId = "default-book";
+        return error(400, "missing bookId");
       }
       SyncService.AccountSyncResult result = syncService.downloadAccounts(userId, bookId);
 
@@ -179,10 +189,7 @@ public class SyncController {
       }
     } catch (Exception e) {
       log.error("Account download error", e);
-      Map<String, Object> response = new HashMap<>();
-      response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      return error(200, "server error");
     }
   }
 
@@ -305,7 +312,8 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestBody Map<String, Object> request) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       String bookId = (String) request.get("bookId");
       Object budgetObj = request.get("budget");
       if (!(budgetObj instanceof Map)) {
@@ -333,8 +341,8 @@ public class SyncController {
       log.error("Budget upload error", e);
       Map<String, Object> response = new HashMap<>();
       response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
     }
   }
 
@@ -346,7 +354,8 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestParam("bookId") String bookId) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       SyncService.BudgetSyncResult result = syncService.downloadBudget(userId, bookId);
 
       Map<String, Object> response = new HashMap<>();
@@ -363,8 +372,8 @@ public class SyncController {
       log.error("Budget download error", e);
       Map<String, Object> response = new HashMap<>();
       response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
     }
   }
 
@@ -379,7 +388,8 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestBody Map<String, Object> request) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       String bookId = (String) request.get("bookId");
 
       @SuppressWarnings("unchecked")
@@ -413,8 +423,8 @@ public class SyncController {
       log.error("SavingsPlan upload error", e);
       Map<String, Object> response = new HashMap<>();
       response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
     }
   }
 
@@ -426,7 +436,8 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestParam("bookId") String bookId) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       SyncService.SavingsPlanSyncResult result = syncService.downloadSavingsPlans(userId, bookId);
 
       Map<String, Object> response = new HashMap<>();
@@ -445,8 +456,8 @@ public class SyncController {
       log.error("SavingsPlan download error", e);
       Map<String, Object> response = new HashMap<>();
       response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
     }
   }
 
@@ -455,8 +466,12 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestBody Map<String, Object> request) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       String bookId = (String) request.get("bookId");
+      if (bookId == null || bookId.trim().isEmpty()) {
+        return error(400, "missing bookId");
+      }
 
       @SuppressWarnings("unchecked")
       List<Map<String, Object>> categoriesData =
@@ -487,8 +502,8 @@ public class SyncController {
       log.error("Category upload error", e);
       Map<String, Object> response = new HashMap<>();
       response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
     }
   }
 
@@ -498,9 +513,13 @@ public class SyncController {
   @GetMapping("/category/download")
   public ResponseEntity<Map<String, Object>> downloadCategories(
       @RequestHeader("Authorization") String token,
-      @RequestParam(value = "bookId", required = false) String bookId) {
+      @RequestParam("bookId") String bookId) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
+      if (bookId == null || bookId.trim().isEmpty()) {
+        return error(400, "missing bookId");
+      }
       SyncService.CategorySyncResult result = syncService.downloadCategories(userId, bookId);
 
       Map<String, Object> response = new HashMap<>();
@@ -519,8 +538,8 @@ public class SyncController {
       log.error("Category download error", e);
       Map<String, Object> response = new HashMap<>();
       response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
     }
   }
 
@@ -532,7 +551,8 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestBody Map<String, Object> request) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       String bookId = (String) request.get("bookId");
 
       @SuppressWarnings("unchecked")
@@ -562,8 +582,8 @@ public class SyncController {
       log.error("Tag upload error", e);
       Map<String, Object> response = new HashMap<>();
       response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
     }
   }
 
@@ -575,7 +595,8 @@ public class SyncController {
       @RequestHeader("Authorization") String token,
       @RequestParam("bookId") String bookId) {
     try {
-      Long userId = getUserIdFromToken(token);
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
       SyncService.TagSyncResult result = syncService.downloadTags(userId, bookId);
 
       Map<String, Object> response = new HashMap<>();
@@ -592,8 +613,8 @@ public class SyncController {
       log.error("Tag download error", e);
       Map<String, Object> response = new HashMap<>();
       response.put("success", false);
-      response.put("error", "server error: " + e.getMessage());
-      return ResponseEntity.status(500).body(response);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
     }
   }
 

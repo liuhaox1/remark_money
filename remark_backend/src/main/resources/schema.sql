@@ -338,6 +338,7 @@ CREATE TABLE IF NOT EXISTS bill_change_log (
   change_id BIGINT PRIMARY KEY AUTO_INCREMENT,
   book_id VARCHAR(64) NOT NULL,
   scope_user_id BIGINT NOT NULL COMMENT '0=shared book, otherwise user_id for personal books',
+  actor_user_id BIGINT NOT NULL DEFAULT 0 COMMENT 'last writer user_id; 0=unknown/bootstrap',
   bill_id BIGINT NOT NULL,
   op TINYINT NOT NULL COMMENT '0=upsert,1=delete',
   bill_version BIGINT NOT NULL,
@@ -503,6 +504,20 @@ SET @index_exists = (
 );
 SET @sql = IF(@index_exists = 0,
     'CREATE INDEX idx_book_scope_change ON bill_change_log(book_id, scope_user_id, change_id)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 10. bill_change_log add actor_user_id (who wrote this change)
+SET @column_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db_name
+      AND TABLE_NAME = 'bill_change_log'
+      AND COLUMN_NAME = 'actor_user_id'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE bill_change_log ADD COLUMN actor_user_id BIGINT NOT NULL DEFAULT 0 COMMENT ''last writer user_id; 0=unknown/bootstrap'' AFTER scope_user_id',
     'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;

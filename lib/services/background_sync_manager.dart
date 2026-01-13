@@ -46,12 +46,16 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   final Map<String, int> _lastUserMetaSyncMsByBook = <String, int>{};
   final Map<String, int> _lastSyncMsByBook = <String, int>{};
   int _lastPausedAtMs = 0;
+  final Map<String, int> _pullBackoffExpByBook = <String, int>{};
 
   // 关键：减少无意义的同步触发（尤其是桌面端/部分机型会频繁触发 resumed）。
   // 多人账本的“实时性”后续用 SSE/WebSocket 来做；当前版本优先保证性能与稳定。
   static const int _resumeMinIntervalMs = 5 * 60 * 1000; // 5min
   static const int _resumeMinBackgroundMs = 30 * 1000; // 30s
   static const int _periodicPullIntervalMs = 3 * 60 * 1000; // 3min
+  // Foreground "freshness" cap: ensure other-device changes become visible within a bounded window.
+  // Actual network pull is further reduced by SyncEngine's no-change cooldown.
+  static const int _periodicPullMaxIntervalMs = 5 * 60 * 1000; // 5min
   static const int _metaPeriodicIntervalMs = 60 * 60 * 1000; // 60min
 
   void start(BuildContext context, {bool triggerInitialSync = true}) {
@@ -127,22 +131,50 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
   void _startPeriodicPullTimer() {
     _periodicPullTimer?.cancel();
-    _periodicPullTimer = Timer.periodic(
-      const Duration(milliseconds: _periodicPullIntervalMs),
-      (_) {
-        final ctx = _context;
-        if (ctx == null) return;
-        final bookId = ctx.read<BookProvider>().activeBookId;
-        if (bookId.isEmpty) return;
+    _scheduleNextPeriodicPull(delayMs: _periodicPullIntervalMs);
+  }
 
+  void _scheduleNextPeriodicPull({required int delayMs}) {
+    _periodicPullTimer?.cancel();
+    _periodicPullTimer = Timer(Duration(milliseconds: delayMs), () {
+      final ctx = _context;
+      if (ctx == null) {
+        _scheduleNextPeriodicPull(delayMs: _periodicPullIntervalMs);
+        return;
+      }
+      final bookId = ctx.read<BookProvider>().activeBookId;
+      if (bookId.isNotEmpty) {
         requestSync(bookId, reason: 'periodic_pull');
 
         final now = DateTime.now().millisecondsSinceEpoch;
         if (now - _lastMetaSyncMs > _metaPeriodicIntervalMs) {
           requestMetaSync(bookId, reason: 'meta_periodic');
         }
-      },
-    );
+      }
+
+      final nextDelay = _nextPeriodicPullDelayMs(bookId);
+      _scheduleNextPeriodicPull(delayMs: nextDelay);
+    });
+  }
+
+  int _nextPeriodicPullDelayMs(String bookId) {
+    if (bookId.isEmpty) return _periodicPullIntervalMs;
+
+    final lastPullMs = SyncEngine.lastPullMsForBook(bookId);
+    final advanced = SyncEngine.lastPullAdvancedForBook(bookId);
+    var exp = _pullBackoffExpByBook[bookId] ?? 0;
+
+    if (advanced) {
+      exp = 0;
+    } else if (lastPullMs > 0) {
+      exp = (exp + 1).clamp(0, 10);
+    }
+    _pullBackoffExpByBook[bookId] = exp;
+
+    final scaled = _periodicPullIntervalMs * (1 << exp);
+    if (scaled <= _periodicPullIntervalMs) return _periodicPullIntervalMs;
+    if (scaled >= _periodicPullMaxIntervalMs) return _periodicPullMaxIntervalMs;
+    return scaled;
   }
 
   void stop() {
@@ -157,6 +189,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _pendingMetaBooks.clear();
     _pendingMetaReasonsByBook.clear();
     _bookProvider = null;
+    _pullBackoffExpByBook.clear();
     _outboxSub?.cancel();
     _outboxSub = null;
     _accountsSub?.cancel();
@@ -357,7 +390,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       final ctx = _context;
       if (ctx != null) {
         final activeBookId = ctx.read<BookProvider>().activeBookId;
-        if (activeBookId.isNotEmpty) {
+          if (activeBookId.isNotEmpty) {
           final now = DateTime.now().millisecondsSinceEpoch;
           // 部分平台会频繁触发 resumed（如窗口焦点变化），这里只接受“确实 paused 过”的恢复。
           final pausedAt = _lastPausedAtMs;
