@@ -112,4 +112,50 @@ void main() {
     final entry = harness.budgetProvider.budgetForBook(harness.bookProvider.activeBookId);
     expect(entry.total, 0);
   });
+
+  testWidgets('BudgetPage category budget cannot exceed total', (tester) async {
+    final harness = await _pumpBudgetPage(tester);
+    final bookId = harness.bookProvider.activeBookId;
+
+    // Prepare: set total=100 and a visible category budget so we can open the edit dialog.
+    await harness.budgetProvider.setTotal(bookId, 100);
+    await harness.budgetProvider.setCategoryBudget(bookId, 'top_food', 50);
+    await tester.pumpAndSettle();
+
+    // Open category budget editor.
+    final editIcon = find.byIcon(Icons.edit_outlined).first;
+    Finder editTapTarget = find.ancestor(
+      of: editIcon,
+      matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+    );
+    if (editTapTarget.evaluate().isEmpty) {
+      editTapTarget = editIcon;
+    }
+    final tapTarget = editTapTarget.first;
+    await tester.ensureVisible(tapTarget);
+    await tester.tap(tapTarget);
+    await tester.pumpAndSettle();
+
+    // Enter an amount greater than total and try saving.
+    await tester.enterText(find.byType(TextField).last, '200');
+    await tester.pump();
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    final dialogSave = find.descendant(of: dialog, matching: find.text('保存'));
+    await tester.ensureVisible(dialogSave);
+    await tester.tap(dialogSave);
+    await tester.pumpAndSettle();
+
+    // Dialog stays open and budget not updated to an invalid value.
+    expect(find.byType(AlertDialog), findsOneWidget);
+    final entry = harness.budgetProvider.budgetForBook(bookId);
+    expect(entry.categoryBudgets['top_food'], 50);
+
+    // Close dialog.
+    final cancel = find.descendant(of: dialog, matching: find.text('取消'));
+    if (cancel.evaluate().isNotEmpty) {
+      await tester.tap(cancel);
+      await tester.pumpAndSettle();
+    }
+  });
 }

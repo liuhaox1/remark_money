@@ -17,12 +17,15 @@ class MetaSyncNotifier {
       StreamController<String>.broadcast();
   final StreamController<String> _savingsPlansChanged =
       StreamController<String>.broadcast();
+  final StreamController<String> _recurringPlansChanged =
+      StreamController<String>.broadcast();
 
   Stream<String> get onAccountsChanged => _accountsChanged.stream;
   Stream<String> get onBudgetChanged => _budgetChanged.stream;
   Stream<String> get onCategoriesChanged => _categoriesChanged.stream;
   Stream<String> get onTagsChanged => _tagsChanged.stream;
   Stream<String> get onSavingsPlansChanged => _savingsPlansChanged.stream;
+  Stream<String> get onRecurringPlansChanged => _recurringPlansChanged.stream;
 
   void notifyAccountsChanged(String bookId) {
     if (_accountsChanged.hasListener) {
@@ -55,6 +58,13 @@ class MetaSyncNotifier {
     if (bookId.isEmpty) return;
     if (_savingsPlansChanged.hasListener) {
       _savingsPlansChanged.add(bookId);
+    }
+  }
+
+  void notifyRecurringPlansChanged(String bookId) {
+    if (bookId.isEmpty) return;
+    if (_recurringPlansChanged.hasListener) {
+      _recurringPlansChanged.add(bookId);
     }
   }
 }

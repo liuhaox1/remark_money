@@ -2,10 +2,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/book.dart';
+import '../services/user_scope.dart';
 
 class BookRepository {
-  static const _booksKey = 'books_v1';
-  static const _activeKey = 'active_book_v1';
+  static const _booksKeyBase = 'books_v1';
+  static const _activeKeyBase = 'active_book_v1';
+
+  String get _booksKey => UserScope.key(_booksKeyBase);
+  String get _activeKey => UserScope.key(_activeKeyBase);
 
   Future<List<Book>> loadBooks() async {
     final prefs = await SharedPreferences.getInstance();

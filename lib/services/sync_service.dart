@@ -125,7 +125,8 @@ class SyncService {
           'deviceId': deviceId,
           'bookId': bookId,
           'plans': plans,
-          if (deletedIds != null && deletedIds.isNotEmpty) 'deletedIds': deletedIds,
+          if (deletedIds != null && deletedIds.isNotEmpty)
+            'deletedIds': deletedIds,
         }),
       );
 
@@ -154,7 +155,8 @@ class SyncService {
 
       final deviceId = await _getDeviceId();
       final resp = await ApiClient.instance.get(
-        _uri('/api/sync/savingsPlan/download?deviceId=$deviceId&bookId=$bookId'),
+        _uri(
+            '/api/sync/savingsPlan/download?deviceId=$deviceId&bookId=$bookId'),
         headers: {
           'Authorization': 'Bearer $token',
         },
@@ -164,6 +166,81 @@ class SyncService {
       if (data['success'] == true) {
         return SyncResult.success(
           savingsPlans: (data['plans'] as List?)
+                  ?.map((e) => e as Map<String, dynamic>)
+                  .toList() ??
+              const [],
+        );
+      } else {
+        return SyncResult.error(data['error'] as String? ?? '下载失败');
+      }
+    } catch (e) {
+      return SyncResult.error(formatNetworkError(e));
+    }
+  }
+
+  Future<SyncResult> uploadRecurringPlans({
+    required String bookId,
+    required List<Map<String, dynamic>> plans,
+    List<String>? deletedIds,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        return SyncResult.error('未登录');
+      }
+
+      final deviceId = await _getDeviceId();
+      final resp = await ApiClient.instance.post(
+        _uri('/api/sync/recurringPlan/upload'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'deviceId': deviceId,
+          'bookId': bookId,
+          'plans': plans,
+          if (deletedIds != null && deletedIds.isNotEmpty)
+            'deletedIds': deletedIds,
+        }),
+      );
+
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (data['success'] == true) {
+        return SyncResult.success(
+          recurringPlans: (data['plans'] as List?)
+                  ?.map((e) => e as Map<String, dynamic>)
+                  .toList() ??
+              const [],
+        );
+      } else {
+        return SyncResult.error(data['error'] as String? ?? '上传失败');
+      }
+    } catch (e) {
+      return SyncResult.error(formatNetworkError(e));
+    }
+  }
+
+  Future<SyncResult> downloadRecurringPlans({required String bookId}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        return SyncResult.error('未登录');
+      }
+
+      final deviceId = await _getDeviceId();
+      final resp = await ApiClient.instance.get(
+        _uri(
+            '/api/sync/recurringPlan/download?deviceId=$deviceId&bookId=$bookId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (data['success'] == true) {
+        return SyncResult.success(
+          recurringPlans: (data['plans'] as List?)
                   ?.map((e) => e as Map<String, dynamic>)
                   .toList() ??
               const [],
@@ -273,7 +350,8 @@ class SyncService {
           'deviceId': deviceId,
           'bookId': bookId,
           'categories': categories,
-          if (deletedKeys != null && deletedKeys.isNotEmpty) 'deletedKeys': deletedKeys,
+          if (deletedKeys != null && deletedKeys.isNotEmpty)
+            'deletedKeys': deletedKeys,
         }),
       );
 
@@ -301,7 +379,8 @@ class SyncService {
       }
 
       final deviceId = await _getDeviceId();
-      final query = StringBuffer('/api/sync/category/download?deviceId=$deviceId');
+      final query =
+          StringBuffer('/api/sync/category/download?deviceId=$deviceId');
       query.write('&bookId=$bookId');
       final resp = await ApiClient.instance.get(
         _uri(query.toString()),
@@ -538,6 +617,7 @@ class SyncResult {
   final List<Map<String, dynamic>>? categories;
   final List<Map<String, dynamic>>? tags;
   final List<Map<String, dynamic>>? savingsPlans;
+  final List<Map<String, dynamic>>? recurringPlans;
 
   SyncResult({
     required this.success,
@@ -547,6 +627,7 @@ class SyncResult {
     this.categories,
     this.tags,
     this.savingsPlans,
+    this.recurringPlans,
   });
 
   factory SyncResult.success({
@@ -555,6 +636,7 @@ class SyncResult {
     List<Map<String, dynamic>>? categories,
     List<Map<String, dynamic>>? tags,
     List<Map<String, dynamic>>? savingsPlans,
+    List<Map<String, dynamic>>? recurringPlans,
   }) {
     return SyncResult(
       success: true,
@@ -563,6 +645,7 @@ class SyncResult {
       categories: categories,
       tags: tags,
       savingsPlans: savingsPlans,
+      recurringPlans: recurringPlans,
     );
   }
 

@@ -41,6 +41,7 @@
     SELECT COUNT(*)
     FROM category_info
     WHERE user_id = #{userId}
+      AND is_delete = 0
   </select>
 
   <insert id="insertOne" useGeneratedKeys="true" keyProperty="id">

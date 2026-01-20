@@ -1,18 +1,22 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:shared_preferences/shared_preferences.dart';
 
 // 平台检测：Windows 使用普通 sqflite，移动平台使用加密版本
-import 'sqflite_platform_stub.dart' if (dart.library.io) 'sqflite_platform_io.dart' as sqflite_platform;
+import 'sqflite_platform_stub.dart'
+    if (dart.library.io) 'sqflite_platform_io.dart' as sqflite_platform;
+
+import '../services/user_scope.dart';
 
 export 'package:sqflite/sqflite.dart';
 
 /// 数据库版本号
-const int _databaseVersion = 15;
+const int _databaseVersion = 16;
 
 /// 数据库名称
-const String _databaseName = 'remark_money.db';
+const String _legacyDatabaseName = 'remark_money.db';
 
 /// 数据库加密密码（实际应用中应该从安全存储中获取）
 /// TODO: 在生产环境中，应该使用设备密钥或用户密码派生
@@ -41,6 +45,7 @@ class DatabaseHelper {
   static DatabaseHelper? _instance;
   static sqflite.Database? _database;
   static const String _migrationCompletedKey = 'db_migration_completed';
+  static int _scopeUserId = 0;
 
   DatabaseHelper._internal();
 
@@ -58,10 +63,73 @@ class DatabaseHelper {
     return _database!;
   }
 
+  static int get scopeUserId => _scopeUserId;
+
+  /// Switch the underlying local database file for the given user scope.
+  /// Must be called before repositories run queries after login/logout.
+  static Future<void> setScopeUserId(int userId) async {
+    final next = userId <= 0 ? 0 : userId;
+    if (_scopeUserId == next && _database != null && _database!.isOpen) return;
+    _scopeUserId = next;
+    try {
+      await _database?.close();
+    } catch (_) {}
+    _database = null;
+  }
+
+  String _scopedDatabaseName() {
+    if (_scopeUserId <= 0) return 'remark_money_guest.db';
+    return 'remark_money_u$_scopeUserId.db';
+  }
+
+  Future<void> _maybeAdoptLegacyDb(String dirPath) async {
+    final legacyPath = '$dirPath/$_legacyDatabaseName';
+    final legacyFile = File(legacyPath);
+    if (!await legacyFile.exists()) return;
+
+    // Already scoped: nothing to do.
+    final targetPath = '$dirPath/${_scopedDatabaseName()}';
+    if (legacyPath == targetPath) return;
+    final targetFile = File(targetPath);
+    if (await targetFile.exists()) return;
+
+    // If we have a known user scope, adopt legacy DB into that scope.
+    // If not, try to infer from the last sync owner; otherwise treat as guest.
+    var adoptUserId = _scopeUserId;
+    if (adoptUserId <= 0) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        adoptUserId = (prefs.getInt('sync_owner_user_id') ?? 0);
+      } catch (_) {
+        adoptUserId = 0;
+      }
+    }
+    final adoptName = adoptUserId <= 0
+        ? 'remark_money_guest.db'
+        : 'remark_money_u$adoptUserId.db';
+    final adoptPath = '$dirPath/$adoptName';
+    if (await File(adoptPath).exists()) return;
+
+    Future<void> moveIfExists(String from, String to) async {
+      try {
+        final f = File(from);
+        if (!await f.exists()) return;
+        await f.rename(to);
+      } catch (_) {}
+    }
+
+    await moveIfExists(legacyPath, adoptPath);
+    for (final suffix in const ['-wal', '-shm']) {
+      await moveIfExists('$legacyPath$suffix', '$adoptPath$suffix');
+    }
+  }
+
   /// 初始化数据库
   Future<sqflite.Database> _initDatabase() async {
     final documentsDirectory = await getApplicationDocumentsDirectory();
-    final dbPath = '${documentsDirectory.path}/$_databaseName';
+    _scopeUserId = UserScope.userId;
+    await _maybeAdoptLegacyDb(documentsDirectory.path);
+    final dbPath = '${documentsDirectory.path}/${_scopedDatabaseName()}';
 
     // 检查是否需要从 SharedPreferences 迁移数据
     final needsMigration = await _checkMigrationNeeded();
@@ -114,7 +182,8 @@ class DatabaseHelper {
   }
 
   /// 升级数据库
-  Future<void> _onUpgrade(sqflite.Database db, int oldVersion, int newVersion) async {
+  Future<void> _onUpgrade(
+      sqflite.Database db, int oldVersion, int newVersion) async {
     // 未来版本升级逻辑
     for (int version = oldVersion + 1; version <= newVersion; version++) {
       await _upgradeToVersion(db, version);
@@ -129,7 +198,8 @@ class DatabaseHelper {
         break;
       case 2:
         // 为 records 表增加 server_id 字段（用于存储服务器自增ID）
-        await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN server_id INTEGER');
+        await db.execute(
+            'ALTER TABLE ${Tables.records} ADD COLUMN server_id INTEGER');
         break;
       case 3:
         // 增加同步发件箱表：用于透明后台同步
@@ -152,7 +222,8 @@ class DatabaseHelper {
       // 未来版本升级逻辑
       case 4:
         // records: add server_version (v2 sync optimistic lock)
-        await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN server_version INTEGER');
+        await db.execute(
+            'ALTER TABLE ${Tables.records} ADD COLUMN server_version INTEGER');
         break;
       case 5:
         // tags + record_tags (many-to-many)
@@ -253,7 +324,8 @@ class DatabaseHelper {
       case 9:
         // records: add pair_id (transfer pairing)
         try {
-          await db.execute('ALTER TABLE ${Tables.records} ADD COLUMN pair_id TEXT');
+          await db
+              .execute('ALTER TABLE ${Tables.records} ADD COLUMN pair_id TEXT');
         } catch (_) {}
         break;
       case 10:
@@ -272,56 +344,73 @@ class DatabaseHelper {
       case 11:
         // v1 meta sync: add server sync_version support (accounts/categories/tags)
         try {
-          await db.execute('ALTER TABLE ${Tables.categories} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
+          await db.execute(
+              'ALTER TABLE ${Tables.categories} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.tags} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
+          await db.execute(
+              'ALTER TABLE ${Tables.tags} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN subtype TEXT NOT NULL DEFAULT \"cash\"');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN subtype TEXT NOT NULL DEFAULT \"cash\"');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN account_type TEXT NOT NULL DEFAULT \"cash\"');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN account_type TEXT NOT NULL DEFAULT \"cash\"');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN icon TEXT NOT NULL DEFAULT \"wallet\"');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN icon TEXT NOT NULL DEFAULT \"wallet\"');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN server_id INTEGER');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN server_id INTEGER');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN include_in_overview INTEGER NOT NULL DEFAULT 1');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN include_in_overview INTEGER NOT NULL DEFAULT 1');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN currency TEXT NOT NULL DEFAULT \"CNY\"');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN currency TEXT NOT NULL DEFAULT \"CNY\"');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN initial_balance REAL NOT NULL DEFAULT 0');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN initial_balance REAL NOT NULL DEFAULT 0');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN counterparty TEXT');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN counterparty TEXT');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN interest_rate REAL');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN interest_rate REAL');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN due_date INTEGER');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN due_date INTEGER');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN note TEXT');
+          await db
+              .execute('ALTER TABLE ${Tables.accounts} ADD COLUMN note TEXT');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN brand_key TEXT');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN brand_key TEXT');
         } catch (_) {}
         try {
-          await db.execute('ALTER TABLE ${Tables.accounts} ADD COLUMN is_delete INTEGER NOT NULL DEFAULT 0');
+          await db.execute(
+              'ALTER TABLE ${Tables.accounts} ADD COLUMN is_delete INTEGER NOT NULL DEFAULT 0');
         } catch (_) {}
         // Ensure idx remains available.
         try {
-          await db.execute('CREATE INDEX IF NOT EXISTS idx_accounts_type ON ${Tables.accounts}(type)');
+          await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_accounts_type ON ${Tables.accounts}(type)');
         } catch (_) {}
       case 12:
         // sync_outbox: isolate queued ops by owner_user_id so cross-account login won't push stale deletes/updates.
@@ -384,6 +473,14 @@ class DatabaseHelper {
           );
         } catch (_) {}
         break;
+      case 16:
+        // recurring_records: add sync_version for server meta sync
+        try {
+          await db.execute(
+            'ALTER TABLE ${Tables.recurringRecords} ADD COLUMN sync_version INTEGER NOT NULL DEFAULT 0',
+          );
+        } catch (_) {}
+        break;
       default:
         break;
     }
@@ -392,7 +489,7 @@ class DatabaseHelper {
   /// 创建所有表
   Future<void> _createTables(sqflite.Database db) async {
     // 记录表
-	    await db.execute('''
+    await db.execute('''
 	      CREATE TABLE IF NOT EXISTS ${Tables.records} (
 	        id TEXT PRIMARY KEY,
 	        server_id INTEGER,
@@ -533,6 +630,7 @@ class DatabaseHelper {
         next_due_date INTEGER NOT NULL,
         remark TEXT,
         tag_ids TEXT NOT NULL DEFAULT '[]',
+        sync_version INTEGER NOT NULL DEFAULT 0,
         last_run_at INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
@@ -591,28 +689,41 @@ class DatabaseHelper {
   /// 创建索引
   Future<void> _createIndexes(sqflite.Database db) async {
     // 记录表索引
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_book_id ON ${Tables.records}(book_id)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_date ON ${Tables.records}(date)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_category ON ${Tables.records}(category_key)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_account ON ${Tables.records}(account_id)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_date_book ON ${Tables.records}(book_id, date)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_expense ON ${Tables.records}(is_expense, date)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_book_server_id ON ${Tables.records}(book_id, server_id)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_created_by ON ${Tables.records}(created_by)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_records_updated_by ON ${Tables.records}(updated_by)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_book_id ON ${Tables.records}(book_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_date ON ${Tables.records}(date)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_category ON ${Tables.records}(category_key)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_account ON ${Tables.records}(account_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_date_book ON ${Tables.records}(book_id, date)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_expense ON ${Tables.records}(is_expense, date)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_book_server_id ON ${Tables.records}(book_id, server_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_created_by ON ${Tables.records}(created_by)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_records_updated_by ON ${Tables.records}(updated_by)');
 
     // 分类表索引
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_categories_parent ON ${Tables.categories}(parent_key)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_categories_expense ON ${Tables.categories}(is_expense)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_categories_parent ON ${Tables.categories}(parent_key)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_categories_expense ON ${Tables.categories}(is_expense)');
 
     // 账户表索引
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_accounts_type ON ${Tables.accounts}(type)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_accounts_type ON ${Tables.accounts}(type)');
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_accounts_book_sort ON ${Tables.accounts}(book_id, sort_order, created_at)',
     );
 
     // 记录模板表索引
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_templates_last_used ON ${Tables.recordTemplates}(last_used_at)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_templates_last_used ON ${Tables.recordTemplates}(last_used_at)');
 
     // 同步发件箱索引
     await db.execute(
@@ -668,7 +779,8 @@ class DatabaseHelper {
       // 记录迁移错误
       final db = await database;
       await db.transaction((txn) async {
-        await _logMigration(txn, 'shared_preferences', 'database', 'failed', errorMessage: e.toString());
+        await _logMigration(txn, 'shared_preferences', 'database', 'failed',
+            errorMessage: e.toString());
       });
       rethrow;
     }
@@ -692,9 +804,33 @@ class DatabaseHelper {
   }
 
   /// 迁移账本数据
+  bool _canAdoptLegacyPrefs(SharedPreferences prefs) {
+    final uid = UserScope.userId;
+    if (uid <= 0) return true; // guest scope; safe enough
+    return (prefs.getInt('sync_owner_user_id') ?? 0) == uid;
+  }
+
+  String _scopedPrefsKey(String baseKey) => UserScope.key(baseKey);
+
+  List<String>? _readStringListScopedOrLegacy(
+    SharedPreferences prefs,
+    String baseKey,
+  ) {
+    return prefs.getStringList(_scopedPrefsKey(baseKey)) ??
+        (_canAdoptLegacyPrefs(prefs) ? prefs.getStringList(baseKey) : null);
+  }
+
+  String? _readStringScopedOrLegacy(
+    SharedPreferences prefs,
+    String baseKey,
+  ) {
+    return prefs.getString(_scopedPrefsKey(baseKey)) ??
+        (_canAdoptLegacyPrefs(prefs) ? prefs.getString(baseKey) : null);
+  }
+
   Future<void> _migrateBooks(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('books_v1');
+    final raw = _readStringListScopedOrLegacy(prefs, 'books_v1');
     if (raw == null || raw.isEmpty) return;
 
     for (final jsonStr in raw) {
@@ -702,12 +838,15 @@ class DatabaseHelper {
         final map = Map<String, dynamic>.from(
           (await _parseJson(jsonStr)) as Map,
         );
-        await txn.insert(Tables.books, {
-          'id': map['id'],
-          'name': map['name'],
-          'created_at': DateTime.now().millisecondsSinceEpoch,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+        await txn.insert(
+            Tables.books,
+            {
+              'id': map['id'],
+              'name': map['name'],
+              'created_at': DateTime.now().millisecondsSinceEpoch,
+              'updated_at': DateTime.now().millisecondsSinceEpoch,
+            },
+            conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
       } catch (e) {
         // 跳过错误的数据
         continue;
@@ -718,25 +857,49 @@ class DatabaseHelper {
   /// 迁移分类数据
   Future<void> _migrateCategories(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('categories_v1');
-    if (raw == null || raw.isEmpty) return;
+    final merged = <String>[];
 
-    for (final jsonStr in raw) {
+    final legacyList = _readStringListScopedOrLegacy(prefs, 'categories_v1');
+    if (legacyList != null && legacyList.isNotEmpty) {
+      merged.addAll(legacyList);
+    }
+
+    final scopedPrefix = '${UserScope.prefix}categories_v1_';
+    for (final k in prefs.getKeys()) {
+      if (!k.startsWith(scopedPrefix)) continue;
+      final list = prefs.getStringList(k);
+      if (list != null && list.isNotEmpty) merged.addAll(list);
+    }
+
+    if (_canAdoptLegacyPrefs(prefs)) {
+      for (final k in prefs.getKeys()) {
+        if (!k.startsWith('categories_v1_')) continue;
+        final list = prefs.getStringList(k);
+        if (list != null && list.isNotEmpty) merged.addAll(list);
+      }
+    }
+
+    if (merged.isEmpty) return;
+
+    for (final jsonStr in merged) {
       try {
         final map = Map<String, dynamic>.from(
           (await _parseJson(jsonStr)) as Map,
         );
-        await txn.insert(Tables.categories, {
-          'key': map['key'],
-          'name': map['name'],
-          'icon_code_point': map['icon'],
-          'icon_font_family': map['fontFamily'],
-          'icon_font_package': map['fontPackage'],
-          'is_expense': map['isExpense'] ? 1 : 0,
-          'parent_key': map['parentKey'],
-          'created_at': DateTime.now().millisecondsSinceEpoch,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+        await txn.insert(
+            Tables.categories,
+            {
+              'key': map['key'],
+              'name': map['name'],
+              'icon_code_point': map['icon'],
+              'icon_font_family': map['fontFamily'],
+              'icon_font_package': map['fontPackage'],
+              'is_expense': map['isExpense'] ? 1 : 0,
+              'parent_key': map['parentKey'],
+              'created_at': DateTime.now().millisecondsSinceEpoch,
+              'updated_at': DateTime.now().millisecondsSinceEpoch,
+            },
+            conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
       } catch (e) {
         continue;
       }
@@ -746,35 +909,64 @@ class DatabaseHelper {
   /// 迁移账户数据
   Future<void> _migrateAccounts(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('accounts_v1');
-    if (raw == null || raw.isEmpty) return;
+    final payloads = <String>[];
 
-    try {
-      final list = (await _parseJson(raw)) as List;
-      for (final map in list) {
-        final accountMap = Map<String, dynamic>.from(map as Map);
-        await txn.insert(Tables.accounts, {
-          'id': accountMap['id'],
-          'book_id': accountMap['bookId'] ?? accountMap['book_id'] ?? 'default-book',
-          'name': accountMap['name'],
-          'type': accountMap['type'] ?? accountMap['kind'] ?? 'asset',
-          'current_balance': accountMap['currentBalance'] ?? accountMap['balance'] ?? 0.0,
-          'is_debt': accountMap['isDebt'] == true ? 1 : 0,
-          'include_in_total': accountMap['includeInTotal'] == true ? 1 : 0,
-          'sort_order': accountMap['sortOrder'] ?? 0,
-          'created_at': DateTime.now().millisecondsSinceEpoch,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+    final legacy = _readStringScopedOrLegacy(prefs, 'accounts_v1');
+    if (legacy != null && legacy.isNotEmpty) payloads.add(legacy);
+
+    final scopedPrefix = '${UserScope.prefix}accounts_v1_';
+    for (final k in prefs.getKeys()) {
+      if (!k.startsWith(scopedPrefix)) continue;
+      final raw = prefs.getString(k);
+      if (raw != null && raw.isNotEmpty) payloads.add(raw);
+    }
+
+    if (_canAdoptLegacyPrefs(prefs)) {
+      for (final k in prefs.getKeys()) {
+        if (!k.startsWith('accounts_v1_')) continue;
+        final raw = prefs.getString(k);
+        if (raw != null && raw.isNotEmpty) payloads.add(raw);
       }
-    } catch (e) {
-      // 跳过错误
+    }
+
+    if (payloads.isEmpty) return;
+
+    for (final raw in payloads) {
+      try {
+        final list = (await _parseJson(raw)) as List;
+        for (final map in list) {
+          final accountMap = Map<String, dynamic>.from(map as Map);
+          await txn.insert(
+              Tables.accounts,
+              {
+                'id': accountMap['id'],
+                'book_id': accountMap['bookId'] ??
+                    accountMap['book_id'] ??
+                    'default-book',
+                'name': accountMap['name'],
+                'type': accountMap['type'] ?? accountMap['kind'] ?? 'asset',
+                'current_balance': accountMap['currentBalance'] ??
+                    accountMap['balance'] ??
+                    0.0,
+                'is_debt': accountMap['isDebt'] == true ? 1 : 0,
+                'include_in_total':
+                    accountMap['includeInTotal'] == true ? 1 : 0,
+                'sort_order': accountMap['sortOrder'] ?? 0,
+                'created_at': DateTime.now().millisecondsSinceEpoch,
+                'updated_at': DateTime.now().millisecondsSinceEpoch,
+              },
+              conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+        }
+      } catch (_) {
+        // ignore invalid payload
+      }
     }
   }
 
   /// 迁移记录数据
   Future<void> _migrateRecords(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('records_v1');
+    final raw = _readStringListScopedOrLegacy(prefs, 'records_v1');
     if (raw == null || raw.isEmpty) return;
 
     for (final jsonStr in raw) {
@@ -782,7 +974,7 @@ class DatabaseHelper {
         final map = Map<String, dynamic>.from(
           (await _parseJson(jsonStr)) as Map,
         );
-        
+
         // 处理 direction 字段：兼容旧数据和新数据
         int isExpense;
         if (map['direction'] != null) {
@@ -797,23 +989,26 @@ class DatabaseHelper {
           final amount = (map['amount'] as num).toDouble();
           isExpense = amount >= 0 ? 1 : 0;
         }
-        
-        await txn.insert(Tables.records, {
-          'id': map['id'],
-          'book_id': map['bookId'] ?? 'default-book',
-          'category_key': map['categoryKey'],
-          'account_id': map['accountId'] ?? '',
-          'amount': (map['amount'] as num).abs().toDouble(),
-          'is_expense': isExpense,
-          'date': (map['date'] as String).isNotEmpty
-              ? DateTime.parse(map['date']).millisecondsSinceEpoch
-              : DateTime.now().millisecondsSinceEpoch,
-          'remark': map['remark'] ?? '',
-          'include_in_stats': map['includeInStats'] == true ? 1 : 0,
-          'pair_id': map['pairId'],
-          'created_at': DateTime.now().millisecondsSinceEpoch,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+
+        await txn.insert(
+            Tables.records,
+            {
+              'id': map['id'],
+              'book_id': map['bookId'] ?? 'default-book',
+              'category_key': map['categoryKey'],
+              'account_id': map['accountId'] ?? '',
+              'amount': (map['amount'] as num).abs().toDouble(),
+              'is_expense': isExpense,
+              'date': (map['date'] as String).isNotEmpty
+                  ? DateTime.parse(map['date']).millisecondsSinceEpoch
+                  : DateTime.now().millisecondsSinceEpoch,
+              'remark': map['remark'] ?? '',
+              'include_in_stats': map['includeInStats'] == true ? 1 : 0,
+              'pair_id': map['pairId'],
+              'created_at': DateTime.now().millisecondsSinceEpoch,
+              'updated_at': DateTime.now().millisecondsSinceEpoch,
+            },
+            conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
       } catch (e) {
         continue;
       }
@@ -823,23 +1018,26 @@ class DatabaseHelper {
   /// 迁移预算数据
   Future<void> _migrateBudgets(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('budget_v1');
+    final raw = _readStringScopedOrLegacy(prefs, 'budget_v1');
     if (raw == null || raw.isEmpty) return;
 
     try {
       final map = Map<String, dynamic>.from(
         (await _parseJson(raw)) as Map,
       );
-      await txn.insert(Tables.budgets, {
-        'book_id': map['bookId'] ?? 'default-book',
-        'month_budget': map['monthBudget'],
-        'year_budget': map['yearBudget'],
-        'category_budgets': map['categoryBudgets'] != null
-            ? await _encodeJson(map['categoryBudgets'])
-            : null,
-        'created_at': DateTime.now().millisecondsSinceEpoch,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+      await txn.insert(
+          Tables.budgets,
+          {
+            'book_id': map['bookId'] ?? 'default-book',
+            'month_budget': map['monthBudget'],
+            'year_budget': map['yearBudget'],
+            'category_budgets': map['categoryBudgets'] != null
+                ? await _encodeJson(map['categoryBudgets'])
+                : null,
+            'created_at': DateTime.now().millisecondsSinceEpoch,
+            'updated_at': DateTime.now().millisecondsSinceEpoch,
+          },
+          conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
     } catch (e) {
       // 跳过错误
     }
@@ -848,7 +1046,7 @@ class DatabaseHelper {
   /// 迁移记录模板数据
   Future<void> _migrateRecordTemplates(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('record_templates_v1');
+    final raw = _readStringListScopedOrLegacy(prefs, 'record_templates_v1');
     if (raw == null || raw.isEmpty) return;
 
     for (final jsonStr in raw) {
@@ -858,20 +1056,25 @@ class DatabaseHelper {
         );
         final direction = map['direction'] as String? ?? 'out';
         final isExpense = direction == 'in' ? 0 : 1;
-        await txn.insert(Tables.recordTemplates, {
-          'id': map['id'],
-          'category_key': map['categoryKey'],
-          'account_id': map['accountId'] ?? '',
-          'remark': map['remark'] ?? '',
-          'is_expense': isExpense,
-          'last_used_at': map['lastUsedAt'] != null
-              ? DateTime.parse(map['lastUsedAt'] as String).millisecondsSinceEpoch
-              : null,
-          'created_at': map['createdAt'] != null
-              ? DateTime.parse(map['createdAt'] as String).millisecondsSinceEpoch
-              : DateTime.now().millisecondsSinceEpoch,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+        await txn.insert(
+            Tables.recordTemplates,
+            {
+              'id': map['id'],
+              'category_key': map['categoryKey'],
+              'account_id': map['accountId'] ?? '',
+              'remark': map['remark'] ?? '',
+              'is_expense': isExpense,
+              'last_used_at': map['lastUsedAt'] != null
+                  ? DateTime.parse(map['lastUsedAt'] as String)
+                      .millisecondsSinceEpoch
+                  : null,
+              'created_at': map['createdAt'] != null
+                  ? DateTime.parse(map['createdAt'] as String)
+                      .millisecondsSinceEpoch
+                  : DateTime.now().millisecondsSinceEpoch,
+              'updated_at': DateTime.now().millisecondsSinceEpoch,
+            },
+            conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
       } catch (e) {
         continue;
       }
@@ -881,9 +1084,10 @@ class DatabaseHelper {
   /// 迁移循环记账数据
   Future<void> _migrateRecurringRecords(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('recurring_records_v1');
+    final raw = _readStringListScopedOrLegacy(prefs, 'recurring_records_v1');
     if (raw == null || raw.isEmpty) return;
-    final fallbackBookId = prefs.getString('active_book_v1') ?? 'default-book';
+    final fallbackBookId =
+        _readStringScopedOrLegacy(prefs, 'active_book_v1') ?? 'default-book';
 
     for (final jsonStr in raw) {
       try {
@@ -899,35 +1103,42 @@ class DatabaseHelper {
         final weekday = map['weekday'] as int?;
         final monthDay = map['monthDay'] as int?;
         final rawTags = map['tagIds'];
-        final tagIds = rawTags is List ? rawTags.map((e) => e.toString()).toList() : const <String>[];
+        final tagIds = rawTags is List
+            ? rawTags.map((e) => e.toString()).toList()
+            : const <String>[];
         final rawLastRunAt = map['lastRunAt'] as String?;
         final nextDate = map['nextDate'] != null
             ? DateTime.parse(map['nextDate'] as String).millisecondsSinceEpoch
             : (map['nextDueDate'] != null
-                ? DateTime.parse(map['nextDueDate'] as String).millisecondsSinceEpoch
+                ? DateTime.parse(map['nextDueDate'] as String)
+                    .millisecondsSinceEpoch
                 : DateTime.now().millisecondsSinceEpoch);
-        await txn.insert(Tables.recurringRecords, {
-          'id': map['id'],
-          'book_id': (bookId == null || bookId.isEmpty) ? fallbackBookId : bookId,
-          'category_key': map['categoryKey'],
-          'account_id': map['accountId'] ?? '',
-          'amount': (map['amount'] as num).toDouble(),
-          'is_expense': isExpense,
-          'include_in_stats': includeInStats ? 1 : 0,
-          'enabled': enabled ? 1 : 0,
-          'period_type': periodType == 'weekly' ? 'weekly' : 'monthly',
-          'weekday': weekday,
-          'month_day': monthDay,
-          'start_date': nextDate,
-          'next_due_date': nextDate,
-          'remark': map['remark'],
-          'tag_ids': await _encodeJson(tagIds),
-          'last_run_at': rawLastRunAt == null
-              ? null
-              : DateTime.tryParse(rawLastRunAt)?.millisecondsSinceEpoch,
-          'created_at': DateTime.now().millisecondsSinceEpoch,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+        await txn.insert(
+            Tables.recurringRecords,
+            {
+              'id': map['id'],
+              'book_id':
+                  (bookId == null || bookId.isEmpty) ? fallbackBookId : bookId,
+              'category_key': map['categoryKey'],
+              'account_id': map['accountId'] ?? '',
+              'amount': (map['amount'] as num).toDouble(),
+              'is_expense': isExpense,
+              'include_in_stats': includeInStats ? 1 : 0,
+              'enabled': enabled ? 1 : 0,
+              'period_type': periodType == 'weekly' ? 'weekly' : 'monthly',
+              'weekday': weekday,
+              'month_day': monthDay,
+              'start_date': nextDate,
+              'next_due_date': nextDate,
+              'remark': map['remark'],
+              'tag_ids': await _encodeJson(tagIds),
+              'last_run_at': rawLastRunAt == null
+                  ? null
+                  : DateTime.tryParse(rawLastRunAt)?.millisecondsSinceEpoch,
+              'created_at': DateTime.now().millisecondsSinceEpoch,
+              'updated_at': DateTime.now().millisecondsSinceEpoch,
+            },
+            conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
       } catch (e) {
         continue;
       }
@@ -938,33 +1149,37 @@ class DatabaseHelper {
   /// 迁移应用设置数据
   Future<void> _migrateAppSettings(sqflite.Transaction txn) async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // 迁移主题设置
     final themeMode = prefs.getString('theme_mode');
     if (themeMode != null) {
-      await txn.insert(Tables.appSettings, {
-        'key': 'theme_mode',
-        'value': themeMode,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+      await txn.insert(
+          Tables.appSettings,
+          {
+            'key': 'theme_mode',
+            'value': themeMode,
+            'updated_at': DateTime.now().millisecondsSinceEpoch,
+          },
+          conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
     }
 
     // 迁移当前账本ID
-    final activeBookId = prefs.getString('active_book_v1');
+    final activeBookId = _readStringScopedOrLegacy(prefs, 'active_book_v1');
     if (activeBookId != null) {
-      await txn.insert(Tables.appSettings, {
-        'key': 'active_book_id',
-        'value': activeBookId,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+      await txn.insert(
+          Tables.appSettings,
+          {
+            'key': 'active_book_id',
+            'value': activeBookId,
+            'updated_at': DateTime.now().millisecondsSinceEpoch,
+          },
+          conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
     }
   }
 
   /// 解析 JSON（异步处理，避免阻塞）
   Future<dynamic> _parseJson(String jsonStr) async {
-    return await Future.microtask(() => 
-      json.decode(jsonStr) as dynamic
-    );
+    return await Future.microtask(() => json.decode(jsonStr) as dynamic);
   }
 
   /// 编码 JSON

@@ -12,8 +12,10 @@ import '../providers/record_provider.dart';
 import '../repository/savings_plan_repository.dart';
 import '../services/sync_engine.dart';
 import '../utils/error_handler.dart';
+import '../utils/savings_plan_record_filter.dart';
 import '../widgets/account_select_bottom_sheet.dart';
 import '../widgets/week_strip.dart';
+import 'savings_plan_create_page.dart';
 
 class SavingsPlanDetailPage extends StatefulWidget {
   const SavingsPlanDetailPage({super.key, required this.planId});
@@ -51,12 +53,11 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
       final plan = plans.firstWhere((p) => p.id == widget.planId);
       final recordProvider = context.read<RecordProvider>();
       // 仅用于展示：按 planId 前缀筛选本计划的转账记录（避免多个计划共享同一存钱账户时混杂）
-      final all = recordProvider.records;
-      final prefix = 'sp_${plan.id}_';
-      final list = all
-          .where((r) => (r.pairId ?? '').startsWith(prefix))
-          .toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
+      final list = filterSavingsPlanRecordsForDisplay(
+        planId: plan.id,
+        planAccountId: plan.accountId,
+        records: recordProvider.records,
+      )..sort((a, b) => b.date.compareTo(a.date));
       if (!mounted) return;
       setState(() {
         _plan = plan;
@@ -188,12 +189,29 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
         return;
       }
 
+      if (fromAccountId == plan.accountId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('扣款账户不能和存钱账户相同')),
+        );
+        return;
+      }
+
       final recordProvider = context.read<RecordProvider>();
       final accountProvider = context.read<AccountProvider>();
 
       try {
         final pairId = 'sp_${plan.id}_${DateTime.now().microsecondsSinceEpoch}';
         final now = DateTime.now();
+        final date = DateTime(
+          _selectedDay.year,
+          _selectedDay.month,
+          _selectedDay.day,
+          now.hour,
+          now.minute,
+          now.second,
+          now.millisecond,
+          now.microsecond,
+        );
         final note = remarkCtrl.text.trim();
         final text = note.isEmpty ? '存钱' : note;
 
@@ -201,7 +219,7 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
         await recordProvider.addRecord(
           amount: amount,
           remark: text,
-          date: now,
+          date: date,
           categoryKey: 'saving-out',
           bookId: bookId,
           accountId: fromAccountId!,
@@ -214,7 +232,7 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
         await recordProvider.addRecord(
           amount: amount,
           remark: text,
-          date: now,
+          date: date,
           categoryKey: 'saving-in',
           bookId: bookId,
           accountId: plan.accountId,
@@ -227,7 +245,7 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
         final updated = plan.copyWith(
           savedAmount: plan.savedAmount + amount,
           executedCount: plan.executedCount + 1,
-          lastExecutedAt: now,
+          lastExecutedAt: date,
           defaultFromAccountId: fromAccountId,
           updatedAt: now,
         );
@@ -397,6 +415,22 @@ class _SavingsPlanDetailPageState extends State<SavingsPlanDetailPage> {
       appBar: AppBar(
         title: Text(plan?.name ?? '存钱计划'),
         centerTitle: true,
+        actions: [
+          if (plan != null)
+            IconButton(
+              tooltip: '编辑',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () async {
+                final updated = await Navigator.of(context).push<SavingsPlan>(
+                  MaterialPageRoute(
+                    builder: (_) => SavingsPlanCreatePage(initialPlan: plan),
+                  ),
+                );
+                if (updated == null) return;
+                await _reload();
+              },
+            ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

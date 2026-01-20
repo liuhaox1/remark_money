@@ -50,6 +50,8 @@ public interface BillInfoMapper {
 
   int countByBookId(@Param("bookId") String bookId);
 
+  int countByBookIdAndPairId(@Param("bookId") String bookId, @Param("pairId") String pairId);
+
   // v2 summary: count all non-deleted bills for sync scope (do NOT filter include_in_stats)
   int countNonDeletedByUserIdAndBookId(@Param("userId") Long userId, @Param("bookId") String bookId);
 

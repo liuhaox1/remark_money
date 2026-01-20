@@ -87,6 +87,14 @@ class RecordProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> reload() async {
+    _recentRecordsCache.clear();
+    _monthStatsCache.clear();
+    _dayStatsCache.clear();
+    _loaded = false;
+    await load();
+  }
+
   /// 刷新最近记录缓存（用于同步后 UI 立即更新，避免逐条 notify/落库带来的卡顿）
   Future<void> refreshRecentCache({String? bookId}) async {
     if (!_loaded) {

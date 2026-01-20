@@ -28,6 +28,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 @Service
 public class SyncV2Service {
   private static final int RETENTION_DAYS = 30;
+  private static final String TEMP_CONFLICT_SERVER_BILL_ID = "__conflictServerBillId";
 
   private final BillInfoMapper billInfoMapper;
   private final BillChangeLogMapper billChangeLogMapper;
@@ -424,6 +426,10 @@ public class SyncV2Service {
     Set<Long> pendingTagDeletes = new java.util.HashSet<>();
     Set<Long> newlyInsertedBillIds = new java.util.HashSet<>();
 
+    // For conflict responses we may need tagIds; collect and load once to avoid N+1 queries.
+    Map<Long, BillInfo> conflictBillsById = new HashMap<>();
+    Set<Long> conflictBillIds = new HashSet<>();
+
     // v2: 批量新增（显式 serverId + expectedVersion=0）
     class PendingCreate {
       final String opId;
@@ -475,15 +481,11 @@ public class SyncV2Service {
               ? billInfoMapper.findByIdForBook(bookId, dedup.getBillId())
               : billInfoMapper.findByIdForUserAndBook(userId, bookId, dedup.getBillId());
           if (serverBill != null) {
-            List<String> tagIds =
-            loadTagIdsByBillIds(
-                    bookId,
-                    scopeUserId,
-                    userId,
-                    java.util.Collections.singletonList(serverBill.getId()))
-                    .get(serverBill.getId());
-            if (tagIds == null) tagIds = new ArrayList<>();
-            item.put("serverBill", toBillMap(serverBill, tagIds));
+            if (serverBill.getId() != null) {
+              conflictBillsById.put(serverBill.getId(), serverBill);
+              conflictBillIds.add(serverBill.getId());
+              item.put(TEMP_CONFLICT_SERVER_BILL_ID, serverBill.getId());
+            }
           }
         }
         if (dedup.getError() != null) item.put("error", dedup.getError());
@@ -494,7 +496,20 @@ public class SyncV2Service {
 
       try {
         if ("delete".equalsIgnoreCase(type)) {
-          handleDelete(userId, bookId, scopeUserId, sharedBook, op, item, pendingLogs, pendingDedups, requestId, deviceId, syncReason);
+          handleDelete(
+              userId,
+              bookId,
+              scopeUserId,
+              sharedBook,
+              op,
+              item,
+              pendingLogs,
+              pendingDedups,
+              conflictBillsById,
+              conflictBillIds,
+              requestId,
+              deviceId,
+              syncReason);
           if ("applied".equals(item.get("status")) && item.get("serverId") instanceof Number) {
             pendingTagDeletes.add(((Number) item.get("serverId")).longValue());
           }
@@ -517,7 +532,21 @@ public class SyncV2Service {
             }
             pendingCreates.add(new PendingCreate(opId, bill, tagIds, item));
           } else {
-            handleUpsert(userId, bookId, scopeUserId, sharedBook, op, item, pendingLogs, pendingDedups, newlyInsertedBillIds, requestId, deviceId, syncReason);
+            handleUpsert(
+                userId,
+                bookId,
+                scopeUserId,
+                sharedBook,
+                op,
+                item,
+                pendingLogs,
+                pendingDedups,
+                newlyInsertedBillIds,
+                conflictBillsById,
+                conflictBillIds,
+                requestId,
+                deviceId,
+                syncReason);
             if ("applied".equals(item.get("status")) && item.get("serverId") instanceof Number) {
               Object billObj = op.get("bill");
               if (billObj instanceof Map) {
@@ -544,6 +573,24 @@ public class SyncV2Service {
 
       results.add(item);
       resultsByOpId.put(opId, item);
+    }
+
+    if (!conflictBillIds.isEmpty()) {
+      Map<Long, List<String>> tagIdsByBillId =
+          loadTagIdsByBillIds(bookId, scopeUserId, userId, new ArrayList<>(conflictBillIds));
+      for (Map<String, Object> item : results) {
+        if (item == null) continue;
+        Object bidObj = item.get(TEMP_CONFLICT_SERVER_BILL_ID);
+        if (bidObj == null) continue;
+        Long bid = bidObj instanceof Number ? ((Number) bidObj).longValue() : asLong(bidObj);
+        item.remove(TEMP_CONFLICT_SERVER_BILL_ID);
+        if (bid == null) continue;
+        BillInfo bill = conflictBillsById.get(bid);
+        if (bill == null) continue;
+        List<String> tagIds = tagIdsByBillId.get(bid);
+        if (tagIds == null) tagIds = new ArrayList<>();
+        item.put("serverBill", toBillMap(bill, tagIds));
+      }
     }
 
     if (!pendingCreates.isEmpty()) {
@@ -636,6 +683,8 @@ public class SyncV2Service {
                             List<BillChangeLog> pendingLogs,
                             List<SyncOpDedup> pendingDedups,
                             Set<Long> newlyInsertedBillIds,
+                            Map<Long, BillInfo> conflictBillsById,
+                            Set<Long> conflictBillIds,
                             String requestId,
                             String deviceId,
                             String syncReason) {
@@ -687,11 +736,11 @@ public class SyncV2Service {
         item.put("status", "conflict");
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
-        List<String> tagIds =
-            loadTagIdsByBillIds(bookId, scopeUserId, userId, java.util.Collections.singletonList(latest.getId()))
-                .get(latest.getId());
-        if (tagIds == null) tagIds = new ArrayList<>();
-        item.put("serverBill", toBillMap(latest, tagIds));
+        if (latest.getId() != null) {
+          conflictBillsById.put(latest.getId(), latest);
+          conflictBillIds.add(latest.getId());
+          item.put(TEMP_CONFLICT_SERVER_BILL_ID, latest.getId());
+        }
         item.put("retryable", false);
       }
       return;
@@ -714,11 +763,11 @@ public class SyncV2Service {
         item.put("status", "conflict");
         item.put("serverId", bill.getId());
         item.put("version", latest.getVersion());
-        List<String> tagIds =
-            loadTagIdsByBillIds(bookId, scopeUserId, userId, java.util.Collections.singletonList(latest.getId()))
-                .get(latest.getId());
-        if (tagIds == null) tagIds = new ArrayList<>();
-        item.put("serverBill", toBillMap(latest, tagIds));
+        if (latest.getId() != null) {
+          conflictBillsById.put(latest.getId(), latest);
+          conflictBillIds.add(latest.getId());
+          item.put(TEMP_CONFLICT_SERVER_BILL_ID, latest.getId());
+        }
         item.put("retryable", false);
       }
       return;
@@ -745,6 +794,8 @@ public class SyncV2Service {
                             Map<String, Object> item,
                             List<BillChangeLog> pendingLogs,
                             List<SyncOpDedup> pendingDedups,
+                            Map<Long, BillInfo> conflictBillsById,
+                            Set<Long> conflictBillIds,
                             String requestId,
                             String deviceId,
                             String syncReason) {
@@ -770,11 +821,11 @@ public class SyncV2Service {
         item.put("status", "conflict");
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
-        List<String> tagIds =
-            loadTagIdsByBillIds(bookId, scopeUserId, userId, java.util.Collections.singletonList(latest.getId()))
-                .get(latest.getId());
-        if (tagIds == null) tagIds = new ArrayList<>();
-        item.put("serverBill", toBillMap(latest, tagIds));
+        if (latest.getId() != null) {
+          conflictBillsById.put(latest.getId(), latest);
+          conflictBillIds.add(latest.getId());
+          item.put(TEMP_CONFLICT_SERVER_BILL_ID, latest.getId());
+        }
         item.put("retryable", false);
       }
       return;
@@ -797,11 +848,11 @@ public class SyncV2Service {
         item.put("status", "conflict");
         item.put("serverId", billId);
         item.put("version", latest.getVersion());
-        List<String> tagIds =
-            loadTagIdsByBillIds(bookId, scopeUserId, userId, java.util.Collections.singletonList(latest.getId()))
-                .get(latest.getId());
-        if (tagIds == null) tagIds = new ArrayList<>();
-        item.put("serverBill", toBillMap(latest, tagIds));
+        if (latest.getId() != null) {
+          conflictBillsById.put(latest.getId(), latest);
+          conflictBillIds.add(latest.getId());
+          item.put(TEMP_CONFLICT_SERVER_BILL_ID, latest.getId());
+        }
         item.put("retryable", false);
       }
       return;

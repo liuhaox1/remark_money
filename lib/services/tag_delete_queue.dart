@@ -2,16 +2,36 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'user_scope.dart';
+
 class TagDeleteQueue {
   TagDeleteQueue._();
 
   static final TagDeleteQueue instance = TagDeleteQueue._();
 
-  static const _key = 'tag_delete_queue_v1';
+  static const _keyBase = 'tag_delete_queue_v1';
+
+  String get _key => UserScope.key(_keyBase);
+
+  Future<bool> _canAdoptLegacy(SharedPreferences prefs) async {
+    final uid = UserScope.userId;
+    if (uid <= 0) return false;
+    return (prefs.getInt('sync_owner_user_id') ?? 0) == uid;
+  }
 
   Future<Map<String, List<String>>> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    var raw = prefs.getString(_key);
+    if ((raw == null || raw.isEmpty) && await _canAdoptLegacy(prefs)) {
+      final legacy = prefs.getString(_keyBase);
+      if (legacy != null && legacy.isNotEmpty) {
+        try {
+          await prefs.setString(_key, legacy);
+          await prefs.remove(_keyBase);
+          raw = legacy;
+        } catch (_) {}
+      }
+    }
     if (raw == null || raw.isEmpty) return const {};
     try {
       final decoded = (jsonDecode(raw) as Map).cast<String, dynamic>();
@@ -50,4 +70,3 @@ class TagDeleteQueue {
     await prefs.setString(_key, jsonEncode(next));
   }
 }
-

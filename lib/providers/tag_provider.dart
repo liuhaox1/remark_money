@@ -30,8 +30,9 @@ class TagProvider extends ChangeNotifier {
   }
 
   bool hasTagsForBook(String bookId) {
-    if (!isLoadedForBook(bookId)) return false;
-    return _tags.any((t) => t.bookId == bookId);
+    // "Has tags" in UI can be checked via `tags.isNotEmpty`.
+    // For sync/bootstrapping we treat an empty tag list as a valid loaded state.
+    return isLoadedForBook(bookId);
   }
 
   void replaceFromCloud(String bookId, List<Tag> tags) {
@@ -39,6 +40,14 @@ class TagProvider extends ChangeNotifier {
     _tags
       ..clear()
       ..addAll(tags);
+    _recordTagIdsCache.clear();
+    _loading = false;
+    notifyListeners();
+  }
+
+  void reset() {
+    _loadedBookId = null;
+    _tags.clear();
     _recordTagIdsCache.clear();
     _loading = false;
     notifyListeners();

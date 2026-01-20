@@ -63,6 +63,13 @@ class CategoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void reset() {
+    _categories.clear();
+    _loadedBooks.clear();
+    _activeBookId = null;
+    notifyListeners();
+  }
+
   Future<void> load() async {
     await loadForBook('default-book');
   }

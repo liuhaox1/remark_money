@@ -534,6 +534,32 @@ class SyncOutboxService {
     return items;
   }
 
+  Future<int> countPending(String bookId) async {
+    if (bookId.isEmpty) return 0;
+    if (RepositoryFactory.isUsingDatabase) {
+      try {
+        final ownerUserId = await _resolveAuthUserIdIfTokenPresent() ?? 0;
+        final db = await DatabaseHelper().database;
+        final rows = await db.rawQuery(
+          'SELECT COUNT(*) AS c FROM ${Tables.syncOutbox} WHERE owner_user_id = ? AND book_id = ?',
+          [ownerUserId, bookId],
+        );
+        final v = rows.isNotEmpty ? rows.first['c'] : null;
+        if (v is int) return v;
+        if (v is num) return v.toInt();
+        return 0;
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final ownerUserId = await _resolveAuthUserIdIfTokenPresent() ?? 0;
+    final key = _prefsKey(bookId, ownerUserId: ownerUserId);
+    final list = prefs.getStringList(key) ?? <String>[];
+    return list.length;
+  }
+
   Map<String, dynamic> _normalizeLegacyPayload(
     Map<String, dynamic> legacy, {
     required SyncOutboxOp op,

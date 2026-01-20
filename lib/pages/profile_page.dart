@@ -38,7 +38,6 @@ import '../services/sync_engine.dart';
 import '../services/sync_v2_conflict_store.dart';
 import '../services/user_service.dart';
 import 'account_settings_page.dart';
-import 'vip_purchase_page.dart';
 import 'sync_conflicts_page.dart';
 import 'export_data_page.dart';
 import 'savings_plans_page.dart';
@@ -62,6 +61,8 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _loadingToken = true;
   bool _wiping = false;
   bool _bootstrapping = false;
+  bool _uploadEnabled = true;
+  bool _loadingUploadEnabled = true;
 
   Future<void> _confirmAndLogout() async {
     final ok = await showDialog<bool>(
@@ -106,6 +107,64 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadToken();
+    _loadUploadEnabled();
+  }
+
+  Future<void> _loadUploadEnabled() async {
+    try {
+      final enabled = await SyncEngine().getUploadEnabled();
+      if (!mounted) return;
+      setState(() {
+        _uploadEnabled = enabled;
+        _loadingUploadEnabled = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingUploadEnabled = false);
+    }
+  }
+
+  Future<void> _setUploadPaused(bool paused, {required String activeBookId}) async {
+    if (paused) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('暂停上传？'),
+          content: const Text('暂停后，你的新增/删除/编辑不会同步到其他设备或成员（仍会接收他人更新）。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+
+    await SyncEngine().setUploadEnabled(!paused);
+    if (!mounted) return;
+    setState(() {
+      _uploadEnabled = !paused;
+    });
+
+    if (paused) {
+      ErrorHandler.showInfo(context, '已暂停上传');
+      return;
+    }
+
+    ErrorHandler.showInfo(context, '已恢复上传，正在同步…');
+    try {
+      await SyncEngine().pushAllOutboxAfterLogin(context, reason: 'resume_upload');
+      if (!mounted) return;
+      if (activeBookId.isNotEmpty) {
+        await SyncEngine().syncBookV2(context, activeBookId, reason: 'resume_upload');
+      }
+    } catch (_) {}
   }
 
   Future<void> _editNickname() async {
@@ -691,7 +750,7 @@ class _ProfilePageState extends State<ProfilePage> {
       // 检查是否是付费相关错误
       final errorMsg = e.toString();
       if (_isPaymentRequiredError(errorMsg)) {
-        _showVipPurchasePage();
+        ErrorHandler.showWarning(context, 'Membership required');
       } else {
         ErrorHandler.handleAsyncError(context, e);
       }
@@ -706,6 +765,28 @@ class _ProfilePageState extends State<ProfilePage> {
       // Guest-created local records should not be uploaded without user consent.
       await SyncEngine().maybeUploadGuestOutboxAfterLogin(context, reason: 'login');
     }
+  }
+
+  Future<bool> _confirmLoginForAddBook(BuildContext context) async {
+    if (!context.mounted) return false;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text(AppStrings.confirm),
+        content: const Text(AppStrings.guestSingleBookOnly),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text(AppStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text(AppStrings.ok),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   @override
@@ -804,16 +885,14 @@ class _ProfilePageState extends State<ProfilePage> {
                    categoryCount: categoryCount,
                    isLoggedIn: isLoggedIn,
                  ),
-                const SizedBox(height: 12),
-                const UserStatsCard(),
-                const SizedBox(height: 12),
-                _buildVipCard(context),
-                const SizedBox(height: 12),
-                _buildActionGrid(
-                  context,
-                ),
-                const SizedBox(height: 12),
-                _buildSettingsList(context),
+                 const SizedBox(height: 12),
+                 const UserStatsCard(),
+                 const SizedBox(height: 12),
+                 _buildActionGrid(
+                   context,
+                 ),
+                 const SizedBox(height: 12),
+                 _buildSettingsList(context),
               ],
             ),
           ),
@@ -992,7 +1071,7 @@ class _ProfilePageState extends State<ProfilePage> {
   ) {
     final cs = Theme.of(context).colorScheme;
     final actions = [
-      _ProfileAction(
+      if (false) _ProfileAction(
         icon: Icons.card_giftcard_outlined,
         label: '兑换礼包码',
         onTap: _showGiftCodeDialog,
@@ -1167,6 +1246,46 @@ class _ProfilePageState extends State<ProfilePage> {
                     )
                   : null,
               onTap: () => _confirmForceBootstrap(bookId),
+            ),
+          ],
+          if (isLoggedIn) ...[
+            const Divider(height: 1),
+            FutureBuilder<int>(
+              future: bookId.isNotEmpty
+                  ? SyncOutboxService.instance.countPending(bookId)
+                  : Future.value(0),
+              builder: (ctx, snap) {
+                final pending = snap.data ?? 0;
+                final paused = !_uploadEnabled;
+                final subtitle = paused
+                    ? (pending > 0
+                        ? '已暂停上传（待上传 $pending 条）'
+                        : '已暂停上传（你的改动不会同步到其他设备/成员）')
+                    : (pending > 0 ? '正常同步中（待上传 $pending 条）' : '正常同步中');
+                return SwitchListTile(
+                  secondary: Icon(
+                    paused ? Icons.cloud_off_outlined : Icons.cloud_outlined,
+                    color: cs.onSurface.withOpacity(0.8),
+                  ),
+                  title: Text(
+                    '暂停上传',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyLarge
+                        ?.copyWith(color: cs.onSurface),
+                  ),
+                  subtitle: Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(0.6),
+                        ),
+                  ),
+                  value: paused,
+                  onChanged: _loadingUploadEnabled
+                      ? null
+                      : (v) => _setUploadPaused(v, activeBookId: bookId),
+                );
+              },
             ),
           ],
           if (kDebugMode) ...[
@@ -1403,21 +1522,19 @@ class _ProfilePageState extends State<ProfilePage> {
                           ?.copyWith(color: cs.onSurface),
                     ),
                      const Spacer(),
-                     TextButton.icon(
-                       onPressed: () {
-                         Navigator.pop(ctx);
-                         if (!loggedIn) {
-                           ErrorHandler.showWarning(
-                             context,
-                             AppStrings.guestSingleBookOnly,
-                           );
-                           _goLogin();
-                           return;
-                         }
-                         _showAddBookDialog(context);
-                       },
-                       icon: Icon(Icons.add, color: cs.primary),
-                       label: Text(
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          if (!loggedIn) {
+                            _confirmLoginForAddBook(context).then((confirmed) {
+                              if (confirmed) _goLogin();
+                            });
+                            return;
+                          }
+                          _showAddBookDialog(context);
+                        },
+                        icon: Icon(Icons.add, color: cs.primary),
+                        label: Text(
                          AppStrings.addBook,
                          style: tt.labelLarge?.copyWith(color: cs.primary),
                        ),
@@ -2058,8 +2175,8 @@ class _ProfilePageState extends State<ProfilePage> {
     final loggedIn = _token != null && _token!.isNotEmpty;
     final bookCount = context.read<BookProvider>().books.length;
     if (!loggedIn && bookCount > 0) {
-      ErrorHandler.showWarning(context, AppStrings.guestSingleBookOnly);
-      _goLogin();
+      final confirmed = await _confirmLoginForAddBook(context);
+      if (confirmed) await _goLogin();
       return;
     }
     bool createAsMulti = false;
@@ -2458,7 +2575,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final errorMsg = e.toString();
       if (_isPaymentRequiredError(errorMsg)) {
         if (mounted) {
-          _showVipPurchasePage();
+          ErrorHandler.showWarning(context, 'Membership required');
         }
       } else {
         if (mounted) {
@@ -2482,10 +2599,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   /// 显示VIP购买页面
   void _showVipPurchasePage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const VipPurchasePage()),
-    );
+    ErrorHandler.showWarning(context, 'Membership required');
   }
 
   Future<void> _confirmDelete(BuildContext context, String id) async {

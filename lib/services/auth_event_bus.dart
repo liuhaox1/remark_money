@@ -10,12 +10,19 @@ class AuthEventBus {
 
   final StreamController<void> _unauthorizedController =
       StreamController<void>.broadcast();
+  final StreamController<void> _authChangedController =
+      StreamController<void>.broadcast();
 
   Stream<void> get onUnauthorized => _unauthorizedController.stream;
+  Stream<void> get onAuthChanged => _authChangedController.stream;
 
   void notifyUnauthorized() {
     if (_unauthorizedController.isClosed) return;
     _unauthorizedController.add(null);
   }
-}
 
+  void notifyAuthChanged() {
+    if (_authChangedController.isClosed) return;
+    _authChangedController.add(null);
+  }
+}

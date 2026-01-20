@@ -6,7 +6,9 @@ import '../l10n/app_strings.dart';
 import '../models/account.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
+import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/recurring_record_provider.dart';
 import '../providers/record_provider.dart';
 import '../providers/tag_provider.dart';
 import '../services/auth_service.dart';
@@ -14,6 +16,7 @@ import '../services/auth_event_bus.dart';
 import '../services/background_sync_manager.dart';
 import '../services/app_settings_service.dart';
 import '../services/recurring_record_runner.dart';
+import '../services/savings_plan_auto_executor.dart';
 import '../services/book_service.dart';
 import '../services/sync_engine.dart';
 import '../theme/app_tokens.dart';
@@ -38,13 +41,16 @@ class RootShell extends StatefulWidget {
   State<RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends State<RootShell> {
+class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   int _index = 0;
   final AuthService _authService = const AuthService();
   StreamSubscription<void>? _unauthorizedSub;
+  StreamSubscription<void>? _authChangedSub;
   bool _handlingUnauthorized = false;
   String? _lastBookId;
   bool _reloadingBook = false;
+  bool _reloadingAuth = false;
+  bool _runningSavingsAuto = false;
 
   late final List<Widget> _pages = [
     const HomePage(),
@@ -56,6 +62,7 @@ class _RootShellState extends State<RootShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _unauthorizedSub = AuthEventBus.instance.onUnauthorized.listen((_) {
       if (!mounted) return;
       if (_handlingUnauthorized) return;
@@ -66,62 +73,197 @@ class _RootShellState extends State<RootShell> {
         (route) => false,
       );
     });
+    _authChangedSub = AuthEventBus.instance.onAuthChanged.listen((_) {
+      if (!mounted) return;
+      _handleAuthChanged();
+    });
     // 登录时自动同步（延迟执行，确保context和providers已准备好）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         // 增加延迟，确保所有providers都已加载完成
         Future.delayed(const Duration(milliseconds: 800), () {
-          if (mounted) {
+          () async {
+            if (!mounted) return;
             _performLoginSync();
-            // 启动透明后台同步
-            BackgroundSyncManager.instance.start(context);
-            // 启动定时记账（前台补齐）
+
+            final tokenValid = await _authService.isTokenValid();
+            if (!mounted) return;
+
+            // 启动透明后台同步（仅登录态）
+            if (tokenValid) {
+              BackgroundSyncManager.instance.start(context);
+              // 登录态：定时记账/存钱计划由服务端执行，避免客户端重复入账。
+              RecurringRecordRunner.instance.stop();
+              return;
+            }
+
+            // 未登录：本地执行（前台补齐）
+            BackgroundSyncManager.instance.stop();
             RecurringRecordRunner.instance.start(context);
-          }
+            _runSavingsPlanAutoIfNeeded();
+          }();
         });
       }
     });
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    if (state != AppLifecycleState.resumed) return;
+    // “每天首次回到前台”自动补齐到期存钱。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _runSavingsPlanAutoIfNeeded();
+    });
+  }
+
+  String _todayKey() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _runSavingsPlanAutoIfNeeded({bool force = false}) async {
+    if (!mounted) return;
+    if (_runningSavingsAuto) return;
+    // 登录态交由服务端执行，避免客户端重复入账。
+    final tokenValid = await _authService.isTokenValid();
+    if (tokenValid) return;
+
+    // Ensure providers are loaded (RootShell build uses them too).
+    final bookProvider = context.read<BookProvider>();
+    final recordProvider = context.read<RecordProvider>();
+    final categoryProvider = context.read<CategoryProvider>();
+    final accountProvider = context.read<AccountProvider>();
+    final tagProvider = context.read<TagProvider>();
+    if (!bookProvider.loaded ||
+        !recordProvider.loaded ||
+        !categoryProvider.loaded ||
+        !accountProvider.loaded ||
+        tagProvider.loading) {
+      return;
+    }
+
+    final bookId = bookProvider.activeBookId;
+    if (bookId.isEmpty) return;
+
+    final key = 'savings_plan_auto_last_run_day_$bookId';
+    try {
+      _runningSavingsAuto = true;
+      if (!force) {
+        final last = await AppSettingsService.instance.getString(key);
+        final today = _todayKey();
+        if (last == today) return;
+      }
+
+      await SavingsPlanAutoExecutor.instance.runForActiveBook(context);
+      await AppSettingsService.instance.setString(key, _todayKey());
+    } catch (e, stackTrace) {
+      debugPrint('[RootShell] savings plan auto-run failed: $e');
+      debugPrint('$stackTrace');
+    } finally {
+      _runningSavingsAuto = false;
+    }
+  }
+
   /// 登录时拉取版本号并缓存（不再每次打开都请求服务器）
   Future<void> _performLoginSync() async {
     if (!mounted) return;
-    
+
     try {
       final isValid = await _authService.isTokenValid();
       if (!isValid || !mounted) return;
 
       // 使用 Provider.of 并添加 listen: false，确保能正确访问
       final bookProvider = Provider.of<BookProvider>(context, listen: false);
-      
+
       // 如果BookProvider还没加载，等待并重试
       int retryCount = 0;
       while (!bookProvider.loaded && retryCount < 10 && mounted) {
         await Future.delayed(const Duration(milliseconds: 100));
         retryCount++;
       }
-      
+
       if (!mounted || !bookProvider.loaded) {
-        debugPrint('BookProvider not loaded after retries, skipping version fetch');
+        debugPrint(
+            'BookProvider not loaded after retries, skipping version fetch');
         return;
       }
-      
-        // v2 透明同步下不再调用 v1 /api/sync/status/query，避免触发 sync_record 频繁查询。
-        // 登录后后台同步由 BackgroundSyncManager 负责。
-        // Meta sync is triggered by BackgroundSyncManager (app_start/login flows);
-        // avoid duplicating it here to reduce extra SQL.
-      } catch (e, stackTrace) {
+
+      // v2 透明同步下不再调用 v1 /api/sync/status/query，避免触发 sync_record 频繁查询。
+      // 登录后后台同步由 BackgroundSyncManager 负责。
+      // Meta sync is triggered by BackgroundSyncManager (app_start/login flows);
+      // avoid duplicating it here to reduce extra SQL.
+    } catch (e, stackTrace) {
       // 静默失败，不显示错误，但记录详细日志
       debugPrint('Login version fetch failed: $e');
       debugPrint('Stack trace: $stackTrace');
     }
   }
 
+  Future<void> _handleAuthChanged() async {
+    if (!mounted) return;
+    if (_reloadingAuth) return;
+    _reloadingAuth = true;
+    try {
+      final bookProvider = context.read<BookProvider>();
+      final recordProvider = context.read<RecordProvider>();
+      final categoryProvider = context.read<CategoryProvider>();
+      final tagProvider = context.read<TagProvider>();
+      final accountProvider = context.read<AccountProvider>();
+      final budgetProvider = context.read<BudgetProvider>();
+      final recurringProvider = context.read<RecurringRecordProvider>();
+
+      await bookProvider.reload();
+      final bookId = bookProvider.activeBookId;
+
+      await recordProvider.reload();
+      await budgetProvider.reload();
+      await recurringProvider.reload();
+
+      categoryProvider.reset();
+      await categoryProvider.loadForBook(bookId);
+
+      tagProvider.reset();
+      await tagProvider.loadForBook(bookId, force: true);
+
+      accountProvider.reset();
+      await accountProvider.loadForBook(bookId, force: true);
+
+      // After switching accounts/books and reloading meta, auto-run any due savings plan deposits.
+      await _runSavingsPlanAutoIfNeeded(force: true);
+
+      final isValid = await _authService.isTokenValid();
+      if (!mounted) return;
+
+      if (!isValid) {
+        BackgroundSyncManager.instance.stop();
+        RecurringRecordRunner.instance.start(context);
+        await _runSavingsPlanAutoIfNeeded(force: true);
+        return;
+      }
+      if (bookId.isEmpty || int.tryParse(bookId) == null) return;
+
+      BackgroundSyncManager.instance.start(context);
+      BackgroundSyncManager.instance.markLoggedIn();
+      RecurringRecordRunner.instance.stop();
+      BackgroundSyncManager.instance.requestSync(bookId, reason: 'login');
+      BackgroundSyncManager.instance.requestMetaSync(bookId, reason: 'login');
+    } catch (e, stackTrace) {
+      debugPrint('[RootShell] auth change reload failed: $e');
+      debugPrint('$stackTrace');
+    } finally {
+      _reloadingAuth = false;
+    }
+  }
+
   @override
   void dispose() {
     _unauthorizedSub?.cancel();
+    _authChangedSub?.cancel();
     BackgroundSyncManager.instance.stop();
     RecurringRecordRunner.instance.stop();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -154,7 +296,7 @@ class _RootShellState extends State<RootShell> {
     final categoryProvider = context.watch<CategoryProvider>();
     final accountProvider = context.watch<AccountProvider>();
     final tagProvider = context.watch<TagProvider>();
-    
+
     if (!bookProvider.loaded ||
         !recordProvider.loaded ||
         !categoryProvider.loaded ||
@@ -192,7 +334,7 @@ class _RootShellState extends State<RootShell> {
         if (mounted) setState(() => _reloadingBook = false);
       });
     }
-    
+
     return Scaffold(
       body: Stack(
         children: [
@@ -342,7 +484,8 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
                                 color: theme.colorScheme.surface,
                                 borderRadius: BorderRadius.circular(8),
@@ -352,25 +495,28 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
                                   Icon(
                                     Icons.info_outline,
                                     size: 14,
-                                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                    color: theme.colorScheme.onSurface
+                                        .withOpacity(0.6),
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       '账户余额来自你的记账记录。如不准确，请进入账户详情页，点击"调整余额"进行修正。',
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: theme.colorScheme.onSurface
                                             .withOpacity(0.65),
                                       ),
                                     ),
-                      ),
+                                  ),
                                 ],
                               ),
                             ),
                             if (_hasAnyBalanceIssue(accounts)) ...[
                               const SizedBox(height: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: AppColors.danger.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
@@ -390,11 +536,14 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
                                     Expanded(
                                       child: Text(
                                         '检测到异常余额，请及时检查',
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          fontSize: 12,
-                                          color: AppColors.danger,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              fontSize: 12,
+                                              color: AppColors.danger,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                       ),
                                     ),
                                   ],
@@ -406,7 +555,8 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
                       ),
                       // 快速操作栏
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         child: Container(
                           decoration: BoxDecoration(
                             color: cs.surface,
@@ -425,19 +575,23 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
                               children: [
                                 Expanded(
                                   child: InkWell(
-                                    onTap: () => _openTransferSheet(context, accounts),
+                                    onTap: () =>
+                                        _openTransferSheet(context, accounts),
                                     borderRadius: BorderRadius.circular(8),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
                                       decoration: BoxDecoration(
                                         border: Border.all(
-                                          color: theme.colorScheme.primary.withOpacity(0.3),
+                                          color: theme.colorScheme.primary
+                                              .withOpacity(0.3),
                                           width: 1,
                                         ),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Icon(
                                             Icons.swap_horiz,
@@ -447,7 +601,8 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
                                           const SizedBox(width: 6),
                                           Text(
                                             '转账',
-                                            style: theme.textTheme.labelLarge?.copyWith(
+                                            style: theme.textTheme.labelLarge
+                                                ?.copyWith(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
                                               color: theme.colorScheme.primary,
@@ -464,13 +619,15 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
                                     onTap: () => _startAddAccountFlow(context),
                                     borderRadius: BorderRadius.circular(8),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
                                       decoration: BoxDecoration(
                                         color: theme.colorScheme.primary,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Icon(
                                             Icons.add,
@@ -480,10 +637,12 @@ class _AssetsPageBodyState extends State<_AssetsPageBody> {
                                           const SizedBox(width: 6),
                                           Text(
                                             '添加账户',
-                                            style: theme.textTheme.labelLarge?.copyWith(
+                                            style: theme.textTheme.labelLarge
+                                                ?.copyWith(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
-                                              color: theme.colorScheme.onPrimary,
+                                              color:
+                                                  theme.colorScheme.onPrimary,
                                             ),
                                           ),
                                         ],
@@ -538,18 +697,18 @@ class _AssetSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
- 
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest,
-            border: Border.all(
-              color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
-            ),
-            borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          border: Border.all(
+            color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
           ),
+          borderRadius: BorderRadius.circular(24),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -576,11 +735,12 @@ class _AssetSummaryCard extends StatelessWidget {
                   tooltip: hideAmounts ? '显示金额' : '隐藏金额',
                   splashRadius: 18,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),
-              const SizedBox(height: 2),
+            const SizedBox(height: 2),
             Text(
               _displayAmount(netWorth),
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -623,7 +783,8 @@ class _AssetSummaryCard extends StatelessWidget {
     return value.toStringAsFixed(2);
   }
 
-  Widget _buildStatItem(String label, double value, ColorScheme cs, TextTheme tt) {
+  Widget _buildStatItem(
+      String label, double value, ColorScheme cs, TextTheme tt) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -662,19 +823,19 @@ class _AccountGroupPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
           child: Text(
-                group.title,
-	            style: theme.textTheme.titleSmall?.copyWith(
-	              fontSize: 14,
-	              fontWeight: FontWeight.w700,
-	              color: cs.onSurface.withOpacity(0.9),
-	            ),
+            group.title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface.withOpacity(0.9),
+            ),
           ),
         ),
         Container(
@@ -762,7 +923,8 @@ class _AccountTile extends StatelessWidget {
       if (action != 'force') return;
 
       try {
-        final deleted = await recordProvider.deleteRecordsForAccount(bookId, account);
+        final deleted =
+            await recordProvider.deleteRecordsForAccount(bookId, account);
         await accountProvider.refreshBalancesFromRecords();
         if (!context.mounted) return;
         ErrorHandler.showSuccess(context, '已删除 $deleted 笔记录');
@@ -789,25 +951,26 @@ class _AccountTile extends StatelessWidget {
     }
 
     final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('删除账户'),
-        content: Text('确定删除账户"${account.name}"吗？删除后无法恢复。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('删除账户'),
+            content: Text('确定删除账户"${account.name}"吗？删除后无法恢复。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                ),
+                child: const Text('删除'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.danger,
-            ),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
 
     if (!context.mounted) return;
     if (!confirmed) return;
@@ -864,19 +1027,19 @@ class _AccountTile extends StatelessWidget {
                     children: [
                       Text(
                         account.name,
-	                        style: theme.textTheme.titleSmall?.copyWith(
-	                          fontSize: 14,
-	                          fontWeight: FontWeight.w700,
-	                          color: cs.onSurface,
-	                        ),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         _subtitleForAccount(account),
-	                        style: theme.textTheme.bodySmall?.copyWith(
-	                          fontSize: 11,
-	                          color: cs.onSurface.withOpacity(0.65),
-	                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 11,
+                          color: cs.onSurface.withOpacity(0.65),
+                        ),
                       ),
                     ],
                   ),
@@ -885,18 +1048,19 @@ class _AccountTile extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                Text(
-                  amountText,
-	                  style: theme.textTheme.titleSmall?.copyWith(
-	                    fontSize: 15,
-	                    fontWeight: FontWeight.w600,
-	                    color: amountColor.withOpacity(0.9),
-	                  ),
-                ),
+                    Text(
+                      amountText,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: amountColor.withOpacity(0.9),
+                      ),
+                    ),
                     if (hasIssue) ...[
                       const SizedBox(height: 2),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
                           color: AppColors.danger.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(3),
@@ -912,11 +1076,11 @@ class _AccountTile extends StatelessWidget {
                             const SizedBox(width: 2),
                             Text(
                               '异常',
-	                              style: theme.textTheme.labelSmall?.copyWith(
-	                                fontSize: 9,
-	                                color: AppColors.danger,
-	                                fontWeight: FontWeight.w600,
-	                              ),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontSize: 9,
+                                color: AppColors.danger,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -1007,8 +1171,9 @@ class _AccountTile extends StatelessWidget {
   bool _hasBalanceIssue(Account account) {
     final subtype = AccountSubtype.fromCode(account.subtype);
     // 储蓄卡、现金等资产账户不应该有负余额
-    if (account.kind == AccountKind.asset && 
-        (subtype == AccountSubtype.savingCard || subtype == AccountSubtype.cash) &&
+    if (account.kind == AccountKind.asset &&
+        (subtype == AccountSubtype.savingCard ||
+            subtype == AccountSubtype.cash) &&
         account.currentBalance < 0) {
       return true;
     }
@@ -1019,8 +1184,9 @@ class _AccountTile extends StatelessWidget {
 bool _hasAnyBalanceIssue(List<Account> accounts) {
   for (final account in accounts) {
     final subtype = AccountSubtype.fromCode(account.subtype);
-    if (account.kind == AccountKind.asset && 
-        (subtype == AccountSubtype.savingCard || subtype == AccountSubtype.cash) &&
+    if (account.kind == AccountKind.asset &&
+        (subtype == AccountSubtype.savingCard ||
+            subtype == AccountSubtype.cash) &&
         account.currentBalance < 0) {
       return true;
     }
@@ -1066,9 +1232,9 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                 Text(
                   '账户间转账',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                 ),
                 const SizedBox(height: 16),
                 // 转出账户选择
@@ -1078,9 +1244,12 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                     Text(
                       '转出账户',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                      ),
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.7),
+                          ),
                     ),
                     const SizedBox(height: 6),
                     InkWell(
@@ -1095,7 +1264,8 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                           setState(() {
                             fromAccountId = selectedId;
                             // 如果转出账户和转入账户相同，自动选择另一个账户
-                            if (selectedId == toAccountId && assetAccounts.length > 1) {
+                            if (selectedId == toAccountId &&
+                                assetAccounts.length > 1) {
                               toAccountId = assetAccounts
                                   .firstWhere((a) => a.id != selectedId)
                                   .id;
@@ -1105,10 +1275,14 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
                           border: Border.all(
-                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .outline
+                                .withOpacity(0.3),
                           ),
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -1117,19 +1291,33 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                             Expanded(
                               child: Text(
                                 fromAccountId != null
-                                    ? assetAccounts.firstWhere((a) => a.id == fromAccountId).name
+                                    ? assetAccounts
+                                        .firstWhere(
+                                            (a) => a.id == fromAccountId)
+                                        .name
                                     : '请选择转出账户',
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  fontSize: 15,
-                                  color: fromAccountId != null
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.copyWith(
+                                      fontSize: 15,
+                                      color: fromAccountId != null
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.5),
+                                    ),
                               ),
                             ),
                             Icon(
                               Icons.arrow_drop_down,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.5),
                             ),
                           ],
                         ),
@@ -1145,9 +1333,12 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                     Text(
                       '转入账户',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                      ),
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.7),
+                          ),
                     ),
                     const SizedBox(height: 6),
                     InkWell(
@@ -1171,10 +1362,14 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
                           border: Border.all(
-                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .outline
+                                .withOpacity(0.3),
                           ),
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -1183,19 +1378,32 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                             Expanded(
                               child: Text(
                                 toAccountId != null
-                                    ? assetAccounts.firstWhere((a) => a.id == toAccountId).name
+                                    ? assetAccounts
+                                        .firstWhere((a) => a.id == toAccountId)
+                                        .name
                                     : '请选择转入账户',
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  fontSize: 15,
-                                  color: toAccountId != null
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.copyWith(
+                                      fontSize: 15,
+                                      color: toAccountId != null
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.5),
+                                    ),
                               ),
                             ),
                             Icon(
                               Icons.arrow_drop_down,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.5),
                             ),
                           ],
                         ),
@@ -1209,13 +1417,16 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                   decoration: InputDecoration(
                     labelText: '金额',
                     labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                    ),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.7),
+                        ),
                     border: const OutlineInputBorder(),
                   ),
                 ),
@@ -1235,14 +1446,15 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                           try {
                             final amountStr = amountCtrl.text.trim();
                             final amount = double.tryParse(amountStr);
-                            
+
                             // 验证金额
-                            final amountError = Validators.validateAmount(amount);
+                            final amountError =
+                                Validators.validateAmount(amount);
                             if (amountError != null) {
                               ErrorHandler.showError(ctx, amountError);
                               return;
                             }
-                            
+
                             final fromId = fromAccountId;
                             final toId = toAccountId;
                             if (fromId == null || toId == null) {
@@ -1253,22 +1465,24 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                               ErrorHandler.showError(ctx, '转出账户和转入账户不能相同');
                               return;
                             }
-                            
-                            final bookId = context.read<BookProvider>().activeBookId;
+
+                            final bookId =
+                                context.read<BookProvider>().activeBookId;
                             await context.read<RecordProvider>().transfer(
-                              accountProvider: context.read<AccountProvider>(),
-                              fromAccountId: fromId,
-                              toAccountId: toId,
-                              amount: amount!,
-                              fee: 0,
-                              bookId: bookId,
-                            );
-                            
+                                  accountProvider:
+                                      context.read<AccountProvider>(),
+                                  fromAccountId: fromId,
+                                  toAccountId: toId,
+                                  amount: amount!,
+                                  fee: 0,
+                                  bookId: bookId,
+                                );
+
                             // 先关闭弹窗
                             if (ctx.mounted) {
                               Navigator.pop(ctx);
                             }
-                            
+
                             // 再显示成功消息（使用原始 context）
                             if (context.mounted) {
                               ErrorHandler.showSuccess(context, '转账成功');
@@ -1277,7 +1491,7 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                             // 记录详细错误日志
                             debugPrint('[转账错误] $e');
                             debugPrint('Stack trace: $stackTrace');
-                            
+
                             // 发生错误时也要关闭弹窗
                             if (ctx.mounted) {
                               Navigator.pop(ctx);
@@ -1288,15 +1502,16 @@ void _openTransferSheet(BuildContext context, List<Account> accounts) {
                               String errorMessage = '操作失败，请稍后重试';
                               if (e is ArgumentError) {
                                 errorMessage = e.message.toString();
-                              } else if (e.toString().contains('StateError') || 
-                                         e.toString().contains('找不到') ||
-                                         e.toString().contains('not found')) {
+                              } else if (e.toString().contains('StateError') ||
+                                  e.toString().contains('找不到') ||
+                                  e.toString().contains('not found')) {
                                 errorMessage = '转账记录创建失败，请重试';
-                              } else if (e.toString().contains('database') || 
-                                         e.toString().contains('sql')) {
+                              } else if (e.toString().contains('database') ||
+                                  e.toString().contains('sql')) {
                                 errorMessage = '数据库操作失败，请稍后重试';
                               }
-                              ErrorHandler.showError(context, errorMessage, error: e);
+                              ErrorHandler.showError(context, errorMessage,
+                                  error: e);
                             }
                           }
                         },
@@ -1504,7 +1719,6 @@ Future<void> _promptAddDebt(BuildContext context) async {
     );
   }
 }
-
 
 class _RecordNavIcon extends StatelessWidget {
   const _RecordNavIcon({required this.color});

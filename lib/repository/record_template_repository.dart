@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/record_template.dart';
+import '../services/user_scope.dart';
 
 class RecordTemplateRepository {
-  static const _key = 'record_templates_v1';
+  static const _keyBase = 'record_templates_v1';
+  String get _key => UserScope.key(_keyBase);
   static const _maxTemplates = 10;
 
   Future<List<RecordTemplate>> loadTemplates() async {
@@ -52,4 +54,3 @@ class RecordTemplateRepository {
     return list;
   }
 }
-

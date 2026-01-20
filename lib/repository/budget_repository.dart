@@ -1,8 +1,10 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/budget.dart';
+import '../services/user_scope.dart';
 
 class BudgetRepository {
-  static const _key = 'budget_v1';
+  static const _keyBase = 'budget_v1';
+  String get _key => UserScope.key(_keyBase);
 
   Future<Budget> loadBudget() async {
     final prefs = await SharedPreferences.getInstance();

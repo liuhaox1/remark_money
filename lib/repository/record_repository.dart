@@ -1,8 +1,10 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/record.dart';
+import '../services/user_scope.dart';
 
 class RecordRepository {
-  static const _key = 'records_v1';
+  static const _keyBase = 'records_v1';
+  String get _key => UserScope.key(_keyBase);
 
   Future<List<Record>> loadRecords() async {
     final prefs = await SharedPreferences.getInstance();
@@ -40,5 +42,25 @@ class RecordRepository {
       await saveRecords(list);
     }
     return list;
+  }
+
+  Future<int> countByPairId({
+    required String bookId,
+    required String pairId,
+  }) async {
+    if (pairId.trim().isEmpty) return 0;
+    final list = await loadRecords();
+    return list.where((r) => r.bookId == bookId && r.pairId == pairId).length;
+  }
+
+  Future<List<Record>> loadByPairId({
+    required String bookId,
+    required String pairId,
+  }) async {
+    if (pairId.trim().isEmpty) return const [];
+    final list = await loadRecords();
+    return list
+        .where((r) => r.bookId == bookId && r.pairId == pairId)
+        .toList(growable: false);
   }
 }

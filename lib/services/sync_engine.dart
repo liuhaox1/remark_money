@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/category.dart';
+import '../models/recurring_record.dart';
 import '../models/record.dart';
 import '../models/savings_plan.dart';
 import '../models/tag.dart';
@@ -26,6 +27,7 @@ import 'category_delete_queue.dart';
 import 'data_version_service.dart';
 import 'savings_plan_conflict_backup_store.dart';
 import 'savings_plan_delete_queue.dart';
+import 'recurring_plan_delete_queue.dart';
 import 'sync_outbox_service.dart';
 import 'sync_service.dart';
 import 'sync_v2_conflict_store.dart';
@@ -50,6 +52,17 @@ class SyncEngine {
   final SyncOutboxService _outbox;
 
   static const String _prefsGuestUploadPolicyKey = 'guest_upload_policy';
+  static const String _prefsUploadEnabledKey = 'sync_upload_enabled';
+
+  Future<bool> getUploadEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefsUploadEnabledKey) ?? true;
+  }
+
+  Future<void> setUploadEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsUploadEnabledKey, enabled);
+  }
 
   Future<int> getGuestUploadPolicy() async => _loadGuestUploadPolicyRaw();
 
@@ -71,7 +84,8 @@ class SyncEngine {
 
   Future<int> _loadGuestUploadPolicyRaw() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_prefsGuestUploadPolicyKey) ?? 0; // 0=ask,1=always,2=never
+    return prefs.getInt(_prefsGuestUploadPolicyKey) ??
+        0; // 0=ask,1=always,2=never
   }
 
   Future<void> _saveGuestUploadPolicyRaw(int value) async {
@@ -174,7 +188,8 @@ class SyncEngine {
   // Only throttle after a successful run so transient failures won't block retries.
   static const int _metaThrottleWindowMs = 15 * 1000;
   static final Map<String, int> _metaLastOkMs = <String, int>{};
-  static final Map<String, Future<bool>> _metaInFlight = <String, Future<bool>>{};
+  static final Map<String, Future<bool>> _metaInFlight =
+      <String, Future<bool>>{};
   static final Map<String, int> _lastPullMsByBook = <String, int>{};
   static final Map<String, bool> _lastPullAdvancedByBook = <String, bool>{};
   static const int _lightPullNoChangeCooldownMs = 5 * 60 * 1000;
@@ -185,8 +200,7 @@ class SyncEngine {
   static final Map<String, Future<List<int>>> _billIdPoolInFlight =
       <String, Future<List<int>>>{};
 
-  static int lastPullMsForBook(String bookId) =>
-      _lastPullMsByBook[bookId] ?? 0;
+  static int lastPullMsForBook(String bookId) => _lastPullMsByBook[bookId] ?? 0;
 
   static bool lastPullAdvancedForBook(String bookId) =>
       _lastPullAdvancedByBook[bookId] ?? false;
@@ -239,6 +253,7 @@ class SyncEngine {
     BuildContext context, {
     String reason = 'login',
   }) async {
+    if (!await getUploadEnabled()) return;
     final bookProvider = context.read<BookProvider>();
     final recordProvider = context.read<RecordProvider>();
 
@@ -344,7 +359,8 @@ class SyncEngine {
     await _syncCategories(categoryProvider, bookId, reason: 'force_bootstrap');
     await _syncTags(tagProvider, bookId, reason: 'force_bootstrap');
     await _syncBudget(budgetProvider, bookId, reason: 'force_bootstrap');
-    await _syncAccounts(accountProvider, recordProvider, bookId, reason: 'force_bootstrap');
+    await _syncAccounts(accountProvider, recordProvider, bookId,
+        reason: 'force_bootstrap');
     await _syncSavingsPlans(bookId, reason: 'force_bootstrap');
     await _pullV2(
       recordProvider,
@@ -374,10 +390,8 @@ class SyncEngine {
     final hasCategories =
         !requireCategories || categoryProvider.hasCategoriesForBook(bookId);
     final hasAccounts =
-        !requireAccounts ||
-        accountProvider.hasAccountsForBook(bookId);
-    final hasTags =
-        !requireTags || tagProvider.hasTagsForBook(bookId);
+        !requireAccounts || accountProvider.hasAccountsForBook(bookId);
+    final hasTags = !requireTags || tagProvider.isLoadedForBook(bookId);
 
     if (hasCategories && hasAccounts && hasTags) return true;
 
@@ -391,9 +405,10 @@ class SyncEngine {
     }
     if (needsAccounts) {
       final recordProvider = context.read<RecordProvider>();
-      await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
+      await _syncAccounts(accountProvider, recordProvider, bookId,
+          reason: reason);
     }
-    if (needsTags) {
+    if (requireTags) {
       await _syncTags(tagProvider, bookId, reason: reason);
     }
     if (!ok || !context.mounted) return false;
@@ -417,10 +432,8 @@ class SyncEngine {
     final readyCategories =
         !requireCategories || categoryProvider.hasCategoriesForBook(bookId);
     final readyAccounts =
-        !requireAccounts ||
-        accountProvider.hasAccountsForBook(bookId);
-    final readyTags =
-        !requireTags || tagProvider.hasTagsForBook(bookId);
+        !requireAccounts || accountProvider.hasAccountsForBook(bookId);
+    final readyTags = !requireTags || tagProvider.isLoadedForBook(bookId);
 
     return readyCategories && readyAccounts && readyTags;
   }
@@ -453,11 +466,41 @@ class SyncEngine {
       return true;
     }
     if (reason == 'accounts_changed') {
-      await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
+      await _syncAccounts(accountProvider, recordProvider, bookId,
+          reason: reason);
       return true;
     }
     if (reason == 'savings_plans_changed') {
       await _syncSavingsPlans(bookId, reason: reason);
+      return true;
+    }
+    if (reason == 'recurring_plans_changed') {
+      await _syncRecurringPlans(bookId, reason: reason);
+      return true;
+    }
+    if (reason == 'plans_poll') {
+      await _syncSavingsPlans(bookId, reason: reason);
+      await _syncRecurringPlans(bookId, reason: reason);
+      return true;
+    }
+
+    // Hourly periodic meta refresh: keep it reasonably light.
+    // Plans are polled separately via plans_poll.
+    if (reason == 'meta_periodic') {
+      await _syncCategories(categoryProvider, bookId, reason: reason);
+      await _syncTags(tagProvider, bookId, reason: reason);
+      await _syncBudget(budgetProvider, bookId, reason: reason);
+      await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
+      return true;
+    }
+
+    // Startup/resume: keep meta sync lightweight.
+    // - Budget is considered first-screen critical.
+    // - Tags/plans are synced via user changes, periodic jobs, or on-demand (ensureMetaReady).
+    if (reason == 'app_start' || reason == 'app_resumed') {
+      await _syncCategories(categoryProvider, bookId, reason: reason);
+      await _syncBudget(budgetProvider, bookId, reason: reason);
+      await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
       return true;
     }
 
@@ -466,6 +509,7 @@ class SyncEngine {
     await _syncBudget(budgetProvider, bookId, reason: reason);
     await _syncAccounts(accountProvider, recordProvider, bookId, reason: reason);
     await _syncSavingsPlans(bookId, reason: reason);
+    await _syncRecurringPlans(bookId, reason: reason);
     return true;
   }
 
@@ -480,79 +524,64 @@ class SyncEngine {
     await _runMetaThrottled(
       'meta_categories_u${uid}_b$bookId',
       () async {
-      try {
-        final useCache = int.tryParse(bookId) != null;
-        final cacheRepo = CategoryRepository();
-        final repo =
-            useCache ? cacheRepo : RepositoryFactory.createCategoryRepository();
-        final rawCategories = useCache
-            ? await cacheRepo.loadCategories(
-                bookId: bookId,
-                allowDefault: false,
-              )
-            : await repo.loadCategories(bookId: bookId);
-        final List<Category> categories = rawCategories is List<Category>
-            ? rawCategories
-            : (rawCategories as List).cast<Category>();
-        final deletedKeys = await CategoryDeleteQueue.instance.loadForBook(bookId);
+        try {
+          final useCache = int.tryParse(bookId) != null;
+          final cacheRepo = CategoryRepository();
+          final repo = useCache
+              ? cacheRepo
+              : RepositoryFactory.createCategoryRepository();
+          final rawCategories = useCache
+              ? await cacheRepo.loadCategories(
+                  bookId: bookId,
+                  allowDefault: false,
+                )
+              : await repo.loadCategories(bookId: bookId);
+          final List<Category> categories = rawCategories is List<Category>
+              ? rawCategories
+              : (rawCategories as List).cast<Category>();
+          final deletedKeys =
+              await CategoryDeleteQueue.instance.loadForBook(bookId);
 
-        final canUploadOnly =
-            deletedKeys.isEmpty &&
-            categories.isNotEmpty &&
-            categories.every((c) => c.syncVersion == null) &&
-            reason != 'categories_changed' &&
-            reason != 'force_bootstrap';
-        if (canUploadOnly) {
-          final allDefaultKeys =
-              categories.every((c) => _defaultCategoryKeys.contains(c.key));
-          if (allDefaultKeys) {
-            final downloadFirst = await _syncService.downloadCategories(
-              bookId: bookId,
-            );
-            if (downloadFirst.success && downloadFirst.categories != null) {
-              final remoteFirst = (downloadFirst.categories ?? const [])
-                  .map((m) => (m as Map).cast<String, dynamic>())
-                  .toList(growable: false);
-              if (remoteFirst.isNotEmpty) {
-                final remoteCatsFirst =
-                    remoteFirst.map(Category.fromMap).toList(growable: false);
-                if (categoryProvider != null) {
-                  try {
-                    categoryProvider.replaceFromCloudForBook(
-                      bookId,
-                      remoteCatsFirst,
-                    );
-                  } catch (_) {}
-                } else {
-                  await repo.saveCategories(remoteCatsFirst, bookId: bookId);
+          final canUploadOnly = deletedKeys.isEmpty &&
+              categories.isNotEmpty &&
+              categories.every((c) => c.syncVersion == null) &&
+              reason != 'categories_changed' &&
+              reason != 'force_bootstrap';
+          if (canUploadOnly) {
+            final allDefaultKeys =
+                categories.every((c) => _defaultCategoryKeys.contains(c.key));
+            if (allDefaultKeys) {
+              final downloadFirst = await _syncService.downloadCategories(
+                bookId: bookId,
+              );
+              if (downloadFirst.success && downloadFirst.categories != null) {
+                final remoteFirst = (downloadFirst.categories ?? const [])
+                    .map((m) => (m as Map).cast<String, dynamic>())
+                    .toList(growable: false);
+                if (remoteFirst.isNotEmpty) {
+                  final remoteCatsFirst =
+                      remoteFirst.map(Category.fromMap).toList(growable: false);
+                  if (categoryProvider != null) {
+                    try {
+                      categoryProvider.replaceFromCloudForBook(
+                        bookId,
+                        remoteCatsFirst,
+                      );
+                    } catch (_) {}
+                  } else {
+                    await repo.saveCategories(remoteCatsFirst, bookId: bookId);
+                  }
+                  return true;
                 }
-                return true;
               }
             }
-          }
-          final uploadOnly = await _syncService.uploadCategories(
-            bookId: bookId,
-            categories: categories.map((c) => c.toMap()).toList(growable: false),
-          );
-          if (uploadOnly.success && uploadOnly.categories != null) {
-            final remote = (uploadOnly.categories ?? const [])
-                .map((m) => (m as Map).cast<String, dynamic>())
-                .toList(growable: false);
-            final remoteCats = remote.map(Category.fromMap).toList(growable: false);
-            if (categoryProvider != null) {
-              try {
-                categoryProvider.replaceFromCloudForBook(bookId, remoteCats);
-              } catch (_) {}
-            } else {
-              await repo.saveCategories(remoteCats, bookId: bookId);
-            }
-            return true;
-          }
-          final error = uploadOnly.error ?? '';
-          if (error.contains('permission denied')) {
-            final download = await _syncService.downloadCategories(bookId: bookId);
-            if (download.success && download.categories != null) {
-              final remote = (download.categories ?? const [])
+            final uploadOnly = await _syncService.uploadCategories(
+              bookId: bookId,
+              categories:
+                  categories.map((c) => c.toMap()).toList(growable: false),
+            );
+            if (uploadOnly.success && uploadOnly.categories != null) {
+              final remote = (uploadOnly.categories ?? const [])
                   .map((m) => (m as Map).cast<String, dynamic>())
                   .toList(growable: false);
               final remoteCats =
@@ -566,106 +595,132 @@ class SyncEngine {
               }
               return true;
             }
+            final error = uploadOnly.error ?? '';
+            if (error.contains('permission denied')) {
+              final download =
+                  await _syncService.downloadCategories(bookId: bookId);
+              if (download.success && download.categories != null) {
+                final remote = (download.categories ?? const [])
+                    .map((m) => (m as Map).cast<String, dynamic>())
+                    .toList(growable: false);
+                final remoteCats =
+                    remote.map(Category.fromMap).toList(growable: false);
+                if (categoryProvider != null) {
+                  try {
+                    categoryProvider.replaceFromCloudForBook(
+                        bookId, remoteCats);
+                  } catch (_) {}
+                } else {
+                  await repo.saveCategories(remoteCats, bookId: bookId);
+                }
+                return true;
+              }
+            }
+            final shouldFallback = error.contains('missing syncVersion') ||
+                error.contains('conflict');
+            if (!shouldFallback) {
+              debugPrint('[SyncEngine] categories upload failed: $error');
+              return false;
+            }
           }
-          final shouldFallback = error.contains('missing syncVersion') ||
-              error.contains('conflict');
-          if (!shouldFallback) {
-            debugPrint('[SyncEngine] categories upload failed: $error');
+
+          // Download first to obtain server syncVersion baselines, without overwriting local edits.
+          final download =
+              await _syncService.downloadCategories(bookId: bookId);
+          if (!download.success) {
+            debugPrint(
+                '[SyncEngine] categories download failed: ${download.error}');
             return false;
           }
-        }
+          final remote = (download.categories ?? const [])
+              .map((m) => (m as Map).cast<String, dynamic>())
+              .toList(growable: false);
+          final remoteCats =
+              remote.map(Category.fromMap).toList(growable: false);
+          final remoteByKey = <String, Category>{};
+          for (final c in remoteCats) {
+            remoteByKey[c.key] = c;
+          }
 
-        // Download first to obtain server syncVersion baselines, without overwriting local edits.
-        final download = await _syncService.downloadCategories(bookId: bookId);
-        if (!download.success) {
-          debugPrint('[SyncEngine] categories download failed: ${download.error}');
-          return false;
-        }
-        final remote = (download.categories ?? const [])
-            .map((m) => (m as Map).cast<String, dynamic>())
-            .toList(growable: false);
-        final remoteCats = remote.map(Category.fromMap).toList(growable: false);
-        final remoteByKey = <String, Category>{};
-        for (final c in remoteCats) {
-          remoteByKey[c.key] = c;
-        }
-
-        bool needsUpload = deletedKeys.isNotEmpty;
-        if (!needsUpload) {
-          for (final c in categories) {
-            final r = remoteByKey[c.key];
-            if (r == null) {
-              needsUpload = true;
-              break;
-            }
-            final unchanged =
-                r.name == c.name &&
-                r.isExpense == c.isExpense &&
-                r.parentKey == c.parentKey &&
-                r.icon.codePoint == c.icon.codePoint &&
-                r.icon.fontFamily == c.icon.fontFamily &&
-                r.icon.fontPackage == c.icon.fontPackage;
-            if (!unchanged) {
-              needsUpload = true;
-              break;
+          bool needsUpload = deletedKeys.isNotEmpty;
+          if (!needsUpload) {
+            for (final c in categories) {
+              final r = remoteByKey[c.key];
+              if (r == null) {
+                needsUpload = true;
+                break;
+              }
+              final unchanged = r.name == c.name &&
+                  r.isExpense == c.isExpense &&
+                  r.parentKey == c.parentKey &&
+                  r.icon.codePoint == c.icon.codePoint &&
+                  r.icon.fontFamily == c.icon.fontFamily &&
+                  r.icon.fontPackage == c.icon.fontPackage;
+              if (!unchanged) {
+                needsUpload = true;
+                break;
+              }
             }
           }
-        }
-        final List<Category> merged = categories
-            .map((c) => c.copyWith(syncVersion: c.syncVersion ?? remoteByKey[c.key]?.syncVersion))
-            .toList(growable: false);
+          final List<Category> merged = categories
+              .map((c) => c.copyWith(
+                  syncVersion:
+                      c.syncVersion ?? remoteByKey[c.key]?.syncVersion))
+              .toList(growable: false);
 
-        if (!needsUpload) {
-          // No local edits/deletes: apply server view and skip upload to reduce SQL.
+          if (!needsUpload) {
+            // No local edits/deletes: apply server view and skip upload to reduce SQL.
+            if (categoryProvider != null) {
+              try {
+                categoryProvider.replaceFromCloudForBook(bookId, remoteCats);
+              } catch (_) {}
+            } else {
+              await repo.saveCategories(remoteCats, bookId: bookId);
+            }
+            return true;
+          }
+
+          final payload = merged.map((c) => c.toMap()).toList(growable: false);
+          final upload = await _syncService.uploadCategories(
+            bookId: bookId,
+            categories: payload,
+            deletedKeys: deletedKeys,
+          );
+          if (!upload.success) {
+            debugPrint(
+                '[SyncEngine] categories upload failed: ${upload.error}');
+          }
+          if (upload.success) {
+            await CategoryDeleteQueue.instance.clearBook(bookId);
+          }
+
+          // Apply server authoritative view.
+          // uploadCategories already returns categories; prefer it to avoid an extra download.
+          final authoritative = upload.success && upload.categories != null
+              ? upload.categories!
+              : (download.categories ?? const []);
+          if (!upload.success &&
+              (upload.error ?? '').contains('permission denied')) {
+            await CategoryDeleteQueue.instance.clearBook(bookId);
+          }
+          final remote2 = (authoritative)
+              .map((m) => (m as Map).cast<String, dynamic>())
+              .toList(growable: false);
+          final remoteCats2 =
+              remote2.map(Category.fromMap).toList(growable: false);
           if (categoryProvider != null) {
             try {
-              categoryProvider.replaceFromCloudForBook(bookId, remoteCats);
+              categoryProvider.replaceFromCloudForBook(bookId, remoteCats2);
             } catch (_) {}
           } else {
-            await repo.saveCategories(remoteCats, bookId: bookId);
+            await repo.saveCategories(remoteCats2, bookId: bookId);
           }
           return true;
+        } catch (e) {
+          debugPrint('[SyncEngine] categories sync failed: $e');
+          return false;
         }
-
-        final payload = merged.map((c) => c.toMap()).toList(growable: false);
-        final upload = await _syncService.uploadCategories(
-          bookId: bookId,
-          categories: payload,
-          deletedKeys: deletedKeys,
-        );
-        if (!upload.success) {
-          debugPrint('[SyncEngine] categories upload failed: ${upload.error}');
-        }
-        if (upload.success) {
-          await CategoryDeleteQueue.instance.clearBook(bookId);
-        }
-
-        // Apply server authoritative view.
-        // uploadCategories already returns categories; prefer it to avoid an extra download.
-        final authoritative = upload.success && upload.categories != null
-            ? upload.categories!
-            : (download.categories ?? const []);
-        if (!upload.success &&
-            (upload.error ?? '').contains('permission denied')) {
-          await CategoryDeleteQueue.instance.clearBook(bookId);
-        }
-        final remote2 = (authoritative)
-            .map((m) => (m as Map).cast<String, dynamic>())
-            .toList(growable: false);
-        final remoteCats2 = remote2.map(Category.fromMap).toList(growable: false);
-        if (categoryProvider != null) {
-          try {
-            categoryProvider.replaceFromCloudForBook(bookId, remoteCats2);
-          } catch (_) {}
-        } else {
-          await repo.saveCategories(remoteCats2, bookId: bookId);
-        }
-        return true;
-      } catch (e) {
-        debugPrint('[SyncEngine] categories sync failed: $e');
-        return false;
-      }
-    },
+      },
       bypassWindow: bypassWindow,
     );
   }
@@ -676,7 +731,8 @@ class SyncEngine {
     required String reason,
   }) async {
     final uid = await _authUserIdOrZero();
-    final bypassWindow = reason == 'tags_changed' || reason == 'force_bootstrap';
+    final bypassWindow =
+        reason == 'tags_changed' || reason == 'force_bootstrap';
     await _runMetaThrottled(
       'meta_tags_u${uid}_b$bookId',
       () async {
@@ -688,8 +744,7 @@ class SyncEngine {
           final deletedByBook = await TagDeleteQueue.instance.load();
           final deleted = deletedByBook[bookId] ?? const <String>[];
 
-          final canUploadOnly =
-              deleted.isEmpty &&
+          final canUploadOnly = deleted.isEmpty &&
               tags.isNotEmpty &&
               tags.every((t) => t.syncVersion == null) &&
               reason != 'tags_changed' &&
@@ -718,7 +773,8 @@ class SyncEngine {
               final remote = (uploadOnly.tags ?? const [])
                   .map((m) => (m as Map).cast<String, dynamic>())
                   .toList(growable: false);
-              final remoteTags = remote.map(Tag.fromMap).toList(growable: false);
+              final remoteTags =
+                  remote.map(Tag.fromMap).toList(growable: false);
               await repo.saveTagsForBook(bookId, remoteTags);
               if (tagProvider != null) {
                 try {
@@ -728,10 +784,11 @@ class SyncEngine {
               return true;
             }
             final error = (uploadOnly.error ?? '').toLowerCase();
-            final shouldFallback =
-                error.contains('missing syncversion') || error.contains('conflict');
+            final shouldFallback = error.contains('missing syncversion') ||
+                error.contains('conflict');
             if (!shouldFallback) {
-              debugPrint('[SyncEngine] tags upload failed: ${uploadOnly.error}');
+              debugPrint(
+                  '[SyncEngine] tags upload failed: ${uploadOnly.error}');
               return false;
             }
           }
@@ -741,97 +798,98 @@ class SyncEngine {
           if (!download.success) {
             debugPrint('[SyncEngine] tags download failed: ${download.error}');
             return false;
-        }
-        final remote = (download.tags ?? const [])
-            .map((m) => (m as Map).cast<String, dynamic>())
-            .toList(growable: false);
-        final remoteTags = remote.map(Tag.fromMap).toList(growable: false);
-        final remoteById = <String, Tag>{};
-        for (final t in remoteTags) {
-          remoteById[t.id] = t;
-        }
+          }
+          final remote = (download.tags ?? const [])
+              .map((m) => (m as Map).cast<String, dynamic>())
+              .toList(growable: false);
+          final remoteTags = remote.map(Tag.fromMap).toList(growable: false);
+          final remoteById = <String, Tag>{};
+          for (final t in remoteTags) {
+            remoteById[t.id] = t;
+          }
 
-        bool needsUpload = deleted.isNotEmpty;
-        if (!needsUpload) {
-          for (final t in tags) {
-            final r = remoteById[t.id];
-            if (r == null) {
-              needsUpload = true;
-              break;
-            }
-            final unchanged = r.bookId == t.bookId &&
-                r.name == t.name &&
-                r.colorValue == t.colorValue &&
-                r.sortOrder == t.sortOrder;
-            if (!unchanged) {
-              needsUpload = true;
-              break;
+          bool needsUpload = deleted.isNotEmpty;
+          if (!needsUpload) {
+            for (final t in tags) {
+              final r = remoteById[t.id];
+              if (r == null) {
+                needsUpload = true;
+                break;
+              }
+              final unchanged = r.bookId == t.bookId &&
+                  r.name == t.name &&
+                  r.colorValue == t.colorValue &&
+                  r.sortOrder == t.sortOrder;
+              if (!unchanged) {
+                needsUpload = true;
+                break;
+              }
             }
           }
-        }
-        final List<Tag> merged = tags
-            .map((t) => t.copyWith(syncVersion: t.syncVersion ?? remoteById[t.id]?.syncVersion))
-            .toList(growable: false);
+          final List<Tag> merged = tags
+              .map((t) => t.copyWith(
+                  syncVersion: t.syncVersion ?? remoteById[t.id]?.syncVersion))
+              .toList(growable: false);
 
-        if (!needsUpload) {
-          // No local edits/deletes: apply server view and skip upload to reduce SQL.
-          await repo.saveTagsForBook(bookId, remoteTags);
+          if (!needsUpload) {
+            // No local edits/deletes: apply server view and skip upload to reduce SQL.
+            await repo.saveTagsForBook(bookId, remoteTags);
+            if (tagProvider != null) {
+              try {
+                tagProvider.replaceFromCloud(bookId, remoteTags);
+              } catch (_) {}
+            }
+            return true;
+          }
+
+          final payload = merged
+              .map(
+                (t) => <String, dynamic>{
+                  'id': t.id,
+                  'bookId': bookId,
+                  'name': t.name,
+                  'syncVersion': t.syncVersion,
+                  'colorValue': t.colorValue,
+                  'sortOrder': t.sortOrder,
+                  'createdAt': t.createdAt?.toIso8601String(),
+                  'updatedAt': t.updatedAt?.toIso8601String(),
+                },
+              )
+              .toList(growable: false);
+
+          final upload = await _syncService.uploadTags(
+            bookId: bookId,
+            tags: payload,
+            deletedTagIds: deleted,
+          );
+          if (!upload.success) {
+            debugPrint('[SyncEngine] tags upload failed: ${upload.error}');
+          }
+          if (upload.success) {
+            await TagDeleteQueue.instance.clearBook(bookId);
+          }
+
+          // Apply server authoritative view.
+          // uploadTags already returns tags; prefer it to avoid an extra download.
+          final authoritative = upload.success && upload.tags != null
+              ? upload.tags!
+              : (download.tags ?? const []);
+          final remote2 = (authoritative)
+              .map((m) => (m as Map).cast<String, dynamic>())
+              .toList(growable: false);
+          final remoteTags2 = remote2.map(Tag.fromMap).toList(growable: false);
+          await repo.saveTagsForBook(bookId, remoteTags2);
           if (tagProvider != null) {
             try {
-              tagProvider.replaceFromCloud(bookId, remoteTags);
+              tagProvider.replaceFromCloud(bookId, remoteTags2);
             } catch (_) {}
           }
           return true;
+        } catch (e) {
+          debugPrint('[SyncEngine] tags sync failed: $e');
+          return false;
         }
-
-        final payload = merged
-            .map(
-              (t) => <String, dynamic>{
-                'id': t.id,
-                'bookId': bookId,
-                'name': t.name,
-                'syncVersion': t.syncVersion,
-                'colorValue': t.colorValue,
-                'sortOrder': t.sortOrder,
-                'createdAt': t.createdAt?.toIso8601String(),
-                'updatedAt': t.updatedAt?.toIso8601String(),
-              },
-            )
-            .toList(growable: false);
-
-        final upload = await _syncService.uploadTags(
-          bookId: bookId,
-          tags: payload,
-          deletedTagIds: deleted,
-        );
-        if (!upload.success) {
-          debugPrint('[SyncEngine] tags upload failed: ${upload.error}');
-        }
-        if (upload.success) {
-          await TagDeleteQueue.instance.clearBook(bookId);
-        }
-
-        // Apply server authoritative view.
-        // uploadTags already returns tags; prefer it to avoid an extra download.
-        final authoritative = upload.success && upload.tags != null
-            ? upload.tags!
-            : (download.tags ?? const []);
-        final remote2 = (authoritative)
-            .map((m) => (m as Map).cast<String, dynamic>())
-            .toList(growable: false);
-        final remoteTags2 = remote2.map(Tag.fromMap).toList(growable: false);
-        await repo.saveTagsForBook(bookId, remoteTags2);
-        if (tagProvider != null) {
-          try {
-            tagProvider.replaceFromCloud(bookId, remoteTags2);
-          } catch (_) {}
-        }
-        return true;
-      } catch (e) {
-        debugPrint('[SyncEngine] tags sync failed: $e');
-        return false;
-      }
-    },
+      },
       bypassWindow: bypassWindow,
     );
   }
@@ -841,12 +899,14 @@ class SyncEngine {
     String bookId, {
     required String reason,
   }) async {
+    if (!await getUploadEnabled()) return;
     while (true) {
       // 批处理性能关键：尽量把同一本账本的 outbox 聚合到一次 push
       final pending = await _outbox.loadPending(bookId, limit: 1000);
       if (pending.isEmpty) return;
 
-      await _assignServerIdsForCreates(recordProvider, bookId, pending, reason: reason);
+      await _assignServerIdsForCreates(recordProvider, bookId, pending,
+          reason: reason);
 
       final ops = pending.map((e) => e.payload).toList(growable: false);
       final resp = await _syncService.v2Push(
@@ -875,7 +935,8 @@ class SyncEngine {
       for (final item in pending) {
         final opId = item.payload['opId'] as String?;
         if (opId == null) {
-          final syntheticOpId = 'missing-opid-${DateTime.now().microsecondsSinceEpoch}';
+          final syntheticOpId =
+              'missing-opid-${DateTime.now().microsecondsSinceEpoch}';
           await SyncV2ConflictStore.addConflict(bookId, {
             'opId': syntheticOpId,
             'localOp': item.payload,
@@ -919,7 +980,8 @@ class SyncEngine {
           await SyncV2ConflictStore.remove(bookId, opId: opId);
           final type = item.payload['type'] as String?;
           if (type == 'upsert') {
-            final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
+            final bill =
+                (item.payload['bill'] as Map?)?.cast<String, dynamic>();
             final localId = bill?['localId'] as String?;
             final serverId = r['serverId'] as int?;
             final version = r['version'] as int?;
@@ -939,7 +1001,8 @@ class SyncEngine {
                   'localOp': item.payload,
                   'serverId': r['serverId'],
                   'serverVersion': r['version'],
-                  'error': 'applied but missing serverId/localId (exceeded retry)',
+                  'error':
+                      'applied but missing serverId/localId (exceeded retry)',
                   'serverBill': r['serverBill'],
                 });
                 toDelete.add(item);
@@ -962,7 +1025,8 @@ class SyncEngine {
           final type = item.payload['type'] as String?;
           final serverBill = (r['serverBill'] as Map?)?.cast<String, dynamic>();
           if (type == 'upsert' && serverBill != null) {
-            final bill = (item.payload['bill'] as Map?)?.cast<String, dynamic>();
+            final bill =
+                (item.payload['bill'] as Map?)?.cast<String, dynamic>();
             final localId = bill?['localId'] as String?;
 
             bool numEq(dynamic a, dynamic b) {
@@ -990,19 +1054,26 @@ class SyncEngine {
             }
 
             final same = bill != null &&
-                (bill['bookId']?.toString() == serverBill['bookId']?.toString()) &&
-                (bill['accountId']?.toString() == serverBill['accountId']?.toString()) &&
+                (bill['bookId']?.toString() ==
+                    serverBill['bookId']?.toString()) &&
+                (bill['accountId']?.toString() ==
+                    serverBill['accountId']?.toString()) &&
                 (bill['categoryKey']?.toString() ==
                     serverBill['categoryKey']?.toString()) &&
                 numEq(bill['amount'], serverBill['amount']) &&
-                (bill['direction']?.toString() == serverBill['direction']?.toString()) &&
-                (bill['remark']?.toString() == serverBill['remark']?.toString()) &&
-                (bill['billDate']?.toString() == serverBill['billDate']?.toString()) &&
+                (bill['direction']?.toString() ==
+                    serverBill['direction']?.toString()) &&
+                (bill['remark']?.toString() ==
+                    serverBill['remark']?.toString()) &&
+                (bill['billDate']?.toString() ==
+                    serverBill['billDate']?.toString()) &&
                 (bill['includeInStats']?.toString() ==
                     serverBill['includeInStats']?.toString()) &&
-                (bill['pairId']?.toString() == serverBill['pairId']?.toString()) &&
+                (bill['pairId']?.toString() ==
+                    serverBill['pairId']?.toString()) &&
                 listEq(bill['tagIds'], serverBill['tagIds']) &&
-                (bill['isDelete']?.toString() == serverBill['isDelete']?.toString());
+                (bill['isDelete']?.toString() ==
+                    serverBill['isDelete']?.toString());
 
             if (same && localId != null) {
               final serverId =
@@ -1042,7 +1113,8 @@ class SyncEngine {
             });
             toDelete.add(item);
           } else {
-            final bumped = SyncV2PushRetry.bumpAttempt(item.payload, error: err);
+            final bumped =
+                SyncV2PushRetry.bumpAttempt(item.payload, error: err);
             if (SyncV2PushRetry.shouldQuarantine(bumped)) {
               await SyncV2ConflictStore.addConflict(bookId, {
                 'opId': opId,
@@ -1218,7 +1290,8 @@ class SyncEngine {
     while (true) {
       pages++;
       if (pages > maxPagesPerSync) {
-        debugPrint('[SyncEngine] v2Pull reached max pages; stop (book=$bookId)');
+        debugPrint(
+            '[SyncEngine] v2Pull reached max pages; stop (book=$bookId)');
         return false;
       }
 
@@ -1300,7 +1373,8 @@ class SyncEngine {
 
       final hasMore = resp['hasMore'] as bool? ?? false;
       if (hasMore && next <= prevCursor) {
-        debugPrint('[SyncEngine] v2Pull hasMore but cursor not advanced; stop to avoid loop');
+        debugPrint(
+            '[SyncEngine] v2Pull hasMore but cursor not advanced; stop to avoid loop');
         return false;
       }
 
@@ -1372,10 +1446,10 @@ class SyncEngine {
 
       if (localCursor != serverMaxChangeId) return;
 
-      final localSyncedCount = await _countLocalSyncedRecords(recordProvider, bookId);
+      final localSyncedCount =
+          await _countLocalSyncedRecords(recordProvider, bookId);
       final localAgg = await _localSyncedAgg(recordProvider, bookId);
-      final bool ok =
-          localSyncedCount == serverBillCount &&
+      final bool ok = localSyncedCount == serverBillCount &&
           localAgg.sumIds == serverSumIds &&
           localAgg.sumVersions == serverSumVersions;
       if (ok) return;
@@ -1421,7 +1495,8 @@ class SyncEngine {
     return (sumIds: sumIds, sumVersions: sumVersions);
   }
 
-  Future<int> _countLocalSyncedRecords(RecordProvider recordProvider, String bookId) async {
+  Future<int> _countLocalSyncedRecords(
+      RecordProvider recordProvider, String bookId) async {
     if (RepositoryFactory.isUsingDatabase) {
       try {
         final repo = RepositoryFactory.createRecordRepository();
@@ -1438,7 +1513,8 @@ class SyncEngine {
 
   Record _mapToRecord(Map<String, dynamic> map) {
     final serverId = map['id'] as int? ?? map['serverId'] as int?;
-    final serverVersion = map['version'] as int? ?? map['serverVersion'] as int?;
+    final serverVersion =
+        map['version'] as int? ?? map['serverVersion'] as int?;
     final createdByUserId = (() {
       final raw = map['userId'] ?? map['createdByUserId'];
       if (raw is num) return raw.toInt();
@@ -1457,6 +1533,7 @@ class SyncEngine {
       if (v is String) return double.tryParse(v) ?? 0.0;
       return 0.0;
     }
+
     return Record(
       id: serverId != null ? 'server_$serverId' : _generateTempId(),
       serverId: serverId,
@@ -1531,7 +1608,8 @@ class SyncEngine {
 
     if (isDelete) {
       if (existing != null) {
-        await recordProvider.deleteRecord(existing.id, accountProvider: accountProvider);
+        await recordProvider.deleteRecord(existing.id,
+            accountProvider: accountProvider);
         try {
           final tagRepo = RepositoryFactory.createTagRepository();
           await tagRepo.deleteLinksForRecord(existing.id);
@@ -1544,14 +1622,19 @@ class SyncEngine {
     final rawTagIds = billMap['tagIds'];
     final hasTagIds = rawTagIds is List;
     final tagIds = rawTagIds is List
-        ? rawTagIds.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+        ? rawTagIds
+            .map((e) => e.toString())
+            .where((e) => e.trim().isNotEmpty)
+            .toList()
         : const <String>[];
     if (existing != null) {
       final updated = existing.copyWith(
         serverId: serverId,
         serverVersion: serverVersion,
-        createdByUserId: cloudRecord.createdByUserId ?? existing.createdByUserId,
-        updatedByUserId: cloudRecord.updatedByUserId ?? existing.updatedByUserId,
+        createdByUserId:
+            cloudRecord.createdByUserId ?? existing.createdByUserId,
+        updatedByUserId:
+            cloudRecord.updatedByUserId ?? existing.updatedByUserId,
         amount: cloudRecord.amount,
         remark: cloudRecord.remark,
         date: cloudRecord.date,
@@ -1562,7 +1645,8 @@ class SyncEngine {
         includeInStats: cloudRecord.includeInStats,
         pairId: cloudRecord.pairId,
       );
-      await recordProvider.updateRecord(updated, accountProvider: accountProvider);
+      await recordProvider.updateRecord(updated,
+          accountProvider: accountProvider);
       if (hasTagIds) {
         try {
           final tagRepo = RepositoryFactory.createTagRepository();
@@ -1591,7 +1675,8 @@ class SyncEngine {
       includeInStats: cloudRecord.includeInStats,
       pairId: cloudRecord.pairId,
       createdByUserId: cloudRecord.createdByUserId ?? 0,
-      updatedByUserId: cloudRecord.updatedByUserId ?? cloudRecord.createdByUserId ?? 0,
+      updatedByUserId:
+          cloudRecord.updatedByUserId ?? cloudRecord.createdByUserId ?? 0,
       accountProvider: accountProviderForInsert,
     );
     await recordProvider.setServerSyncState(
@@ -1620,71 +1705,74 @@ class SyncEngine {
         reason == 'savings_plans_changed' || reason == 'force_bootstrap';
     await _runMetaThrottled(
       'meta_savings_plans_u${uid}_b$bookId',
-        () async {
-          try {
-            debugPrint('[SyncEngine] savings plans sync book=$bookId reason=$reason');
-            final repo = SavingsPlanRepository();
-            final localPlans = await repo.loadPlans(bookId: bookId);
-            final deletedIds =
-                await SavingsPlanDeleteQueue.instance.loadForBook(bookId);
+      () async {
+        try {
+          debugPrint(
+              '[SyncEngine] savings plans sync book=$bookId reason=$reason');
+          final repo = SavingsPlanRepository();
+          final localPlans = await repo.loadPlans(bookId: bookId);
+          final deletedIds =
+              await SavingsPlanDeleteQueue.instance.loadForBook(bookId);
 
-            final canUploadOnly =
-                deletedIds.isEmpty &&
-                localPlans.isNotEmpty &&
-                localPlans.every((p) => p.syncVersion == null) &&
-                reason != 'savings_plans_changed' &&
-                reason != 'force_bootstrap';
-            if (canUploadOnly) {
-              final payload = localPlans.map((p) => p.toMap()).toList(growable: false);
-              final uploadOnly = await _syncService.uploadSavingsPlans(
-                bookId: bookId,
-                plans: payload,
-                deletedIds: const <String>[],
-              );
-              if (uploadOnly.success && uploadOnly.savingsPlans != null) {
-                final serverRaw =
-                    uploadOnly.savingsPlans ?? const <Map<String, dynamic>>[];
-                final nextPlans = <SavingsPlan>[];
-                final serverDeleted = <String>{};
-                for (final m in serverRaw) {
-                  final isDelete = (m['isDelete'] == true) ||
-                      (m['isDelete'] is num && (m['isDelete'] as num).toInt() == 1);
-                  final pid = (m['id'] ?? '').toString();
-                  if (pid.isEmpty) continue;
-                  if (isDelete) {
-                    serverDeleted.add(pid);
-                    continue;
-                  }
-                  try {
-                    nextPlans.add(SavingsPlan.fromMap(m));
-                  } catch (_) {}
+          final canUploadOnly = deletedIds.isEmpty &&
+              localPlans.isNotEmpty &&
+              localPlans.every((p) => p.syncVersion == null) &&
+              reason != 'savings_plans_changed' &&
+              reason != 'force_bootstrap';
+          if (canUploadOnly) {
+            final payload =
+                localPlans.map((p) => p.toMap()).toList(growable: false);
+            final uploadOnly = await _syncService.uploadSavingsPlans(
+              bookId: bookId,
+              plans: payload,
+              deletedIds: const <String>[],
+            );
+            if (uploadOnly.success && uploadOnly.savingsPlans != null) {
+              final serverRaw =
+                  uploadOnly.savingsPlans ?? const <Map<String, dynamic>>[];
+              final nextPlans = <SavingsPlan>[];
+              final serverDeleted = <String>{};
+              for (final m in serverRaw) {
+                final isDelete = (m['isDelete'] == true) ||
+                    (m['isDelete'] is num &&
+                        (m['isDelete'] as num).toInt() == 1);
+                final pid = (m['id'] ?? '').toString();
+                if (pid.isEmpty) continue;
+                if (isDelete) {
+                  serverDeleted.add(pid);
+                  continue;
                 }
-                final filtered = nextPlans
-                    .where((p) => !serverDeleted.contains(p.id))
-                    .toList(growable: false);
-                await repo.replacePlansForBook(bookId, filtered);
-                return true;
+                try {
+                  nextPlans.add(SavingsPlan.fromMap(m));
+                } catch (_) {}
               }
-              final err = (uploadOnly.error ?? '').toLowerCase();
-              final shouldFallback =
-                  err.contains('conflict') || err.contains('syncversion');
-              if (!shouldFallback) {
-                debugPrint(
-                  '[SyncEngine] savings plans upload failed: ${uploadOnly.error}',
-                );
-                return false;
-              }
+              final filtered = nextPlans
+                  .where((p) => !serverDeleted.contains(p.id))
+                  .toList(growable: false);
+              await repo.replacePlansForBook(bookId, filtered);
+              return true;
             }
-
-            final download =
-                await _syncService.downloadSavingsPlans(bookId: bookId);
-            if (!download.success) {
+            final err = (uploadOnly.error ?? '').toLowerCase();
+            final shouldFallback =
+                err.contains('conflict') || err.contains('syncversion');
+            if (!shouldFallback) {
               debugPrint(
-                '[SyncEngine] savings plans download failed: ${download.error}',
+                '[SyncEngine] savings plans upload failed: ${uploadOnly.error}',
               );
+              return false;
+            }
+          }
+
+          final download =
+              await _syncService.downloadSavingsPlans(bookId: bookId);
+          if (!download.success) {
+            debugPrint(
+              '[SyncEngine] savings plans download failed: ${download.error}',
+            );
             return false;
           }
-          final remoteRaw = download.savingsPlans ?? const <Map<String, dynamic>>[];
+          final remoteRaw =
+              download.savingsPlans ?? const <Map<String, dynamic>>[];
           final remotePlans = <SavingsPlan>[];
           final remoteDeleted = <String>{};
           for (final m in remoteRaw) {
@@ -1706,77 +1794,95 @@ class SyncEngine {
             remoteById[p.id] = p;
           }
 
-          final mergedLocal = localPlans
-              .map(
-                (p) => p.syncVersion != null
-                    ? p
-                    : p.copyWith(syncVersion: remoteById[p.id]?.syncVersion),
-              )
+          bool businessEqual(SavingsPlan a, SavingsPlan b) {
+            return a.bookId == b.bookId &&
+                a.accountId == b.accountId &&
+                a.name == b.name &&
+                a.type == b.type &&
+                a.targetAmount == b.targetAmount &&
+                a.includeInStats == b.includeInStats &&
+                a.savedAmount == b.savedAmount &&
+                a.archived == b.archived &&
+                a.startDate == b.startDate &&
+                a.endDate == b.endDate &&
+                a.monthlyDay == b.monthlyDay &&
+                a.monthlyAmount == b.monthlyAmount &&
+                a.weeklyWeekday == b.weeklyWeekday &&
+                a.weeklyAmount == b.weeklyAmount &&
+                a.executedCount == b.executedCount &&
+                a.lastExecutedAt == b.lastExecutedAt &&
+                a.defaultFromAccountId == b.defaultFromAccountId;
+          }
+
+          final remoteFiltered = remotePlans
+              .where((p) => !remoteDeleted.contains(p.id))
               .toList(growable: false);
 
-          bool needsUpload = deletedIds.isNotEmpty;
-          if (!needsUpload) {
-            for (final p in mergedLocal) {
-              final r = remoteById[p.id];
-              if (r == null) {
-                needsUpload = true;
-                break;
+          final dirty = <SavingsPlan>[];
+          for (final local in localPlans) {
+            final remote = remoteById[local.id];
+            if (remote == null) {
+              // Local-only plan: upload as create.
+              dirty.add(local);
+              continue;
+            }
+            if (remoteDeleted.contains(local.id)) {
+              // Server deletion wins.
+              continue;
+            }
+
+            final merged = local.syncVersion != null
+                ? local
+                : local.copyWith(syncVersion: remote.syncVersion);
+            if (merged.syncVersion == null) {
+              dirty.add(merged);
+              continue;
+            }
+
+            if (merged.syncVersion != remote.syncVersion) {
+              // Server may have advanced the plan (e.g., auto-execution). Prefer newer updatedAt.
+              if (merged.updatedAt.isAfter(remote.updatedAt)) {
+                dirty.add(merged);
               }
-              // Compare business fields only (syncVersion is only for concurrency).
-              final unchanged =
-                  p.bookId == r.bookId &&
-                  p.accountId == r.accountId &&
-                  p.name == r.name &&
-                  p.type == r.type &&
-                  p.targetAmount == r.targetAmount &&
-                  p.includeInStats == r.includeInStats &&
-                  p.savedAmount == r.savedAmount &&
-                  p.archived == r.archived &&
-                  p.startDate == r.startDate &&
-                  p.endDate == r.endDate &&
-                  p.monthlyDay == r.monthlyDay &&
-                  p.monthlyAmount == r.monthlyAmount &&
-                  p.weeklyWeekday == r.weeklyWeekday &&
-                  p.weeklyAmount == r.weeklyAmount &&
-                  p.executedCount == r.executedCount &&
-                  p.lastExecutedAt == r.lastExecutedAt &&
-                  p.defaultFromAccountId == r.defaultFromAccountId;
-              if (!unchanged) {
-                needsUpload = true;
-                break;
-              }
+              continue;
+            }
+
+            if (!businessEqual(merged, remote)) {
+              dirty.add(merged);
             }
           }
 
+          final needsUpload = dirty.isNotEmpty || deletedIds.isNotEmpty;
           if (!needsUpload) {
-            // No local edits/deletes: apply server view and skip upload to reduce SQL.
-            final filtered = remotePlans
-                .where((p) => !remoteDeleted.contains(p.id))
-                .toList(growable: false);
-            await repo.replacePlansForBook(bookId, filtered);
+            await repo.replacePlansForBook(bookId, remoteFiltered);
             return true;
           }
 
-          final payload = mergedLocal.map((p) => p.toMap()).toList(growable: false);
+          final payload = dirty.map((p) => p.toMap()).toList(growable: false);
           final upload = await _syncService.uploadSavingsPlans(
             bookId: bookId,
             plans: payload,
             deletedIds: deletedIds,
           );
           if (!upload.success) {
-            debugPrint('[SyncEngine] savings plans upload failed: ${upload.error}');
+            debugPrint(
+                '[SyncEngine] savings plans upload failed: ${upload.error}');
             final err = (upload.error ?? '').toLowerCase();
-            final isConflict = err.contains('conflict') || err.contains('syncversion');
+            final isConflict =
+                err.contains('conflict') || err.contains('syncversion');
             if (isConflict) {
               await SavingsPlanConflictBackupStore.save(
                 bookId,
-                mergedLocal.map((p) => p.toMap()).toList(growable: false),
+                dirty.map((p) => p.toMap()).toList(growable: false),
               );
+              // Keep UI consistent with server execution; local edits are backed up for recovery.
+              await repo.replacePlansForBook(bookId, remoteFiltered);
             }
             return false;
           }
 
-          final serverRaw = upload.savingsPlans ?? const <Map<String, dynamic>>[];
+          final serverRaw =
+              upload.savingsPlans ?? const <Map<String, dynamic>>[];
           final nextPlans = <SavingsPlan>[];
           final serverDeleted = <String>{};
           for (final m in serverRaw) {
@@ -1802,6 +1908,178 @@ class SyncEngine {
           return true;
         } catch (e) {
           debugPrint('[SyncEngine] savings plans sync failed: $e');
+          return false;
+        }
+      },
+      bypassWindow: bypassWindow,
+    );
+  }
+
+  Future<void> _syncRecurringPlans(
+    String bookId, {
+    required String reason,
+  }) async {
+    final uid = await _authUserIdOrZero();
+    final bypassWindow =
+        reason == 'recurring_plans_changed' || reason == 'force_bootstrap';
+    await _runMetaThrottled(
+      'meta_recurring_plans_u${uid}_b$bookId',
+      () async {
+        try {
+          debugPrint(
+              '[SyncEngine] recurring plans sync book=$bookId reason=$reason');
+          final repo = RepositoryFactory.createRecurringRecordRepository();
+          final List<RecurringRecordPlan> localPlans =
+              (await repo.loadPlansForBook(bookId)).cast<RecurringRecordPlan>();
+          final deletedIds =
+              await RecurringPlanDeleteQueue.instance.loadForBook(bookId);
+
+          final download =
+              await _syncService.downloadRecurringPlans(bookId: bookId);
+          if (!download.success) {
+            debugPrint(
+              '[SyncEngine] recurring plans download failed: ${download.error}',
+            );
+            return false;
+          }
+
+          final remoteRaw =
+              download.recurringPlans ?? const <Map<String, dynamic>>[];
+          final remotePlans = <RecurringRecordPlan>[];
+          final remoteDeleted = <String>{};
+          for (final m in remoteRaw) {
+            final isDelete = (m['isDelete'] == true) ||
+                (m['isDelete'] is num && (m['isDelete'] as num).toInt() == 1);
+            final pid = (m['id'] ?? '').toString();
+            if (pid.isEmpty) continue;
+            if (isDelete) {
+              remoteDeleted.add(pid);
+              continue;
+            }
+            try {
+              remotePlans.add(RecurringRecordPlan.fromMap(m));
+            } catch (_) {}
+          }
+
+          final remoteById = <String, RecurringRecordPlan>{};
+          for (final p in remotePlans) {
+            remoteById[p.id] = p;
+          }
+
+          bool businessEqual(RecurringRecordPlan a, RecurringRecordPlan b) {
+            final tagsA = a.tagIds.toList()..sort();
+            final tagsB = b.tagIds.toList()..sort();
+            final sameTags = tagsA.length == tagsB.length &&
+                List.generate(tagsA.length, (i) => i)
+                    .every((i) => tagsA[i] == tagsB[i]);
+            return a.bookId == b.bookId &&
+                a.categoryKey == b.categoryKey &&
+                a.accountId == b.accountId &&
+                a.direction == b.direction &&
+                a.includeInStats == b.includeInStats &&
+                a.amount == b.amount &&
+                a.remark == b.remark &&
+                a.enabled == b.enabled &&
+                a.periodType == b.periodType &&
+                a.startDate == b.startDate &&
+                a.nextDate == b.nextDate &&
+                a.lastRunAt == b.lastRunAt &&
+                a.weekday == b.weekday &&
+                a.monthDay == b.monthDay &&
+                sameTags;
+          }
+
+          final remoteFiltered = remotePlans
+              .where((p) => !remoteDeleted.contains(p.id))
+              .toList(growable: false);
+
+          final dirty = <RecurringRecordPlan>[];
+          for (final local in localPlans) {
+            final remote = remoteById[local.id];
+            if (remote == null) {
+              dirty.add(local);
+              continue;
+            }
+            if (remoteDeleted.contains(local.id)) {
+              continue;
+            }
+
+            final merged = local.syncVersion != null
+                ? local
+                : local.copyWith(syncVersion: remote.syncVersion);
+            if (merged.syncVersion == null) {
+              dirty.add(merged);
+              continue;
+            }
+
+            if (merged.syncVersion != remote.syncVersion) {
+              final localUpdated =
+                  merged.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              final remoteUpdated =
+                  remote.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              if (localUpdated.isAfter(remoteUpdated)) {
+                dirty.add(merged);
+              }
+              continue;
+            }
+
+            if (!businessEqual(merged, remote)) {
+              dirty.add(merged);
+            }
+          }
+
+          final needsUpload = dirty.isNotEmpty || deletedIds.isNotEmpty;
+          if (!needsUpload) {
+            await repo.replacePlansForBook(bookId, remoteFiltered);
+            return true;
+          }
+
+          final payload = dirty.map((p) => p.toMap()).toList(growable: false);
+          final upload = await _syncService.uploadRecurringPlans(
+            bookId: bookId,
+            plans: payload,
+            deletedIds: deletedIds,
+          );
+          if (!upload.success) {
+            debugPrint(
+                '[SyncEngine] recurring plans upload failed: ${upload.error}');
+            final err = (upload.error ?? '').toLowerCase();
+            final isConflict =
+                err.contains('conflict') || err.contains('syncversion');
+            if (isConflict) {
+              // Keep UI consistent with server execution; local edits remain in local storage for manual recovery.
+              await repo.replacePlansForBook(bookId, remoteFiltered);
+            }
+            return false;
+          }
+
+          final serverRaw =
+              upload.recurringPlans ?? const <Map<String, dynamic>>[];
+          final nextPlans = <RecurringRecordPlan>[];
+          final serverDeleted = <String>{};
+          for (final m in serverRaw) {
+            final isDelete = (m['isDelete'] == true) ||
+                (m['isDelete'] is num && (m['isDelete'] as num).toInt() == 1);
+            final pid = (m['id'] ?? '').toString();
+            if (pid.isEmpty) continue;
+            if (isDelete) {
+              serverDeleted.add(pid);
+              continue;
+            }
+            try {
+              nextPlans.add(RecurringRecordPlan.fromMap(m));
+            } catch (_) {}
+          }
+
+          final filtered = nextPlans
+              .where((p) => !serverDeleted.contains(p.id))
+              .where((p) => !remoteDeleted.contains(p.id))
+              .toList(growable: false);
+          await repo.replacePlansForBook(bookId, filtered);
+          await RecurringPlanDeleteQueue.instance.clearBook(bookId);
+          return true;
+        } catch (e) {
+          debugPrint('[SyncEngine] recurring plans sync failed: $e');
           return false;
         }
       },
@@ -1841,7 +2119,8 @@ class SyncEngine {
 
       final downloadResult = await _syncService.downloadBudget(bookId: bookId);
       if (!downloadResult.success) {
-        debugPrint('[SyncEngine] budget download failed: ${downloadResult.error}');
+        debugPrint(
+            '[SyncEngine] budget download failed: ${downloadResult.error}');
         return;
       }
 
@@ -1866,7 +2145,8 @@ class SyncEngine {
         await BudgetSyncStateStore.setServerUpdateMs(bookId, cloudMs);
       }
       if (cloudSyncVersion > 0) {
-        await BudgetSyncStateStore.setServerSyncVersion(bookId, cloudSyncVersion);
+        await BudgetSyncStateStore.setServerSyncVersion(
+            bookId, cloudSyncVersion);
       }
 
       // If local has unsynced edits, try uploading using syncVersion (optimistic concurrency).
@@ -1878,8 +2158,8 @@ class SyncEngine {
           'periodStartDay': budgetEntry.periodStartDay,
           'annualTotal': budgetEntry.annualTotal,
           'annualCategoryBudgets': budgetEntry.annualCategoryBudgets,
-          'updateTime':
-              DateTime.fromMillisecondsSinceEpoch(localEditMs).toIso8601String(),
+          'updateTime': DateTime.fromMillisecondsSinceEpoch(localEditMs)
+              .toIso8601String(),
           if (cloudHasBaseline) 'syncVersion': localBaseSyncVersion,
         };
 
@@ -1943,7 +2223,8 @@ class SyncEngine {
               final isConflict = err.contains('conflict') ||
                   err.contains('syncversion') ||
                   err.contains('version');
-              debugPrint('[SyncEngine] budget upload failed: ${uploadResult.error}');
+              debugPrint(
+                  '[SyncEngine] budget upload failed: ${uploadResult.error}');
               if (isConflict) {
                 await BudgetConflictBackupStore.save(bookId, localBudgetData);
                 await BudgetSyncStateStore.setLocalEditMs(bookId, 0);
@@ -1955,7 +2236,8 @@ class SyncEngine {
                 keepLocalDueToUploadFailure = true;
               }
             } else {
-              final refreshed = await _syncService.downloadBudget(bookId: bookId);
+              final refreshed =
+                  await _syncService.downloadBudget(bookId: bookId);
               if (refreshed.success) {
                 cloudBudget
                   ..clear()
@@ -2085,7 +2367,8 @@ class SyncEngine {
 
       // 用户在资产页修改账户后：优先上传，再用服务端回包回填 serverId/最新字段。
       if (reason == 'accounts_changed') {
-          final deletedAccounts = await AccountDeleteQueue.instance.loadForBook(bookId);
+        final deletedAccounts =
+            await AccountDeleteQueue.instance.loadForBook(bookId);
         final localAccounts = accountProvider.accounts;
         if (localAccounts.isNotEmpty || deletedAccounts.isNotEmpty) {
           // Download first to obtain serverId/syncVersion baselines to satisfy optimistic concurrency.
@@ -2133,9 +2416,11 @@ class SyncEngine {
 
           // accounts_changed 是“用户刚做了操作”的场景：上传失败时不要回退到 download 覆盖本地，
           // 否则会出现“刚删除又回来”的体验。后续由下一次 sync 自动重试即可。
-          debugPrint('[SyncEngine] account upload failed, skip download to avoid overwrite');
+          debugPrint(
+              '[SyncEngine] account upload failed, skip download to avoid overwrite');
           if (!uploadResult.success) {
-            debugPrint('[SyncEngine] account upload error: ${uploadResult.error}');
+            debugPrint(
+                '[SyncEngine] account upload error: ${uploadResult.error}');
           }
 
           // Self-heal: download latest serverId/syncVersion and merge into local state without overwriting edits.
@@ -2157,7 +2442,8 @@ class SyncEngine {
         return;
       }
 
-      final downloadResult = await _syncService.downloadAccounts(bookId: bookId);
+      final downloadResult =
+          await _syncService.downloadAccounts(bookId: bookId);
       if (!downloadResult.success || downloadResult.accounts == null) return;
 
       final cloudAccounts = downloadResult.accounts!;
@@ -2167,7 +2453,8 @@ class SyncEngine {
         });
       });
 
-      await _repairLegacyRecordAccountIds(accountProvider, recordProvider, bookId);
+      await _repairLegacyRecordAccountIds(
+          accountProvider, recordProvider, bookId);
     } catch (e) {
       debugPrint('[SyncEngine] account sync failed: $e');
     }

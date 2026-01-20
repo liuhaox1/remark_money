@@ -37,6 +37,8 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
 
   bool _isListening = false;
   bool _isSaving = false;
+  bool _isPressingToTalk = false;
+  int _pressToTalkSeq = 0;
   String _statusText = '先说一句话（可多句），识别成文字后点击“发送”解析';
   String? _initError;
   List<_VoiceDraftItem> _drafts = const [];
@@ -130,6 +132,24 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
     });
   }
 
+  Future<void> _handlePressToTalkStart() async {
+    if (_isSaving) return;
+    _isPressingToTalk = true;
+    final seq = ++_pressToTalkSeq;
+    await _startListening();
+    if (!mounted) return;
+    if (!_isPressingToTalk && seq == _pressToTalkSeq && _isListening) {
+      await _stopListening();
+    }
+  }
+
+  Future<void> _handlePressToTalkEnd() async {
+    _isPressingToTalk = false;
+    if (_isListening) {
+      await _stopListening();
+    }
+  }
+
   Future<void> _parseText() async {
     if (_isSaving) return;
     if (_isListening) {
@@ -203,13 +223,14 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
 
   Future<bool> _ensureMetaReadyForBook(String bookId) async {
     if (_ensuringMeta) return false;
-    if (int.tryParse(bookId) == null) return true;
 
     final categoryProvider = context.read<CategoryProvider>();
     final accountProvider = context.read<AccountProvider>();
+    final tagProvider = context.read<TagProvider>();
     final needs =
         categoryProvider.categories.isEmpty ||
-        accountProvider.accounts.where((a) => a.bookId == bookId).isEmpty;
+        accountProvider.accounts.where((a) => a.bookId == bookId).isEmpty ||
+        !tagProvider.isLoadedForBook(bookId);
     if (!needs) return true;
 
     _ensuringMeta = true;
@@ -220,7 +241,7 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
           bookId,
           requireCategories: true,
           requireAccounts: true,
-          requireTags: false,
+          requireTags: true,
           reason: 'meta_ensure',
         );
         if (!ok && mounted) {
@@ -407,12 +428,11 @@ class _VoiceRecordPageState extends State<VoiceRecordPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _isSaving
-                              ? null
-                              : (_isListening ? _stopListening : _startListening),
-                          icon: Icon(_isListening ? Icons.stop : Icons.mic),
-                          label: Text(_isListening ? '停止' : '说一句话'),
+                        child: _HoldToTalkButton(
+                          enabled: !_isSaving,
+                          isListening: _isListening,
+                          onPressStart: _handlePressToTalkStart,
+                          onPressEnd: _handlePressToTalkEnd,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1062,6 +1082,66 @@ class _VoiceDraftItem {
   final String accountId;
   final Set<String> tagIds;
   final String categoryHint;
+}
+
+class _HoldToTalkButton extends StatelessWidget {
+  const _HoldToTalkButton({
+    required this.enabled,
+    required this.isListening,
+    required this.onPressStart,
+    required this.onPressEnd,
+  });
+
+  final bool enabled;
+  final bool isListening;
+  final Future<void> Function() onPressStart;
+  final Future<void> Function() onPressEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final radius = BorderRadius.circular(12);
+
+    final fg = enabled
+        ? (isListening ? cs.onErrorContainer : cs.primary)
+        : cs.onSurface.withOpacity(0.4);
+    final bg = isListening ? cs.errorContainer : Colors.transparent;
+    final border = BorderSide(color: fg.withOpacity(isListening ? 0.85 : 0.6));
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: isListening ? '松开结束' : '按住说话',
+      child: Material(
+        color: bg,
+        shape: RoundedRectangleBorder(borderRadius: radius, side: border),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTapDown: enabled ? (_) => onPressStart() : null,
+          onTapUp: enabled ? (_) => onPressEnd() : null,
+          onTapCancel: enabled ? () => onPressEnd() : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.mic, color: fg),
+                const SizedBox(width: 8),
+                Text(
+                  isListening ? '松开结束' : '按住说话',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _VoiceEditRow extends StatelessWidget {

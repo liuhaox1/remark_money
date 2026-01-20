@@ -88,6 +88,12 @@ class BudgetProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> reload() async {
+    _budgetStore = Budget.empty();
+    _loaded = false;
+    await load();
+  }
+
   Future<void> setTotal(String bookId, double value) async {
     final current = budgetForBook(bookId);
     await updateBudgetForBook(
@@ -114,6 +120,12 @@ class BudgetProvider extends ChangeNotifier {
     double value,
   ) async {
     final current = budgetForBook(bookId);
+    if (value > 0 && current.total <= 0) {
+      throw ArgumentError('请先设置总预算');
+    }
+    if (value > 0 && current.total > 0 && value > current.total) {
+      throw ArgumentError('分类预算不能高于总预算');
+    }
     final updated = {...current.categoryBudgets, key: value};
     await updateBudgetForBook(
       bookId: bookId,
@@ -142,6 +154,12 @@ class BudgetProvider extends ChangeNotifier {
     double value,
   ) async {
     final current = budgetForBook(bookId);
+    if (value > 0 && current.annualTotal <= 0) {
+      throw ArgumentError('请先设置总预算');
+    }
+    if (value > 0 && current.annualTotal > 0 && value > current.annualTotal) {
+      throw ArgumentError('分类预算不能高于总预算');
+    }
     final updated = {...current.annualCategoryBudgets, key: value};
     await updateBudgetForBook(
       bookId: bookId,

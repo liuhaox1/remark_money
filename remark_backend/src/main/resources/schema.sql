@@ -93,6 +93,22 @@ CREATE TABLE IF NOT EXISTS bill_info (
   INDEX idx_delete_update (is_delete, update_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- bill_info: optimize pairId lookup (server auto plans / transfer healing)
+SET @idx_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'bill_info'
+    AND INDEX_NAME = 'idx_book_pair_delete'
+);
+SET @sql = IF(@idx_exists > 0,
+  'SELECT 1',
+  'CREATE INDEX idx_book_pair_delete ON bill_info(book_id, pair_id, is_delete)'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 预算表（云端同步）
 CREATE TABLE IF NOT EXISTS budget_info (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -143,6 +159,69 @@ CREATE TABLE IF NOT EXISTS savings_plan_info (
   INDEX idx_user_book_delete (user_id, book_id, is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- savings_plan_info: optimize list query (user_id + book_id + is_delete + ORDER BY update_time,id)
+SET @idx_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'savings_plan_info'
+    AND INDEX_NAME = 'idx_user_book_delete_update'
+);
+SET @sql = IF(@idx_exists > 0,
+  'SELECT 1',
+  'CREATE INDEX idx_user_book_delete_update ON savings_plan_info(user_id, book_id, is_delete, update_time, id)'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- recurring_plan_info (cloud sync, per user+book)
+CREATE TABLE IF NOT EXISTS recurring_plan_info (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  plan_id VARCHAR(64) NOT NULL,
+  payload_json MEDIUMTEXT NOT NULL COMMENT 'plan payload JSON',
+  is_delete TINYINT NOT NULL DEFAULT 0,
+  sync_version BIGINT NOT NULL DEFAULT 1 COMMENT 'server monotonic sync version',
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_book_plan (user_id, book_id, plan_id),
+  INDEX idx_user_book (user_id, book_id),
+  INDEX idx_user_book_update (user_id, book_id, update_time),
+  INDEX idx_user_book_delete (user_id, book_id, is_delete)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- recurring_plan_info: optimize list query (user_id + book_id + is_delete + ORDER BY update_time,id)
+SET @idx_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'recurring_plan_info'
+    AND INDEX_NAME = 'idx_user_book_delete_update'
+);
+SET @sql = IF(@idx_exists > 0,
+  'SELECT 1',
+  'CREATE INDEX idx_user_book_delete_update ON recurring_plan_info(user_id, book_id, is_delete, update_time, id)'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- auto execution dedup log (server-scheduled plans)
+CREATE TABLE IF NOT EXISTS plan_exec_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  kind VARCHAR(16) NOT NULL COMMENT 'savings|recurring',
+  user_id BIGINT NOT NULL,
+  book_id VARCHAR(64) NOT NULL,
+  plan_id VARCHAR(64) NOT NULL,
+  period_key VARCHAR(64) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_kind_user_book_plan_period (kind, user_id, book_id, plan_id, period_key),
+  INDEX idx_created_at (created_at),
+  INDEX idx_user_book (user_id, book_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 分类表（云端同步，按用户）
 CREATE TABLE IF NOT EXISTS category_info (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -162,6 +241,22 @@ CREATE TABLE IF NOT EXISTS category_info (
   INDEX idx_user_update (user_id, update_time),
   INDEX idx_user_delete (user_id, is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- category_info: optimize common list query (user_id + is_delete + ORDER BY update_time,id)
+SET @idx_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'category_info'
+    AND INDEX_NAME = 'idx_user_delete_update'
+);
+SET @sql = IF(@idx_exists > 0,
+  'SELECT 1',
+  'CREATE INDEX idx_user_delete_update ON category_info(user_id, is_delete, update_time, id)'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- category_info add sync_version if missing
 SET @column_exists = (
@@ -196,6 +291,22 @@ CREATE TABLE IF NOT EXISTS tag_info (
   INDEX idx_user_book_sort (user_id, book_id, sort_order, created_at),
   INDEX idx_user_book_delete (user_id, book_id, is_delete)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- tag_info: optimize list query (user_id + book_id + is_delete + ORDER BY sort_order, created_at)
+SET @idx_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'tag_info'
+    AND INDEX_NAME = 'idx_user_book_delete_sort'
+);
+SET @sql = IF(@idx_exists > 0,
+  'SELECT 1',
+  'CREATE INDEX idx_user_book_delete_sort ON tag_info(user_id, book_id, is_delete, sort_order, created_at)'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- tag_info add sync_version if missing
 SET @column_exists = (
@@ -269,6 +380,22 @@ CREATE TABLE IF NOT EXISTS account_info (
   INDEX idx_user_book_delete (user_id, book_id, is_delete),
   INDEX idx_user_book (user_id, book_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- account_info: optimize list query (user_id + book_id + is_delete + ORDER BY sort_order,id)
+SET @idx_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'account_info'
+    AND INDEX_NAME = 'idx_user_book_delete_sort'
+);
+SET @sql = IF(@idx_exists > 0,
+  'SELECT 1',
+  'CREATE INDEX idx_user_book_delete_sort ON account_info(user_id, book_id, is_delete, sort_order, id)'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- account_info add book_id if missing
 SET @column_exists = (

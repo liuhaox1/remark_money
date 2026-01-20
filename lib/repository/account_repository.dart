@@ -3,16 +3,27 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/account.dart';
+import '../services/user_scope.dart';
 
 class AccountRepository {
   static const _accountsKeyPrefix = 'accounts_v1_';
   static const _legacyAccountsKey = 'accounts_v1';
 
+  Future<bool> _canAdoptLegacy(SharedPreferences prefs) async {
+    final uid = UserScope.userId;
+    if (uid <= 0) return true; // guest scope; safe enough
+    return (prefs.getInt('sync_owner_user_id') ?? 0) == uid;
+  }
+
+  String _scopedKeyForBook(String bookId) => UserScope.key('$_accountsKeyPrefix$bookId');
+
   Future<List<Account>> loadAccounts({required String bookId}) async {
     final prefs = await SharedPreferences.getInstance();
-    final key = '$_accountsKeyPrefix$bookId';
-    final raw = prefs.getString(key);
+    final scopedKey = _scopedKeyForBook(bookId);
+    var raw = prefs.getString(scopedKey);
     if (raw == null || raw.isEmpty) {
+      final migratedPerBook = await _tryMigrateLegacyPerBookAccounts(prefs, bookId);
+      if (migratedPerBook.isNotEmpty) return migratedPerBook;
       if (bookId == 'default-book') {
         final migrated = await _tryMigrateLegacyDefaultBookAccounts(prefs);
         if (migrated.isNotEmpty) return migrated;
@@ -25,8 +36,7 @@ class AccountRepository {
   Future<void> saveAccounts({required String bookId, required List<Account> accounts}) async {
     final prefs = await SharedPreferences.getInstance();
     final list = accounts.map((a) => a.toMap()).toList();
-    final key = '$_accountsKeyPrefix$bookId';
-    await prefs.setString(key, json.encode(list));
+    await prefs.setString(_scopedKeyForBook(bookId), json.encode(list));
   }
 
   List<Account> _decodeAccounts(String raw) {
@@ -43,6 +53,31 @@ class AccountRepository {
     }
   }
 
+  Future<List<Account>> _tryMigrateLegacyPerBookAccounts(
+    SharedPreferences prefs,
+    String bookId,
+  ) async {
+    final legacyKey = '$_accountsKeyPrefix$bookId';
+    final raw = prefs.getString(legacyKey);
+    if (raw == null || raw.isEmpty) return const [];
+
+    final accounts = _decodeAccounts(raw);
+    if (accounts.isEmpty) return const [];
+
+    if (!await _canAdoptLegacy(prefs)) {
+      return const [];
+    }
+
+    try {
+      await prefs.setString(_scopedKeyForBook(bookId), raw);
+      await prefs.remove(legacyKey);
+    } catch (_) {
+      // ignore; return loaded accounts anyway
+    }
+
+    return accounts;
+  }
+
   Future<List<Account>> _tryMigrateLegacyDefaultBookAccounts(
     SharedPreferences prefs,
   ) async {
@@ -57,8 +92,10 @@ class AccountRepository {
         .toList();
 
     try {
-      await saveAccounts(bookId: 'default-book', accounts: normalized);
-      await prefs.remove(_legacyAccountsKey);
+      if (await _canAdoptLegacy(prefs)) {
+        await saveAccounts(bookId: 'default-book', accounts: normalized);
+        await prefs.remove(_legacyAccountsKey);
+      }
     } catch (_) {
       // ignore; return loaded accounts anyway
     }

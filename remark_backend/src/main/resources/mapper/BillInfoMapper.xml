@@ -127,6 +127,15 @@
     WHERE book_id = #{bookId} AND is_delete = 0 AND include_in_stats = 1
   </select>
 
+  <select id="countByBookIdAndPairId" resultType="int">
+    SELECT COUNT(*) FROM (
+      SELECT 1
+      FROM bill_info
+      WHERE book_id = #{bookId} AND pair_id = #{pairId} AND is_delete = 0
+      LIMIT 2
+    ) t
+  </select>
+
   <select id="countNonDeletedByUserIdAndBookId" resultType="int">
     SELECT COUNT(*) FROM bill_info
     WHERE user_id = #{userId} AND book_id = #{bookId} AND is_delete = 0

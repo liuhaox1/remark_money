@@ -3,6 +3,7 @@ package com.remark.money.controller;
 import com.remark.money.entity.AccountInfo;
 import com.remark.money.entity.BudgetInfo;
 import com.remark.money.entity.CategoryInfo;
+import com.remark.money.entity.RecurringPlanInfo;
 import com.remark.money.entity.SavingsPlanInfo;
 import com.remark.money.entity.TagInfo;
 import com.remark.money.service.SyncService;
@@ -461,6 +462,87 @@ public class SyncController {
     }
   }
 
+  /**
+   * 上传定时记账计划（按账本）
+   */
+  @PostMapping("/recurringPlan/upload")
+  public ResponseEntity<Map<String, Object>> uploadRecurringPlans(
+      @RequestHeader("Authorization") String token,
+      @RequestBody Map<String, Object> request) {
+    try {
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
+      String bookId = (String) request.get("bookId");
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> plansData = (List<Map<String, Object>>) request.get("plans");
+      @SuppressWarnings("unchecked")
+      List<String> deletedIds = (List<String>) request.get("deletedIds");
+
+      List<RecurringPlanInfo> plans = new ArrayList<>();
+      if (plansData != null) {
+        for (Map<String, Object> raw : plansData) {
+          if (raw == null) continue;
+          plans.add(mapToRecurringPlanInfo(raw, bookId));
+        }
+      }
+
+      SyncService.RecurringPlanSyncResult result =
+          syncService.uploadRecurringPlans(userId, bookId, plans, deletedIds);
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put(
+            "plans",
+            result.getPlans().stream().map(this::convertRecurringPlanInfo).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("RecurringPlan upload error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
+    }
+  }
+
+  /**
+   * 下载定时记账计划（按账本）
+   */
+  @GetMapping("/recurringPlan/download")
+  public ResponseEntity<Map<String, Object>> downloadRecurringPlans(
+      @RequestHeader("Authorization") String token,
+      @RequestParam("bookId") String bookId) {
+    try {
+      Long userId = tryGetUserIdFromToken(token);
+      if (userId == null) return error(401, "unauthorized");
+      SyncService.RecurringPlanSyncResult result = syncService.downloadRecurringPlans(userId, bookId);
+
+      Map<String, Object> response = new HashMap<>();
+      if (result.isSuccess()) {
+        response.put("success", true);
+        response.put(
+            "plans",
+            result.getPlans().stream().map(this::convertRecurringPlanInfo).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
+      } else {
+        response.put("success", false);
+        response.put("error", result.getError());
+        return ResponseEntity.badRequest().body(response);
+      }
+    } catch (Exception e) {
+      log.error("RecurringPlan download error", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("error", "server error");
+      return ResponseEntity.ok(response);
+    }
+  }
+
   @PostMapping("/category/upload")
   public ResponseEntity<Map<String, Object>> uploadCategories(
       @RequestHeader("Authorization") String token,
@@ -735,6 +817,50 @@ public class SyncController {
     if (plan.getCreatedAt() != null) {
       payload.putIfAbsent(
           "createdAt", plan.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    return payload;
+  }
+
+  private RecurringPlanInfo mapToRecurringPlanInfo(Map<String, Object> map, String bookId) {
+    RecurringPlanInfo info = new RecurringPlanInfo();
+    info.setBookId(bookId);
+    Object id = map.get("id");
+    if (id == null) id = map.get("planId");
+    info.setPlanId(id == null ? null : id.toString());
+
+    Map<String, Object> payload = new HashMap<>(map);
+    payload.remove("syncVersion");
+    payload.remove("isDelete");
+    payload.put("bookId", bookId);
+    if (payload.get("id") == null && info.getPlanId() != null) {
+      payload.put("id", info.getPlanId());
+    }
+    info.setPayloadJson(normalizeJsonText(payload));
+
+    Object syncVersionObj = map.get("syncVersion");
+    if (syncVersionObj instanceof Number) {
+      info.setSyncVersion(((Number) syncVersionObj).longValue());
+    } else if (syncVersionObj instanceof String) {
+      try {
+        info.setSyncVersion(Long.parseLong(((String) syncVersionObj).trim()));
+      } catch (Exception ignored) {
+      }
+    }
+    info.setIsDelete(asInt(map.get("isDelete"), 0));
+    return info;
+  }
+
+  private Map<String, Object> convertRecurringPlanInfo(RecurringPlanInfo plan) {
+    Map<String, Object> payload = new HashMap<>(parseJsonObjectMap(plan.getPayloadJson()));
+    payload.putIfAbsent("id", plan.getPlanId());
+    payload.putIfAbsent("bookId", plan.getBookId());
+    payload.put("syncVersion", plan.getSyncVersion() == null ? 0 : plan.getSyncVersion());
+    payload.put("isDelete", plan.getIsDelete() != null && plan.getIsDelete() == 1);
+    if (plan.getUpdateTime() != null) {
+      payload.put("updatedAt", plan.getUpdateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+    if (plan.getCreatedAt() != null) {
+      payload.putIfAbsent("createdAt", plan.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
     }
     return payload;
   }

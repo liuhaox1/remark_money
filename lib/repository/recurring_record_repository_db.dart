@@ -4,10 +4,44 @@ import 'dart:convert';
 import '../database/database_helper.dart';
 import '../models/recurring_record.dart';
 import '../models/record.dart';
+import '../services/meta_sync_notifier.dart';
+import '../services/recurring_plan_delete_queue.dart';
 
 /// 使用数据库的循环记账仓库（新版本）
 class RecurringRecordRepositoryDb {
   final DatabaseHelper _dbHelper = DatabaseHelper();
+
+  Future<List<RecurringRecordPlan>> loadPlansForBook(String bookId) async {
+    final all = await loadPlans();
+    return all.where((p) => p.bookId == bookId).toList(growable: false);
+  }
+
+  Future<void> replacePlansForBook(
+      String bookId, List<RecurringRecordPlan> plans) async {
+    if (bookId.isEmpty) return;
+    try {
+      final db = await _dbHelper.database;
+      await db.transaction((txn) async {
+        await txn.delete(
+          Tables.recurringRecords,
+          where: 'book_id = ?',
+          whereArgs: [bookId],
+        );
+        for (final plan in plans) {
+          await txn.insert(
+            Tables.recurringRecords,
+            _planToMap(plan),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      });
+    } catch (e, stackTrace) {
+      debugPrint(
+          '[RecurringRecordRepositoryDb] replacePlansForBook failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
 
   /// 加载所有循环记账计划
   Future<List<RecurringRecordPlan>> loadPlans() async {
@@ -56,11 +90,39 @@ class RecurringRecordRepositoryDb {
   Future<List<RecurringRecordPlan>> upsert(RecurringRecordPlan plan) async {
     try {
       final db = await _dbHelper.database;
+      final now = DateTime.now();
+      final existing = await db.query(
+        Tables.recurringRecords,
+        columns: const ['created_at', 'sync_version'],
+        where: 'id = ?',
+        whereArgs: [plan.id],
+        limit: 1,
+      );
+      DateTime? createdAt = plan.createdAt;
+      int? syncVersion = plan.syncVersion;
+      if (existing.isNotEmpty) {
+        final row = existing.first;
+        final createdAtMs = row['created_at'] as int?;
+        if (createdAt == null && createdAtMs != null && createdAtMs > 0) {
+          createdAt = DateTime.fromMillisecondsSinceEpoch(createdAtMs);
+        }
+        final sv = row['sync_version'] as int?;
+        if (syncVersion == null && sv != null && sv > 0) {
+          syncVersion = sv;
+        }
+      }
+
+      final toSave = plan.copyWith(
+        createdAt: createdAt ?? now,
+        updatedAt: now,
+        syncVersion: syncVersion,
+      );
       await db.insert(
         Tables.recurringRecords,
-        _planToMap(plan),
+        _planToMap(toSave),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      MetaSyncNotifier.instance.notifyRecurringPlansChanged(plan.bookId);
       return await loadPlans();
     } catch (e, stackTrace) {
       debugPrint('[RecurringRecordRepositoryDb] upsert failed: $e');
@@ -73,11 +135,25 @@ class RecurringRecordRepositoryDb {
   Future<List<RecurringRecordPlan>> remove(String id) async {
     try {
       final db = await _dbHelper.database;
+      final existing = await db.query(
+        Tables.recurringRecords,
+        columns: const ['book_id'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      final bookId = existing.isNotEmpty
+          ? (existing.first['book_id'] as String? ?? '')
+          : '';
       await db.delete(
         Tables.recurringRecords,
         where: 'id = ?',
         whereArgs: [id],
       );
+      if (bookId.isNotEmpty) {
+        await RecurringPlanDeleteQueue.instance.enqueue(bookId, id);
+        MetaSyncNotifier.instance.notifyRecurringPlansChanged(bookId);
+      }
       return await loadPlans();
     } catch (e, stackTrace) {
       debugPrint('[RecurringRecordRepositoryDb] remove failed: $e');
@@ -98,16 +174,18 @@ class RecurringRecordRepositoryDb {
       'is_expense': plan.direction == TransactionDirection.out ? 1 : 0,
       'include_in_stats': plan.includeInStats ? 1 : 0,
       'enabled': plan.enabled ? 1 : 0,
-      'period_type': plan.periodType == RecurringPeriodType.weekly ? 'weekly' : 'monthly',
+      'period_type':
+          plan.periodType == RecurringPeriodType.weekly ? 'weekly' : 'monthly',
       'weekday': plan.weekday,
       'month_day': plan.monthDay,
       'start_date': plan.startDate.millisecondsSinceEpoch,
       'next_due_date': plan.nextDate.millisecondsSinceEpoch,
       'remark': plan.remark,
       'tag_ids': jsonEncode(plan.tagIds),
+      'sync_version': plan.syncVersion ?? 0,
       'last_run_at': plan.lastRunAt?.millisecondsSinceEpoch,
-      'created_at': now,
-      'updated_at': now,
+      'created_at': plan.createdAt?.millisecondsSinceEpoch ?? now,
+      'updated_at': plan.updatedAt?.millisecondsSinceEpoch ?? now,
     };
   }
 
@@ -127,6 +205,10 @@ class RecurringRecordRepositoryDb {
         }
       } catch (_) {}
     }
+
+    final svRaw = map['sync_version'];
+    final sv = svRaw is int ? svRaw : int.tryParse((svRaw ?? '').toString());
+    final syncVersion = (sv == null || sv <= 0) ? null : sv;
 
     return RecurringRecordPlan(
       id: map['id'] as String,
@@ -151,6 +233,13 @@ class RecurringRecordRepositoryDb {
           ? null
           : DateTime.fromMillisecondsSinceEpoch(map['last_run_at'] as int),
       tagIds: tagIds,
+      syncVersion: syncVersion,
+      createdAt: map['created_at'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
+      updatedAt: map['updated_at'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(map['updated_at'] as int),
       weekday: map['weekday'] as int?,
       monthDay: map['month_day'] as int?,
     );

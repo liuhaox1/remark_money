@@ -96,9 +96,9 @@ class _AddRecordPageState extends State<AddRecordPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final bookId = context.read<BookProvider>().activeBookId;
       final tagProvider = context.read<TagProvider>();
-      await tagProvider.loadForBook(bookId);
       await _ensureMultiBookMeta(bookId);
       if (!mounted) return;
+      await tagProvider.loadForBook(bookId);
       final initial = widget.initialRecord;
       if (initial != null) {
         try {
@@ -112,14 +112,12 @@ class _AddRecordPageState extends State<AddRecordPage> {
 
   Future<void> _ensureMultiBookMeta(String bookId) async {
     if (_metaEnsuredBookId == bookId || _ensuringMeta) return;
-    if (int.tryParse(bookId) == null) {
-      _metaEnsuredBookId = bookId;
-      return;
-    }
     final categoryProvider = context.read<CategoryProvider>();
     final accountProvider = context.read<AccountProvider>();
+    final tagProvider = context.read<TagProvider>();
     if (categoryProvider.categories.isNotEmpty &&
-        accountProvider.accounts.where((a) => a.bookId == bookId).isNotEmpty) {
+        accountProvider.accounts.where((a) => a.bookId == bookId).isNotEmpty &&
+        tagProvider.isLoadedForBook(bookId)) {
       _metaEnsuredBookId = bookId;
       return;
     }
@@ -131,7 +129,7 @@ class _AddRecordPageState extends State<AddRecordPage> {
           bookId,
           requireCategories: true,
           requireAccounts: true,
-          requireTags: false,
+          requireTags: true,
           reason: 'meta_ensure',
         );
         if (!ok && mounted) {

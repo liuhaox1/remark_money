@@ -3,14 +3,65 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/tag.dart';
+import '../services/user_scope.dart';
 
 class TagRepository {
-  static const String _tagsKey = 'tags_v1';
-  static const String _recordTagsKey = 'record_tags_v1';
+  static const String _tagsKeyBase = 'tags_v1';
+  static const String _recordTagsKeyBase = 'record_tags_v1';
+
+  String get _tagsKey => UserScope.key(_tagsKeyBase);
+  String get _recordTagsKey => UserScope.key(_recordTagsKeyBase);
+
+  Future<bool> _canAdoptLegacy(SharedPreferences prefs) async {
+    final uid = UserScope.userId;
+    if (uid <= 0) return true; // guest scope; safe enough
+    return (prefs.getInt('sync_owner_user_id') ?? 0) == uid;
+  }
+
+  Future<List<String>?> _readStringListWithLegacy(
+    SharedPreferences prefs,
+    String scopedKey,
+    String legacyKey,
+  ) async {
+    final v = prefs.getStringList(scopedKey);
+    if (v != null && v.isNotEmpty) return v;
+    final legacy = prefs.getStringList(legacyKey);
+    if (legacy == null || legacy.isEmpty) return v;
+    if (await _canAdoptLegacy(prefs)) {
+      try {
+        await prefs.setStringList(scopedKey, legacy);
+        await prefs.remove(legacyKey);
+      } catch (_) {}
+    }
+    return legacy;
+  }
+
+  Future<String?> _readStringWithLegacy(
+    SharedPreferences prefs,
+    String scopedKey,
+    String legacyKey,
+  ) async {
+    final v = prefs.getString(scopedKey);
+    if (v != null && v.trim().isNotEmpty) return v;
+    final legacy = prefs.getString(legacyKey);
+    if (legacy == null || legacy.trim().isEmpty) return v;
+    if (await _canAdoptLegacy(prefs)) {
+      try {
+        await prefs.setString(scopedKey, legacy);
+        await prefs.remove(legacyKey);
+      } catch (_) {}
+    }
+    return legacy;
+  }
 
   Future<List<Tag>> loadTags({required String bookId}) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_tagsKey) ?? const <String>[];
+    final raw = await _readStringListWithLegacy(
+          prefs,
+          _tagsKey,
+          _tagsKeyBase,
+        ) ??
+        const <String>[];
     final tags = raw.map((s) => Tag.fromJson(s)).toList();
     tags.removeWhere((t) => t.bookId != bookId);
     tags.sort((a, b) {
@@ -50,7 +101,12 @@ class TagRepository {
 
   Future<List<Tag>> _loadAllTags() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_tagsKey) ?? const <String>[];
+    final raw = await _readStringListWithLegacy(
+          prefs,
+          _tagsKey,
+          _tagsKeyBase,
+        ) ??
+        const <String>[];
     return raw.map((s) => Tag.fromJson(s)).toList();
   }
 
@@ -86,7 +142,11 @@ class TagRepository {
 
   Future<Map<String, List<String>>> _loadRecordTagsMapping() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_recordTagsKey);
+    final raw = await _readStringWithLegacy(
+      prefs,
+      _recordTagsKey,
+      _recordTagsKeyBase,
+    );
     if (raw == null || raw.isEmpty) return <String, List<String>>{};
     final decoded = json.decode(raw) as Map<String, dynamic>;
     return decoded.map(

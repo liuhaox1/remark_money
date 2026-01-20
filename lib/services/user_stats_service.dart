@@ -1,6 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
+import 'user_scope.dart';
+
 /// 用户统计数据服务
 class UserStatsService {
   static const String _keyLastRecordDate = 'user_stats_last_record_date';
@@ -12,29 +14,57 @@ class UserStatsService {
   static const String _keyThisMonthCount = 'user_stats_this_month_count';
   static const String _keyLastMonth = 'user_stats_last_month';
 
+  static String _k(String base) => UserScope.key(base);
+
+  static Future<String?> _getString(SharedPreferences prefs, String base) async {
+    final scopedKey = _k(base);
+    final v = prefs.getString(scopedKey);
+    if (v != null) return v;
+
+    final legacy = prefs.getString(base);
+    if (legacy == null) return null;
+    try {
+      await prefs.setString(scopedKey, legacy);
+    } catch (_) {}
+    return legacy;
+  }
+
+  static Future<int?> _getInt(SharedPreferences prefs, String base) async {
+    final scopedKey = _k(base);
+    final v = prefs.getInt(scopedKey);
+    if (v != null) return v;
+
+    final legacy = prefs.getInt(base);
+    if (legacy == null) return null;
+    try {
+      await prefs.setInt(scopedKey, legacy);
+    } catch (_) {}
+    return legacy;
+  }
+
   /// 用户统计数据模型
   static Future<UserStats> getStats() async {
     final prefs = await SharedPreferences.getInstance();
     
-    final lastRecordDateStr = prefs.getString(_keyLastRecordDate);
+    final lastRecordDateStr = await _getString(prefs, _keyLastRecordDate);
     final lastRecordDate = lastRecordDateStr != null 
         ? DateTime.tryParse(lastRecordDateStr) 
         : null;
     
-    final consecutiveDays = prefs.getInt(_keyConsecutiveDays) ?? 0;
-    final totalDays = prefs.getInt(_keyTotalDays) ?? 0;
-    final totalRecords = prefs.getInt(_keyTotalRecords) ?? 0;
-    final thisMonthCount = prefs.getInt(_keyThisMonthCount) ?? 0;
+    final consecutiveDays = (await _getInt(prefs, _keyConsecutiveDays)) ?? 0;
+    final totalDays = (await _getInt(prefs, _keyTotalDays)) ?? 0;
+    final totalRecords = (await _getInt(prefs, _keyTotalRecords)) ?? 0;
+    final thisMonthCount = (await _getInt(prefs, _keyThisMonthCount)) ?? 0;
     
     // 获取签到日期列表
-    final checkInDatesStr = prefs.getString(_keyCheckInDates);
+    final checkInDatesStr = await _getString(prefs, _keyCheckInDates);
     final checkInDates = checkInDatesStr != null
         ? (jsonDecode(checkInDatesStr) as List)
             .map((e) => DateTime.parse(e as String))
             .toList()
         : <DateTime>[];
     
-    final lastCheckInDateStr = prefs.getString(_keyLastCheckInDate);
+    final lastCheckInDateStr = await _getString(prefs, _keyLastCheckInDate);
     final lastCheckInDate = lastCheckInDateStr != null
         ? DateTime.tryParse(lastCheckInDateStr)
         : null;
@@ -56,16 +86,16 @@ class UserStatsService {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     
-    final lastRecordDateStr = prefs.getString(_keyLastRecordDate);
+    final lastRecordDateStr = await _getString(prefs, _keyLastRecordDate);
     final lastRecordDate = lastRecordDateStr != null
         ? DateTime.tryParse(lastRecordDateStr)
         : null;
     
-    int consecutiveDays = prefs.getInt(_keyConsecutiveDays) ?? 0;
-    int totalDays = prefs.getInt(_keyTotalDays) ?? 0;
-    int totalRecords = prefs.getInt(_keyTotalRecords) ?? 0;
-    int thisMonthCount = prefs.getInt(_keyThisMonthCount) ?? 0;
-    final lastMonth = prefs.getInt(_keyLastMonth);
+    int consecutiveDays = (await _getInt(prefs, _keyConsecutiveDays)) ?? 0;
+    int totalDays = (await _getInt(prefs, _keyTotalDays)) ?? 0;
+    int totalRecords = (await _getInt(prefs, _keyTotalRecords)) ?? 0;
+    int thisMonthCount = (await _getInt(prefs, _keyThisMonthCount)) ?? 0;
+    final lastMonth = await _getInt(prefs, _keyLastMonth);
     
     // 更新总记录数
     totalRecords++;
@@ -74,7 +104,7 @@ class UserStatsService {
     if (lastMonth != now.month) {
       // 新月份，重置本月计数
       thisMonthCount = 1;
-      await prefs.setInt(_keyLastMonth, now.month);
+      await prefs.setInt(_k(_keyLastMonth), now.month);
     } else {
       thisMonthCount++;
     }
@@ -104,11 +134,11 @@ class UserStatsService {
     }
     
     // 保存数据
-    await prefs.setString(_keyLastRecordDate, today.toIso8601String());
-    await prefs.setInt(_keyConsecutiveDays, consecutiveDays);
-    await prefs.setInt(_keyTotalDays, totalDays);
-    await prefs.setInt(_keyTotalRecords, totalRecords);
-    await prefs.setInt(_keyThisMonthCount, thisMonthCount);
+    await prefs.setString(_k(_keyLastRecordDate), today.toIso8601String());
+    await prefs.setInt(_k(_keyConsecutiveDays), consecutiveDays);
+    await prefs.setInt(_k(_keyTotalDays), totalDays);
+    await prefs.setInt(_k(_keyTotalRecords), totalRecords);
+    await prefs.setInt(_k(_keyThisMonthCount), thisMonthCount);
   }
 
   /// 签到
@@ -117,7 +147,7 @@ class UserStatsService {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     
-    final lastCheckInDateStr = prefs.getString(_keyLastCheckInDate);
+    final lastCheckInDateStr = await _getString(prefs, _keyLastCheckInDate);
     final lastCheckInDate = lastCheckInDateStr != null
         ? DateTime.tryParse(lastCheckInDateStr)
         : null;
@@ -131,7 +161,7 @@ class UserStatsService {
     }
     
     // 获取签到日期列表
-    final checkInDatesStr = prefs.getString(_keyCheckInDates);
+    final checkInDatesStr = await _getString(prefs, _keyCheckInDates);
     final checkInDates = checkInDatesStr != null
         ? (jsonDecode(checkInDatesStr) as List)
             .map((e) => DateTime.parse(e as String))
@@ -146,8 +176,8 @@ class UserStatsService {
     checkInDates.removeWhere((date) => date.isBefore(oneYearAgo));
     
     // 保存数据
-    await prefs.setString(_keyLastCheckInDate, today.toIso8601String());
-    await prefs.setString(_keyCheckInDates, jsonEncode(
+    await prefs.setString(_k(_keyLastCheckInDate), today.toIso8601String());
+    await prefs.setString(_k(_keyCheckInDates), jsonEncode(
         checkInDates.map((d) => d.toIso8601String()).toList()));
     
     return true; // 签到成功
@@ -159,7 +189,7 @@ class UserStatsService {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     
-    final lastCheckInDateStr = prefs.getString(_keyLastCheckInDate);
+    final lastCheckInDateStr = await _getString(prefs, _keyLastCheckInDate);
     if (lastCheckInDateStr == null) return false;
     
     final lastCheckInDate = DateTime.tryParse(lastCheckInDateStr);
@@ -177,7 +207,7 @@ class UserStatsService {
   /// 获取连续签到天数
   static Future<int> getConsecutiveCheckInDays() async {
     final prefs = await SharedPreferences.getInstance();
-    final checkInDatesStr = prefs.getString(_keyCheckInDates);
+    final checkInDatesStr = await _getString(prefs, _keyCheckInDates);
     if (checkInDatesStr == null) return 0;
     
     final checkInDates = (jsonDecode(checkInDatesStr) as List)

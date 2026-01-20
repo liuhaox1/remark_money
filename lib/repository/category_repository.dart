@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/category.dart';
+import '../services/user_scope.dart';
 
 class CategoryRepository {
   static const _keyBase = 'categories_v1';
@@ -12,7 +13,16 @@ class CategoryRepository {
     return id.isEmpty ? 'default-book' : id;
   }
 
-  String _keyForBook(String? bookId) => '${_keyBase}_${_normalizeBookId(bookId)}';
+  String _legacyKeyForBook(String? bookId) =>
+      '${_keyBase}_${_normalizeBookId(bookId)}';
+
+  String _keyForBook(String? bookId) => UserScope.key(_legacyKeyForBook(bookId));
+
+  Future<bool> _canAdoptLegacy(SharedPreferences prefs) async {
+    final uid = UserScope.userId;
+    if (uid <= 0) return true; // guest scope; safe enough
+    return (prefs.getInt('sync_owner_user_id') ?? 0) == uid;
+  }
 
   /// 兜底分类：当无法识别出合理的支出分类时，使用“未分类”避免误落到高频分类（如“餐饮”）。
   static const String uncategorizedExpenseKey = 'top_uncategorized';
@@ -682,7 +692,19 @@ class CategoryRepository {
     bool allowDefault = true,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_keyForBook(bookId));
+    final key = _keyForBook(bookId);
+    final legacyKey = _legacyKeyForBook(bookId);
+    var raw = prefs.getStringList(key);
+    if ((raw == null || raw.isEmpty) && await _canAdoptLegacy(prefs)) {
+      final legacy = prefs.getStringList(legacyKey);
+      if (legacy != null && legacy.isNotEmpty) {
+        try {
+          await prefs.setStringList(key, legacy);
+          await prefs.remove(legacyKey);
+          raw = legacy;
+        } catch (_) {}
+      }
+    }
 
     // 如果本地还没有数据，或者被清空为一个空列表，就回写一份默认分类
     if (raw == null || raw.isEmpty) {

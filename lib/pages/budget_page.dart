@@ -536,6 +536,7 @@ class _BudgetPageState extends State<BudgetPage>
     required Category category,
     required double? currentBudget,
     required bool isYear,
+    required double totalBudget,
   }) async {
     final controller = TextEditingController(
       text: currentBudget != null && currentBudget > 0
@@ -585,6 +586,14 @@ class _BudgetPageState extends State<BudgetPage>
                 if (parsed == null) {
                   Navigator.of(ctx).pop(const _EditBudgetResult(deleted: true));
                 } else {
+                  if (parsed > 0 && totalBudget <= 0) {
+                    ErrorHandler.showWarning(ctx, '请先设置总预算');
+                    return;
+                  }
+                  if (parsed > 0 && parsed > totalBudget) {
+                    ErrorHandler.showWarning(ctx, '分类预算不能高于总预算');
+                    return;
+                  }
                   Navigator.of(ctx).pop(
                     _EditBudgetResult(deleted: false, value: parsed),
                   );
@@ -914,6 +923,7 @@ class _BudgetPageState extends State<BudgetPage>
       category: category,
       currentBudget: null,
       isYear: isYear,
+      totalBudget: isYear ? budgetEntry.annualTotal : budgetEntry.total,
     );
   }
 
@@ -1170,6 +1180,8 @@ class _BudgetPageState extends State<BudgetPage>
                         category: cat,
                         currentBudget: categoryBudgets[cat.key],
                         isYear: isYearView,
+                        totalBudget:
+                            isYearView ? budgetEntry.annualTotal : budgetEntry.total,
                       ),
                     ),
                   ),
@@ -1486,9 +1498,9 @@ class _BudgetSummaryCard extends StatelessWidget {
         ? AppStrings.budgetNotSet
         : AppStrings.budgetRemainingLabel(remaining, remaining < 0);
     final statusColor = totalBudget <= 0
-        ? cs.outline
+        ? cs.onSurface.withOpacity(0.75)
         : remaining >= 0
-            ? AppColors.success
+            ? cs.onSurface
             : AppColors.danger;
 
     return Padding(

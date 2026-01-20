@@ -17,9 +17,11 @@ class SavingsPlanCreatePage extends StatefulWidget {
   const SavingsPlanCreatePage({
     super.key,
     this.initialType = SavingsPlanType.flexible,
+    this.initialPlan,
   });
 
   final SavingsPlanType initialType;
+  final SavingsPlan? initialPlan;
 
   @override
   State<SavingsPlanCreatePage> createState() => _SavingsPlanCreatePageState();
@@ -59,7 +61,25 @@ class _SavingsPlanCreatePageState extends State<SavingsPlanCreatePage> {
   @override
   void initState() {
     super.initState();
-    _type = widget.initialType;
+    final initial = widget.initialPlan;
+    if (initial != null) {
+      _type = initial.type;
+      _nameCtrl.text = initial.name;
+      _targetCtrl.text =
+          initial.targetAmount > 0 ? initial.targetAmount.toStringAsFixed(2) : '';
+      _depositAccountId = initial.accountId;
+      _endDate = initial.endDate;
+      _monthlyDay = initial.monthlyDay ?? _monthlyDay;
+      _monthlyAmountCtrl.text = (initial.monthlyAmount ?? 0) > 0
+          ? initial.monthlyAmount!.toStringAsFixed(2)
+          : '';
+      _weeklyWeekday = initial.weeklyWeekday ?? _weeklyWeekday;
+      _weeklyAmountCtrl.text = (initial.weeklyAmount ?? 0) > 0
+          ? initial.weeklyAmount!.toStringAsFixed(2)
+          : '';
+    } else {
+      _type = widget.initialType;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final bookId = context.read<BookProvider>().activeBookId;
@@ -74,7 +94,9 @@ class _SavingsPlanCreatePageState extends State<SavingsPlanCreatePage> {
         }
       }
       firstId ??= accounts.isEmpty ? null : accounts.first.id;
-      if (firstId != null && firstId.isNotEmpty) {
+      if ((_depositAccountId == null || _depositAccountId!.isEmpty) &&
+          firstId != null &&
+          firstId.isNotEmpty) {
         setState(() => _depositAccountId = firstId);
       }
     });
@@ -302,26 +324,40 @@ class _SavingsPlanCreatePageState extends State<SavingsPlanCreatePage> {
     try {
       final bookId = context.read<BookProvider>().activeBookId;
       final now = DateTime.now();
-      final planId = 'sp_${now.microsecondsSinceEpoch}';
       final accountId = _depositAccountId!;
 
-      final plan = SavingsPlan(
-        id: planId,
-        bookId: bookId,
-        accountId: accountId,
-        name: name,
-        type: _type,
-        targetAmount: targetAmount,
-        includeInStats: false,
-        createdAt: now,
-        updatedAt: now,
-        startDate: now,
-        endDate: _endDate,
-        monthlyDay: _type == SavingsPlanType.monthlyFixed ? _monthlyDay : null,
-        monthlyAmount: monthlyAmount,
-        weeklyWeekday: _type == SavingsPlanType.weeklyFixed ? _weeklyWeekday : null,
-        weeklyAmount: weeklyAmount,
-      );
+      final initial = widget.initialPlan;
+      final plan = (initial == null)
+          ? SavingsPlan(
+              id: 'sp_${now.microsecondsSinceEpoch}',
+              bookId: bookId,
+              accountId: accountId,
+              name: name,
+              type: _type,
+              targetAmount: targetAmount,
+              includeInStats: false,
+              createdAt: now,
+              updatedAt: now,
+              startDate: now,
+              endDate: _endDate,
+              monthlyDay: _type == SavingsPlanType.monthlyFixed ? _monthlyDay : null,
+              monthlyAmount: monthlyAmount,
+              weeklyWeekday: _type == SavingsPlanType.weeklyFixed ? _weeklyWeekday : null,
+              weeklyAmount: weeklyAmount,
+            )
+          : initial.copyWith(
+              bookId: bookId,
+              accountId: accountId,
+              name: name,
+              type: _type,
+              targetAmount: targetAmount,
+              endDate: _endDate,
+              monthlyDay: _type == SavingsPlanType.monthlyFixed ? _monthlyDay : null,
+              monthlyAmount: monthlyAmount,
+              weeklyWeekday: _type == SavingsPlanType.weeklyFixed ? _weeklyWeekday : null,
+              weeklyAmount: weeklyAmount,
+              updatedAt: now,
+            );
 
       await _repo.upsertPlan(plan);
       if (!mounted) return;
@@ -374,7 +410,7 @@ class _SavingsPlanCreatePageState extends State<SavingsPlanCreatePage> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('添加存钱计划'),
+        title: Text(widget.initialPlan == null ? '添加存钱计划' : '编辑存钱计划'),
         centerTitle: true,
       ),
       body: ListView(

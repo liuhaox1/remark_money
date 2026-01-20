@@ -38,6 +38,7 @@ import 'pages/category_manager_page.dart';
 import 'pages/finger_accounting_page.dart';
 import 'pages/ui_lab_page.dart';
 import 'widgets/device_frame.dart';
+import 'services/user_scope.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +57,9 @@ Future<void> main() async {
     sqfliteFfiInit();
     sqflite.databaseFactory = databaseFactoryFfi;
   }
+
+  await UserScope.initialize();
+  await DatabaseHelper.setScopeUserId(UserScope.userId);
 
   // 先打开数据库：如有需要会自动从 SharedPreferences 迁移到加密 SQLite
   await DatabaseHelper().database;

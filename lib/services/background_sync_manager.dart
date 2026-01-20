@@ -6,11 +6,15 @@ import 'package:provider/provider.dart';
 import '../providers/account_provider.dart';
 import '../providers/book_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/budget_provider.dart';
 import '../providers/tag_provider.dart';
+import '../repository/recurring_record_repository.dart';
+import '../repository/savings_plan_repository.dart';
 import 'account_delete_queue.dart';
 import 'budget_sync_state_store.dart';
 import 'category_delete_queue.dart';
 import 'meta_sync_state_store.dart';
+import 'recurring_plan_delete_queue.dart';
 import 'savings_plan_delete_queue.dart';
 import 'tag_delete_queue.dart';
 import 'meta_sync_notifier.dart';
@@ -31,6 +35,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   StreamSubscription<void>? _categoriesSub;
   StreamSubscription<String>? _tagsSub;
   StreamSubscription<String>? _savingsPlansSub;
+  StreamSubscription<String>? _recurringPlansSub;
   Timer? _debounce;
   Timer? _metaDebounce;
   Timer? _periodicPullTimer;
@@ -44,6 +49,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   int _lastMetaSyncMs = 0;
   final Map<String, int> _lastAccountsSyncMsByBook = <String, int>{};
   final Map<String, int> _lastUserMetaSyncMsByBook = <String, int>{};
+  final Map<String, int> _lastPlansPollMsByBook = <String, int>{};
   final Map<String, int> _lastSyncMsByBook = <String, int>{};
   int _lastPausedAtMs = 0;
   final Map<String, int> _pullBackoffExpByBook = <String, int>{};
@@ -57,6 +63,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   // Actual network pull is further reduced by SyncEngine's no-change cooldown.
   static const int _periodicPullMaxIntervalMs = 5 * 60 * 1000; // 5min
   static const int _metaPeriodicIntervalMs = 60 * 60 * 1000; // 60min
+  static const int _plansPollIntervalMs = 5 * 60 * 1000; // 5min
 
   void start(BuildContext context, {bool triggerInitialSync = true}) {
     if (_started) {
@@ -72,7 +79,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
 
     _outboxSub = SyncOutboxService.instance.onBookChanged.listen((bookId) {
-      requestSync(bookId, reason: 'local_outbox_changed');
+      () async {
+        final enabled = await SyncEngine().getUploadEnabled();
+        if (!enabled) return;
+        requestSync(bookId, reason: 'local_outbox_changed');
+      }();
     });
 
     _accountsSub = MetaSyncNotifier.instance.onAccountsChanged.listen((bookId) {
@@ -96,6 +107,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _savingsPlansSub =
         MetaSyncNotifier.instance.onSavingsPlansChanged.listen((bookId) {
       requestMetaSync(bookId, reason: 'savings_plans_changed');
+    });
+
+    _recurringPlansSub =
+        MetaSyncNotifier.instance.onRecurringPlansChanged.listen((bookId) {
+      requestMetaSync(bookId, reason: 'recurring_plans_changed');
     });
 
     if (triggerInitialSync) {
@@ -145,6 +161,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       final bookId = ctx.read<BookProvider>().activeBookId;
       if (bookId.isNotEmpty) {
         requestSync(bookId, reason: 'periodic_pull');
+        () async {
+          if (await _shouldPollPlans(bookId)) {
+            requestMetaSync(bookId, reason: 'plans_poll');
+          }
+        }();
 
         final now = DateTime.now().millisecondsSinceEpoch;
         if (now - _lastMetaSyncMs > _metaPeriodicIntervalMs) {
@@ -177,6 +198,34 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     return scaled;
   }
 
+  Future<bool> _shouldPollPlans(String bookId) async {
+    if (bookId.isEmpty) return false;
+
+    final savingsDeletes =
+        await SavingsPlanDeleteQueue.instance.loadForBook(bookId);
+    if (savingsDeletes.isNotEmpty) return true;
+    final recurringDeletes =
+        await RecurringPlanDeleteQueue.instance.loadForBook(bookId);
+    if (recurringDeletes.isNotEmpty) return true;
+
+    try {
+      final savingsPlans = await SavingsPlanRepository().loadPlans(bookId: bookId);
+      if (savingsPlans.isNotEmpty) return true;
+    } catch (_) {}
+
+    try {
+      final recurringPlans =
+          await RecurringRecordRepository().loadPlansForBook(bookId);
+      if (recurringPlans.isNotEmpty) return true;
+    } catch (_) {}
+
+    // No local plans: do a low-frequency "discovery" poll to pick up plans created on other devices.
+    final last = _lastPlansPollMsByBook[bookId] ?? 0;
+    if (last <= 0) return true;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return now - last >= _metaPeriodicIntervalMs;
+  }
+
   void stop() {
     _debounce?.cancel();
     _debounce = null;
@@ -202,6 +251,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _tagsSub = null;
     _savingsPlansSub?.cancel();
     _savingsPlansSub = null;
+    _recurringPlansSub?.cancel();
+    _recurringPlansSub = null;
     WidgetsBinding.instance.removeObserver(this);
     _context = null;
     _started = false;
@@ -233,13 +284,17 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     // - 其他原因：至少间隔 10 分钟，避免频繁 SQL
     if (reason == 'login' || reason == 'force_bootstrap') {
       // Always allow an immediate meta sync after login/bootstrap.
+    } else if (reason == 'plans_poll') {
+      final last = _lastPlansPollMsByBook[bookId] ?? 0;
+      if (now - last < _plansPollIntervalMs) return;
     } else if (reason == 'accounts_changed') {
       final last = _lastAccountsSyncMsByBook[bookId] ?? 0;
       if (now - last < 8 * 1000) return;
     } else if (reason == 'budget_changed' ||
         reason == 'categories_changed' ||
         reason == 'tags_changed' ||
-        reason == 'savings_plans_changed') {
+        reason == 'savings_plans_changed' ||
+        reason == 'recurring_plans_changed') {
       final last = _lastUserMetaSyncMsByBook[bookId] ?? 0;
       if (now - last < 8 * 1000) return;
     } else {
@@ -255,7 +310,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _metaDebounce = Timer(const Duration(seconds: 2), _flushMeta);
   }
 
-  Future<bool> _shouldAppStartMetaSync(String bookId, BuildContext context) async {
+  Future<bool> _shouldAppStartMetaSync(
+      String bookId, BuildContext context) async {
     if (bookId.isEmpty) return false;
     if (!_isMetaWarm(bookId, context)) return true;
     if (await _hasLocalMetaChanges(bookId, context)) return true;
@@ -268,9 +324,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   bool _isMetaWarm(String bookId, BuildContext context) {
     final categoryProvider = context.read<CategoryProvider>();
     final accountProvider = context.read<AccountProvider>();
+    final budgetProvider = context.read<BudgetProvider>();
     final hasCategories = categoryProvider.hasCategoriesForBook(bookId);
     final hasAccounts = accountProvider.hasAccountsForBook(bookId);
-    return hasCategories && hasAccounts;
+    final hasBudget = budgetProvider.loaded;
+    return hasCategories && hasAccounts && hasBudget;
   }
 
   Future<bool> _hasLocalMetaChanges(String bookId, BuildContext context) async {
@@ -278,14 +336,20 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     final tagProvider = context.read<TagProvider>();
     final accountProvider = context.read<AccountProvider>();
 
-    final categoryDeletes = await CategoryDeleteQueue.instance.loadForBook(bookId);
+    final categoryDeletes =
+        await CategoryDeleteQueue.instance.loadForBook(bookId);
     if (categoryDeletes.isNotEmpty) return true;
     final tagDeletes = await TagDeleteQueue.instance.load();
     if ((tagDeletes[bookId] ?? const <String>[]).isNotEmpty) return true;
-    final accountDeletes = await AccountDeleteQueue.instance.loadForBook(bookId);
+    final accountDeletes =
+        await AccountDeleteQueue.instance.loadForBook(bookId);
     if (accountDeletes.isNotEmpty) return true;
-    final savingsDeletes = await SavingsPlanDeleteQueue.instance.loadForBook(bookId);
+    final savingsDeletes =
+        await SavingsPlanDeleteQueue.instance.loadForBook(bookId);
     if (savingsDeletes.isNotEmpty) return true;
+    final recurringDeletes =
+        await RecurringPlanDeleteQueue.instance.loadForBook(bookId);
+    if (recurringDeletes.isNotEmpty) return true;
 
     final localEditMs = await BudgetSyncStateStore.getLocalEditMs(bookId);
     if (localEditMs > 0) return true;
@@ -294,7 +358,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
         categoryProvider.categories.any((c) => c.syncVersion == null);
     if (hasUnsyncedCategories) return true;
     final hasUnsyncedTags = tagProvider.isLoadedForBook(bookId) &&
-        tagProvider.tags.any((t) => t.bookId == bookId && t.syncVersion == null);
+        tagProvider.tags
+            .any((t) => t.bookId == bookId && t.syncVersion == null);
     if (hasUnsyncedTags) return true;
     final hasUnsyncedAccounts = accountProvider.isLoadedForBook(bookId) &&
         accountProvider.accounts
@@ -321,7 +386,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       _pendingMetaBooks.clear();
       for (final bookId in books) {
         final reason = _pendingMetaReasonsByBook.remove(bookId) ?? 'unknown';
-        debugPrint('[BackgroundSyncManager] meta sync book=$bookId reason=$reason');
+        debugPrint(
+            '[BackgroundSyncManager] meta sync book=$bookId reason=$reason');
         final ok = await engine.syncMeta(ctx, bookId, reason: reason);
         if (!ok) {
           // Not logged in yet: don't spin retry loops; login flow will trigger sync explicitly.
@@ -335,8 +401,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
         } else if (reason == 'budget_changed' ||
             reason == 'categories_changed' ||
             reason == 'tags_changed' ||
-            reason == 'savings_plans_changed') {
+            reason == 'savings_plans_changed' ||
+            reason == 'recurring_plans_changed') {
           _lastUserMetaSyncMsByBook[bookId] = doneAt;
+        } else if (reason == 'plans_poll') {
+          _lastPlansPollMsByBook[bookId] = doneAt;
         }
       }
     } catch (e) {
@@ -368,7 +437,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
         final ok = await engine.syncBookV2(ctx, bookId, reason: reason);
         if (ok) {
           _lastSyncMsByBook[bookId] = DateTime.now().millisecondsSinceEpoch;
-          debugPrint('[BackgroundSyncManager] sync ok book=$bookId reason=$reason');
+          debugPrint(
+              '[BackgroundSyncManager] sync ok book=$bookId reason=$reason');
         }
       }
     } catch (e) {
@@ -390,7 +460,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       final ctx = _context;
       if (ctx != null) {
         final activeBookId = ctx.read<BookProvider>().activeBookId;
-          if (activeBookId.isNotEmpty) {
+        if (activeBookId.isNotEmpty) {
           final now = DateTime.now().millisecondsSinceEpoch;
           // 部分平台会频繁触发 resumed（如窗口焦点变化），这里只接受“确实 paused 过”的恢复。
           final pausedAt = _lastPausedAtMs;

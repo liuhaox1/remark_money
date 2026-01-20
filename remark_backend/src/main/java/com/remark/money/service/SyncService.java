@@ -6,6 +6,7 @@ import com.remark.money.entity.BudgetInfo;
 import com.remark.money.entity.CategoryInfo;
 import com.remark.money.entity.Book;
 import com.remark.money.entity.BookMember;
+import com.remark.money.entity.RecurringPlanInfo;
 import com.remark.money.entity.SavingsPlanInfo;
 import com.remark.money.entity.TagInfo;
 import com.remark.money.entity.User;
@@ -14,6 +15,7 @@ import com.remark.money.mapper.BudgetInfoMapper;
 import com.remark.money.mapper.CategoryInfoMapper;
 import com.remark.money.mapper.BookMapper;
 import com.remark.money.mapper.BookMemberMapper;
+import com.remark.money.mapper.RecurringPlanInfoMapper;
 import com.remark.money.mapper.SavingsPlanInfoMapper;
 import com.remark.money.mapper.TagInfoMapper;
 import com.remark.money.mapper.UserMapper;
@@ -142,6 +144,7 @@ public class SyncService {
   private final CategoryInfoMapper categoryInfoMapper;
   private final TagInfoMapper tagInfoMapper;
   private final SavingsPlanInfoMapper savingsPlanInfoMapper;
+  private final RecurringPlanInfoMapper recurringPlanInfoMapper;
   private final BookMapper bookMapper;
   private final BookMemberMapper bookMemberMapper;
 
@@ -151,6 +154,7 @@ public class SyncService {
                      CategoryInfoMapper categoryInfoMapper,
                      TagInfoMapper tagInfoMapper,
                      SavingsPlanInfoMapper savingsPlanInfoMapper,
+                     RecurringPlanInfoMapper recurringPlanInfoMapper,
                      BookMapper bookMapper,
                      BookMemberMapper bookMemberMapper) {
     this.userMapper = userMapper;
@@ -159,6 +163,7 @@ public class SyncService {
     this.categoryInfoMapper = categoryInfoMapper;
     this.tagInfoMapper = tagInfoMapper;
     this.savingsPlanInfoMapper = savingsPlanInfoMapper;
+    this.recurringPlanInfoMapper = recurringPlanInfoMapper;
     this.bookMapper = bookMapper;
     this.bookMemberMapper = bookMemberMapper;
   }
@@ -628,6 +633,105 @@ public class SyncService {
 	        savingsPlanInfoMapper.findAllByUserIdAndBookId(userId, bookId));
 	  }
 
+  @Transactional
+  public RecurringPlanSyncResult uploadRecurringPlans(
+      Long userId, String bookId, List<RecurringPlanInfo> plans, List<String> deletedPlanIds) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return RecurringPlanSyncResult.error(permissionError.getMessage());
+    }
+    if (bookId == null || bookId.trim().isEmpty()) {
+      return RecurringPlanSyncResult.error("missing bookId");
+    }
+    final ServerBookAccess access = checkServerBookAccess(userId, bookId);
+    if (!access.ok) return RecurringPlanSyncResult.error(access.error);
+
+    if (deletedPlanIds != null) {
+      for (String pid : deletedPlanIds) {
+        if (pid == null || pid.trim().isEmpty()) continue;
+        recurringPlanInfoMapper.softDeleteByPlanId(userId, bookId, pid.trim());
+      }
+    }
+
+    Map<String, RecurringPlanInfo> existingByPlanId = new HashMap<>();
+    if (plans != null && !plans.isEmpty()) {
+      Set<String> planIds =
+          plans.stream()
+              .filter(Objects::nonNull)
+              .map(RecurringPlanInfo::getPlanId)
+              .filter(Objects::nonNull)
+              .map(String::trim)
+              .filter(s -> !s.isEmpty())
+              .collect(Collectors.toSet());
+      if (!planIds.isEmpty()) {
+        existingByPlanId =
+            recurringPlanInfoMapper.findByUserIdBookIdAndPlanIds(userId, bookId, planIds).stream()
+                .filter(Objects::nonNull)
+                .filter(p -> p.getPlanId() != null && !p.getPlanId().trim().isEmpty())
+                .collect(
+                    Collectors.toMap(
+                        p -> p.getPlanId().trim(),
+                        p -> p,
+                        (a, b) -> a));
+      }
+    }
+
+    if (plans != null) {
+      for (RecurringPlanInfo p : plans) {
+        if (p == null) continue;
+        if (p.getPlanId() == null || p.getPlanId().trim().isEmpty()) {
+          return RecurringPlanSyncResult.error("missing planId");
+        }
+        p.setPlanId(p.getPlanId().trim());
+        p.setUserId(userId);
+        p.setBookId(bookId);
+        if (p.getIsDelete() == null) p.setIsDelete(0);
+        if (p.getPayloadJson() == null) {
+          return RecurringPlanSyncResult.error("missing payload");
+        }
+
+        RecurringPlanInfo existing = existingByPlanId.get(p.getPlanId());
+        if (existing == null) {
+          recurringPlanInfoMapper.insertOne(p);
+          continue;
+        }
+
+        if (existing.getSyncVersion() != null && p.getSyncVersion() == null) {
+          return RecurringPlanSyncResult.error("missing syncVersion");
+        }
+        if (existing.getSyncVersion() != null) {
+          if (!existing.getSyncVersion().equals(p.getSyncVersion())) {
+            return RecurringPlanSyncResult.error("recurring_plan conflict");
+          }
+          int updated =
+              recurringPlanInfoMapper.updateWithExpectedSyncVersion(p, p.getSyncVersion());
+          if (updated <= 0) {
+            return RecurringPlanSyncResult.error("recurring_plan conflict");
+          }
+        } else {
+          return RecurringPlanSyncResult.error("server recurring_plan missing syncVersion");
+        }
+      }
+    }
+
+    return RecurringPlanSyncResult.success(
+        recurringPlanInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+  }
+
+  public RecurringPlanSyncResult downloadRecurringPlans(Long userId, String bookId) {
+    ErrorCode permissionError = checkSyncPermission(userId);
+    if (permissionError.isError()) {
+      return RecurringPlanSyncResult.error(permissionError.getMessage());
+    }
+    if (bookId == null || bookId.trim().isEmpty()) {
+      return RecurringPlanSyncResult.error("missing bookId");
+    }
+    final ServerBookAccess access = checkServerBookAccess(userId, bookId);
+    if (!access.ok) return RecurringPlanSyncResult.error(access.error);
+    return RecurringPlanSyncResult.success(
+        recurringPlanInfoMapper.findAllByUserIdAndBookId(userId, bookId));
+  }
+
 	  @Transactional
 	  public CategorySyncResult uploadCategories(Long userId, List<CategoryInfo> categories, List<String> deletedKeys) {
 	    throw new IllegalArgumentException("missing bookId");
@@ -1006,6 +1110,38 @@ public class SyncService {
     }
 
     public List<SavingsPlanInfo> getPlans() {
+      return plans;
+    }
+  }
+
+  public static class RecurringPlanSyncResult {
+    private boolean success;
+    private String error;
+    private List<RecurringPlanInfo> plans;
+
+    public static RecurringPlanSyncResult error(String error) {
+      RecurringPlanSyncResult result = new RecurringPlanSyncResult();
+      result.success = false;
+      result.error = error;
+      return result;
+    }
+
+    public static RecurringPlanSyncResult success(List<RecurringPlanInfo> plans) {
+      RecurringPlanSyncResult result = new RecurringPlanSyncResult();
+      result.success = true;
+      result.plans = plans;
+      return result;
+    }
+
+    public boolean isSuccess() {
+      return success;
+    }
+
+    public String getError() {
+      return error;
+    }
+
+    public List<RecurringPlanInfo> getPlans() {
       return plans;
     }
   }

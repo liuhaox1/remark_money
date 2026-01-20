@@ -349,6 +349,49 @@ class RecordRepositoryDb {
     }
   }
 
+  Future<int> countByPairId({
+    required String bookId,
+    required String pairId,
+  }) async {
+    if (pairId.trim().isEmpty) return 0;
+    try {
+      final db = await _dbHelper.database;
+      final rows = await db.rawQuery(
+        'SELECT COUNT(*) AS c FROM ${Tables.records} WHERE book_id = ? AND pair_id = ?',
+        <Object?>[bookId, pairId],
+      );
+      final v = rows.isEmpty ? null : rows.first['c'];
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse('$v') ?? 0;
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] countByPairId failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<Record>> loadByPairId({
+    required String bookId,
+    required String pairId,
+  }) async {
+    if (pairId.trim().isEmpty) return const [];
+    try {
+      final db = await _dbHelper.database;
+      final maps = await db.query(
+        Tables.records,
+        where: 'book_id = ? AND pair_id = ?',
+        whereArgs: [bookId, pairId],
+        orderBy: 'date DESC, created_at DESC',
+      );
+      return maps.map((map) => _mapToRecord(map)).toList(growable: false);
+    } catch (e, stackTrace) {
+      debugPrint('[RecordRepositoryDb] loadByPairId failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   Future<void> updateServerSyncStatesBulk(
     List<({String billId, int? serverId, int? serverVersion})> updates,
   ) async {

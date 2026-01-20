@@ -324,6 +324,13 @@ class BookProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> reload() async {
+    _books.clear();
+    _activeBookId = null;
+    _loaded = false;
+    await load();
+  }
+
   String _generateId() {
     final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
     final random = _random.nextInt(1 << 20).toRadixString(16);

@@ -41,6 +41,14 @@ class AccountProvider extends ChangeNotifier {
     return _accounts.any((a) => a.bookId == bookId);
   }
 
+  void reset() {
+    _loadedBookId = null;
+    _accounts.clear();
+    _idAliases.clear();
+    _loaded = false;
+    notifyListeners();
+  }
+
   /// 确保至少存在一个“默认钱包/现金”账户，并返回它。
   ///
   /// 设计目标：记一笔不打断用户流程（无须先手动创建账户）。

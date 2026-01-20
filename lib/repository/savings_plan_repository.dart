@@ -5,13 +5,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/savings_plan.dart';
 import '../services/meta_sync_notifier.dart';
 import '../services/savings_plan_delete_queue.dart';
+import '../services/user_scope.dart';
 
 class SavingsPlanRepository {
-  static const _key = 'savings_plans_v1';
+  static const _keyBase = 'savings_plans_v1';
+  String get _key => UserScope.key(_keyBase);
+
+  Future<List<String>> _readRaw(SharedPreferences prefs) async {
+    final scoped = prefs.getStringList(_key);
+    if (scoped != null) return scoped;
+
+    final legacy = prefs.getStringList(_keyBase);
+    if (legacy == null) return const <String>[];
+    try {
+      await prefs.setStringList(_key, legacy);
+      await prefs.remove(_keyBase);
+    } catch (_) {}
+    return legacy;
+  }
 
   Future<List<SavingsPlan>> loadPlans({required String bookId}) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_key) ?? const [];
+    final raw = await _readRaw(prefs);
     final list = raw
         .map((e) => SavingsPlan.fromMap(jsonDecode(e) as Map<String, dynamic>))
         .where((p) => p.bookId == bookId)
@@ -60,7 +75,7 @@ class SavingsPlanRepository {
 
   Future<List<SavingsPlan>> _loadAll() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_key) ?? const [];
+    final raw = await _readRaw(prefs);
     return raw
         .map((e) => SavingsPlan.fromMap(jsonDecode(e) as Map<String, dynamic>))
         .toList();

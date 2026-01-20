@@ -82,11 +82,14 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
+    final canPop = Navigator.of(context).canPop();
     return Scaffold(
       backgroundColor: cs.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
             const Spacer(),
             Column(
               children: [
@@ -225,8 +228,21 @@ class _LoginLandingPageState extends State<LoginLandingPage> {
                 ],
               ),
             ),
-          ],
-        ),
+              ],
+            ),
+          ),
+          if (canPop)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: IconButton(
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

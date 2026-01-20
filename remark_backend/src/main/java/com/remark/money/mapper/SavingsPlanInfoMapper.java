@@ -21,6 +21,8 @@ public interface SavingsPlanInfoMapper {
   List<SavingsPlanInfo> findAllByUserIdAndBookId(
       @Param("userId") Long userId, @Param("bookId") String bookId);
 
+  List<SavingsPlanInfo> findAllActive();
+
   int insertOne(SavingsPlanInfo plan);
 
   int updateWithExpectedSyncVersion(
@@ -30,4 +32,10 @@ public interface SavingsPlanInfoMapper {
       @Param("userId") Long userId,
       @Param("bookId") String bookId,
       @Param("planId") String planId);
+
+  int updatePayloadAndBumpVersion(
+      @Param("userId") Long userId,
+      @Param("bookId") String bookId,
+      @Param("planId") String planId,
+      @Param("payloadJson") String payloadJson);
 }

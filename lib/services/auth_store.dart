@@ -19,6 +19,15 @@ Future<void> clearSyncV2LocalState(SharedPreferences prefs) async {
   }
 }
 
+Future<void> clearAuthTokenOnly() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove('auth_token');
+  await prefs.remove('auth_user_id');
+  await prefs.remove('auth_nickname');
+  await prefs.remove('auth_username');
+}
+
+/// Full reset for auth + local sync state (used by explicit "reset" flows).
 Future<void> clearAuthTokenAndLocalSyncState() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.remove('auth_token');

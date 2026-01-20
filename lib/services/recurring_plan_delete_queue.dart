@@ -4,12 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'user_scope.dart';
 
-class SavingsPlanDeleteQueue {
-  SavingsPlanDeleteQueue._();
+class RecurringPlanDeleteQueue {
+  RecurringPlanDeleteQueue._();
 
-  static final SavingsPlanDeleteQueue instance = SavingsPlanDeleteQueue._();
+  static final RecurringPlanDeleteQueue instance = RecurringPlanDeleteQueue._();
 
-  static const _keyBase = 'savings_plan_delete_queue_v1';
+  static const _keyBase = 'recurring_plan_delete_queue_v1';
 
   String get _key => UserScope.key(_keyBase);
 
@@ -76,3 +76,4 @@ class SavingsPlanDeleteQueue {
     await _saveAll(all);
   }
 }
+

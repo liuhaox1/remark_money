@@ -100,13 +100,14 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
 
   Future<void> _ensureMetaReadyForBook(String bookId) async {
     if (_ensuringMeta) return;
-    if (int.tryParse(bookId) == null) return;
 
     final categoryProvider = context.read<CategoryProvider>();
     final accountProvider = context.read<AccountProvider>();
+    final tagProvider = context.read<TagProvider>();
     final needs =
         categoryProvider.categories.isEmpty ||
-        accountProvider.accounts.where((a) => a.bookId == bookId).isEmpty;
+        accountProvider.accounts.where((a) => a.bookId == bookId).isEmpty ||
+        !tagProvider.isLoadedForBook(bookId);
     if (!needs) return;
 
     _ensuringMeta = true;
@@ -117,7 +118,7 @@ class _RecurringRecordFormPageState extends State<RecurringRecordFormPage> {
           bookId,
           requireCategories: true,
           requireAccounts: true,
-          requireTags: false,
+          requireTags: true,
           reason: 'meta_ensure',
         );
         if (!ok && mounted) {

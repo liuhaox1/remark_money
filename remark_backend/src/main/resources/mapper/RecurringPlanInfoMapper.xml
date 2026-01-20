@@ -1,9 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.remark.money.mapper.SavingsPlanInfoMapper">
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.remark.money.mapper.RecurringPlanInfoMapper">
 
-  <resultMap id="SavingsPlanInfoResultMap" type="com.remark.money.entity.SavingsPlanInfo">
+  <resultMap id="RecurringPlanInfoResultMap" type="com.remark.money.entity.RecurringPlanInfo">
     <id property="id" column="id"/>
     <result property="userId" column="user_id"/>
     <result property="bookId" column="book_id"/>
@@ -15,18 +14,18 @@
     <result property="createdAt" column="created_at"/>
   </resultMap>
 
-  <select id="findByUserIdBookIdAndPlanId" resultMap="SavingsPlanInfoResultMap">
+  <select id="findByUserIdBookIdAndPlanId" resultMap="RecurringPlanInfoResultMap">
     SELECT *
-    FROM savings_plan_info
+    FROM recurring_plan_info
     WHERE user_id = #{userId}
       AND book_id = #{bookId}
       AND plan_id = #{planId}
     LIMIT 1
   </select>
 
-  <select id="findByUserIdBookIdAndPlanIds" resultMap="SavingsPlanInfoResultMap">
+  <select id="findByUserIdBookIdAndPlanIds" resultMap="RecurringPlanInfoResultMap">
     SELECT *
-    FROM savings_plan_info
+    FROM recurring_plan_info
     WHERE user_id = #{userId}
       AND book_id = #{bookId}
       AND plan_id IN
@@ -35,22 +34,21 @@
       </foreach>
   </select>
 
-  <select id="findAllByUserIdAndBookId" resultMap="SavingsPlanInfoResultMap">
+  <select id="findAllByUserIdAndBookId" resultMap="RecurringPlanInfoResultMap">
     SELECT *
-    FROM savings_plan_info
+    FROM recurring_plan_info
     WHERE user_id = #{userId}
       AND book_id = #{bookId}
-    ORDER BY update_time DESC, id DESC
   </select>
 
-  <select id="findAllActive" resultMap="SavingsPlanInfoResultMap">
+  <select id="findAllActive" resultMap="RecurringPlanInfoResultMap">
     SELECT *
-    FROM savings_plan_info
+    FROM recurring_plan_info
     WHERE is_delete = 0
   </select>
 
-  <insert id="insertOne" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO savings_plan_info (
+  <insert id="insertOne" parameterType="com.remark.money.entity.RecurringPlanInfo" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO recurring_plan_info (
       user_id,
       book_id,
       plan_id,
@@ -59,12 +57,13 @@
       sync_version,
       update_time,
       created_at
-    ) VALUES (
-      #{userId},
-      #{bookId},
-      #{planId},
-      #{payloadJson},
-      #{isDelete},
+    )
+    VALUES (
+      #{plan.userId},
+      #{plan.bookId},
+      #{plan.planId},
+      #{plan.payloadJson},
+      #{plan.isDelete},
       1,
       NOW(),
       NOW()
@@ -72,7 +71,7 @@
   </insert>
 
   <update id="updateWithExpectedSyncVersion">
-    UPDATE savings_plan_info
+    UPDATE recurring_plan_info
     SET
       payload_json = #{plan.payloadJson},
       is_delete = #{plan.isDelete},
@@ -85,18 +84,15 @@
   </update>
 
   <update id="softDeleteByPlanId">
-    UPDATE savings_plan_info
-    SET
-      is_delete = 1,
-      sync_version = sync_version + 1,
-      update_time = NOW()
+    UPDATE recurring_plan_info
+    SET is_delete = 1, sync_version = sync_version + 1, update_time = NOW()
     WHERE user_id = #{userId}
       AND book_id = #{bookId}
       AND plan_id = #{planId}
   </update>
 
   <update id="updatePayloadAndBumpVersion">
-    UPDATE savings_plan_info
+    UPDATE recurring_plan_info
     SET payload_json = #{payloadJson}, sync_version = sync_version + 1, update_time = NOW()
     WHERE user_id = #{userId}
       AND book_id = #{bookId}

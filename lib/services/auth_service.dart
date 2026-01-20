@@ -4,7 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
 import 'api_client.dart';
+import 'auth_event_bus.dart';
 import 'auth_store.dart';
+import '../database/database_helper.dart';
+import 'user_scope.dart';
 
 /// 注册异常，用于提供友好的错误提示
 class RegisterException implements Exception {
@@ -40,13 +43,9 @@ class AuthService {
     String? username,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final prevUserId = prefs.getInt('auth_user_id');
+    // Local data is isolated per user scope (per-user DB / scoped prefs).
 
     // 仅在“账号变化”时清理 v2 游标/冲突，避免同账号重新登录（token 变化）导致全量重拉。
-    if (prevUserId != null && userId != null && prevUserId != userId) {
-      await clearSyncV2LocalState(prefs);
-    }
-
     await prefs.setString('auth_token', token);
     if (userId != null) {
       await prefs.setInt('auth_user_id', userId);
@@ -65,6 +64,11 @@ class AuthService {
         await prefs.setString('auth_username', u);
       }
     }
+
+    final nextUid = userId ?? 0;
+    UserScope.setUserId(nextUid);
+    await DatabaseHelper.setScopeUserId(nextUid);
+    AuthEventBus.instance.notifyAuthChanged();
   }
 
   Future<void> sendSmsCode(String phone) async {
@@ -164,7 +168,10 @@ class AuthService {
   }
 
   Future<void> clearToken() async {
-    await clearAuthTokenAndLocalSyncState();
+    await clearAuthTokenOnly();
+    UserScope.setUserId(0);
+    await DatabaseHelper.setScopeUserId(0);
+    AuthEventBus.instance.notifyAuthChanged();
   }
 
   /// 注册：使用账号和密码注册

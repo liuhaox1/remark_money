@@ -225,8 +225,8 @@ class BookSelectorButton extends StatelessWidget {
     final token = await const AuthService().loadToken();
     final loggedIn = token != null && token.isNotEmpty;
     if (!loggedIn) {
-      if (context.mounted) {
-        ErrorHandler.showWarning(context, AppStrings.guestSingleBookOnly);
+      final confirmed = await _confirmLoginForAddBook(context);
+      if (confirmed && context.mounted) {
         Navigator.pushNamed(context, '/login');
       }
       return;
@@ -271,6 +271,28 @@ class BookSelectorButton extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<bool> _confirmLoginForAddBook(BuildContext context) async {
+    if (!context.mounted) return false;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text(AppStrings.confirm),
+        content: const Text(AppStrings.guestSingleBookOnly),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text(AppStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text(AppStrings.ok),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Future<void> _showRenameBookDialog(

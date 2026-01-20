@@ -368,7 +368,6 @@ class VoiceRecordParser {
       '花了',
       '花费',
       '消费',
-      '买',
       '付款',
       '支付',
       '转账',
@@ -392,6 +391,14 @@ class VoiceRecordParser {
     }
 
     cleaned = cleaned.replaceAll(RegExp(r'[，,。;；、]'), ' ');
+    // Remove leftover currency tokens (e.g. leading "¥" before number, or "毛钱").
+    cleaned = cleaned.replaceAll(RegExp('[\\u00A5\\uFFE5]'), ' ');
+    cleaned = cleaned.replaceAll(
+      RegExp(
+        r'(?:(?<=\s)|^)(?:\u4eba\u6c11\u5e01|rmb|RMB|\u5143|\u5757\u94b1|\u5757|\u94b1|\u6bdb\u94b1|\u6bdb|\u89d2)(?=\s|$)',
+      ),
+      ' ',
+    );
     cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
 
     // 处理口语里“花100/用100”这种结构：金额被移除后，尾部会残留动词（如：打车花）。
